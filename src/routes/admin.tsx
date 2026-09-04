@@ -1,13 +1,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { FolderKanban, LayoutDashboard } from 'lucide-react'
 
-import { AppShell, type NavItem } from '@/components/layout/app-shell'
+import { AdminShell } from '@/components/layout/admin-shell'
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
-
-const NAV: NavItem[] = [
-  { to: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
-  { to: '/admin/projects', label: 'Projets', icon: FolderKanban },
-]
 
 /**
  * Back-office de l'agence.
@@ -44,8 +38,8 @@ function AdminLayout() {
   const { user } = Route.useRouteContext()
 
   return (
-    <AppShell nav={NAV} user={user} area="Agence">
+    <AdminShell user={user} title="Projets">
       <Outlet />
-    </AppShell>
+    </AdminShell>
   )
 }
