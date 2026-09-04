@@ -23,6 +23,7 @@ import (
 	"github.com/plugiit/plugiit-api-go/internal/middleware"
 	"github.com/plugiit/plugiit-api-go/internal/repository"
 	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/plugiit-api-go/internal/usecase"
 )
 
 // Injectes au build via -ldflags (voir Dockerfile et Makefile).
@@ -77,11 +78,24 @@ func run(cfg config.Config, log *slog.Logger) error {
 	app := newApp(cfg, log)
 
 	signer := security.NewTokenSigner(cfg.JWTSecret, "plugiit-api")
+	authService := usecase.NewAuthService(pool, signer, cfg.AccessTTL, cfg.RefreshTTL)
+
+	cookies := handler.CookieConfig{
+		Domain: cfg.CookieDomain,
+		// Secure partout sauf en developpement : en local l'API est servie en
+		// clair sur localhost, ou un cookie Secure ne serait jamais renvoye.
+		Secure: !cfg.IsDevelopment(),
+	}
 
 	handler.Register(app, handler.Deps{
 		Health: handler.NewHealth(pool, rdb, handler.BuildInfo{Version: version, Commit: commit}),
-		Guard:  middleware.NewGuard(signer),
+		Auth:   handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
+		Guard:  middleware.NewGuard(signer, authService),
 	})
+
+	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,
+	// donc au premier signal d'arret.
+	repository.StartRefreshTokenPurge(ctx, pool, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.

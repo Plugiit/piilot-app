@@ -10,6 +10,7 @@ import (
 // Deps regroupe les handlers a monter sur le routeur.
 type Deps struct {
 	Health *Health
+	Auth   *Auth
 	Guard  *middleware.Guard
 }
 
@@ -23,6 +24,10 @@ func Register(app *fiber.App, deps Deps) {
 	app.Get("/health/live", deps.Health.Live)
 	app.Get("/health/ready", deps.Health.Ready)
 
+	// Contrat HTTP, hors versionnement lui aussi : c'est lui qui porte les
+	// versions des routes. Le front le consomme pour generer ses types.
+	app.Get("/openapi.json", openapiSpec)
+
 	v1 := app.Group("/api/v1")
 
 	registerAuthRoutes(v1.Group("/auth"), deps)
@@ -30,12 +35,19 @@ func Register(app *fiber.App, deps Deps) {
 }
 
 // registerAuthRoutes monte les endpoints publics d'authentification.
+//
+// login, logout et refresh sont ouverts : ils portent leur propre preuve
+// (identifiants ou jeton de rafraichissement) et ne peuvent donc pas exiger
+// une session deja etablie.
 func registerAuthRoutes(r fiber.Router, deps Deps) {
-	r.Post("/login", todo)
-	r.Post("/logout", todo)
-	r.Post("/refresh", todo)
+	r.Post("/login", deps.Auth.Login)
+	r.Post("/logout", deps.Auth.Logout)
+	r.Post("/refresh", deps.Auth.Refresh)
 
-	r.Get("/me", todo, deps.Guard.Authenticated)
+	// La garde vient AVANT le handler : Fiber execute les handlers dans l'ordre
+	// ou ils sont passes. Une garde placee apres ne s'executerait que si le
+	// handler appelait Next(), donc jamais — elle ne protegerait rien.
+	r.Get("/me", deps.Guard.Authenticated, deps.Auth.Me)
 }
 
 // registerAdminRoutes monte les endpoints de l'admin. Tout est authentifie et
@@ -50,8 +62,12 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	//   GET /admin/projects               liste paginee cote serveur
 	//   GET /admin/projects/:id/overview  onglet "Vue d'ensemble" seul
 	//   GET /admin/projects/:id/tasks     onglet "Taches" seul
+	//
+	// RequireRole ci-dessus ne filtre que l'espace : il dit « ce compte est
+	// interne ». Le droit precis se verifie par permission, route par route,
+	// pour qu'un changement de politique se fasse en base et non dans le code.
 	r.Get("/dashboard", todo)
-	r.Get("/projects", todo)
+	r.Get("/projects", deps.Guard.RequirePermission("projects.read"), todo)
 }
 
 // todo repond 501 tant que le handler n'est pas implemente. Preferable a une
