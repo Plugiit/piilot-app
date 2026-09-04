@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
-import { PageHeader } from '@/components/layout/page-header'
+import { ErrorState } from '@/components/layout/error-state'
+import { PageFrame } from '@/components/layout/page-frame'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -33,6 +34,11 @@ export const Route = createFileRoute('/admin/projects/')({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.query({ ...projectListQuery(deps), staleTime: 'static' }),
+  errorComponent: (props) => (
+    <PageFrame title="Projets">
+      <ErrorState {...props} />
+    </PageFrame>
+  ),
   component: ProjectsPage,
 })
 
@@ -44,13 +50,11 @@ function ProjectsPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PageHeader
-        title="Projets"
-        subtitle={data ? `${data.total} projet${data.total > 1 ? 's' : ''}` : undefined}
-      />
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+    <PageFrame
+      title="Projets"
+      description={data ? `${data.total} projet${data.total > 1 ? 's' : ''}` : undefined}
+    >
+      <div className="px-4 pb-6 sm:px-6">
         <div className="mt-4 overflow-hidden rounded-lg border">
           <Table>
             <TableHeader>
@@ -117,20 +121,24 @@ function ProjectsPage() {
             <Button
               variant="outline"
               disabled={search.page <= 1}
-              onClick={() => void navigate({ search: (prev) => ({ ...prev, page: prev.page - 1 }) })}
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, page: prev.page - 1 }) })
+              }
             >
               Précédent
             </Button>
             <Button
               variant="outline"
               disabled={search.page >= totalPages}
-              onClick={() => void navigate({ search: (prev) => ({ ...prev, page: prev.page + 1 }) })}
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, page: prev.page + 1 }) })
+              }
             >
               Suivant
             </Button>
           </div>
         </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }
