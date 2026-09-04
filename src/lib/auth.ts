@@ -12,14 +12,17 @@ import type { User } from '@/types/api'
  */
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
-  queryFn: async () => unwrap(await api.GET('/api/v1/auth/me')),
+  // L'API enveloppe le profil dans `{ user }` : les jetons vivent dans les
+  // cookies httpOnly et ne figurent jamais dans le corps, mais l'enveloppe
+  // laisse la place a ce que la reponse s'enrichisse sans casser le contrat.
+  queryFn: async () => unwrap(await api.GET('/api/v1/auth/me')).user,
   // La session change rarement et son absence est geree par la garde de route.
   staleTime: 5 * 60_000,
   retry: false,
 })
 
 export async function login(email: string, password: string): Promise<User> {
-  return unwrap(await api.POST('/api/v1/auth/login', { body: { email, password } }))
+  return unwrap(await api.POST('/api/v1/auth/login', { body: { email, password } })).user
 }
 
 export async function logout(): Promise<void> {

@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run routes:gen && npm run lint && tsc -b && npm run test",
-    "api:types": "openapi-typescript $VITE_API_URL/openapi.json -o src/types/api.ts",
+    "api:types": "openapi-typescript ${VITE_API_URL:-http://localhost:8080}/openapi.json -o src/types/api-generated.ts",
     "routes:gen": "tsr generate"
   },
   "dependencies": {
