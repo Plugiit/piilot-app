@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/dm-sans';
 
 /* La variante `dark:` est redefinie pour ne s'appliquer que sous un ancetre
    portant la classe `.dark`. Aucun element ne la porte : l'application est en
@@ -13,8 +14,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Inter porte tout le corps de texte ; DM Sans est reserve aux intitules —
+     titre de panneau et etiquettes de section — ou son dessin plus large tient
+     la casse haute et l'interlettrage ouvert de la maquette. */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: 'DM Sans Variable', var(--font-sans);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -40,6 +44,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -87,13 +94,20 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+
+  /* Fond des espaces de travail (#f9f9f9) et creux gris des conteneurs de
+     navigation (#f0f0f0). Le blanc reste reserve a ce qui est pose dessus :
+     cartes, en-tetes, element de navigation actif. */
+  --surface: oklch(0.982 0 0);
+  --surface-sunken: oklch(0.955 0 0);
+
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: oklch(0.94 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
 
