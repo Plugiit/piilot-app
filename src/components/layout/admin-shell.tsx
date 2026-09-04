@@ -1,22 +1,7 @@
-import {
-  AiMagicIcon,
-  Analytics01Icon,
-  ArrowDown01Icon,
-  Copy01Icon,
-  CodeXmlIcon,
-  File01Icon,
-  Home03Icon,
-  Mail01Icon,
-  Megaphone01Icon,
-  PenTool03Icon,
-  Search01Icon,
-  SmartPhone01Icon,
-  SparklesIcon,
-  Wallet01Icon,
-} from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Search01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
 import { LogOut } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -27,9 +12,6 @@ import googleDriveUrl from '@/assets/sidebar/app-google-drive.svg'
 import proxmoxUrl from '@/assets/sidebar/app-proxmox.svg'
 import uptimeKumaUrl from '@/assets/sidebar/app-uptime-kuma.svg'
 import logoUrl from '@/assets/sidebar/logo.svg'
-import workspaceGoogleUrl from '@/assets/sidebar/rail-group-3.svg'
-import workspaceLogomarkUrl from '@/assets/sidebar/rail-group-2.svg'
-import workspaceTriangleUrl from '@/assets/sidebar/rail-group-1.svg'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  MODULES,
+  destinationsOf,
+  useActiveModule,
+  type MenuItem,
+} from '@/components/layout/modules'
 import { logout } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -48,41 +36,20 @@ import type { User } from '@/types/api'
  * les logos Notion, Slack ou Drive — ils viennent du fichier de design.
  */
 type RailMark =
-  | { icon: IconSvgElement; label: string }
+  | { icon: IconSvgElement; label: string; to: string }
   | { src: string; alt: string; width: number; height: number; href?: string }
 
 interface RailGroup {
   label: string
   marks: RailMark[]
-  /** Groupe selectionnable : ses marques sont des boutons, une seule est active. */
-  selectable?: boolean
+  /** Groupe de navigation : ses marques sont des liens, l'URL dit lequel est actif. */
+  navigable?: boolean
 }
-
-interface MenuLeaf {
-  label: string
-}
-
-interface MenuItem {
-  icon: IconSvgElement
-  label: string
-  /** Presence d'enfants : l'entree porte un chevron et peut se deplier. */
-  children?: MenuLeaf[]
-  /** Etat de depart du repli ; ensuite c'est le clic qui commande. */
-  expanded?: boolean
-}
-
-interface MenuGroup {
-  label: string
-  items: MenuItem[]
-}
-
 /* --------------------------------------------------------------------------
-   Contenu de la maquette.
+   Contenu du rail.
 
-   Statique et volontairement decorrele des routes : c'est le gabarit visuel de
-   la navigation, pas encore la navigation. Les libelles seront remplaces quand
-   les modules PM existeront ; la structure — rail, groupes, arborescence — est
-   celle qui restera.
+   Le menu du panneau, lui, est propre a chaque module : il vit dans
+   `modules.ts`, aux cotes de la liste des modules.
    -------------------------------------------------------------------------- */
 
 /**
@@ -101,22 +68,8 @@ const TOOLS = {
 const RAIL: RailGroup[] = [
   {
     label: 'Menu',
-    selectable: true,
-    marks: [
-      { icon: Mail01Icon, label: 'Messages' },
-      { icon: Analytics01Icon, label: 'Statistiques' },
-      { icon: Wallet01Icon, label: 'Facturation' },
-      { icon: SmartPhone01Icon, label: 'Mobile' },
-      { icon: SparklesIcon, label: 'Assistant' },
-    ],
-  },
-  {
-    label: 'Group',
-    marks: [
-      { src: workspaceTriangleUrl, alt: '', width: 18, height: 16.4 },
-      { src: workspaceLogomarkUrl, alt: '', width: 18, height: 18.4 },
-      { src: workspaceGoogleUrl, alt: '', width: 18, height: 17.8 },
-    ],
+    navigable: true,
+    marks: [...MODULES],
   },
   {
     label: 'App',
@@ -125,41 +78,6 @@ const RAIL: RailGroup[] = [
       { src: coolifyUrl, alt: 'Coolify', width: 18, height: 18, href: TOOLS.coolify },
       { src: uptimeKumaUrl, alt: 'Uptime Kuma', width: 18, height: 15.9, href: TOOLS.uptimeKuma },
       { src: proxmoxUrl, alt: 'Proxmox', width: 18, height: 15.6, href: TOOLS.proxmox },
-    ],
-  },
-]
-
-const MENU: MenuGroup[] = [
-  {
-    label: 'Général',
-    items: [
-      { icon: Home03Icon, label: 'Tableau de bord' },
-      { icon: AiMagicIcon, label: 'Projets' },
-      { icon: Analytics01Icon, label: 'Temps passé' },
-      { icon: File01Icon, label: 'Livrables' },
-    ],
-  },
-  {
-    label: 'Production',
-    items: [
-      { icon: Copy01Icon, label: 'Jalons' },
-      { icon: Megaphone01Icon, label: 'Tickets' },
-    ],
-  },
-  {
-    label: 'Ressources',
-    items: [
-      {
-        icon: PenTool03Icon,
-        label: 'Design UI/UX',
-        expanded: true,
-        children: [{ label: 'Wireframes' }, { label: 'Maquettes' }, { label: 'Prototype' }],
-      },
-      {
-        icon: CodeXmlIcon,
-        label: 'Intégration',
-        children: [{ label: 'Front' }, { label: 'Back' }, { label: 'Recette' }],
-      },
     ],
   },
 ]
@@ -214,10 +132,9 @@ function RailMarkView({ mark, className }: { mark: RailMark; className?: string 
  * d'accent.
  */
 function Rail({ footer }: { footer: ReactNode }) {
-  // Selection locale : le rail n'est branche sur aucune route, mais il doit
-  // deja repondre au clic pour que la maquette se manipule. L'etat partira
-  // dans l'URL quand chaque marque desservira un espace.
-  const [selected, setSelected] = useState(0)
+  // L'element actif se lit dans l'URL, pas dans un etat local : un rechargement
+  // ou un lien colle designent le bon module sans que rien n'ait a le retenir.
+  const activeModule = useActiveModule()
 
   const transition = useSlideTransition()
 
@@ -253,11 +170,11 @@ function Rail({ footer }: { footer: ReactNode }) {
               <div
                 className={cn(
                   'flex flex-col items-center justify-center gap-1 rounded-[12px] bg-[#f0f0f0]',
-                  !group.selectable && 'py-0.5',
+                  !group.navigable && 'py-0.5',
                 )}
               >
                 {group.marks.map((mark, position) => {
-                  const active = group.selectable && position === selected
+                  const active = 'to' in mark && mark.to === activeModule?.to
 
                   const view = (
                     <RailMarkView mark={mark} className={active ? 'text-[#111]' : 'text-[#999]'} />
@@ -282,9 +199,8 @@ function Rail({ footer }: { footer: ReactNode }) {
                     )
                   }
 
-                  // Les groupes non selectionnables ne portent que des marques
-                  // exportees de Figma : rien a activer, donc pas de bouton.
-                  if (!group.selectable) {
+                  // Marque decorative : ni route ni lien, rien a activer.
+                  if (!('to' in mark)) {
                     return (
                       <div key={position} className={box}>
                         {view}
@@ -293,12 +209,17 @@ function Rail({ footer }: { footer: ReactNode }) {
                   }
 
                   return (
-                    <button
+                    <Link
                       key={position}
-                      type="button"
-                      aria-pressed={active}
-                      aria-label={'label' in mark ? mark.label : mark.alt}
-                      onClick={() => setSelected(position)}
+                      to={mark.to}
+                      aria-label={mark.label}
+                      title={mark.label}
+                      // TanStack Router pose `aria-current="page"` des qu'un
+                      // chemin prefixe l'URL, et ne se laisse pas surcharger :
+                      // sans `exact`, le module serait annonce comme la page
+                      // ouverte sur chacune de ses sous-routes. La pastille,
+                      // elle, vient de `useActiveModule` et reste allumee.
+                      activeOptions={{ exact: true }}
                       className={box}
                     >
                       {active && (
@@ -313,7 +234,7 @@ function Rail({ footer }: { footer: ReactNode }) {
                         />
                       )}
                       <span className="relative z-10">{view}</span>
-                    </button>
+                    </Link>
                   )
                 })}
               </div>
@@ -396,7 +317,10 @@ function SearchField() {
 
 interface MenuEntryProps {
   item: MenuItem
+  /** L'entree, ou l'une de ses sous-entrees, correspond a l'URL courante. */
   active: boolean
+  /** Route active, pour designer la sous-entree qui la porte. */
+  pathname: string
   expanded: boolean
   /** Identite du calque anime, commune aux entrees d'un meme groupe. */
   layoutId: string
@@ -404,33 +328,40 @@ interface MenuEntryProps {
   markLayoutId: string
   /** Identite du repere de sous-entree, commune aux feuilles d'un meme menu. */
   leafLayoutId: string
-  /** Rang de la sous-entree active, ou `undefined` si aucune ne l'est. */
-  activeLeaf?: number
   transition: Transition
-  onSelect: () => void
-  onSelectLeaf: (leaf: number) => void
+  /** Replie ou deplie l'entree. Absent pour une entree sans sous-entrees. */
+  onToggle: () => void
 }
 
 function MenuEntry({
   item,
   active,
+  pathname,
   expanded,
   layoutId,
   markLayoutId,
   leafLayoutId,
-  activeLeaf,
   transition,
-  onSelect,
-  onSelectLeaf,
+  onToggle,
 }: MenuEntryProps) {
   const { icon, label, children } = item
 
+  // Une entree mene quelque part ou deplie, jamais les deux : le lien navigue,
+  // le bouton ne fait que replier.
+  const Box = children ? 'button' : Link
+  const boxProps = children
+    ? ({ type: 'button', onClick: onToggle, 'aria-expanded': expanded } as const)
+    : // `exact` est indispensable : sans lui TanStack Router tient pour
+      // courant tout lien dont le chemin prefixe l'URL, et « Tableau de bord »
+      // (/pm) serait annonce comme la page ouverte alors qu'on lit
+      // /pm/temps/saisie. L'attribut aria-current en decoule, on ne le pose
+      // donc pas a la main.
+      ({ to: item.to, activeOptions: { exact: true } } as const)
+
   return (
     <>
-      <button
-        type="button"
-        aria-pressed={active}
-        onClick={onSelect}
+      <Box
+        {...boxProps}
         // Le rembourrage ne depend pas de l'etat actif, seulement de la presence
         // d'un chevron : sinon l'entree decalerait son contenu en devenant
         // active, comme le faisait le rail avant d'etre corrige.
@@ -491,7 +422,7 @@ function MenuEntry({
             />
           </motion.span>
         )}
-      </button>
+      </Box>
 
       {/* `initial={false}` empeche l'entree deja depliee au premier rendu de
           s'ouvrir toute seule sous les yeux de l'utilisateur. Le debordement est
@@ -506,15 +437,14 @@ function MenuEntry({
             transition={transition}
             className="flex w-full flex-col overflow-hidden"
           >
-            {children.map((leaf, leafIndex) => {
-              const leafActive = leafIndex === activeLeaf
+            {children.map((leaf) => {
+              const leafActive = pathname === leaf.to
 
               return (
-                <button
-                  key={leaf.label}
-                  type="button"
-                  aria-pressed={leafActive}
-                  onClick={() => onSelectLeaf(leafIndex)}
+                <Link
+                  key={leaf.to}
+                  to={leaf.to}
+                  activeOptions={{ exact: true }}
                   className="relative flex h-8 w-full items-center py-1.5 pl-10"
                 >
                   {/* Le filet gris est porte par chaque feuille : mis bout a bout
@@ -541,7 +471,7 @@ function MenuEntry({
                   >
                     {leaf.label}
                   </p>
-                </button>
+                </Link>
               )
             })}
           </motion.div>
@@ -552,56 +482,49 @@ function MenuEntry({
 }
 
 /** Panneau de navigation, colonne de droite du duo. */
-function Panel({ title }: { title: string }) {
+function Panel({ fallbackTitle }: { fallbackTitle: string }) {
+  const activeModule = useActiveModule()
   const transition = useSlideTransition()
 
-  // Une seule entree active dans tout le panneau, reperee par son groupe et son
-  // rang. Statique comme le rail : l'etat passera dans l'URL quand chaque
-  // entree desservira un ecran.
-  // `leaf` absent : l'entree elle-meme est active. `leaf` present : c'est une
-  // sous-entree qui l'est, et son parent reste actif avec elle — une feuille
-  // selectionnee sans son menu n'aurait pas de sens.
-  const [selected, setSelected] = useState<{ group: number; item: number; leaf?: number }>({
-    group: 0,
-    item: 0,
-  })
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
 
-  // Les entrees depliees, reperees par groupe et rang. L'ensemble part de la
-  // donnee, puis c'est le clic qui commande : une entree a enfants selectionne
-  // et bascule son repli du meme geste.
-  const [unfolded, setUnfolded] = useState(
-    () =>
-      new Set(
-        MENU.flatMap((group, g) =>
-          group.items.flatMap((item, i) => (item.expanded ? [`${g}:${i}`] : [])),
-        ),
-      ),
-  )
+  // Entrees depliees a la main. Une entree qui contient l'ecran courant est
+  // toujours ouverte, meme absente de cet ensemble : arriver sur une
+  // sous-entree par un lien direct doit la montrer, et replier ce qui indique
+  // ou l'on se trouve ne rend service a personne.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
 
-  function select(group: number, item: number, foldable: boolean) {
-    setSelected({ group, item })
-
-    if (!foldable) return
-
+  function toggle(key: string) {
     setUnfolded((prev) => {
       const next = new Set(prev)
-      const key = `${group}:${item}`
-      next.has(key) ? next.delete(key) : next.add(key)
+
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+
       return next
     })
   }
+
+  // Hors module — /admin par exemple — le panneau garde son titre mais n'a
+  // aucun menu a proposer.
+  const menu = activeModule?.menu ?? []
 
   return (
     <div className="bg-surface flex h-full w-[248px] shrink-0 flex-col overflow-y-auto p-4">
       <div className="flex w-full flex-col gap-4">
         <div className="flex w-full flex-col gap-1">
           <div className="flex w-full items-center pb-3">
-            <h2 className="font-heading text-xl font-medium text-[#1f1f1f] uppercase">{title}</h2>
+            <h2 className="font-heading truncate text-xl font-medium text-[#1f1f1f]">
+              {activeModule?.label ?? fallbackTitle}
+            </h2>
           </div>
           <SearchField />
         </div>
 
-        {MENU.map((group, groupIndex) => (
+        {menu.map((group, groupIndex) => (
           <div
             key={group.label}
             className="flex w-full flex-col items-start gap-2 border-b border-[#ebebeb] pb-3"
@@ -611,32 +534,35 @@ function Panel({ title }: { title: string }) {
             </GroupLabel>
 
             <div className="flex w-full flex-col">
-              {group.items.map((item, itemIndex) => (
-                <MenuEntry
-                  key={item.label}
-                  item={item}
-                  active={selected.group === groupIndex && selected.item === itemIndex}
-                  activeLeaf={
-                    selected.group === groupIndex && selected.item === itemIndex
-                      ? selected.leaf
-                      : undefined
-                  }
-                  expanded={unfolded.has(`${groupIndex}:${itemIndex}`)}
-                  // Une identite par groupe : Framer Motion ne relie que deux
-                  // noeuds de meme `layoutId`. La pastille glisse donc entre
-                  // deux entrees d'un meme groupe, et se contente de disparaitre
-                  // puis reapparaitre quand la selection change de groupe.
-                  layoutId={`menu-highlight-${groupIndex}`}
-                  markLayoutId={`menu-mark-${groupIndex}`}
-                  // Un repere par menu deroulant : la barre glisse entre les
-                  // feuilles d'un meme menu, et se contente d'apparaitre quand
-                  // on passe d'un menu a l'autre.
-                  leafLayoutId={`leaf-marker-${groupIndex}-${itemIndex}`}
-                  transition={transition}
-                  onSelect={() => select(groupIndex, itemIndex, Boolean(item.children))}
-                  onSelectLeaf={(leaf) => setSelected({ group: groupIndex, item: itemIndex, leaf })}
-                />
-              ))}
+              {group.items.map((item, itemIndex) => {
+                const key = `${groupIndex}:${itemIndex}`
+                // Une entree est active quand l'ecran courant est le sien ou
+                // celui de l'une de ses sous-entrees : selectionner une feuille
+                // allume son menu avec elle.
+                const active = destinationsOf(item).includes(pathname)
+
+                return (
+                  <MenuEntry
+                    key={item.label}
+                    item={item}
+                    active={active}
+                    pathname={pathname}
+                    expanded={unfolded.has(key) || active}
+                    // Une identite par groupe : Framer Motion ne relie que deux
+                    // noeuds de meme `layoutId`. La pastille glisse donc entre
+                    // deux entrees d'un meme groupe, et se contente de disparaitre
+                    // puis reapparaitre quand la selection change de groupe.
+                    layoutId={`${activeModule?.to}-highlight-${groupIndex}`}
+                    markLayoutId={`${activeModule?.to}-mark-${groupIndex}`}
+                    // Un repere par menu deroulant : la barre glisse entre les
+                    // feuilles d'un meme menu, et se contente d'apparaitre quand
+                    // on passe d'un menu a l'autre.
+                    leafLayoutId={`${activeModule?.to}-leaf-${groupIndex}-${itemIndex}`}
+                    transition={transition}
+                    onToggle={() => toggle(key)}
+                  />
+                )
+              })}
             </div>
           </div>
         ))}
@@ -669,13 +595,14 @@ export function AdminShell({
   user,
 }: {
   children: ReactNode
+  /** Titre du panneau pour un ecran qui n'appartient a aucun module. */
   title: string
   user: User
 }) {
   return (
     <div className="bg-surface flex h-screen w-full overflow-hidden">
       <Rail footer={<AccountButton user={user} />} />
-      <Panel title={title} />
+      <Panel fallbackTitle={title} />
       {/* Colonne flex : le decollement de 16px vient de `PageFrame`, et la
           frame occupe tout le reste jusqu'au bas de la fenetre. */}
       <main className="bg-surface flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
