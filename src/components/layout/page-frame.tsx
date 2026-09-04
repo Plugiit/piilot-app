@@ -1,8 +1,9 @@
-import { MoreHorizontalIcon, Notification03Icon } from '@hugeicons/core-free-icons'
+import { Menu01Icon, MoreHorizontalIcon, Notification03Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { useSidebar } from '@/components/layout/admin-shell'
 import { useActiveModule } from '@/components/layout/modules'
 import {
   Breadcrumb,
@@ -23,15 +24,27 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
   // Le module ouvert forme la racine du fil : il n'a pas a etre repete dans
   // chaque ecran, l'URL le dit deja.
   const activeModule = useActiveModule()
+  const { openDrawer } = useSidebar()
 
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-[#ebebeb] p-3">
-      <div className="flex h-12 min-w-0 flex-col items-start">
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#ebebeb] p-3">
+      {/* Sous 1024px le panneau n'est plus a l'ecran : sans ce bouton, les
+          ecrans du module deviendraient injoignables. */}
+      <button
+        type="button"
+        onClick={openDrawer}
+        aria-label="Ouvrir la navigation"
+        className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#ebebeb] bg-white shadow-[0_1px_2px_0_rgb(16_24_40/0.05)] lg:hidden"
+      >
+        <HugeiconsIcon icon={Menu01Icon} size={20} strokeWidth={1.6} className="text-[#111]" />
+      </button>
+
+      <div className="flex min-w-0 flex-1 flex-col items-start justify-center sm:h-12">
         <Breadcrumb>
           <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-1.5">
             {activeModule && (
               <>
-                <BreadcrumbItem>
+                <BreadcrumbItem className="hidden shrink-0 whitespace-nowrap sm:inline-flex">
                   <BreadcrumbLink asChild className="text-[#777] hover:text-[#111]">
                     {/* Sans `exact`, la racine du fil se declarerait page
                         courante sur chacune de ses sous-routes. */}
@@ -40,7 +53,7 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
                     </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="text-[#c4c4c4] [&>svg]:size-3" />
+                <BreadcrumbSeparator className="hidden text-[#c4c4c4] sm:block [&>svg]:size-3" />
               </>
             )}
 
@@ -48,17 +61,21 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
               {/* Dernier maillon : l'ecran courant. `BreadcrumbPage` porte
                   aria-current et n'est pas un lien — on ne navigue pas vers la
                   page ou l'on se trouve. */}
-              <BreadcrumbPage className="font-heading truncate text-lg font-medium text-[#111]">
+              <BreadcrumbPage className="font-heading truncate text-base font-medium text-[#111] sm:text-lg">
                 {title}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
-        {description && <p className="truncate text-xs leading-[1.5] text-[#777]">{description}</p>}
+        {description && (
+          <p className="hidden truncate text-xs leading-[1.5] text-[#777] sm:block">
+            {description}
+          </p>
+        )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           aria-label="Notifications"
@@ -78,7 +95,9 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
         <button
           type="button"
           aria-label="Plus d'actions"
-          className="flex size-10 items-center justify-center rounded-lg border border-[#ebebeb] bg-white shadow-[0_1px_2px_0_rgb(16_24_40/0.05)]"
+          // Deux actions transverses dans un en-tete de 375px ne laisseraient
+          // que trois mots au fil d'Ariane : la seconde attend de la largeur.
+          className="hidden size-10 items-center justify-center rounded-lg border border-[#ebebeb] bg-white shadow-[0_1px_2px_0_rgb(16_24_40/0.05)] sm:flex"
         >
           <HugeiconsIcon
             icon={MoreHorizontalIcon}
@@ -113,7 +132,7 @@ export function PageFrame({
   children: ReactNode
 }) {
   return (
-    <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-tl-[20px] border border-[#ebebeb] bg-white">
+    <div className="md:mt-4 flex min-h-0 flex-1 flex-col overflow-hidden md:rounded-t-[20px] border border-[#ebebeb] bg-white md:rounded-tr-none">
       <FrameHeader title={title} description={description} />
       <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
