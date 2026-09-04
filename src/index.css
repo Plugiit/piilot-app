@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+/* Design tokens — une seule source de verite pour les couleurs. Les composants
+   n'ecrivent jamais une couleur en dur, ils consomment ces variables. */
+@theme {
+  --color-ink: #111111;
+  --color-ink-soft: #3d3d3d;
+  --color-ink-muted: #888888;
+  --color-surface: #fdfdfd;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f6f6f6;
+  --color-border: #e7e7e7;
+
+  --color-brand-50: #fdf6ed;
+  --color-brand-100: #f8e6cd;
+  --color-brand-400: #e0a95f;
+  --color-brand-500: #d18f3a;
+  --color-brand-600: #b3742a;
+
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  --font-sans: 'Inter var', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* L'admin occupe la fenetre : la page ne defile pas, ce sont les zones de
+     contenu qui gerent leur propre scroll. */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
