@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run routes:gen && tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "oxlint",
+    "lint": "oxlint src",
     "types:check": "tsc -b --noEmit false --emitDeclarationOnly false",
     "test": "vitest run",
     "test:watch": "vitest",
