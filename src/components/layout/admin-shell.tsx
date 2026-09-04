@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
 import { LogOut } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import accountMarkUrl from '@/assets/sidebar/rail-bottom.png'
 import coolifyUrl from '@/assets/sidebar/app-coolify.svg'
@@ -26,6 +26,7 @@ import {
   useActiveModule,
   type MenuItem,
 } from '@/components/layout/modules'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { logout } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -60,9 +61,9 @@ interface RailGroup {
  */
 const TOOLS = {
   drive: 'https://drive.google.com',
-  coolify: 'https://coolify.plugiit.com',
+  coolify: 'https://cool.plugiit.com',
   uptimeKuma: 'https://uptime.plugiit.com',
-  proxmox: 'https://proxmox.plugiit.com',
+  proxmox: 'https://prox.plugiit.com',
 } as const
 
 const RAIL: RailGroup[] = [
@@ -131,7 +132,7 @@ function RailMarkView({ mark, className }: { mark: RailMark; className?: string 
  * surface blanche du rail, ce qui le designe sans avoir besoin d'une couleur
  * d'accent.
  */
-function Rail({ footer }: { footer: ReactNode }) {
+function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
   // L'element actif se lit dans l'URL, pas dans un etat local : un rechargement
   // ou un lien colle designent le bon module sans que rien n'ait a le retenir.
   const activeModule = useActiveModule()
@@ -139,7 +140,16 @@ function Rail({ footer }: { footer: ReactNode }) {
   const transition = useSlideTransition()
 
   return (
-    <div className="bg-surface flex h-full w-[60px] shrink-0 flex-col items-center justify-between border-r border-[#ebebeb] pt-3 pb-5">
+    <div
+      className={cn(
+        'bg-surface flex h-full w-[60px] shrink-0 flex-col items-center justify-between border-[#ebebeb] pt-3 pb-5',
+        // Le filet ne separe le rail que du panneau : il n'apparait donc que la
+        // ou les deux sont cote a cote — a partir de lg en colonne fixe, et
+        // toujours dans le tiroir, ou ils voyagent ensemble. Entre md et lg le
+        // rail borde la zone de contenu, qui a deja la sienne.
+        scope === 'drawer' ? 'border-r' : 'lg:border-r',
+      )}
+    >
       <div className="flex flex-col items-center gap-5">
         <img src={logoUrl} alt="Plugiit" width={40} height={40} className="size-9" />
 
@@ -228,7 +238,7 @@ function Rail({ footer }: { footer: ReactNode }) {
                         // position precedente vers la nouvelle au lieu de le
                         // faire disparaitre ici et reapparaitre la.
                         <motion.span
-                          layoutId="rail-highlight"
+                          layoutId={`${scope}-rail-highlight`}
                           transition={transition}
                           className="absolute inset-[2px] rounded-[10px] border border-[#e6e6e6] bg-white"
                         />
@@ -481,8 +491,24 @@ function MenuEntry({
   )
 }
 
+/**
+ * Passe-plat entre le chassis, qui detient le tiroir, et l'en-tete de page qui
+ * porte son bouton. Les deux sont trop eloignes dans l'arbre pour une prop.
+ */
+const SidebarContext = createContext<{ openDrawer: () => void } | null>(null)
+
+export function useSidebar() {
+  const context = useContext(SidebarContext)
+
+  if (!context) {
+    throw new Error('useSidebar doit etre utilise dans AdminShell')
+  }
+
+  return context
+}
+
 /** Panneau de navigation, colonne de droite du duo. */
-function Panel({ fallbackTitle }: { fallbackTitle: string }) {
+function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string }) {
   const activeModule = useActiveModule()
   const transition = useSlideTransition()
 
@@ -552,12 +578,12 @@ function Panel({ fallbackTitle }: { fallbackTitle: string }) {
                     // noeuds de meme `layoutId`. La pastille glisse donc entre
                     // deux entrees d'un meme groupe, et se contente de disparaitre
                     // puis reapparaitre quand la selection change de groupe.
-                    layoutId={`${activeModule?.to}-highlight-${groupIndex}`}
-                    markLayoutId={`${activeModule?.to}-mark-${groupIndex}`}
+                    layoutId={`${scope}-${activeModule?.to}-highlight-${groupIndex}`}
+                    markLayoutId={`${scope}-${activeModule?.to}-mark-${groupIndex}`}
                     // Un repere par menu deroulant : la barre glisse entre les
                     // feuilles d'un meme menu, et se contente d'apparaitre quand
                     // on passe d'un menu a l'autre.
-                    leafLayoutId={`${activeModule?.to}-leaf-${groupIndex}-${itemIndex}`}
+                    leafLayoutId={`${scope}-${activeModule?.to}-leaf-${groupIndex}-${itemIndex}`}
                     transition={transition}
                     onToggle={() => toggle(key)}
                   />
@@ -599,13 +625,53 @@ export function AdminShell({
   title: string
   user: User
 }) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  // Naviguer depuis le tiroir doit le refermer : sinon il masque l'ecran qu'on
+  // vient d'ouvrir. On suit le chemin plutot que d'intercepter chaque lien.
+  useEffect(() => setDrawerOpen(false), [pathname])
+
+  const rail = <Rail scope="fixed" footer={<AccountButton user={user} />} />
+
   return (
-    <div className="bg-surface flex h-screen w-full overflow-hidden">
-      <Rail footer={<AccountButton user={user} />} />
-      <Panel fallbackTitle={title} />
-      {/* Colonne flex : le decollement de 16px vient de `PageFrame`, et la
-          frame occupe tout le reste jusqu'au bas de la fenetre. */}
-      <main className="bg-surface flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
-    </div>
+    <SidebarContext.Provider value={{ openDrawer: () => setDrawerOpen(true) }}>
+      <div className="bg-surface flex h-screen w-full overflow-hidden">
+        {/* Les deux colonnes pesent 308px : les laisser en place sous 1024px
+            ne laisserait pas de quoi afficher un tableau. Le rail seul, a
+            60px, reste tenable des la tablette ; le panneau attend le grand
+            ecran et passe par le tiroir en attendant. */}
+        <div className="hidden md:flex">{rail}</div>
+        <div className="hidden lg:flex">
+          <Panel scope="fixed" fallbackTitle={title} />
+        </div>
+
+        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <SheetContent
+            side="left"
+            // La ou le rail est deja a l'ecran, le tiroir se range a cote
+            // plutot que par-dessus : recouvrir le rail ferait perdre le
+            // module ouvert au moment meme ou l'on cherche a en changer.
+            // `!` est necessaire, le composant pose `left-0` via un
+            // selecteur d'attribut, plus specifique qu'une classe.
+            className="bg-surface w-auto max-w-none gap-0 border-r-[#ebebeb] p-0 md:left-[60px]!"
+          >
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <div className="flex h-full">
+              {/* Le rail n'entre dans le tiroir que la ou il n'est pas deja
+                  a l'ecran. */}
+              <div className="flex md:hidden">
+                <Rail scope="drawer" footer={<AccountButton user={user} />} />
+              </div>
+              <Panel scope="drawer" fallbackTitle={title} />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Colonne flex : le decollement de 16px vient de `PageFrame`, et la
+            frame occupe tout le reste jusqu'au bas de la fenetre. */}
+        <main className="bg-surface flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      </div>
+    </SidebarContext.Provider>
   )
 }
