@@ -1,93 +1,43 @@
 /**
- * Contrat HTTP de l'API.
+ * Alias de confort au-dessus du contrat genere.
  *
- * Ce fichier est destine a etre REGENERE, pas edite : quand
- * plugiit-api-go exposera sa spec OpenAPI, lancer
+ * Ce fichier s'ecrit a la main ; `./api-generated.ts` est ecrase par
  *
  *   npm run api:types
  *
- * qui ecrase ce fichier depuis /openapi.json. En attendant, les quelques
- * endpoints existants sont decrits a la main dans la forme produite par
- * openapi-typescript, pour que le client soit typé des maintenant.
+ * qui le regenere depuis /openapi.json servi par plugiit-api-go. La separation
+ * est deliberee : sans elle, chaque regeneration effacerait les alias et le
+ * code applicatif devrait manipuler
+ * `components['schemas']['User']` partout.
+ *
+ * Un type qui n'est PAS ici vient forcement de la spec. S'il manque, c'est
+ * l'API qu'il faut completer, pas ce fichier — cote Go, un test verifie que la
+ * spec decrit exactement les routes montees.
  */
+import type { components, paths } from './api-generated'
 
-export interface ApiError {
-  code: string
-  message: string
-  details: Record<string, unknown>
-}
+export type { paths }
 
-export interface User {
-  id: string
-  email: string
-  firstname: string
-  lastname: string
-  role: 'admin' | 'team' | 'client'
-  avatar_url: string | null
-}
+/** Format d'erreur unique de l'API. Brancher sur `code`, jamais sur `message`. */
+export type ApiError = components['schemas']['Error']
 
-/** Enveloppe commune a toutes les listes : la pagination est cote serveur. */
-export interface Page<T> {
-  items: T[]
-  total: number
-  page: number
-  page_size: number
-}
+/**
+ * Identite de l'appelant.
+ *
+ * `role` est un `string` et non une union fermee : les roles vivent en base et
+ * la liste peut s'etendre sans redeploiement. Fermer le type ici recreerait en
+ * TypeScript la contrainte que le RBAC a justement supprimee.
+ */
+export type User = components['schemas']['User']
 
-export interface Project {
-  id: string
-  name: string
-  status: string
-  client_name: string | null
-  completion: number
-  updated_at: string
-}
+/** Enveloppe rendue par login, refresh et me. Les jetons sont dans les cookies. */
+export type SessionResponse = components['schemas']['SessionResponse']
 
-export interface paths {
-  '/api/v1/auth/login': {
-    post: {
-      requestBody: { content: { 'application/json': { email: string; password: string } } }
-      responses: {
-        200: { content: { 'application/json': User } }
-        401: { content: { 'application/json': ApiError } }
-      }
-    }
-  }
-  '/api/v1/auth/logout': {
-    post: { responses: { 204: { content: never } } }
-  }
-  '/api/v1/auth/me': {
-    get: {
-      responses: {
-        200: { content: { 'application/json': User } }
-        401: { content: { 'application/json': ApiError } }
-      }
-    }
-  }
-  '/api/v1/admin/dashboard': {
-    get: {
-      responses: {
-        200: {
-          content: {
-            'application/json': {
-              active_projects: number
-              tasks_in_progress: number
-              overdue_tasks: number
-              open_tickets: number
-            }
-          }
-        }
-      }
-    }
-  }
-  '/api/v1/admin/projects': {
-    get: {
-      parameters: {
-        query?: { page?: number; page_size?: number; search?: string; status?: string }
-      }
-      responses: {
-        200: { content: { 'application/json': Page<Project> } }
-      }
-    }
-  }
-}
+/** Agregats du tableau de bord. Contrat cible : l'API repond encore 501. */
+export type DashboardSummary = components['schemas']['DashboardSummary']
+
+/** Projet tel que la vue liste l'affiche. Contrat cible lui aussi. */
+export type Project = components['schemas']['Project']
+
+/** Enveloppe de pagination des listes de projets. */
+export type ProjectPage = components['schemas']['ProjectPage']
