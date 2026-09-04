@@ -1,19 +1,60 @@
 import { MoreHorizontalIcon, Notification03Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { useActiveModule } from '@/components/layout/modules'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+
 /**
- * En-tete de la frame : intitule de l'ecran a gauche, actions transverses a
- * droite.
+ * En-tete de la frame : fil d'Ariane a gauche, actions transverses a droite.
  *
  * Les deux boutons ne sont pas cables : la maquette les pose, les ecrans
  * qu'ils ouvrent n'existent pas encore.
  */
 function FrameHeader({ title, description }: { title: string; description?: ReactNode }) {
+  // Le module ouvert forme la racine du fil : il n'a pas a etre repete dans
+  // chaque ecran, l'URL le dit deja.
+  const activeModule = useActiveModule()
+
   return (
     <header className="flex shrink-0 items-center justify-between border-b border-[#ebebeb] p-3">
       <div className="flex h-12 min-w-0 flex-col items-start">
-        <h1 className="font-heading truncate text-lg font-medium text-[#111]">{title}</h1>
+        <Breadcrumb>
+          <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-1.5">
+            {activeModule && (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild className="text-[#777] hover:text-[#111]">
+                    {/* Sans `exact`, la racine du fil se declarerait page
+                        courante sur chacune de ses sous-routes. */}
+                    <Link to={activeModule.to} activeOptions={{ exact: true }}>
+                      {activeModule.label}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="text-[#c4c4c4] [&>svg]:size-3" />
+              </>
+            )}
+
+            <BreadcrumbItem className="min-w-0">
+              {/* Dernier maillon : l'ecran courant. `BreadcrumbPage` porte
+                  aria-current et n'est pas un lien — on ne navigue pas vers la
+                  page ou l'on se trouve. */}
+              <BreadcrumbPage className="font-heading truncate text-lg font-medium text-[#111]">
+                {title}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         {description && <p className="truncate text-xs leading-[1.5] text-[#777]">{description}</p>}
       </div>
 
