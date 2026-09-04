@@ -1,0 +1,17 @@
+# Binaires
+/bin/
+/api
+/tmp/
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Outillage
+.DS_Store
+.idea/
+.vscode/
+*.test
+*.out
+coverage.*
