@@ -17,18 +17,29 @@ import (
 func testApp(t *testing.T) *fiber.App {
 	t.Helper()
 
+	app, _ := testAppWith(t, &stubAuth{}, &stubLimiter{})
+	return app
+}
+
+// testAppWith monte le routeur complet autour d'un service d'authentification
+// et d'un compteur donnes, et retourne le signeur pour que les tests puissent
+// forger un cookie d'acces valide.
+func testAppWith(t *testing.T, auth AuthService, limiter RateLimiter) (*fiber.App, *security.TokenSigner) {
+	t.Helper()
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middleware.ErrorHandler(discardLogger()),
 	})
 
-	signer := security.NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "plugiit-api")
+	signer := security.NewTokenSigner([]byte(testSecret), "plugiit-api")
 
 	Register(app, Deps{
 		Health: NewHealth(nil, nil, BuildInfo{Version: "test"}),
-		Guard:  middleware.NewGuard(signer),
+		Auth:   NewAuth(auth, CookieConfig{}, limiter, discardLogger()),
+		Guard:  middleware.NewGuard(signer, stubPermissions{granted: true}),
 	})
 
-	return app
+	return app, signer
 }
 
 func TestLivenessRepondSansDependance(t *testing.T) {

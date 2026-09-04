@@ -1,0 +1,396 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Plugiit API",
+    "version": "1.0.0",
+    "description": "API interne Plugiit. Source de verite du contrat HTTP : le front genere ses types depuis ce document (npm run api:types). Toute route montee doit y figurer, ce que verifie TestSpecOpenAPICouvreToutesLesRoutes."
+  },
+  "servers": [{ "url": "/", "description": "Meme origine que l'application" }],
+  "tags": [
+    { "name": "sante", "description": "Sondes de disponibilite" },
+    { "name": "auth", "description": "Authentification et session" },
+    { "name": "admin", "description": "Back-office, roles internes uniquement" }
+  ],
+  "paths": {
+    "/openapi.json": {
+      "get": {
+        "tags": ["sante"],
+        "summary": "Contrat HTTP de l'API",
+        "operationId": "getOpenAPISpec",
+        "responses": {
+          "200": {
+            "description": "Le present document",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": ["sante"],
+        "summary": "Sonde de liveness",
+        "description": "Repond des que le process ecoute. Ne touche aucune dependance : un Postgres momentanement indisponible ne doit pas faire redemarrer le conteneur.",
+        "operationId": "getHealthLive",
+        "responses": {
+          "200": {
+            "description": "Le process ecoute",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthLive" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": ["sante"],
+        "summary": "Sonde de readiness",
+        "description": "Repond 200 seulement si Postgres et Redis repondent. C'est cette sonde qui conditionne la bascule du trafic.",
+        "operationId": "getHealthReady",
+        "responses": {
+          "200": {
+            "description": "Toutes les dependances repondent",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthReady" }
+              }
+            }
+          },
+          "503": {
+            "description": "Une dependance au moins ne repond pas",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthReady" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Ouvre une session",
+        "description": "Pose deux cookies httpOnly : plugiit_access (portee /) et plugiit_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session ouverte, cookies poses",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Identifiants incorrects. Ne distingue jamais un email inconnu d'un mot de passe faux.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Ferme la session courante",
+        "description": "Revoque le jeton de rafraichissement et efface les deux cookies. Idempotent : rappeler cet endpoint sans session valide repond 204.",
+        "operationId": "logout",
+        "responses": {
+          "204": { "description": "Session fermee, cookies effaces" }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Renouvelle la session",
+        "description": "Consomme le cookie plugiit_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.",
+        "operationId": "refresh",
+        "responses": {
+          "200": {
+            "description": "Session renouvelee, nouveaux cookies poses",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Session expiree, revoquee ou rejouee. Le front doit rediriger vers /login plutot que retenter.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Identite de l'appelant",
+        "description": "Relue en base a chaque appel : un droit retire ou un compte supprime prend effet immediatement, sans attendre l'expiration du jeton.",
+        "operationId": "getMe",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "Profil de l'appelant, permissions comprises",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Tableau de bord de l'agence",
+        "description": "CONTRAT CIBLE — le handler repond encore 501. La reponse 200 decrite ici est ce que la vue attend et ce que l'implementation devra servir ; elle est publiee pour que le front soit type des maintenant.",
+        "operationId": "getAdminDashboard",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "Agregats precalcules du tableau de bord",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardSummary" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "501": { "$ref": "#/components/responses/NotImplemented" }
+        }
+      }
+    },
+    "/api/v1/admin/projects": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Liste des projets",
+        "description": "CONTRAT CIBLE — le handler repond encore 501. Exige la permission projects.read. La pagination est cote serveur : aucune reponse ne renvoie la collection entiere.",
+        "operationId": "listAdminProjects",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Numero de page, 1 par defaut",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Taille de page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Recherche partielle sur le nom du projet",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filtre sur le statut",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page de projets",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectPage" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "501": { "$ref": "#/components/responses/NotImplemented" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "plugiit_access",
+        "description": "Cookie httpOnly pose par /auth/login. Inaccessible au JavaScript : le navigateur l'envoie seul."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentification requise ou session expiree",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "Forbidden": {
+        "description": "Authentifie, mais sans le droit necessaire",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "ValidationFailed": {
+        "description": "Corps invalide. details porte un message par champ fautif.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "RateLimited": {
+        "description": "Trop de tentatives. L'en-tete Retry-After donne le delai en secondes.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "NotImplemented": {
+        "description": "La route existe, le handler n'est pas encore ecrit",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Format d'erreur unique de l'API. Le front branche sur code, jamais sur message.",
+        "required": ["code", "message", "details"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Code stable, destine au code appelant",
+            "examples": ["INVALID_CREDENTIALS", "SESSION_EXPIRED", "FORBIDDEN", "VALIDATION_FAILED", "RATE_LIMITED", "NOT_IMPLEMENTED"]
+          },
+          "message": { "type": "string", "description": "Message affichable a l'utilisateur" },
+          "details": {
+            "type": "object",
+            "description": "Toujours un objet, jamais null. Porte les erreurs par champ en cas de validation.",
+            "additionalProperties": true
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Identite rendue au front. Ne porte ni empreinte de mot de passe ni secret TOTP.",
+        "required": ["id", "email", "firstname", "lastname", "role", "avatar_url", "permissions"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "firstname": { "type": "string" },
+          "lastname": { "type": "string" },
+          "role": {
+            "type": "string",
+            "description": "Code du role. Les roles vivent en base : cette liste est celle des roles systeme, elle peut s'etendre.",
+            "examples": ["admin", "team", "client"]
+          },
+          "avatar_url": { "type": ["string", "null"] },
+          "permissions": {
+            "type": "array",
+            "description": "Permissions du role, pour masquer les actions inaccessibles. Confort d'affichage : l'API reste la seule autorite.",
+            "items": { "type": "string" },
+            "examples": [["projects.read", "projects.write"]]
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "description": "Reponse de login, refresh et me. Les jetons sont dans les cookies, jamais ici.",
+        "required": ["user"],
+        "properties": { "user": { "$ref": "#/components/schemas/User" } }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "description": "CONTRAT CIBLE — le module PM n'est pas ecrit. Ce schema est ce que la vue liste affiche, rien de plus : il ne prejuge pas du modele de donnees.",
+        "required": ["id", "name", "status", "client_name", "completion", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "status": { "type": "string" },
+          "client_name": { "type": ["string", "null"] },
+          "completion": {
+            "type": "integer",
+            "description": "Avancement en pourcentage, precalcule cote serveur",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProjectPage": {
+        "type": "object",
+        "description": "Enveloppe de pagination, commune a toutes les listes de l'API.",
+        "required": ["items", "total", "page", "page_size"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Project" }
+          },
+          "total": { "type": "integer", "description": "Nombre total d'elements, tous filtres appliques" },
+          "page": { "type": "integer" },
+          "page_size": { "type": "integer" }
+        }
+      },
+      "DashboardSummary": {
+        "type": "object",
+        "description": "CONTRAT CIBLE — agregats precalcules, jamais recalcules par COUNT(*) au rendu.",
+        "required": ["active_projects", "tasks_in_progress", "overdue_tasks", "open_tickets"],
+        "properties": {
+          "active_projects": { "type": "integer" },
+          "tasks_in_progress": { "type": "integer" },
+          "overdue_tasks": { "type": "integer" },
+          "open_tickets": { "type": "integer" }
+        }
+      },
+      "HealthLive": {
+        "type": "object",
+        "required": ["status", "version", "commit"],
+        "properties": {
+          "status": { "type": "string", "examples": ["ok"] },
+          "version": { "type": "string" },
+          "commit": { "type": "string" }
+        }
+      },
+      "HealthReady": {
+        "type": "object",
+        "required": ["status", "checks"],
+        "properties": {
+          "status": { "type": "string", "examples": ["ok", "degraded"] },
+          "checks": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Etat par dependance",
+            "examples": [{ "database": "ok", "redis": "ok" }]
+          }
+        }
+      }
+    }
+  }
+}

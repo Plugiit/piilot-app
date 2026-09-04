@@ -49,12 +49,19 @@ func (e *Error) WithDetails(details map[string]any) *Error {
 // le middleware ErrorHandler les traduit en JSON.
 var (
 	ErrUnauthorized = &Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "Authentification requise"}
-	ErrForbidden    = &Error{Status: http.StatusForbidden, Code: "FORBIDDEN", Message: "Accès refusé"}
-	ErrNotFound     = &Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "Ressource introuvable"}
-	ErrConflict     = &Error{Status: http.StatusConflict, Code: "CONFLICT", Message: "La ressource existe déjà"}
-	ErrValidation   = &Error{Status: http.StatusUnprocessableEntity, Code: "VALIDATION_FAILED", Message: "Données invalides"}
-	ErrRateLimited  = &Error{Status: http.StatusTooManyRequests, Code: "RATE_LIMITED", Message: "Trop de requêtes"}
-	ErrInternal     = &Error{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "Une erreur interne est survenue"}
+	// ErrInvalidCredentials ne distingue jamais « email inconnu » de « mot de
+	// passe faux » : l'ecart renseignerait sur l'existence d'un compte.
+	ErrInvalidCredentials = &Error{Status: http.StatusUnauthorized, Code: "INVALID_CREDENTIALS", Message: "Identifiants incorrects"}
+	// ErrSessionExpired distingue « ta session est finie, reconnecte-toi » de
+	// « tu n'etais pas authentifie » : le front redirige vers /login au lieu de
+	// retenter un rafraichissement en boucle.
+	ErrSessionExpired = &Error{Status: http.StatusUnauthorized, Code: "SESSION_EXPIRED", Message: "Session expirée, reconnexion nécessaire"}
+	ErrForbidden      = &Error{Status: http.StatusForbidden, Code: "FORBIDDEN", Message: "Accès refusé"}
+	ErrNotFound       = &Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "Ressource introuvable"}
+	ErrConflict       = &Error{Status: http.StatusConflict, Code: "CONFLICT", Message: "La ressource existe déjà"}
+	ErrValidation     = &Error{Status: http.StatusUnprocessableEntity, Code: "VALIDATION_FAILED", Message: "Données invalides"}
+	ErrRateLimited    = &Error{Status: http.StatusTooManyRequests, Code: "RATE_LIMITED", Message: "Trop de requêtes"}
+	ErrInternal       = &Error{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "Une erreur interne est survenue"}
 )
 
 // AsError extrait une *Error d'une chaine d'erreurs, ou nil.

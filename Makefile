@@ -32,6 +32,11 @@ dev: ## Lance l'API avec rechargement a chaud (air)
 run: ## Lance l'API une fois
 	go run ./cmd/api
 
+.PHONY: seed
+seed: ## Cree le premier compte : make seed EMAIL=moi@plugiit.com [ROLE=admin]
+	@test -n "$(EMAIL)" || (echo "usage: make seed EMAIL=... [ROLE=admin]" && exit 1)
+	go run ./cmd/seed -email=$(EMAIL) $(if $(ROLE),-role=$(ROLE),)
+
 .PHONY: build
 build: ## Compile le binaire dans bin/api
 	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o bin/api ./cmd/api
@@ -39,6 +44,10 @@ build: ## Compile le binaire dans bin/api
 .PHONY: test
 test: ## Lance les tests
 	go test -race ./...
+
+.PHONY: test-integration
+test-integration: ## Tests d'integration (exige make up et les migrations)
+	TEST_DATABASE_URL="$(DATABASE_URL)" go test -tags=integration -count=1 ./...
 
 .PHONY: cover
 cover: ## Lance les tests avec couverture
