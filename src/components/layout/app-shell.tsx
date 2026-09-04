@@ -3,7 +3,17 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { LogOut } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
 import { logout } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -20,6 +30,12 @@ interface AppShellProps {
   user: User
   /** Libelle de l'espace courant : « Agence » ou « Espace client ». */
   area: string
+}
+
+/** Initiales servant de repli quand aucun avatar n'est defini. */
+function initials(user: User): string {
+  const letters = `${user.firstname.at(0) ?? ''}${user.lastname.at(0) ?? ''}`.trim()
+  return letters === '' ? user.email.slice(0, 2).toUpperCase() : letters.toUpperCase()
 }
 
 /**
@@ -48,14 +64,16 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-surface">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-surface-raised">
+    <div className="bg-sidebar flex h-screen w-full overflow-hidden">
+      <aside className="bg-sidebar flex w-56 shrink-0 flex-col border-r">
         <div className="flex h-14 flex-col justify-center px-4">
-          <span className="font-semibold text-ink">Plugiit</span>
-          <span className="text-[11px] uppercase tracking-wide text-ink-muted">{area}</span>
+          <span className="font-semibold">Plugiit</span>
+          <span className="text-muted-foreground text-[11px] tracking-wide uppercase">{area}</span>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-2">
+        <Separator />
+
+        <nav className="flex-1 space-y-0.5 p-2">
           {nav.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
@@ -67,8 +85,10 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
               // Sans `exact`, l'accueil d'un espace reste actif sur toutes ses
               // sous-routes, puisque son chemin en est le prefixe.
               activeOptions={{ exact: to === '/admin' || to === '/client' }}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
-              activeProps={{ className: cn('bg-brand-50 text-brand-600 hover:bg-brand-50') }}
+              className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors"
+              activeProps={{
+                className: cn('bg-accent text-accent-foreground font-medium'),
+              }}
             >
               <Icon className="size-4 shrink-0" />
               {label}
@@ -76,23 +96,41 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
           ))}
         </nav>
 
-        <div className="space-y-1 border-t border-border p-2">
-          <p className="truncate px-2.5 text-xs text-ink-muted">
-            {user.firstname} {user.lastname}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => void handleLogout()}
-          >
-            <LogOut className="size-4" />
-            Déconnexion
-          </Button>
+        <Separator />
+
+        <div className="p-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="lg" className="w-full justify-start gap-2 px-2">
+                <Avatar className="size-6">
+                  <AvatarFallback className="text-[10px]">{initials(user)}</AvatarFallback>
+                </Avatar>
+                <span className="truncate">
+                  {user.firstname} {user.lastname}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="start" side="top" className="w-52">
+              <DropdownMenuLabel className="font-normal">
+                <span className="block truncate text-sm font-medium">
+                  {user.firstname} {user.lastname}
+                </span>
+                <span className="text-muted-foreground block truncate text-xs">{user.email}</span>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onSelect={() => void handleLogout()}>
+                <LogOut />
+                Déconnexion
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
+      <main className="bg-background min-w-0 flex-1 overflow-hidden">{children}</main>
     </div>
   )
 }
