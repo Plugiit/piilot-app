@@ -6,6 +6,21 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { HttpError } from '@/lib/api'
 import { homeFor, login, sessionQuery } from '@/lib/auth'
@@ -53,52 +68,55 @@ function LoginPage() {
   })
 
   return (
-    <div className="flex h-full items-center justify-center bg-surface-sunken p-6">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-ink">Plugiit Admin</h1>
-        <p className="mt-1 text-sm text-ink-muted">Connectez-vous pour continuer.</p>
+    <div className="bg-muted/40 flex h-full items-center justify-center p-6">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-xl">Plugiit</CardTitle>
+          <CardDescription>Connectez-vous pour continuer.</CardDescription>
+        </CardHeader>
 
-        <form
-          className="mt-6 space-y-4"
-          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-          noValidate
-        >
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-ink-soft">
-              E-mail
-            </label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="username"
-              autoFocus
-              {...form.register('email')}
-            />
-            {form.formState.errors.email && (
-              <p className="text-xs text-danger">{form.formState.errors.email.message}</p>
-            )}
-          </div>
+        <CardContent>
+          <Form {...form}>
+            <form
+              className="space-y-4"
+              onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+              noValidate
+            >
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>E-mail</FormLabel>
+                    <FormControl>
+                      <Input type="email" autoComplete="username" autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-ink-soft">
-              Mot de passe
-            </label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              {...form.register('password')}
-            />
-            {form.formState.errors.password && (
-              <p className="text-xs text-danger">{form.formState.errors.password.message}</p>
-            )}
-          </div>
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mot de passe</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <Button type="submit" className="w-full" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Connexion…' : 'Se connecter'}
-          </Button>
-        </form>
-      </div>
+              <Button type="submit" size="lg" className="w-full" disabled={mutation.isPending}>
+                {mutation.isPending ? 'Connexion…' : 'Se connecter'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

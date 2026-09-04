@@ -12,7 +12,7 @@ function ClientTicketsPage() {
       <PageHeader title="Support" subtitle="Vos demandes en cours" />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-        <p className="text-sm text-ink-muted">
+        <p className="text-sm text-muted-foreground">
           Les tickets arriveront ici, une fois le module écrit côté API.
         </p>
       </div>

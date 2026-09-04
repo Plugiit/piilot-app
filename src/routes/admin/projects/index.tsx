@@ -3,7 +3,17 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { projectListQuery } from '@/features/projects/api'
 
 /**
@@ -41,49 +51,65 @@ function ProjectsPage() {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
-        <div className="overflow-hidden rounded-xl border border-border bg-surface-raised">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-surface-sunken text-left text-xs uppercase text-ink-muted">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Projet</th>
-                <th className="px-4 py-2.5 font-medium">Client</th>
-                <th className="px-4 py-2.5 font-medium">Statut</th>
-                <th className="px-4 py-2.5 text-right font-medium">Avancement</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isPending && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-ink-muted">
-                    Chargement…
-                  </td>
-                </tr>
-              )}
+        <div className="mt-4 overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Projet</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead className="text-right">Avancement</TableHead>
+              </TableRow>
+            </TableHeader>
 
-              {data?.items.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-ink-muted">
+            <TableBody>
+              {isPending &&
+                // Des lignes squelettes plutot qu'un message : le tableau garde
+                // sa hauteur et ses colonnes, donc rien ne saute a l'arrivee
+                // des donnees.
+                Array.from({ length: 5 }, (_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-40" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-28" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell className="flex justify-end">
+                      <Skeleton className="h-4 w-10" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+              {!isPending && data?.items.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-muted-foreground h-24 text-center">
                     Aucun projet
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
 
               {data?.items.map((project) => (
-                <tr key={project.id} className="hover:bg-surface-sunken">
-                  <td className="px-4 py-2.5 font-medium text-ink">{project.name}</td>
-                  <td className="px-4 py-2.5 text-ink-soft">{project.client_name ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-ink-soft">{project.status}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-ink-soft">
-                    {project.completion}%
-                  </td>
-                </tr>
+                <TableRow key={project.id}>
+                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {project.client_name ?? '—'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{project.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{project.completion}%</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
 
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-xs text-ink-muted">
+          <p className="text-muted-foreground text-xs">
             Page {search.page} sur {totalPages}
           </p>
 

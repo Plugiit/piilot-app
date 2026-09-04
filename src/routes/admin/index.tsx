@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { StatCard } from '@/components/ui/stat-card'
+import { StatCard } from '@/components/stat-card'
 import { dashboardQuery } from '@/features/projects/api'
 
 export const Route = createFileRoute('/admin/')({
@@ -25,7 +25,12 @@ function DashboardPage() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="Projets actifs" value={data?.active_projects} loading={isPending} />
           <StatCard label="Tâches en cours" value={data?.tasks_in_progress} loading={isPending} />
-          <StatCard label="Tâches en retard" value={data?.overdue_tasks} loading={isPending} tone="danger" />
+          <StatCard
+            label="Tâches en retard"
+            value={data?.overdue_tasks}
+            loading={isPending}
+            tone="danger"
+          />
           <StatCard label="Tickets ouverts" value={data?.open_tickets} loading={isPending} />
         </div>
       </div>
