@@ -41,7 +41,7 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
 
       <div className="flex min-w-0 flex-1 flex-col items-start justify-center sm:h-12">
         <Breadcrumb>
-          <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-1.5">
+          <BreadcrumbList className="flex-nowrap gap-1.5 text-base sm:gap-1.5">
             {activeModule && (
               <>
                 <BreadcrumbItem className="hidden shrink-0 whitespace-nowrap sm:inline-flex">
@@ -61,7 +61,7 @@ function FrameHeader({ title, description }: { title: string; description?: Reac
               {/* Dernier maillon : l'ecran courant. `BreadcrumbPage` porte
                   aria-current et n'est pas un lien — on ne navigue pas vers la
                   page ou l'on se trouve. */}
-              <BreadcrumbPage className="font-heading truncate text-base font-medium text-[#111] sm:text-lg">
+              <BreadcrumbPage className="font-heading truncate text-base font-medium text-[#111]">
                 {title}
               </BreadcrumbPage>
             </BreadcrumbItem>
