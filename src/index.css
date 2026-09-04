@@ -1,47 +1,119 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
 
-/* Design tokens — une seule source de verite pour les couleurs. Les composants
-   n'ecrivent jamais une couleur en dur, ils consomment ces variables. */
-@theme {
-  --color-ink: #111111;
-  --color-ink-soft: #3d3d3d;
-  --color-ink-muted: #888888;
-  --color-surface: #fdfdfd;
-  --color-surface-raised: #ffffff;
-  --color-surface-sunken: #f6f6f6;
-  --color-border: #e7e7e7;
+/* La variante `dark:` est redefinie pour ne s'appliquer que sous un ancetre
+   portant la classe `.dark`. Aucun element ne la porte : l'application est en
+   clair uniquement, et les classes `dark:` que shadcn embarque dans ses
+   composants restent donc inertes — y compris chez un utilisateur dont le
+   systeme est en mode sombre. Sans cette redefinition, `dark:` retomberait sur
+   prefers-color-scheme et assombrirait des fragments d'interface sans que les
+   variables correspondantes soient definies. */
+@custom-variant dark (&:is(.dark *));
 
-  --color-brand-50: #fdf6ed;
-  --color-brand-100: #f8e6cd;
-  --color-brand-400: #e0a95f;
-  --color-brand-500: #d18f3a;
-  --color-brand-600: #b3742a;
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
-  --font-sans: 'Inter var', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Tokens shadcn, echelle neutral. Source de verite unique des couleurs : aucun
+   composant n'ecrit une couleur en dur, tous consomment ces variables via les
+   utilitaires Tailwind correspondants (bg-background, text-muted-foreground...). */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    @apply border-border outline-ring/50;
   }
 
   html {
     -webkit-text-size-adjust: 100%;
+    @apply font-sans;
   }
 
   body {
-    background-color: var(--color-surface);
-    color: var(--color-ink);
-    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
   }
 
-  /* L'admin occupe la fenetre : la page ne defile pas, ce sont les zones de
-     contenu qui gerent leur propre scroll. */
+  /* L'application occupe la fenetre : la page ne defile pas, ce sont les zones
+     de contenu qui gerent leur propre defilement. */
   html,
   body,
   #root {
