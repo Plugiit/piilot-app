@@ -13,7 +13,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
-    <header className="bg-background flex shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-6">
+    <header className="border-sidebar-border flex shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-6">
       <div className="min-w-0">
         <h1 className="truncate text-lg font-semibold">{title}</h1>
         {subtitle && <p className="text-muted-foreground truncate text-[13px]">{subtitle}</p>}
