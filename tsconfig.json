@@ -1,7 +1,14 @@
 {
   "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+
+  /* Duplique depuis tsconfig.app.json. Ce fichier ne compile rien, mais le CLI
+     shadcn le lit pour resoudre l'alias @/ : sans ces paths, `shadcn add` ecrit
+     dans un dossier nomme litteralement "@" a la racine du depot. */
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
 }
