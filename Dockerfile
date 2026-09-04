@@ -19,9 +19,12 @@ COPY . .
 ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 
-# Le typage et les tests bloquent le build : une image n'est produite que si
-# la verification passe, donc un deploiement ne peut pas partir sur du rouge.
+# Lint, typage et tests bloquent le build : une image n'est produite que si la
+# verification passe, donc un deploiement ne peut pas partir sur du rouge. La
+# CI se contente de construire cette image — la verification vit ici, a un seul
+# endroit, et non dupliquee dans un workflow.
 RUN npm run routes:gen \
+    && npm run lint \
     && npx tsc -b \
     && npm run test \
     && npx vite build
