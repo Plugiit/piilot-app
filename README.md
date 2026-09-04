@@ -1,6 +1,6 @@
 # plugiit-api-go
 
-API Plugiit — backend Go consommé par `plugiit-admin-reactjs`.
+API Plugiit — backend Go consommé par `plugiit-app-reactjs`.
 
 ## Stack
 
