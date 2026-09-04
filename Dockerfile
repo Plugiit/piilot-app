@@ -27,6 +27,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${COMMIT}" \
     -o /out/api ./cmd/api
 
+# La commande d'amorcage voyage avec l'image. Sans elle, un deploiement neuf
+# est inutilisable : la table users est vide et aucune connexion n'est
+# possible, meme avec /auth/login parfaitement implemente. Elle n'ouvre aucune
+# surface supplementaire — qui peut l'executer a deja un shell dans le
+# conteneur, donc DATABASE_URL et JWT_SECRET dans son environnement.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-w -s" \
+    -o /out/seed ./cmd/seed
+
 # =============================================================================
 # Stage 2 : tests (bloque le build — un echec annule le deploiement)
 # =============================================================================
@@ -34,7 +46,10 @@ FROM build AS test
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go vet ./... && go test ./... && touch /out/tests-passed
+    if [ -n "$(gofmt -l .)" ]; then echo "Fichiers non formates :"; gofmt -l .; exit 1; fi \
+    && go vet ./... \
+    && go test ./... \
+    && touch /out/tests-passed
 
 # =============================================================================
 # Stage 3 : image de production
@@ -57,14 +72,18 @@ WORKDIR /app
 COPY --from=test /out/tests-passed /tmp/tests-passed
 
 COPY --from=build /out/api /app/api
+COPY --from=build /out/seed /app/seed
 
 USER app
 
 EXPOSE 8080
 
-# La sonde interroge /health/ready : le conteneur n'est declare sain que quand
-# Postgres et Redis repondent reellement.
+# Sonde de VIVACITE, donc /health/live : elle ne touche aucune dependance.
+# Un echec ici fait redemarrer le conteneur, et redemarrer l'API ne repare pas
+# une base injoignable — cela ne fait qu'ajouter une coupure a la panne. La
+# sonde de DISPONIBILITE, /health/ready, verifie Postgres et Redis ; c'est
+# Coolify qui l'interroge pour decider de router le trafic.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8080/health/ready || exit 1
+    CMD curl -fsS http://127.0.0.1:8080/health/live || exit 1
 
 ENTRYPOINT ["/app/api"]
