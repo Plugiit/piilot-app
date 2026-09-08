@@ -2,7 +2,7 @@ import { ArrowDown01Icon, Search01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
+import { AnimatePresence, motion, type Transition } from 'framer-motion'
 import { LogOut } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
@@ -28,6 +28,7 @@ import {
 } from '@/components/layout/modules'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { logout } from '@/lib/auth'
+import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
 
@@ -82,19 +83,6 @@ const RAIL: RailGroup[] = [
     ],
   },
 ]
-
-/**
- * Ressort de la pastille active, partage par le rail et le panneau.
- *
- * Un ressort plutot qu'une duree : la pastille garde la meme allure quelle que
- * soit la distance parcourue, d'un voisin immediat aux deux bouts de la
- * colonne. `bounce: 0` lui evite de depasser sa cible.
- */
-function useSlideTransition() {
-  const reduced = useReducedMotion()
-
-  return reduced ? { duration: 0 } : ({ type: 'spring', visualDuration: 0.25, bounce: 0 } as const)
-}
 
 /** Intitule de section : DM Sans, casse haute, meme discretion dans les deux colonnes. */
 function GroupLabel({ className, children }: { className?: string; children: ReactNode }) {
@@ -534,8 +522,8 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
     })
   }
 
-  // Hors module — /admin par exemple — le panneau garde son titre mais n'a
-  // aucun menu a proposer.
+  // Hors module — l'accueil, a la racine — le panneau garde son titre mais
+  // n'a aucun menu a proposer.
   const menu = activeModule?.menu ?? []
 
   return (

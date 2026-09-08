@@ -7,7 +7,7 @@ import { PageFrame } from '@/components/layout/page-frame'
 import { StatCard } from '@/components/stat-card'
 import { dashboardQuery } from '@/features/projects/api'
 
-export const Route = createFileRoute('/_app/admin/')({
+export const Route = createFileRoute('/_app/')({
   // Le loader precharge les agregats : combine au prefetch au survol du
   // lien, les donnees sont deja en cache quand la vue se monte.
   // `staleTime: 'static'` rend le cache existant sans le revalider — c'est

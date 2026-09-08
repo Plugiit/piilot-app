@@ -39,11 +39,17 @@ export function isInternal(user: User): boolean {
 /**
  * Espace d'accueil d'un utilisateur.
  *
- * L'application sert les deux espaces : `/admin` pour l'agence, `/client`
- * pour le portail. C'est le role qui decide ou atterrit une connexion, et
- * cette fonction est la seule source de cette regle — la racine, la
- * connexion et les gardes s'y referent toutes.
+ * Le back-office occupe la racine : en production il vit sur son propre
+ * sous-domaine, ou `/admin` serait un doublon du domaine lui-meme. Le portail
+ * garde son segment en attendant d'etre ecrit et de rejoindre le sien.
+ *
+ * Un interne atterrit sur `/pm` : le travail quotidien de l'agence se fait
+ * dans les projets, pas devant les agregats de la racine, qu'on ouvre quand on
+ * les cherche. Le tableau de bord reste accessible par la navigation.
+ *
+ * C'est le role qui decide ou atterrit une connexion, et cette fonction est la
+ * seule source de cette regle — la connexion et les gardes s'y referent toutes.
  */
-export function homeFor(user: User): '/admin' | '/client' {
-  return isInternal(user) ? '/admin' : '/client'
+export function homeFor(user: User): '/pm' | '/client' {
+  return isInternal(user) ? '/pm' : '/client'
 }
