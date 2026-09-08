@@ -84,7 +84,7 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
               preload="intent"
               // Sans `exact`, l'accueil d'un espace reste actif sur toutes ses
               // sous-routes, puisque son chemin en est le prefixe.
-              activeOptions={{ exact: to === '/admin' || to === '/client' }}
+              activeOptions={{ exact: to === '/client' }}
               className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors"
               activeProps={{
                 className: cn('bg-accent text-accent-foreground font-medium'),
