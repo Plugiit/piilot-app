@@ -1,0 +1,759 @@
+package usecase
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/plugiit/plugiit-api-go/internal/domain"
+	"github.com/plugiit/plugiit-api-go/internal/repository/db"
+)
+
+// Borne du tableau. Un projet qui la depasse a un probleme de decoupage, pas
+// d'affichage : l'ecran le dit plutot que de charger indefiniment.
+const taskBoardLimit = 300
+
+// Borne des collections du panneau lateral.
+const (
+	taskCommentsLimit = 100
+	taskActivityLimit = 50
+)
+
+// TaskSummary est une carte du tableau : ce que la carte montre, rien de plus.
+// La note, la description et les sous-taches n'y figurent pas — elles ne sont
+// lues qu'a l'ouverture du panneau.
+type TaskSummary struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Tag       string    `json:"tag"`
+	DueOn     *string   `json:"due_on"`
+	Hours     *float64  `json:"hours"`
+	Position  int       `json:"position"`
+	Assignees []Person  `json:"assignees"`
+}
+
+// TaskBoard est le contenu de l'onglet « Tâches » d'un projet.
+type TaskBoard struct {
+	Items []TaskSummary `json:"items"`
+	Total int64         `json:"total"`
+	// Limit dit combien de taches l'ecran a le droit d'afficher : compare a
+	// Total, il permet de signaler qu'on n'en montre pas la totalite.
+	Limit int `json:"limit"`
+}
+
+// Subtask est une ligne de la liste a cocher du panneau.
+type Subtask struct {
+	ID       uuid.UUID `json:"id"`
+	Label    string    `json:"label"`
+	Done     bool      `json:"done"`
+	Position int       `json:"position"`
+}
+
+// Comment est un message de l'onglet « Commentaires ».
+type Comment struct {
+	ID        uuid.UUID `json:"id"`
+	Body      string    `json:"body"`
+	Author    *Person   `json:"author"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ActivityEntry est une ligne du journal.
+//
+// Le libelle n'est pas compose ici : le serveur dit ce qui s'est passe (`kind`)
+// et avec quoi (`payload`), l'ecran l'ecrit dans sa langue. Composer la phrase
+// en Go reviendrait a mettre du francais d'interface dans l'API.
+type ActivityEntry struct {
+	ID        uuid.UUID      `json:"id"`
+	Kind      string         `json:"kind"`
+	Payload   map[string]any `json:"payload"`
+	Actor     *Person        `json:"actor"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
+// TaskDetail est tout ce que le panneau lateral affiche a son ouverture.
+//
+// Les commentaires n'en font pas partie : ils ont leur onglet, donc leur
+// endpoint. Les charger ici ferait payer a chaque ouverture une liste que la
+// plupart des consultations ne regardent pas.
+type TaskDetail struct {
+	ID          uuid.UUID       `json:"id"`
+	ProjectID   uuid.UUID       `json:"project_id"`
+	ProjectName string          `json:"project_name"`
+	ClientName  string          `json:"client_name"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Status      string          `json:"status"`
+	Tag         string          `json:"tag"`
+	Note        string          `json:"note"`
+	StartsOn    *string         `json:"starts_on"`
+	DueOn       *string         `json:"due_on"`
+	Hours       *float64        `json:"hours"`
+	CompletedAt *time.Time      `json:"completed_at"`
+	CreatedAt   time.Time       `json:"created_at"`
+	Assignees   []Person        `json:"assignees"`
+	Subtasks    []Subtask       `json:"subtasks"`
+	Activity    []ActivityEntry `json:"activity"`
+}
+
+// CreateTaskInput decrit une tache a creer.
+type CreateTaskInput struct {
+	ProjectID   uuid.UUID
+	Title       string
+	Description string
+	Status      string
+	Tag         string
+	StartsOn    *time.Time
+	DueOn       *time.Time
+	Hours       *float64
+	Note        string
+	AssigneeIDs []uuid.UUID
+	ActorID     uuid.UUID
+}
+
+// UpdateTaskInput ne porte que ce qui change.
+type UpdateTaskInput struct {
+	Title         *string
+	Description   *string
+	Tag           *string
+	Note          *string
+	Hours         *float64
+	ClearHours    bool
+	StartsOn      *time.Time
+	ClearStartsOn bool
+	DueOn         *time.Time
+	ClearDueOn    bool
+	ActorID       uuid.UUID
+}
+
+var taskStatuses = map[string]struct{}{
+	"todo": {}, "progress": {}, "review": {}, "done": {},
+}
+
+// TaskService porte les taches, leurs sous-taches, leurs commentaires et leur
+// journal.
+type TaskService struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+// NewTaskService construit le service.
+func NewTaskService(pool *pgxpool.Pool) *TaskService {
+	return &TaskService{pool: pool, q: db.New(pool)}
+}
+
+// Board renvoie le tableau d'un projet : deux requetes, quel que soit le
+// nombre de colonnes et de cartes.
+func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard, error) {
+	total, err := s.q.CountTasksOfProject(ctx, projectID)
+	if err != nil {
+		return TaskBoard{}, fmt.Errorf("comptage des taches : %w", err)
+	}
+
+	rows, err := s.q.ListTasksOfProject(ctx, db.ListTasksOfProjectParams{
+		ProjectID: projectID,
+		PageSize:  taskBoardLimit,
+	})
+	if err != nil {
+		return TaskBoard{}, fmt.Errorf("lecture des taches : %w", err)
+	}
+
+	items := make([]TaskSummary, 0, len(rows))
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		items = append(items, TaskSummary{
+			ID:        row.ID,
+			ProjectID: row.ProjectID,
+			Title:     row.Title,
+			Status:    row.Status,
+			Tag:       row.Tag,
+			DueOn:     formatDate(row.DueOn),
+			Hours:     row.Hours,
+			Position:  int(row.Position),
+			Assignees: []Person{},
+		})
+	}
+
+	byTask, err := s.assigneesOf(ctx, ids)
+	if err != nil {
+		return TaskBoard{}, err
+	}
+
+	for i := range items {
+		if people, ok := byTask[items[i].ID]; ok {
+			items[i].Assignees = people
+		}
+	}
+
+	return TaskBoard{Items: items, Total: total, Limit: taskBoardLimit}, nil
+}
+
+// Get renvoie le detail d'une tache : tache, affectations, sous-taches,
+// journal.
+func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error) {
+	row, err := s.q.GetTask(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
+	byTask, err := s.assigneesOf(ctx, []uuid.UUID{id})
+	if err != nil {
+		return TaskDetail{}, err
+	}
+
+	subtaskRows, err := s.q.ListSubtasks(ctx, id)
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("lecture des sous-taches : %w", err)
+	}
+
+	subtasks := make([]Subtask, 0, len(subtaskRows))
+	for _, sub := range subtaskRows {
+		subtasks = append(subtasks, Subtask{
+			ID:       sub.ID,
+			Label:    sub.Label,
+			Done:     sub.Done,
+			Position: int(sub.Position),
+		})
+	}
+
+	activityRows, err := s.q.ListTaskActivity(ctx, db.ListTaskActivityParams{
+		TaskID:   id,
+		PageSize: taskActivityLimit,
+	})
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("lecture du journal : %w", err)
+	}
+
+	activity := make([]ActivityEntry, 0, len(activityRows))
+	for _, entry := range activityRows {
+		payload := map[string]any{}
+		// Un journal illisible ne doit pas faire echouer l'ouverture du
+		// panneau : la ligne passe avec un payload vide.
+		_ = json.Unmarshal(entry.Payload, &payload)
+
+		activity = append(activity, ActivityEntry{
+			ID:        entry.ID,
+			Kind:      entry.Kind,
+			Payload:   payload,
+			Actor:     personFromNullable(entry.ActorID, entry.Firstname, entry.Lastname, entry.AvatarUrl),
+			CreatedAt: entry.CreatedAt,
+		})
+	}
+
+	assignees := []Person{}
+	if people, ok := byTask[id]; ok {
+		assignees = people
+	}
+
+	return TaskDetail{
+		ID:          row.ID,
+		ProjectID:   row.ProjectID,
+		ProjectName: row.ProjectName,
+		ClientName:  row.ClientName,
+		Title:       row.Title,
+		Description: row.Description,
+		Status:      row.Status,
+		Tag:         row.Tag,
+		Note:        row.Note,
+		StartsOn:    formatDate(row.StartsOn),
+		DueOn:       formatDate(row.DueOn),
+		Hours:       row.Hours,
+		CompletedAt: row.CompletedAt,
+		CreatedAt:   row.CreatedAt,
+		Assignees:   assignees,
+		Subtasks:    subtasks,
+		Activity:    activity,
+	}, nil
+}
+
+// Create cree une tache, ses affectations, et ouvre son journal.
+func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (TaskDetail, error) {
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"title": "Le titre de la tâche est requis",
+		})
+	}
+
+	if in.Status == "" {
+		in.Status = "todo"
+	}
+	if _, ok := taskStatuses[in.Status]; !ok {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"status": "Statut inconnu",
+		})
+	}
+	if in.Hours != nil && *in.Hours < 0 {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"hours": "L'estimation ne peut pas être négative",
+		})
+	}
+	if in.StartsOn != nil && in.DueOn != nil && in.DueOn.Before(*in.StartsOn) {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"due_on": "L'échéance précède la date de début",
+		})
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.q.WithTx(tx)
+
+	task, err := qtx.CreateTask(ctx, db.CreateTaskParams{
+		ProjectID:   in.ProjectID,
+		Title:       title,
+		Description: in.Description,
+		Status:      in.Status,
+		Tag:         in.Tag,
+		StartsOn:    in.StartsOn,
+		DueOn:       in.DueOn,
+		Hours:       in.Hours,
+		Note:        in.Note,
+		CreatedBy:   &in.ActorID,
+	})
+	if err != nil {
+		// Une cle etrangere violee ici, c'est un projet inconnu : le dire
+		// plutot que de renvoyer une erreur interne.
+		if isForeignKeyViolation(err) {
+			return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+				"project_id": "Projet introuvable",
+			})
+		}
+		return TaskDetail{}, fmt.Errorf("creation de la tache : %w", err)
+	}
+
+	for _, userID := range in.AssigneeIDs {
+		if err := qtx.AssignTask(ctx, db.AssignTaskParams{TaskID: task.ID, UserID: userID}); err != nil {
+			return TaskDetail{}, fmt.Errorf("affectation de la tache : %w", err)
+		}
+	}
+
+	if err := logActivity(ctx, qtx, task.ID, in.ActorID, "created", map[string]any{"title": task.Title}); err != nil {
+		return TaskDetail{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return TaskDetail{}, fmt.Errorf("validation de la transaction : %w", err)
+	}
+
+	return s.Get(ctx, task.ID)
+}
+
+// Update modifie les champs libres d'une tache.
+//
+// Le changement d'echeance est journalise, les autres non : c'est le seul que
+// quelqu'un d'autre a besoin de voir passer. Journaliser chaque frappe dans la
+// note remplirait le fil sans rien apprendre.
+func (s *TaskService) Update(ctx context.Context, id uuid.UUID, in UpdateTaskInput) (TaskDetail, error) {
+	if in.Hours != nil && *in.Hours < 0 {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"hours": "L'estimation ne peut pas être négative",
+		})
+	}
+	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"title": "Le titre de la tâche est requis",
+		})
+	}
+
+	before, err := s.q.GetTask(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
+	updated, err := s.q.UpdateTask(ctx, db.UpdateTaskParams{
+		ID:            id,
+		Title:         in.Title,
+		Description:   in.Description,
+		Tag:           in.Tag,
+		Note:          in.Note,
+		Hours:         in.Hours,
+		ClearHours:    in.ClearHours,
+		StartsOn:      in.StartsOn,
+		ClearStartsOn: in.ClearStartsOn,
+		DueOn:         in.DueOn,
+		ClearDueOn:    in.ClearDueOn,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("mise a jour de la tache : %w", err)
+	}
+
+	if !sameDate(before.DueOn, updated.DueOn) {
+		if err := logActivity(ctx, s.q, id, in.ActorID, "due_changed", map[string]any{
+			"from": formatDateValue(before.DueOn),
+			"to":   formatDateValue(updated.DueOn),
+		}); err != nil {
+			return TaskDetail{}, err
+		}
+	}
+
+	return s.Get(ctx, id)
+}
+
+// Move deplace une tache dans le tableau.
+func (s *TaskService) Move(ctx context.Context, id uuid.UUID, status string, position *int, actorID uuid.UUID) (TaskDetail, error) {
+	if _, ok := taskStatuses[status]; !ok {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"status": "Statut inconnu",
+		})
+	}
+
+	before, err := s.q.GetTask(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
+	var rank *int32
+	if position != nil {
+		value := int32(*position)
+		rank = &value
+	}
+
+	if _, err := s.q.MoveTask(ctx, db.MoveTaskParams{
+		ID:       id,
+		Status:   status,
+		Position: rank,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("deplacement de la tache : %w", err)
+	}
+
+	// Un simple reordonnancement dans la meme colonne n'est pas un evenement :
+	// seul le changement de colonne entre au journal.
+	if before.Status != status {
+		if err := logActivity(ctx, s.q, id, actorID, "status_changed", map[string]any{
+			"from": before.Status,
+			"to":   status,
+		}); err != nil {
+			return TaskDetail{}, err
+		}
+	}
+
+	return s.Get(ctx, id)
+}
+
+// Delete efface une tache logiquement.
+func (s *TaskService) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := s.q.SoftDeleteTask(ctx, id); err != nil {
+		return fmt.Errorf("suppression de la tache : %w", err)
+	}
+	return nil
+}
+
+// SetAssignees remplace les personnes affectees et journalise l'ecart.
+func (s *TaskService) SetAssignees(ctx context.Context, id uuid.UUID, userIDs []uuid.UUID, actorID uuid.UUID) (TaskDetail, error) {
+	current, err := s.assigneesOf(ctx, []uuid.UUID{id})
+	if err != nil {
+		return TaskDetail{}, err
+	}
+
+	existing := make(map[uuid.UUID]Person, len(current[id]))
+	for _, person := range current[id] {
+		existing[person.ID] = person
+	}
+
+	wanted := make(map[uuid.UUID]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		wanted[userID] = struct{}{}
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.q.WithTx(tx)
+
+	for personID, person := range existing {
+		if _, keep := wanted[personID]; keep {
+			continue
+		}
+
+		if err := qtx.UnassignTask(ctx, db.UnassignTaskParams{TaskID: id, UserID: personID}); err != nil {
+			return TaskDetail{}, fmt.Errorf("retrait d'une affectation : %w", err)
+		}
+		if err := logActivity(ctx, qtx, id, actorID, "unassigned", map[string]any{
+			"user_id": personID,
+			"name":    strings.TrimSpace(person.Firstname + " " + person.Lastname),
+		}); err != nil {
+			return TaskDetail{}, err
+		}
+	}
+
+	for _, userID := range userIDs {
+		if _, already := existing[userID]; already {
+			continue
+		}
+
+		if err := qtx.AssignTask(ctx, db.AssignTaskParams{TaskID: id, UserID: userID}); err != nil {
+			return TaskDetail{}, fmt.Errorf("ajout d'une affectation : %w", err)
+		}
+		if err := logActivity(ctx, qtx, id, actorID, "assigned", map[string]any{
+			"user_id": userID,
+		}); err != nil {
+			return TaskDetail{}, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return TaskDetail{}, fmt.Errorf("validation de la transaction : %w", err)
+	}
+
+	return s.Get(ctx, id)
+}
+
+// AddSubtask ajoute une ligne a cocher.
+func (s *TaskService) AddSubtask(ctx context.Context, taskID uuid.UUID, label string) (Subtask, error) {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == "" {
+		return Subtask{}, domain.ErrValidation.WithDetails(map[string]any{
+			"label": "Le libellé est requis",
+		})
+	}
+
+	row, err := s.q.CreateSubtask(ctx, db.CreateSubtaskParams{TaskID: taskID, Label: trimmed})
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return Subtask{}, domain.ErrNotFound
+		}
+		return Subtask{}, fmt.Errorf("creation de la sous-tache : %w", err)
+	}
+
+	return Subtask{ID: row.ID, Label: row.Label, Done: row.Done, Position: int(row.Position)}, nil
+}
+
+// UpdateSubtask renomme une sous-tache, la coche ou la deplace.
+//
+// Cocher entre au journal, renommer non : le premier fait avancer le travail,
+// le second corrige une formulation.
+func (s *TaskService) UpdateSubtask(ctx context.Context, id uuid.UUID, label *string, done *bool, position *int, actorID uuid.UUID) (Subtask, error) {
+	if label != nil && strings.TrimSpace(*label) == "" {
+		return Subtask{}, domain.ErrValidation.WithDetails(map[string]any{
+			"label": "Le libellé est requis",
+		})
+	}
+
+	before, err := s.q.GetSubtask(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Subtask{}, domain.ErrNotFound
+		}
+		return Subtask{}, fmt.Errorf("lecture de la sous-tache : %w", err)
+	}
+
+	var rank *int32
+	if position != nil {
+		value := int32(*position)
+		rank = &value
+	}
+
+	row, err := s.q.UpdateSubtask(ctx, db.UpdateSubtaskParams{
+		ID:       id,
+		Label:    label,
+		Done:     done,
+		Position: rank,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Subtask{}, domain.ErrNotFound
+		}
+		return Subtask{}, fmt.Errorf("mise a jour de la sous-tache : %w", err)
+	}
+
+	if done != nil && before.Done != row.Done {
+		kind := "subtask_undone"
+		if row.Done {
+			kind = "subtask_done"
+		}
+
+		if err := logActivity(ctx, s.q, before.TaskID, actorID, kind, map[string]any{
+			"label": row.Label,
+		}); err != nil {
+			return Subtask{}, err
+		}
+	}
+
+	return Subtask{ID: row.ID, Label: row.Label, Done: row.Done, Position: int(row.Position)}, nil
+}
+
+// DeleteSubtask retire une ligne a cocher.
+func (s *TaskService) DeleteSubtask(ctx context.Context, id uuid.UUID) error {
+	if err := s.q.DeleteSubtask(ctx, id); err != nil {
+		return fmt.Errorf("suppression de la sous-tache : %w", err)
+	}
+	return nil
+}
+
+// Comments renvoie le fil de discussion d'une tache.
+func (s *TaskService) Comments(ctx context.Context, taskID uuid.UUID) ([]Comment, error) {
+	rows, err := s.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
+		TaskID:   taskID,
+		PageSize: taskCommentsLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("lecture des commentaires : %w", err)
+	}
+
+	comments := make([]Comment, 0, len(rows))
+	for _, row := range rows {
+		comments = append(comments, Comment{
+			ID:        row.ID,
+			Body:      row.Body,
+			Author:    personFromNullable(row.AuthorID, row.Firstname, row.Lastname, row.AvatarUrl),
+			CreatedAt: row.CreatedAt,
+		})
+	}
+
+	return comments, nil
+}
+
+// AddComment poste un message et le journalise.
+func (s *TaskService) AddComment(ctx context.Context, taskID uuid.UUID, authorID uuid.UUID, body string) (Comment, error) {
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		return Comment{}, domain.ErrValidation.WithDetails(map[string]any{
+			"body": "Le commentaire est vide",
+		})
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Comment{}, fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.q.WithTx(tx)
+
+	row, err := qtx.CreateTaskComment(ctx, db.CreateTaskCommentParams{
+		TaskID:   taskID,
+		AuthorID: &authorID,
+		Body:     trimmed,
+	})
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return Comment{}, domain.ErrNotFound
+		}
+		return Comment{}, fmt.Errorf("creation du commentaire : %w", err)
+	}
+
+	if err := logActivity(ctx, qtx, taskID, authorID, "commented", map[string]any{}); err != nil {
+		return Comment{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Comment{}, fmt.Errorf("validation de la transaction : %w", err)
+	}
+
+	return Comment{ID: row.ID, Body: row.Body, CreatedAt: row.CreatedAt}, nil
+}
+
+// assigneesOf charge les affectations de plusieurs taches en une requete.
+func (s *TaskService) assigneesOf(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]Person, error) {
+	byTask := map[uuid.UUID][]Person{}
+
+	if len(ids) == 0 {
+		return byTask, nil
+	}
+
+	rows, err := s.q.ListAssigneesOfTasks(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("lecture des affectations : %w", err)
+	}
+
+	for _, row := range rows {
+		byTask[row.TaskID] = append(byTask[row.TaskID], Person{
+			ID:        row.ID,
+			Firstname: row.Firstname,
+			Lastname:  row.Lastname,
+			Initials:  initialsOf(row.Firstname, row.Lastname),
+			AvatarURL: row.AvatarUrl,
+		})
+	}
+
+	return byTask, nil
+}
+
+// logActivity ecrit une ligne de journal.
+//
+// Prend un *db.Queries plutot que de passer par le service : l'appelant decide
+// s'il ecrit dans une transaction ou hors d'elle, et une entree de journal doit
+// vivre dans la meme transaction que le fait qu'elle raconte.
+func logActivity(ctx context.Context, q *db.Queries, taskID, actorID uuid.UUID, kind string, payload map[string]any) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encodage du journal : %w", err)
+	}
+
+	if err := q.LogTaskActivity(ctx, db.LogTaskActivityParams{
+		TaskID:  taskID,
+		ActorID: &actorID,
+		Kind:    kind,
+		Payload: encoded,
+	}); err != nil {
+		return fmt.Errorf("ecriture du journal : %w", err)
+	}
+
+	return nil
+}
+
+// personFromNullable reconstruit un auteur dont le compte a pu etre supprime.
+// Un commentaire survit a son auteur : la ligne reste, sans nom.
+func personFromNullable(id *uuid.UUID, firstname, lastname, avatar *string) *Person {
+	if id == nil {
+		return nil
+	}
+
+	person := Person{ID: *id, AvatarURL: avatar}
+	if firstname != nil {
+		person.Firstname = *firstname
+	}
+	if lastname != nil {
+		person.Lastname = *lastname
+	}
+	person.Initials = initialsOf(person.Firstname, person.Lastname)
+
+	return &person
+}
+
+// sameDate compare deux echeances, nil compris.
+func sameDate(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
+}
+
+// formatDateValue rend une date pour le journal : une chaine, ou nil.
+func formatDateValue(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.Format(dateLayout)
+}
