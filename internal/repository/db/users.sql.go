@@ -8,7 +8,7 @@ package db
 import (
 	"context"
 
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 )
 
 const countUsers = `-- name: CountUsers :one
