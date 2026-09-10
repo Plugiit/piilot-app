@@ -79,6 +79,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	signer := security.NewTokenSigner(cfg.JWTSecret, "plugiit-api")
 	authService := usecase.NewAuthService(pool, signer, cfg.AccessTTL, cfg.RefreshTTL)
+	projectService := usecase.NewProjectService(pool)
+	taskService := usecase.NewTaskService(pool)
 
 	cookies := handler.CookieConfig{
 		Domain: cfg.CookieDomain,
@@ -88,9 +90,11 @@ func run(cfg config.Config, log *slog.Logger) error {
 	}
 
 	handler.Register(app, handler.Deps{
-		Health: handler.NewHealth(pool, rdb, handler.BuildInfo{Version: version, Commit: commit}),
-		Auth:   handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
-		Guard:  middleware.NewGuard(signer, authService),
+		Health:   handler.NewHealth(pool, rdb, handler.BuildInfo{Version: version, Commit: commit}),
+		Auth:     handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
+		Projects: handler.NewProjects(projectService),
+		Tasks:    handler.NewTasks(taskService),
+		Guard:    middleware.NewGuard(signer, authService),
 	})
 
 	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,

@@ -34,6 +34,13 @@ func TestSpecOpenAPICouvreExactementLesRoutesMontees(t *testing.T) {
 	decrites := map[string]bool{}
 	for path, operations := range spec.Paths {
 		for method := range operations {
+			// Un chemin OpenAPI ne porte pas que des operations : « parameters »
+			// y declare ce que toutes partagent, et « summary » les decrit. Les
+			// prendre pour des verbes ferait echouer le test sur des cles
+			// parfaitement valides.
+			if !estMethodeHTTP(method) {
+				continue
+			}
 			decrites[strings.ToUpper(method)+" "+path] = true
 		}
 	}
@@ -45,7 +52,7 @@ func TestSpecOpenAPICouvreExactementLesRoutesMontees(t *testing.T) {
 		if route.Method == http.MethodHead || route.Method == http.MethodOptions {
 			continue
 		}
-		montees[route.Method+" "+route.Path] = true
+		montees[route.Method+" "+enNotationOpenAPI(route.Path)] = true
 	}
 
 	for _, route := range manquantes(montees, decrites) {
@@ -84,6 +91,35 @@ func TestSpecOpenAPIEstServieEnJSON(t *testing.T) {
 	if _, ok := document["openapi"]; !ok {
 		t.Error("la spec servie ne porte pas de champ openapi")
 	}
+}
+
+// estMethodeHTTP dit si la cle d'un chemin OpenAPI est une operation.
+func estMethodeHTTP(key string) bool {
+	switch strings.ToUpper(key) {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
+		http.MethodDelete, http.MethodHead, http.MethodOptions, "TRACE":
+		return true
+	default:
+		return false
+	}
+}
+
+// enNotationOpenAPI traduit les parametres de chemin de Fiber vers OpenAPI.
+//
+// Fiber ecrit « /projects/:id », OpenAPI « /projects/{id} ». Comparer les deux
+// notations telles quelles ferait echouer le test sur chaque route parametree,
+// et la seule facon de le faire passer serait d'ecrire une spec qui n'en est
+// plus une — c'est donc au test de rapprocher les deux ecritures.
+func enNotationOpenAPI(path string) string {
+	segments := strings.Split(path, "/")
+
+	for i, segment := range segments {
+		if strings.HasPrefix(segment, ":") {
+			segments[i] = "{" + strings.TrimPrefix(segment, ":") + "}"
+		}
+	}
+
+	return strings.Join(segments, "/")
 }
 
 // manquantes retourne les cles de a qui n'existent pas dans b, triees pour que

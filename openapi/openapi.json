@@ -5,29 +5,53 @@
     "version": "1.0.0",
     "description": "API interne Plugiit. Source de verite du contrat HTTP : le front genere ses types depuis ce document (npm run api:types). Toute route montee doit y figurer, ce que verifie TestSpecOpenAPICouvreToutesLesRoutes."
   },
-  "servers": [{ "url": "/", "description": "Meme origine que l'application" }],
+  "servers": [
+    {
+      "url": "/",
+      "description": "Meme origine que l'application"
+    }
+  ],
   "tags": [
-    { "name": "sante", "description": "Sondes de disponibilite" },
-    { "name": "auth", "description": "Authentification et session" },
-    { "name": "admin", "description": "Back-office, roles internes uniquement" }
+    {
+      "name": "sante",
+      "description": "Sondes de disponibilite"
+    },
+    {
+      "name": "auth",
+      "description": "Authentification et session"
+    },
+    {
+      "name": "admin",
+      "description": "Back-office, roles internes uniquement"
+    }
   ],
   "paths": {
     "/openapi.json": {
       "get": {
-        "tags": ["sante"],
+        "tags": [
+          "sante"
+        ],
         "summary": "Contrat HTTP de l'API",
         "operationId": "getOpenAPISpec",
         "responses": {
           "200": {
             "description": "Le present document",
-            "content": { "application/json": { "schema": { "type": "object" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         }
       }
     },
     "/health/live": {
       "get": {
-        "tags": ["sante"],
+        "tags": [
+          "sante"
+        ],
         "summary": "Sonde de liveness",
         "description": "Repond des que le process ecoute. Ne touche aucune dependance : un Postgres momentanement indisponible ne doit pas faire redemarrer le conteneur.",
         "operationId": "getHealthLive",
@@ -36,7 +60,9 @@
             "description": "Le process ecoute",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthLive" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthLive"
+                }
               }
             }
           }
@@ -45,7 +71,9 @@
     },
     "/health/ready": {
       "get": {
-        "tags": ["sante"],
+        "tags": [
+          "sante"
+        ],
         "summary": "Sonde de readiness",
         "description": "Repond 200 seulement si Postgres et Redis repondent. C'est cette sonde qui conditionne la bascule du trafic.",
         "operationId": "getHealthReady",
@@ -54,7 +82,9 @@
             "description": "Toutes les dependances repondent",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthReady" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReady"
+                }
               }
             }
           },
@@ -62,7 +92,9 @@
             "description": "Une dependance au moins ne repond pas",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthReady" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReady"
+                }
               }
             }
           }
@@ -71,7 +103,9 @@
     },
     "/api/v1/auth/login": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Ouvre une session",
         "description": "Pose deux cookies httpOnly : plugiit_access (portee /) et plugiit_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
         "operationId": "login",
@@ -79,7 +113,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
             }
           }
         },
@@ -88,35 +124,51 @@
             "description": "Session ouverte, cookies poses",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
           },
           "401": {
             "description": "Identifiants incorrects. Ne distingue jamais un email inconnu d'un mot de passe faux.",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
             }
           },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "429": { "$ref": "#/components/responses/RateLimited" }
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
         }
       }
     },
     "/api/v1/auth/logout": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Ferme la session courante",
         "description": "Revoque le jeton de rafraichissement et efface les deux cookies. Idempotent : rappeler cet endpoint sans session valide repond 204.",
         "operationId": "logout",
         "responses": {
-          "204": { "description": "Session fermee, cookies effaces" }
+          "204": {
+            "description": "Session fermee, cookies effaces"
+          }
         }
       }
     },
     "/api/v1/auth/refresh": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Renouvelle la session",
         "description": "Consomme le cookie plugiit_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.",
         "operationId": "refresh",
@@ -125,14 +177,20 @@
             "description": "Session renouvelee, nouveaux cookies poses",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
           },
           "401": {
             "description": "Session expiree, revoquee ou rejouee. Le front doit rediriger vers /login plutot que retenter.",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
             }
           }
         }
@@ -140,77 +198,154 @@
     },
     "/api/v1/auth/me": {
       "get": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Identite de l'appelant",
         "description": "Relue en base a chaque appel : un droit retire ou un compte supprime prend effet immediatement, sans attendre l'expiration du jeton.",
         "operationId": "getMe",
-        "security": [{ "sessionCookie": [] }],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Profil de l'appelant, permissions comprises",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
     "/api/v1/admin/dashboard": {
       "get": {
-        "tags": ["admin"],
+        "tags": [
+          "admin"
+        ],
         "summary": "Tableau de bord de l'agence",
-        "description": "CONTRAT CIBLE — le handler repond encore 501. La reponse 200 decrite ici est ce que la vue attend et ce que l'implementation devra servir ; elle est publiee pour que le front soit type des maintenant.",
+        "description": "Trois chiffres et leur variation sur trente jours, en une requete SQL. Exige projects.read.",
         "operationId": "getAdminDashboard",
-        "security": [{ "sessionCookie": [] }],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Agregats precalcules du tableau de bord",
+            "description": "Agregats",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardSummary" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "501": { "$ref": "#/components/responses/NotImplemented" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     },
     "/api/v1/admin/projects": {
       "get": {
-        "tags": ["admin"],
+        "tags": [
+          "admin"
+        ],
         "summary": "Liste des projets",
-        "description": "CONTRAT CIBLE — le handler repond encore 501. Exige la permission projects.read. La pagination est cote serveur : aucune reponse ne renvoie la collection entiere.",
+        "description": "Pagination cote serveur. La reponse porte l'equipe et les compteurs de taches de chaque ligne : l'ecran ne fait pas d'appel de second niveau. Exige projects.read.",
         "operationId": "listAdminProjects",
-        "security": [{ "sessionCookie": [] }],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "page",
             "in": "query",
-            "description": "Numero de page, 1 par defaut",
-            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
           },
           {
             "name": "page_size",
             "in": "query",
-            "description": "Taille de page",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
           },
           {
             "name": "search",
             "in": "query",
-            "description": "Recherche partielle sur le nom du projet",
-            "schema": { "type": "string" }
+            "description": "Recherche partielle sur le nom",
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "name": "status",
             "in": "query",
-            "description": "Filtre sur le statut",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cadrage",
+                "production",
+                "attente",
+                "livre"
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "due",
+                "name",
+                "progress",
+                "budget"
+              ],
+              "default": "due"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -218,13 +353,908 @@
             "description": "Page de projets",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ProjectPage" }
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPage"
+                }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "501": { "$ref": "#/components/responses/NotImplemented" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Creer un projet",
+        "description": "Cree le projet, son client s'il est designe par un nom inconnu, et son equipe, dans une seule transaction. Exige projects.write.",
+        "operationId": "createAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Projet cree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/clients": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Clients de l'agence",
+        "description": "Sert le champ « Client » du formulaire de projet. Exige clients.read.",
+        "operationId": "listAdminClients",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "En-tete d'un projet",
+        "operationId": "getAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier un projet",
+        "operationId": "updateAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Projet modifie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer un projet",
+        "description": "Suppression logique. Les taches restent rattachees : restaurer le projet doit les retrouver.",
+        "operationId": "deleteAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Projet supprime"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/team": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remplacer l'equipe d'un projet",
+        "operationId": "setAdminProjectTeam",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Projet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/tasks": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Tableau des taches d'un projet",
+        "description": "Deux requetes SQL quel que soit le nombre de cartes : les affectations de toutes les taches sont chargees d'un coup. Exige tasks.read.",
+        "operationId": "getAdminProjectTasks",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tableau",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskBoard"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Creer une tache",
+        "operationId": "createAdminTask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tache creee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Detail d'une tache",
+        "description": "Tache, affectations, sous-taches et journal. Exige tasks.read.",
+        "operationId": "getAdminTask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier une tache",
+        "operationId": "updateAdminTask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tache modifiee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer une tache",
+        "operationId": "deleteAdminTask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Tache supprimee"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}/move": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deplacer une tache dans le tableau",
+        "description": "Seul un changement de colonne entre au journal : reordonner dans la meme colonne n'est pas un evenement.",
+        "operationId": "moveAdminTask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tache deplacee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}/assignees": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remplacer les personnes affectees",
+        "operationId": "setAdminTaskAssignees",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}/subtasks": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ajouter une sous-tache",
+        "operationId": "createAdminSubtask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubtaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sous-tache creee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subtask"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}/comments": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Commentaires d'une tache",
+        "operationId": "listAdminTaskComments",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Commentaires",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCommentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Commenter une tache",
+        "operationId": "createAdminTaskComment",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Commentaire poste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskComment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/subtasks/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la sous-tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Renommer, cocher ou deplacer une sous-tache",
+        "description": "Cocher entre au journal de la tache, renommer non : le premier fait avancer le travail, le second corrige une formulation.",
+        "operationId": "updateAdminSubtask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSubtaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sous-tache modifiee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subtask"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer une sous-tache",
+        "operationId": "deleteAdminSubtask",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sous-tache supprimee"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Comptes internes",
+        "description": "Sert les champs d'affectation : equipe d'un projet, assignes d'une tache. Les comptes clients en sont exclus. Exige users.read.",
+        "operationId": "listAdminUsers",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comptes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     }
@@ -242,31 +1272,61 @@
       "Unauthorized": {
         "description": "Authentification requise ou session expiree",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
         }
       },
       "Forbidden": {
         "description": "Authentifie, mais sans le droit necessaire",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
         }
       },
       "ValidationFailed": {
         "description": "Corps invalide. details porte un message par champ fautif.",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
         }
       },
       "RateLimited": {
         "description": "Trop de tentatives. L'en-tete Retry-After donne le delai en secondes.",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
         }
       },
       "NotImplemented": {
         "description": "La route existe, le handler n'est pas encore ecrit",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Ressource introuvable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
         }
       }
     },
@@ -274,14 +1334,28 @@
       "Error": {
         "type": "object",
         "description": "Format d'erreur unique de l'API. Le front branche sur code, jamais sur message.",
-        "required": ["code", "message", "details"],
+        "required": [
+          "code",
+          "message",
+          "details"
+        ],
         "properties": {
           "code": {
             "type": "string",
             "description": "Code stable, destine au code appelant",
-            "examples": ["INVALID_CREDENTIALS", "SESSION_EXPIRED", "FORBIDDEN", "VALIDATION_FAILED", "RATE_LIMITED", "NOT_IMPLEMENTED"]
+            "examples": [
+              "INVALID_CREDENTIALS",
+              "SESSION_EXPIRED",
+              "FORBIDDEN",
+              "VALIDATION_FAILED",
+              "RATE_LIMITED",
+              "NOT_IMPLEMENTED"
+            ]
           },
-          "message": { "type": "string", "description": "Message affichable a l'utilisateur" },
+          "message": {
+            "type": "string",
+            "description": "Message affichable a l'utilisateur"
+          },
           "details": {
             "type": "object",
             "description": "Toujours un objet, jamais null. Porte les erreurs par champ en cas de validation.",
@@ -292,102 +1366,1078 @@
       "User": {
         "type": "object",
         "description": "Identite rendue au front. Ne porte ni empreinte de mot de passe ni secret TOTP.",
-        "required": ["id", "email", "firstname", "lastname", "role", "avatar_url", "permissions"],
+        "required": [
+          "id",
+          "email",
+          "firstname",
+          "lastname",
+          "role",
+          "avatar_url",
+          "permissions"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "email": { "type": "string", "format": "email" },
-          "firstname": { "type": "string" },
-          "lastname": { "type": "string" },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
           "role": {
             "type": "string",
             "description": "Code du role. Les roles vivent en base : cette liste est celle des roles systeme, elle peut s'etendre.",
-            "examples": ["admin", "team", "client"]
+            "examples": [
+              "admin",
+              "team",
+              "client"
+            ]
           },
-          "avatar_url": { "type": ["string", "null"] },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "permissions": {
             "type": "array",
             "description": "Permissions du role, pour masquer les actions inaccessibles. Confort d'affichage : l'API reste la seule autorite.",
-            "items": { "type": "string" },
-            "examples": [["projects.read", "projects.write"]]
+            "items": {
+              "type": "string"
+            },
+            "examples": [
+              [
+                "projects.read",
+                "projects.write"
+              ]
+            ]
           }
         }
       },
       "SessionResponse": {
         "type": "object",
         "description": "Reponse de login, refresh et me. Les jetons sont dans les cookies, jamais ici.",
-        "required": ["user"],
-        "properties": { "user": { "$ref": "#/components/schemas/User" } }
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
       },
       "LoginRequest": {
         "type": "object",
-        "required": ["email", "password"],
+        "required": [
+          "email",
+          "password"
+        ],
         "properties": {
-          "email": { "type": "string", "format": "email" },
-          "password": { "type": "string", "format": "password" }
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
         }
       },
       "Project": {
         "type": "object",
-        "description": "CONTRAT CIBLE — le module PM n'est pas ecrit. Ce schema est ce que la vue liste affiche, rien de plus : il ne prejuge pas du modele de donnees.",
-        "required": ["id", "name", "status", "client_name", "completion", "updated_at"],
+        "description": "Ligne de la liste des projets. Porte tout ce que la ligne affiche, agregats et equipe compris : aucun ecran ne complete cette reponse par un second appel.",
+        "required": [
+          "id",
+          "name",
+          "client_id",
+          "client_name",
+          "status",
+          "progress",
+          "hours_sold",
+          "hours_spent",
+          "tasks_total",
+          "tasks_done",
+          "team"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "name": { "type": "string" },
-          "status": { "type": "string" },
-          "client_name": { "type": ["string", "null"] },
-          "completion": {
-            "type": "integer",
-            "description": "Avancement en pourcentage, precalcule cote serveur",
-            "minimum": 0,
-            "maximum": 100
+          "id": {
+            "type": "string",
+            "format": "uuid"
           },
-          "updated_at": { "type": "string", "format": "date-time" }
+          "name": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Avancement declare par l'equipe, distinct du rapport des taches faites"
+          },
+          "hours_sold": {
+            "type": "number"
+          },
+          "hours_spent": {
+            "type": "number",
+            "description": "Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "tasks_total": {
+            "type": "integer",
+            "description": "Compteur tenu par declencheur en base : jamais un COUNT au rendu"
+          },
+          "tasks_done": {
+            "type": "integer"
+          },
+          "team": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          }
         }
       },
       "ProjectPage": {
         "type": "object",
         "description": "Enveloppe de pagination, commune a toutes les listes de l'API.",
-        "required": ["items", "total", "page", "page_size"],
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/Project" }
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
           },
-          "total": { "type": "integer", "description": "Nombre total d'elements, tous filtres appliques" },
-          "page": { "type": "integer" },
-          "page_size": { "type": "integer" }
+          "total": {
+            "type": "integer",
+            "description": "Nombre total d'elements, tous filtres appliques"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
         }
       },
       "DashboardSummary": {
         "type": "object",
-        "description": "CONTRAT CIBLE — agregats precalcules, jamais recalcules par COUNT(*) au rendu.",
-        "required": ["active_projects", "tasks_in_progress", "overdue_tasks", "open_tickets"],
+        "description": "Chiffres d'en-tete du module. Pas de chiffre d'affaires : la facturation ne fait pas partie de ce projet, les heures vendues sont la donnee la plus proche qui lui appartienne.",
+        "required": [
+          "projects",
+          "clients",
+          "hours_sold"
+        ],
         "properties": {
-          "active_projects": { "type": "integer" },
-          "tasks_in_progress": { "type": "integer" },
-          "overdue_tasks": { "type": "integer" },
-          "open_tickets": { "type": "integer" }
+          "projects": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "clients": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "hours_sold": {
+            "$ref": "#/components/schemas/Metric"
+          }
         }
       },
       "HealthLive": {
         "type": "object",
-        "required": ["status", "version", "commit"],
+        "required": [
+          "status",
+          "version",
+          "commit"
+        ],
         "properties": {
-          "status": { "type": "string", "examples": ["ok"] },
-          "version": { "type": "string" },
-          "commit": { "type": "string" }
+          "status": {
+            "type": "string",
+            "examples": [
+              "ok"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          }
         }
       },
       "HealthReady": {
         "type": "object",
-        "required": ["status", "checks"],
+        "required": [
+          "status",
+          "checks"
+        ],
         "properties": {
-          "status": { "type": "string", "examples": ["ok", "degraded"] },
+          "status": {
+            "type": "string",
+            "examples": [
+              "ok",
+              "degraded"
+            ]
+          },
           "checks": {
             "type": "object",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "description": "Etat par dependance",
-            "examples": [{ "database": "ok", "redis": "ok" }]
+            "examples": [
+              {
+                "database": "ok",
+                "redis": "ok"
+              }
+            ]
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "description": "Identite reduite affichee dans les listes et les pastilles d'avatar.",
+        "required": [
+          "id",
+          "firstname",
+          "lastname",
+          "initials"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string",
+            "description": "Initiales composees cote serveur, pour que tous les ecrans les affichent pareil"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProjectDetail": {
+        "type": "object",
+        "description": "En-tete d'un projet : ce que le chassis affiche, quel que soit l'onglet ouvert.",
+        "required": [
+          "id",
+          "name",
+          "client_id",
+          "client_name",
+          "status",
+          "progress",
+          "hours_sold",
+          "hours_spent",
+          "tasks_total",
+          "tasks_done",
+          "team",
+          "client_contact_name",
+          "client_contact_role"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Avancement declare par l'equipe, distinct du rapport des taches faites"
+          },
+          "hours_sold": {
+            "type": "number"
+          },
+          "hours_spent": {
+            "type": "number",
+            "description": "Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "tasks_total": {
+            "type": "integer",
+            "description": "Compteur tenu par declencheur en base : jamais un COUNT au rendu"
+          },
+          "tasks_done": {
+            "type": "integer"
+          },
+          "team": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          },
+          "client_contact_name": {
+            "type": "string"
+          },
+          "client_contact_role": {
+            "type": "string"
+          },
+          "client_contact_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          }
+        }
+      },
+      "Client": {
+        "type": "object",
+        "description": "Entree du champ « Client » du formulaire de projet.",
+        "required": [
+          "id",
+          "name",
+          "contact_name",
+          "contact_role"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contact_name": {
+            "type": "string"
+          },
+          "contact_role": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Client"
+            }
+          }
+        }
+      },
+      "TaskSummary": {
+        "type": "object",
+        "description": "Carte du tableau. Ne porte pas la note ni les sous-taches : elles ne sont lues qu'a l'ouverture du panneau.",
+        "required": [
+          "id",
+          "project_id",
+          "title",
+          "status",
+          "tag",
+          "position",
+          "assignees"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "progress",
+              "review",
+              "done"
+            ]
+          },
+          "tag": {
+            "type": "string",
+            "description": "Nature de la tache, texte libre"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "hours": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Estimation. Nulle tant que personne ne l'a donnee."
+          },
+          "position": {
+            "type": "integer",
+            "description": "Rang dans sa colonne"
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          }
+        }
+      },
+      "TaskBoard": {
+        "type": "object",
+        "description": "Contenu de l'onglet Taches d'un projet.",
+        "required": [
+          "items",
+          "total",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache."
+          }
+        }
+      },
+      "Subtask": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "done",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer"
+          }
+        }
+      },
+      "TaskComment": {
+        "type": "object",
+        "required": [
+          "id",
+          "body",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          },
+          "author": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nul quand le compte de l'auteur a ete supprime : le message reste, sans nom."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TaskCommentList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskComment"
+            }
+          }
+        }
+      },
+      "TaskActivity": {
+        "type": "object",
+        "description": "Ligne du journal. Le serveur dit ce qui s'est passe et avec quoi ; l'ecran ecrit la phrase dans sa langue.",
+        "required": [
+          "id",
+          "kind",
+          "payload",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "created",
+              "status_changed",
+              "assigned",
+              "unassigned",
+              "subtask_done",
+              "subtask_undone",
+              "commented",
+              "due_changed"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "actor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TaskDetail": {
+        "type": "object",
+        "description": "Tout ce que le panneau lateral affiche a son ouverture. Les commentaires en sont absents : ils ont leur onglet, donc leur endpoint.",
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "client_name",
+          "title",
+          "description",
+          "status",
+          "tag",
+          "note",
+          "created_at",
+          "assignees",
+          "subtasks",
+          "activity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "progress",
+              "review",
+              "done"
+            ]
+          },
+          "tag": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "hours": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskActivity"
+            }
+          }
+        }
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "description": "Le client se designe par client_id, ou par client_name pour un client encore inconnu : le formulaire propose une liste sans imposer un detour par un ecran de creation de client.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "hours_sold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "team_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "description": "Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface la date.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "hours_sold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          }
+        }
+      },
+      "MembersRequest": {
+        "type": "object",
+        "description": "Remplace l'ensemble : les identifiants absents sont retires.",
+        "required": [
+          "user_ids"
+        ],
+        "properties": {
+          "user_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateTaskRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "progress",
+              "review",
+              "done"
+            ]
+          },
+          "tag": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "hours": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          },
+          "assignee_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "UpdateTaskRequest": {
+        "type": "object",
+        "description": "Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface le champ.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "hours": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date sans heure, AAAA-MM-JJ"
+          }
+        }
+      },
+      "MoveTaskRequest": {
+        "type": "object",
+        "description": "Deplacement dans le tableau. Sans position, la tache se pose en fin de colonne.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "progress",
+              "review",
+              "done"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateSubtaskRequest": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "UpdateSubtaskRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer"
+          }
+        }
+      },
+      "CreateCommentRequest": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "PersonList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          }
+        }
+      },
+      "Metric": {
+        "type": "object",
+        "description": "Un chiffre et son evolution sur trente jours.",
+        "required": [
+          "value",
+          "change"
+        ],
+        "properties": {
+          "value": {
+            "type": "number"
+          },
+          "change": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Variation en pourcentage entre les trente derniers jours et les trente precedents. Nulle quand la periode precedente etait vide : une progression depuis zero est un demarrage, pas « +100 % »."
           }
         }
       }

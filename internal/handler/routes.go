@@ -3,15 +3,16 @@ package handler
 import (
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/internal/domain"
 	"github.com/plugiit/plugiit-api-go/internal/middleware"
 )
 
 // Deps regroupe les handlers a monter sur le routeur.
 type Deps struct {
-	Health *Health
-	Auth   *Auth
-	Guard  *middleware.Guard
+	Health   *Health
+	Auth     *Auth
+	Projects *Projects
+	Tasks    *Tasks
+	Guard    *middleware.Guard
 }
 
 // Register monte toutes les routes de l'API.
@@ -52,32 +53,60 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 
 // registerAdminRoutes monte les endpoints de l'admin. Tout est authentifie et
 // reserve aux roles internes.
+//
+// Un endpoint par vue : chaque GET rend exactement ce qu'un ecran affiche, et
+// aucun ecran ne complete sa reponse par un second appel. La liste des projets
+// porte donc ses equipes et ses compteurs, le tableau porte ses affectations,
+// le panneau de tache porte ses sous-taches et son journal.
+//
+// Les commentaires d'une tache font exception et ont leur propre route : ils
+// vivent dans un onglet, et les charger a l'ouverture du panneau ferait payer a
+// chaque consultation une liste que la plupart ne regardent pas.
+//
+// RequireRole ne filtre que l'espace — « ce compte est interne ». Le droit
+// precis se verifie par permission, route par route, pour qu'un changement de
+// politique se fasse en base et non dans le code.
 func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("admin", "team"))
 
-	// Un endpoint par vue. Exemple du decoupage attendu, a remplacer par les
-	// vrais handlers :
-	//
-	//   GET /admin/dashboard              agregats precalcules (Redis)
-	//   GET /admin/projects               liste paginee cote serveur
-	//   GET /admin/projects/:id/overview  onglet "Vue d'ensemble" seul
-	//   GET /admin/projects/:id/tasks     onglet "Taches" seul
-	//
-	// RequireRole ci-dessus ne filtre que l'espace : il dit « ce compte est
-	// interne ». Le droit precis se verifie par permission, route par route,
-	// pour qu'un changement de politique se fasse en base et non dans le code.
-	r.Get("/dashboard", todo)
-	r.Get("/projects", deps.Guard.RequirePermission("projects.read"), todo)
-}
+	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Projects.Dashboard)
 
-// todo repond 501 tant que le handler n'est pas implemente. Preferable a une
-// route absente : le front voit un code d'erreur explicite au lieu d'un 404
-// qu'il confondrait avec une ressource manquante.
-func todo(c fiber.Ctx) error {
-	return &domain.Error{
-		Status:  fiber.StatusNotImplemented,
-		Code:    "NOT_IMPLEMENTED",
-		Message: "Endpoint à implémenter",
-		Details: map[string]any{"path": c.Path(), "method": c.Method()},
-	}
+	// Clients : le strict necessaire au champ « Client » du formulaire de
+	// projet. Le CRM leur donnera leurs propres ecrans.
+	r.Get("/clients", deps.Guard.RequirePermission("clients.read"), deps.Projects.ListClients)
+
+	// Comptes internes, pour les champs d'affectation. Lecture seule : gerer
+	// les comptes est un autre ecran, et une autre permission.
+	r.Get("/users", deps.Guard.RequirePermission("users.read"), deps.Projects.ListPeople)
+
+	projects := r.Group("/projects")
+	projects.Get("", deps.Guard.RequirePermission("projects.read"), deps.Projects.List)
+	projects.Post("", deps.Guard.RequirePermission("projects.write"), deps.Projects.Create)
+	projects.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.Get)
+	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
+	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)
+	projects.Put("/:id/team", deps.Guard.RequirePermission("projects.write"), deps.Projects.SetTeam)
+
+	// Le tableau des taches est une vue du projet, sa creation aussi : les deux
+	// vivent sous le projet parce que c'est lui qui les porte a l'ecran.
+	projects.Get("/:id/tasks", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Board)
+	projects.Post("/:id/tasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Create)
+
+	// Une fois ouverte, une tache se manipule par son seul identifiant : le
+	// panneau lateral se partage par lien, sans le projet dans l'adresse.
+	tasks := r.Group("/tasks")
+	tasks.Get("/:id", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Get)
+	tasks.Patch("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Update)
+	tasks.Delete("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Delete)
+	tasks.Post("/:id/move", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Move)
+	tasks.Put("/:id/assignees", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.SetAssignees)
+	tasks.Post("/:id/subtasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddSubtask)
+	tasks.Get("/:id/comments", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Comments)
+	tasks.Post("/:id/comments", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddComment)
+
+	// Les sous-taches se modifient par leur propre identifiant : passer par la
+	// tache imposerait de la retrouver pour cocher une case.
+	subtasks := r.Group("/subtasks")
+	subtasks.Patch("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.UpdateSubtask)
+	subtasks.Delete("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.DeleteSubtask)
 }
