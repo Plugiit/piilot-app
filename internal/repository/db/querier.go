@@ -7,20 +7,49 @@ package db
 import (
 	"context"
 
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
+	AssignTask(ctx context.Context, arg AssignTaskParams) error
+	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
+	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
+	CreateClient(ctx context.Context, arg CreateClientParams) (Client, error)
+	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (Subtask, error)
+	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
+	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Purge des jetons expires depuis assez longtemps pour ne plus rien prouver.
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
 	DeleteExpiredRefreshTokens(ctx context.Context, retention pgtype.Interval) error
+	// Suppression reelle : une sous-tache n'a pas d'histoire propre, et le
+	// « Annuler » du rappel la recree telle quelle.
+	DeleteSubtask(ctx context.Context, id uuid.UUID) error
+	GetClientByID(ctx context.Context, id uuid.UUID) (Client, error)
+	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
+	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
+	GetClientByName(ctx context.Context, name string) (Client, error)
+	// Chiffres d'en-tete du tableau de bord.
+	//
+	// Une seule requete pour les trois tuiles, comparaison comprise : chaque
+	// chiffre est donne sur les trente derniers jours et sur les trente qui
+	// precedent, ce qui permet d'afficher une variation sans stocker d'historique.
+	//
+	// Ce sont des COUNT au rendu, contrairement a la regle du projet — ils sont
+	// admis ici parce qu'ils portent sur deux tables bornees (les projets et les
+	// clients d'une agence, quelques centaines de lignes) et qu'ils passent par
+	// les index partiels `deleted_at IS NULL`. Le jour ou ces tables grossissent,
+	// c'est un instantane quotidien qu'il faudra stocker, pas un index de plus.
+	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
 	// les deux obtienne un nouvel acces.
@@ -30,15 +59,59 @@ type Querier interface {
 	// doit declencher la revocation de toute la famille.
 	GetRefreshTokenWithUser(ctx context.Context, tokenHash []byte) (GetRefreshTokenWithUserRow, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
+	GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
+	// Tache et son contexte de projet : le tiroir affiche le nom du projet, et
+	// l'aller chercher a part ferait une requete de plus pour un seul mot.
+	GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
+	// pour les equipes de projets.
+	ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListAssigneesOfTasksRow, error)
+	// Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
+	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
+	// d'exception, sinon elle finit par etre oubliee la ou elle compte.
+	ListClients(ctx context.Context, arg ListClientsParams) ([]Client, error)
+	// Equipes de plusieurs projets en une requete.
+	//
+	// C'est la parade au N+1 de la liste : le handler passe les identifiants de la
+	// page entiere et repartit les lignes ensuite. Une requete par projet aurait
+	// fait vingt allers-retours pour afficher vingt lignes.
+	ListMembersOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListMembersOfProjectsRow, error)
 	// Permissions d'un role, servies telles quelles au front pour qu'il masque les
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
 	ListPermissionsByRole(ctx context.Context, roleCode string) ([]string, error)
+	// Liste paginee du back-office.
+	//
+	// Le nom du client est joint ici plutot que ramene par une seconde requete :
+	// c'est une valeur scalaire par ligne, la jointure ne multiplie rien. L'equipe,
+	// elle, est une collection : elle passe par ListMembersOfProjects, qui charge
+	// d'un coup les membres de toute la page.
+	//
+	// Les compteurs de taches sont lus tels quels : ce sont des colonnes tenues par
+	// declencheur, aucun COUNT n'est fait au rendu.
+	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
 	ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, error)
+	ListSubtasks(ctx context.Context, taskID uuid.UUID) ([]Subtask, error)
+	ListTaskActivity(ctx context.Context, arg ListTaskActivityParams) ([]ListTaskActivityRow, error)
+	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
+	// Tableau des taches d'un projet.
+	//
+	// Bornee comme toutes les listes. Un tableau n'a pas de pagination visible —
+	// on ne tourne pas la page d'un kanban — mais la borne existe quand meme :
+	// c'est elle qui empeche un projet devenu fourre-tout de ramener dix mille
+	// lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
+	// qu'il n'affiche pas tout.
+	ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]Task, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
+	// Deplacement dans le tableau : la colonne, et le rang dans cette colonne.
+	// Separe de UpdateTask parce que c'est le seul mouvement qui journalise un
+	// changement de statut, et que le tableau l'appelle a chaque glissement.
+	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
+	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
@@ -49,7 +122,17 @@ type Querier interface {
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
 	RoleHasPermission(ctx context.Context, arg RoleHasPermissionParams) (bool, error)
+	SoftDeleteProject(ctx context.Context, id uuid.UUID) error
+	SoftDeleteTask(ctx context.Context, id uuid.UUID) error
+	SoftDeleteTaskComment(ctx context.Context, arg SoftDeleteTaskCommentParams) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
+	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
+	// Mise a jour partielle : chaque champ absent de la requete garde sa valeur.
+	// COALESCE sur un parametre nullable dit exactement cela, et evite d'ecrire
+	// une requete par champ modifiable.
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (Subtask, error)
+	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }
 
 var _ Querier = (*Queries)(nil)

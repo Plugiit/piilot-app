@@ -8,13 +8,48 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 )
+
+type Client struct {
+	ID           uuid.UUID  `json:"id"`
+	Name         string     `json:"name"`
+	ContactName  string     `json:"contact_name"`
+	ContactEmail *string    `json:"contact_email"`
+	ContactRole  string     `json:"contact_role"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+}
 
 type Permission struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
 	Label     string    `json:"label"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Project struct {
+	ID         uuid.UUID  `json:"id"`
+	ClientID   uuid.UUID  `json:"client_id"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	Progress   int16      `json:"progress"`
+	HoursSold  float64    `json:"hours_sold"`
+	HoursSpent float64    `json:"hours_spent"`
+	StartsOn   *time.Time `json:"starts_on"`
+	DueOn      *time.Time `json:"due_on"`
+	TasksTotal int32      `json:"tasks_total"`
+	TasksDone  int32      `json:"tasks_done"`
+	CreatedBy  *uuid.UUID `json:"created_by"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeletedAt  *time.Time `json:"deleted_at"`
+}
+
+type ProjectMember struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -42,6 +77,60 @@ type RolePermission struct {
 	RoleID       uuid.UUID `json:"role_id"`
 	PermissionID uuid.UUID `json:"permission_id"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Subtask struct {
+	ID        uuid.UUID `json:"id"`
+	TaskID    uuid.UUID `json:"task_id"`
+	Label     string    `json:"label"`
+	Done      bool      `json:"done"`
+	Position  int32     `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Task struct {
+	ID          uuid.UUID  `json:"id"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Tag         string     `json:"tag"`
+	StartsOn    *time.Time `json:"starts_on"`
+	DueOn       *time.Time `json:"due_on"`
+	Hours       *float64   `json:"hours"`
+	Note        string     `json:"note"`
+	Position    int32      `json:"position"`
+	CompletedAt *time.Time `json:"completed_at"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+}
+
+type TaskActivity struct {
+	ID        uuid.UUID  `json:"id"`
+	TaskID    uuid.UUID  `json:"task_id"`
+	ActorID   *uuid.UUID `json:"actor_id"`
+	Kind      string     `json:"kind"`
+	Payload   []byte     `json:"payload"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type TaskAssignee struct {
+	TaskID    uuid.UUID `json:"task_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TaskComment struct {
+	ID        uuid.UUID  `json:"id"`
+	TaskID    uuid.UUID  `json:"task_id"`
+	AuthorID  *uuid.UUID `json:"author_id"`
+	Body      string     `json:"body"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type User struct {
