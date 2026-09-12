@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/temps/saisie/')({
 
 function SaisieTempsPage() {
   return (
-    <PageFrame title="Saisie du temps" description="Déclarer le temps passé sur un projet.">
+    <PageFrame title="Saisie du temps">
       <EmptyModule name="Saisie du temps" />
     </PageFrame>
   )

@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/modeles/')({
 
 function ModelesPage() {
   return (
-    <PageFrame title="Modèles de projet" description="Structures de projet réutilisables.">
+    <PageFrame title="Modèles de projet">
       <EmptyModule name="Modèles de projet" />
     </PageFrame>
   )

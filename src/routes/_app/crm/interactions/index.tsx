@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/crm/interactions/')({
 
 function InteractionsPage() {
   return (
-    <PageFrame title="Interactions" description="Historique des échanges avec les clients.">
+    <PageFrame title="Interactions">
       <EmptyModule name="Interactions" />
     </PageFrame>
   )

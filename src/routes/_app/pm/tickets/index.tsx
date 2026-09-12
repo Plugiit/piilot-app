@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/tickets/')({
 
 function TicketsPage() {
   return (
-    <PageFrame title="Tickets" description="Les demandes ouvertes par les clients.">
+    <PageFrame title="Tickets">
       <EmptyModule name="Tickets" />
     </PageFrame>
   )
