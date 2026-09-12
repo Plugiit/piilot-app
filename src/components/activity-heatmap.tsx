@@ -2,8 +2,9 @@ import { Activity03Icon, InformationCircleIcon } from '@hugeicons/core-free-icon
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMemo } from 'react'
 
-import { DashboardCard } from '@/components/dashboard-card'
+import { PanelCard } from '@/components/panel-card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { LIGHT_TOOLTIP } from '@/lib/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -47,19 +48,6 @@ function spanOf(level: number) {
   if (level === 3) return { floor: 6, ceiling: 9 }
   return { floor: 10, ceiling: 14 }
 }
-
-/**
- * Habillage clair des infobulles du graphique.
- *
- * Celle du projet est sombre par defaut ; ici elle se pose sur la carte
- * blanche et reprend ses bordures, sinon deux traitements sans rapport se
- * repondraient au meme endroit. La fleche est un carre pivote que shadcn peint
- * en `bg-foreground` : sans la reprendre, elle resterait noire sous une bulle
- * blanche. Elle se vise en descendant et non en enfant direct — Radix
- * l'enveloppe d'un span, son `ResizeObserver` mesurant mal les SVG.
- */
-const LIGHT_TOOLTIP =
-  'border border-[#ebebeb] bg-white text-[#171717] shadow-[0_4px_12px_rgb(16_24_40/0.08)] [&_svg]:bg-white [&_svg]:fill-white'
 
 const MONTH_LABELS = Array.from({ length: 12 }, (_, month) =>
   new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(new Date(2000, month, 1)),
@@ -197,9 +185,9 @@ export function ActivityHeatmap() {
     // Un seul fournisseur pour toute la grille : les 365 infobulles partagent
     // son delai, et une seule peut etre ouverte a la fois.
     <TooltipProvider>
-      <DashboardCard
+      <PanelCard
         icon={Activity03Icon}
-        title="ACTIVITÉ"
+        title="ACTIVITÉ PAR JOUR"
         action={
           <Tooltip>
             <TooltipTrigger className="flex shrink-0 items-center text-[#606060]">
@@ -213,18 +201,18 @@ export function ActivityHeatmap() {
         }
       >
         {/* Les ruptures suivent la largeur de la carte, pas celle de la
-              fenetre : le graphique partage desormais sa ligne avec l'agenda,
-              et une regle en `xl:` lui ferait afficher douze mois dans les
-              630px qui lui restent — deux jours par ligne, seize lignes.
+            fenetre : le graphique partage sa ligne avec l'agenda, et une regle
+            en `xl:` lui ferait afficher douze mois dans les 630px qui lui
+            restent — deux jours par ligne, seize lignes.
 
-              Les douze mois ne s'alignent donc qu'a partir de 896px de carte.
-              Ils passent par six, puis se replient librement sous 512px, ou un
-              mois se reduirait a une colonne de 21px et son libelle ne
-              tiendrait plus.
+            Les douze mois ne s'alignent donc qu'a partir de 896px de carte.
+            Ils passent par six, puis se replient librement sous 512px, ou un
+            mois se reduirait a une colonne de 21px et son libelle ne
+            tiendrait plus.
 
-              L'ecart horizontal est celui des cases, pour que les colonnes de
-              mois se lisent comme une grille continue. Le vertical reste plus
-              large : il separe des lignes que le nom du mois ouvre. */}
+            L'ecart horizontal est celui des cases, pour que les colonnes de
+            mois se lisent comme une grille continue. Le vertical reste plus
+            large : il separe des lignes que le nom du mois ouvre. */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(62px,1fr))] gap-x-1 gap-y-4 @lg:grid-cols-6 @4xl:grid-cols-12">
           {months.map((month) => (
             <div key={month.label} className="flex w-full min-w-0 flex-col gap-4">
@@ -233,11 +221,11 @@ export function ActivityHeatmap() {
               </p>
 
               {/* C'est ici que la largeur est absorbee : le mois ajoute une
-                    colonne de jours des qu'il a la place pour une case de plus,
-                    au lieu d'etirer les quatre du dessin. Un mois large est donc
-                    plat — huit jours par ligne sur un 2560, quatre sur un 1512,
-                    deux sur une tablette — et la case garde ses 18px partout.
-                    `aspect-square` lui donne sa hauteur. */}
+                  colonne de jours des qu'il a la place pour une case de plus,
+                  au lieu d'etirer les quatre du dessin. Un mois large est donc
+                  plat — huit jours par ligne sur un 2560, quatre sur un 1512,
+                  deux sur une tablette — et la case garde ses 18px partout.
+                  `aspect-square` lui donne sa hauteur. */}
               <div className="grid grid-cols-[repeat(auto-fit,minmax(18px,1fr))] gap-1">
                 {month.days.map((day) => (
                   <DayCell key={day.date.getDate()} day={day} />
@@ -246,7 +234,7 @@ export function ActivityHeatmap() {
             </div>
           ))}
         </div>
-      </DashboardCard>
+      </PanelCard>
     </TooltipProvider>
   )
 }

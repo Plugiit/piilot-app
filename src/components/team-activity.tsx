@@ -1,6 +1,6 @@
 import { UserGroupIcon } from '@hugeicons/core-free-icons'
 
-import { DashboardCard } from '@/components/dashboard-card'
+import { PanelCard } from '@/components/panel-card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
@@ -106,11 +106,11 @@ export function TeamActivity() {
   const online = members.filter((member) => member.presence === 'online').length
 
   return (
-    <DashboardCard
+    <PanelCard
       icon={UserGroupIcon}
       title="ÉQUIPE AUJOURD'HUI"
       action={
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <div
             aria-hidden
             className="size-1.5 shrink-0 rounded-full"
@@ -216,6 +216,6 @@ export function TeamActivity() {
           </li>
         ))}
       </ul>
-    </DashboardCard>
+    </PanelCard>
   )
 }
