@@ -1,6 +1,6 @@
-import { ArrowDown01Icon, Search01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Search01Icon, StarIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { AnimatePresence, motion, type Transition } from 'framer-motion'
 import { LogOut } from 'lucide-react'
@@ -22,11 +22,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   MODULES,
+  activeDestination,
   destinationsOf,
   useActiveModule,
   type MenuItem,
 } from '@/components/layout/modules'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { favoriteProjectsQuery } from '@/features/projects/api'
 import { logout } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -87,7 +89,7 @@ const RAIL: RailGroup[] = [
 /** Intitule de section : DM Sans, casse haute, meme discretion dans les deux colonnes. */
 function GroupLabel({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <p className={cn('font-heading font-medium text-[#5b5b5b] opacity-70 uppercase', className)}>
+    <p className={cn('font-heading font-medium text-[#73757c] opacity-70 uppercase', className)}>
       {children}
     </p>
   )
@@ -130,7 +132,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
   return (
     <div
       className={cn(
-        'bg-surface flex h-full w-[60px] shrink-0 flex-col items-center justify-between border-[#ebebeb] pt-3 pb-5',
+        'bg-surface flex h-full w-[60px] shrink-0 flex-col items-center justify-between border-[#d8d8d8] px-2.5 py-4',
         // Le filet ne separe le rail que du panneau : il n'apparait donc que la
         // ou les deux sont cote a cote — a partir de lg en colonne fixe, et
         // toujours dans le tiroir, ou ils voyagent ensemble. Entre md et lg le
@@ -139,7 +141,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
       )}
     >
       <div className="flex flex-col items-center gap-5">
-        <img src={logoUrl} alt="Plugiit" width={40} height={40} className="size-9" />
+        <img src={logoUrl} alt="Plugiit" width={40} height={40} className="size-10" />
 
         <div className="flex flex-col items-center">
           {RAIL.map((group, index) => (
@@ -148,18 +150,17 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
               className={cn(
                 'flex flex-col items-center justify-center gap-2 pb-4',
                 // Le dernier groupe ne porte pas de filet : rien ne le suit.
-                index < RAIL.length - 1 && 'mb-4 border-b border-[#ebebeb]',
+                index < RAIL.length - 1 && 'mb-4 border-b border-[#d8d8d8]',
               )}
             >
               <GroupLabel className="text-[10px] leading-[1.5] tracking-[0.4px]">
                 {group.label}
               </GroupLabel>
 
-              {/* Rayons concentriques : la pilule est a 12px, l'element actif
-                  est en retrait de 2px (le py-0.5 du parent, et 2px de chaque
-                  cote puisqu'il fait 36px dans une colonne large de 40), donc
-                  10px. Les 12px que Figma pose aussi sur l'enfant laisseraient
-                  son arrondi plus plat que celui qui l'entoure. */}
+              {/* La pastille active reprend les 12px de la maquette, comme la
+                  pilule qui l'entoure. Geometriquement, un enfant en retrait de
+                  2px demanderait 10px pour que les deux arrondis restent
+                  concentriques : c'est le choix du dessin, assume tel quel. */}
               {/* Le groupe selectionnable n'a pas de rembourrage vertical : le
                   retrait de 2px qui detache la pastille du bord est porte par
                   la pastille elle-meme. Chaque case garde ainsi 40px quel que
@@ -167,7 +168,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
                   et la colonne conserve la hauteur de la maquette. */}
               <div
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 rounded-[12px] bg-[#f0f0f0]',
+                  'bg-surface-sunken flex flex-col items-center justify-center gap-1 rounded-[12px]',
                   !group.navigable && 'py-0.5',
                 )}
               >
@@ -177,7 +178,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
                   const view = (
                     <RailMarkView mark={mark} className={active ? 'text-[#111]' : 'text-[#999]'} />
                   )
-                  const box = 'relative flex size-10 items-center justify-center rounded-[10px]'
+                  const box = 'relative flex size-10 items-center justify-center rounded-[12px]'
 
                   // Une marque qui porte un lien sort de l'application : nouvel
                   // onglet, et `noopener` pour que la page ouverte n'obtienne
@@ -228,7 +229,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
                         <motion.span
                           layoutId={`${scope}-rail-highlight`}
                           transition={transition}
-                          className="absolute inset-[2px] rounded-[10px] border border-[#e6e6e6] bg-white"
+                          className="absolute inset-[2px] rounded-[12px] border border-[#e6e6e6] bg-white"
                         />
                       )}
                       <span className="relative z-10">{view}</span>
@@ -294,17 +295,17 @@ function AccountButton({ user }: { user: User }) {
 /** Champ de recherche de la maquette : decoratif tant qu'il n'y a rien a chercher. */
 function SearchField() {
   return (
-    <div className="flex h-[39px] w-full items-center gap-1.5 rounded-[10px] bg-[#f0f0f0] py-2.5 pr-[7px] pl-3.5">
+    <div className="bg-surface-sunken border-surface-sunken flex h-[39px] w-full items-center gap-1.5 rounded-[10px] border py-2.5 pr-[7px] pl-3.5">
       <HugeiconsIcon
         icon={Search01Icon}
         size={17}
         strokeWidth={1.6}
-        className="shrink-0 text-[#999]"
+        className="shrink-0 text-[#73757c]"
       />
       <input
         type="search"
         placeholder="Rechercher"
-        className="min-w-0 flex-1 bg-transparent text-sm text-[#111] outline-none placeholder:text-[#999]"
+        className="min-w-0 flex-1 bg-transparent text-sm text-[#111] outline-none placeholder:text-[#73757c]"
       />
       <kbd className="flex size-[26px] shrink-0 items-center justify-center rounded-md border border-[#e6e6e6] bg-white text-xs font-medium text-[#333]">
         /
@@ -317,8 +318,8 @@ interface MenuEntryProps {
   item: MenuItem
   /** L'entree, ou l'une de ses sous-entrees, correspond a l'URL courante. */
   active: boolean
-  /** Route active, pour designer la sous-entree qui la porte. */
-  pathname: string
+  /** Destination retenue par le menu, pour designer la sous-entree qui la porte. */
+  activeTo: string | undefined
   expanded: boolean
   /** Identite du calque anime, commune aux entrees d'un meme groupe. */
   layoutId: string
@@ -334,7 +335,7 @@ interface MenuEntryProps {
 function MenuEntry({
   item,
   active,
-  pathname,
+  activeTo,
   expanded,
   layoutId,
   markLayoutId,
@@ -364,7 +365,7 @@ function MenuEntry({
         // d'un chevron : sinon l'entree decalerait son contenu en devenant
         // active, comme le faisait le rail avant d'etre corrige.
         className={cn(
-          'relative flex h-[38px] w-full items-center gap-2 rounded-lg py-1.5 pl-3',
+          'relative flex h-[38px] w-full items-center gap-2 rounded-[8px] py-1.5 pl-3',
           children && 'pr-3',
         )}
       >
@@ -392,12 +393,12 @@ function MenuEntry({
           <motion.span
             layoutId={layoutId}
             transition={transition}
-            className="absolute inset-0 rounded-lg border border-[#efefef] bg-white"
+            className="absolute inset-0 rounded-[8px] border border-[#efefef] bg-white"
           />
         )}
         <HugeiconsIcon
           icon={icon}
-          size={20}
+          size={18}
           strokeWidth={1.6}
           className="relative z-10 shrink-0 text-[#111]"
         />
@@ -436,7 +437,7 @@ function MenuEntry({
             className="flex w-full flex-col overflow-hidden"
           >
             {children.map((leaf) => {
-              const leafActive = pathname === leaf.to
+              const leafActive = leaf.to === activeTo
 
               return (
                 <Link
@@ -447,7 +448,7 @@ function MenuEntry({
                 >
                   {/* Le filet gris est porte par chaque feuille : mis bout a bout
                       il forme la ligne continue du menu. */}
-                  <span className="absolute top-0 left-[22px] h-full w-px bg-[#ebebeb]" />
+                  <span className="absolute top-0 left-[22px] h-full w-px bg-[#d8d8d8]" />
 
                   {leafActive && (
                     // Le repere noir est un noeud unique par menu : il glisse
@@ -496,11 +497,62 @@ export function useSidebar() {
 }
 
 /** Panneau de navigation, colonne de droite du duo. */
+/**
+ * Projets etoiles, en bas du panneau du module.
+ *
+ * Les entrees au-dessus sont les memes pour tout le monde et vivent dans
+ * `MODULES` ; celles-ci dependent du compte et changent en cours de session.
+ * Elles ne peuvent donc pas rejoindre la liste statique — d'ou un bloc a part,
+ * qui lit l'API plutot qu'une constante.
+ *
+ * Le bloc disparait quand il est vide : un intitule « Raccourcis » surmontant
+ * du vide occuperait la place sans rien apprendre. Il n'y a pas d'etat de
+ * chargement pour la meme raison — la barre est deja peinte, et une ligne
+ * grise qui apparait puis se remplace saute aux yeux pour rien.
+ */
+function Shortcuts() {
+  const { data } = useQuery(favoriteProjectsQuery)
+  const items = data?.items ?? []
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="mt-auto flex w-full flex-col items-start gap-2 border-t border-[#d8d8d8] pt-3">
+      <GroupLabel className="text-xs leading-[15.378px] tracking-[0.48px]">Raccourcis</GroupLabel>
+
+      <div className="flex w-full flex-col">
+        {items.map((project) => (
+          <Link
+            key={project.id}
+            to="/pm/projets/$id"
+            params={{ id: project.id }}
+            title={project.name}
+            className="flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-[13px] text-[#111] transition-colors hover:bg-[#ededed]"
+            activeProps={{ className: 'bg-[#ededed] font-medium' }}
+          >
+            <HugeiconsIcon
+              icon={StarIcon}
+              size={16}
+              strokeWidth={1.6}
+              className="fill-brand text-brand shrink-0"
+            />
+            <span className="min-w-0 flex-1 truncate">{project.name}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string }) {
   const activeModule = useActiveModule()
   const transition = useSlideTransition()
 
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  // Une seule destination retenue pour tout le panneau : entree et sous-entree
+  // se peignent a partir d'elle, donc elles ne peuvent pas se contredire.
+  const current = activeDestination(activeModule, pathname)
 
   // Entrees depliees a la main. Une entree qui contient l'ecran courant est
   // toujours ouverte, meme absente de cet ensemble : arriver sur une
@@ -541,7 +593,7 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
         {menu.map((group, groupIndex) => (
           <div
             key={group.label}
-            className="flex w-full flex-col items-start gap-2 border-b border-[#ebebeb] pb-3"
+            className="flex w-full flex-col items-start gap-2 border-b border-[#d8d8d8] pb-3"
           >
             <GroupLabel className="text-xs leading-[15.378px] tracking-[0.48px]">
               {group.label}
@@ -553,14 +605,17 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
                 // Une entree est active quand l'ecran courant est le sien ou
                 // celui de l'une de ses sous-entrees : selectionner une feuille
                 // allume son menu avec elle.
-                const active = destinationsOf(item).includes(pathname)
+                // L'entree s'allume quand la destination retenue est l'une
+                // des siennes : celle de l'ecran ouvert, ou celle dont il est
+                // une sous-page.
+                const active = current !== undefined && destinationsOf(item).includes(current)
 
                 return (
                   <MenuEntry
                     key={item.label}
                     item={item}
                     active={active}
-                    pathname={pathname}
+                    activeTo={current}
                     expanded={unfolded.has(key) || active}
                     // Une identite par groupe : Framer Motion ne relie que deux
                     // noeuds de meme `layoutId`. La pastille glisse donc entre
@@ -581,6 +636,13 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
           </div>
         ))}
       </div>
+
+      {/* Les favoris sont des projets : ils n'ont rien a faire sous le CRM.
+          `mt-auto` les plaque au bas du panneau — ils ne prolongent pas le
+          menu, ils occupent le pied de la colonne. Quand le menu remplit deja
+          la hauteur, la marge se reduit a rien et le bloc reprend sa place a
+          la suite plutot que de deborder. */}
+      {activeModule?.to === '/pm' && <Shortcuts />}
     </div>
   )
 }
@@ -642,7 +704,7 @@ export function AdminShell({
             // module ouvert au moment meme ou l'on cherche a en changer.
             // `!` est necessaire, le composant pose `left-0` via un
             // selecteur d'attribut, plus specifique qu'une classe.
-            className="bg-surface w-auto max-w-none gap-0 border-r-[#ebebeb] p-0 md:left-[60px]!"
+            className="bg-surface w-auto max-w-none gap-0 border-r-[#d8d8d8] p-0 md:left-[60px]!"
           >
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             <div className="flex h-full">

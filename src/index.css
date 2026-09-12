@@ -28,6 +28,8 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -95,11 +97,24 @@
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
 
-  /* Fond des espaces de travail (#f9f9f9) et creux gris des conteneurs de
-     navigation (#f0f0f0). Le blanc reste reserve a ce qui est pose dessus :
-     cartes, en-tetes, element de navigation actif. */
-  --surface: oklch(0.982 0 0);
-  --surface-sunken: oklch(0.955 0 0);
+  /* Fond des espaces de travail et creux gris des conteneurs de navigation.
+     Le blanc reste reserve a ce qui est pose dessus : cartes, en-tetes,
+     element de navigation actif.
+
+     Ces deux-la sont en hexadecimal quand tout le reste est en oklch : ce sont
+     des valeurs imposees par la maquette, et il faut pouvoir les comparer a
+     l'oeil avec le fichier de design. Converties, un chroma de 0.001 les
+     rendrait meconnaissables et exposerait a un ecart d'un point apres
+     arrondi. */
+  --surface: #f3f4f4;
+  --surface-sunken: #e8e8e9;
+
+  /* Orange de marque. Il etait deja pose en dur dans une dizaine de fichiers
+     (heatmap, filtres du planning, marqueur de rubrique active) ; le voici
+     nomme. Il ne remplace pas --primary, qui reste le noir neutre de shadcn :
+     seul ce qui porte l'accent de marque le consomme. */
+  --brand: #ff782b;
+  --brand-foreground: #ffffff;
 
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -132,5 +147,30 @@
   body,
   #root {
     height: 100%;
+  }
+
+  /* Aucune barre de defilement visible, nulle part.
+     
+     Pose sur `*` plutot que sur chaque zone : l'application compte une
+     dizaine de conteneurs qui defilent — le cadre de page, les deux colonnes
+     du tableau de bord, celles du tiroir, le rail du tableau des taches — et
+     en oublier un laisserait une barre grise au milieu d'un ecran qui n'en a
+     nulle part ailleurs. La regle vaut aussi pour ce qui sera ecrit demain.
+
+     Les deux declarations couvrent les deux familles de moteurs :
+     `scrollbar-width` pour Firefox et Chrome recent, le pseudo-element pour
+     Safari et les versions anterieures.
+
+     Le defilement lui-meme n'est pas touche : molette, glissement tactile,
+     touches de direction et barre d'espace continuent de fonctionner. Ce qui
+     disparait, c'est le seul indice visuel qu'une zone peut defiler — c'est
+     le prix de ce choix, et il se paie surtout sous Windows, ou la barre est
+     permanente et fait partie des habitudes. */
+  * {
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
   }
 }
