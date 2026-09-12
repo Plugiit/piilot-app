@@ -1,51 +1,85 @@
 import {
-  Calendar03Icon,
-  CheckmarkSquare02Icon,
-  Clock01Icon,
+  ArrowLeft02Icon,
+  Delete02Icon,
+  DashboardSquare01Icon,
+  Exchange01Icon,
+  Link04Icon,
+  ListViewIcon,
+  Mail01Icon,
+  MoreHorizontalIcon,
+  Settings02Icon,
+  StarIcon,
   File01Icon,
-  LayoutTable01Icon,
-  Loading03Icon,
+  Attachment02Icon,
 } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
-import { createFileRoute, Link, notFound, Outlet, useMatchRoute } from '@tanstack/react-router'
-import { motion } from 'framer-motion'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, notFound, Outlet } from '@tanstack/react-router'
+import { useRef, type ReactNode } from 'react'
+import { toast } from 'sonner'
 
-import { PageFrame } from '@/components/layout/page-frame'
-import { DELIVERABLE_STATE, DELIVERABLES, PROJECTS, STATUS } from '@/features/projects/fixtures'
+import { PageFrame, type Crumb } from '@/components/layout/page-frame'
+import { TabBar, type Tab } from '@/components/layout/tab-bar'
+import { Button } from '@/components/ui/button'
 import {
-  ALERT_COLOR,
-  BILLABLE_COLOR,
-  DONE_COLOR,
-  Meter,
-  PROGRESS_COLOR,
-  Tile,
-  WARN_COLOR,
-} from '@/features/projects/ui'
-import { useSlideTransition } from '@/lib/motion'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  projectDetailQuery,
+  projectFileUrl,
+  useDeleteProjectFile,
+  useToggleFavorite,
+  useUpdateProject,
+  useUploadProjectFile,
+} from '@/features/projects/api'
+import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate } from '@/features/projects/format'
+import { Avatars, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
+import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
+import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import type { ProjectDetail, ProjectStatus } from '@/types/api'
 
-const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
-const RELATIVE = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' })
+import { InviteDialog } from './-invite'
+
+const LONG_DATE = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+})
 
 export const Route = createFileRoute('/_app/pm/projets/$id')({
-  // Un identifiant inconnu n'affiche pas une page vide : la route echoue, et le
-  // `notFoundComponent` dit ce qui manque plutot que de laisser un ecran de
-  // cartes a zero faire croire a un projet sans activite.
-  loader: ({ params }) => {
-    const project = PROJECTS.find((entry) => entry.id === params.id)
+  // Le projet est precharge ici et relu par `useQuery` dans le composant : le
+  // loader supprime le clignotement a l'arrivee, la requete laisse les
+  // compteurs se rafraichir quand une tache change de colonne.
+  loader: async ({ context, params }) => {
+    try {
+      await context.queryClient.query({
+        ...projectDetailQuery(params.id),
+        staleTime: 'static',
+      })
+    } catch (error) {
+      // Un identifiant inconnu n'est pas une panne : la route se declare
+      // introuvable plutot que d'afficher un ecran d'erreur technique.
+      if (error instanceof HttpError && error.status === 404) throw notFound()
 
-    if (project === undefined) throw notFound()
-
-    return project
+      throw error
+    }
   },
   notFoundComponent: () => (
     <PageFrame title="Projet introuvable">
       <div className="flex flex-col items-start gap-3 p-4">
-        <p className="text-[13px] text-[#64748b]">Ce projet n’existe pas, ou il a été archivé.</p>
+        <p className="text-[13px] text-[#777]">Ce projet n’existe pas, ou il a été archivé.</p>
         <Link
           to="/pm/projets"
           search={{ page: 1, sort: 'due', dir: 'asc' }}
-          className="text-[13px] font-medium text-[#4956f4] hover:underline"
+          className="text-[13px] font-medium text-[#111] underline underline-offset-4"
         >
           Retour à la liste des projets
         </Link>
@@ -55,174 +89,409 @@ export const Route = createFileRoute('/_app/pm/projets/$id')({
   component: ProjectLayout,
 })
 
-function daysUntil(date: Date) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  return Math.round((date.getTime() - today.getTime()) / 86_400_000)
+/**
+ * Retour a la liste, maillon commun aux ecrans d'un projet.
+ *
+ * Les parametres de recherche sont ceux de la liste au repos : sans eux, le
+ * lien atterrirait sur une adresse incomplete que la route completerait par
+ * ses valeurs de repli — le meme resultat, par un detour.
+ */
+const TOUS_LES_PROJETS: Crumb = {
+  label: 'Tous les projets',
+  to: '/pm/projets',
+  search: { page: 1, sort: 'due', dir: 'asc' },
 }
 
-const TABS: { to: string; label: string; icon: IconSvgElement }[] = [
-  { to: '/pm/projets/$id', label: 'Vue d’ensemble', icon: LayoutTable01Icon },
-  { to: '/pm/projets/$id/taches', label: 'Tâches', icon: CheckmarkSquare02Icon },
+const TABS: Tab[] = [
+  { to: '/pm/projets/$id', label: 'Liste', icon: ListViewIcon },
+  { to: '/pm/projets/$id/kanban', label: 'Kanban', icon: DashboardSquare01Icon },
 ]
 
+/** Une ligne du bloc d'informations : intitule a gauche, valeur a droite. */
+function MetaRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-4">
+      <p className="w-[92px] shrink-0 text-[14px] text-[#73757c]">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+/** Taille lisible d'une piece jointe. */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`
+
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.0', '')} Mo`
+}
+
 /**
- * Onglets du projet.
+ * Pieces jointes du projet.
  *
- * Des liens et non un etat local : un onglet est une adresse. On partage
- * « les tâches du portail client », on y revient par le bouton Retour, on la
- * met en favori — trois choses qu'un `useState` ne sait pas faire.
- *
- * Le filet actif est un noeud unique porte par `layoutId` : Framer le glisse
- * d'un onglet a l'autre au lieu de l'effacer ici pour le repeindre la. C'est
- * le meme ressort que le rail de modules et que les onglets du tiroir — trois
- * mouvements voisins d'allures differentes se remarqueraient aussitot.
+ * Le telechargement est un lien et non un `fetch` : l'API repond en
+ * `Content-Disposition: attachment`, donc c'est au navigateur d'enregistrer le
+ * fichier — le passer par du JavaScript obligerait a garder tout le contenu en
+ * memoire pour le rendre ensuite.
  */
-function ProjectTabs({ id }: { id: string }) {
-  const matchRoute = useMatchRoute()
-  const transition = useSlideTransition()
+function Attachments({ project }: { project: ProjectDetail }) {
+  const input = useRef<HTMLInputElement>(null)
+  const upload = useUploadProjectFile(project.id)
+  const remove = useDeleteProjectFile(project.id)
 
   return (
-    <nav className="flex shrink-0 items-center gap-6 border-b border-[#ebebeb] px-4">
-      {TABS.map((tab) => {
-        // `exact` sur la vue d'ensemble seulement : sans lui, elle resterait
-        // allumee sur l'onglet des taches, qui est une de ses sous-routes.
-        const active =
-          matchRoute({ to: tab.to, params: { id }, fuzzy: tab.to !== '/pm/projets/$id' }) !==
-          false
-
-        return (
-          <Link
-            key={tab.to}
-            to={tab.to}
-            params={{ id }}
-            className="relative flex shrink-0 items-center gap-1.5 py-3"
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {project.files.map((file) => (
+        <span key={file.id} className="group/file flex items-center gap-1">
+          <HugeiconsIcon icon={File01Icon} size={16} strokeWidth={1.6} className="text-[#73757c]" />
+          <a
+            href={projectFileUrl(file.id)}
+            className="text-[14px] text-[#1b1b1b] underline underline-offset-2"
           >
-            <HugeiconsIcon
-              icon={tab.icon}
-              size={16}
-              strokeWidth={1.6}
-              className={cn('shrink-0 transition-colors', active ? 'text-[#111]' : 'text-[#999]')}
-            />
-            <span
-              className={cn(
-                'text-[13px] font-medium whitespace-nowrap transition-colors',
-                active ? 'text-[#111]' : 'text-[#777]',
-              )}
-            >
-              {tab.label}
-            </span>
+            {file.filename}
+          </a>
+          <span aria-hidden className="size-1 rounded-full bg-[#d0d1d3]" />
+          <span className="text-[14px] text-[#73757c]">{formatSize(file.size_bytes)}</span>
+          <button
+            type="button"
+            aria-label={`Supprimer ${file.filename}`}
+            onClick={() => remove.mutate(file.id)}
+            className="ml-0.5 cursor-pointer text-[#a2a3a7] opacity-0 transition-opacity group-hover/file:opacity-100 hover:text-[#e5484d] focus-visible:opacity-100"
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.6} />
+          </button>
+        </span>
+      ))}
 
-            {active && (
-              <motion.span
-                aria-hidden
-                layoutId="project-tab"
-                transition={transition}
-                className="absolute right-0 -bottom-px left-0 h-[2px] bg-[#ff782b]"
-              />
-            )}
-          </Link>
-        )
-      })}
-    </nav>
+      <input
+        ref={input}
+        type="file"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file !== undefined) upload.mutate(file)
+          // Remis a zero pour que redeposer le meme fichier declenche bien un
+          // nouvel evenement `change`.
+          event.target.value = ''
+        }}
+      />
+
+      <Button
+        variant="ghost"
+        size="xs"
+        className="gap-1 text-[#73757c]"
+        disabled={upload.isPending}
+        onClick={() => input.current?.click()}
+      >
+        <HugeiconsIcon icon={Attachment02Icon} size={14} strokeWidth={1.6} />
+        {upload.isPending ? 'Envoi…' : project.files.length === 0 ? 'Joindre un fichier' : 'Ajouter'}
+      </Button>
+
+      {upload.isError && (
+        <span className="text-[13px] text-[#e5484d]">
+          {upload.error instanceof HttpError ? upload.error.message : 'Envoi impossible'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Le client du projet, et chez lui l'interlocuteur.
+ *
+ * Ces quatre champs etaient servis par l'endpoint et affiches nulle part : la
+ * fiche la plus detaillee de l'application ne disait pas pour qui le projet
+ * etait fait. Ils ne coutent donc aucune requete de plus.
+ *
+ * L'adresse est un `mailto:` et non un texte a recopier — ecrire au contact
+ * est le seul geste qu'on fait avec elle.
+ *
+ * Le contact et son role peuvent manquer : un client se cree depuis le
+ * formulaire de projet, ou son nom suffit. Les lignes vides ne s'affichent
+ * pas plutot que d'annoncer « Non renseigne » trois fois.
+ */
+function ProjectClient({ project }: { project: ProjectDetail }) {
+  const contact = project.client_contact_name.trim()
+  const role = project.client_contact_role.trim()
+  const email = project.client_contact_email ?? ''
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-[14px] text-[#1b1b1b]">{project.client_name}</span>
+
+      {contact !== '' && (
+        <span className="flex items-center gap-3 text-[14px] text-[#73757c]">
+          <span aria-hidden className="size-1 rounded-full bg-[#d0d1d3]" />
+          {role === '' ? contact : `${contact}, ${role}`}
+        </span>
+      )}
+
+      {email !== '' && (
+        <a
+          href={`mailto:${email}`}
+          className="flex items-center gap-1 text-[14px] text-[#4770e4] underline underline-offset-2"
+        >
+          <HugeiconsIcon icon={Mail01Icon} size={16} strokeWidth={1.6} />
+          {email}
+        </a>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Ce que disent les taches, a cote de ce que declare l'equipe.
+ *
+ * Les deux chiffres vivent sur la meme ligne parce que c'est leur ecart qui
+ * informe : une jauge a 80 % au-dessus d'une tache sur dix faites dit quelque
+ * chose qu'aucun des deux ne dit seul. Les compteurs sont tenus par
+ * declencheur en base, donc les lire ici ne coute aucun COUNT.
+ */
+function TasksRatio({ project }: { project: ProjectDetail }) {
+  if (project.tasks_total === 0) {
+    return <p className="text-[14px] text-[#a2a3a7]">Aucune tâche</p>
+  }
+
+  // L'accord suit le nombre de taches faites : « 1 tache sur 3 terminee »,
+  // « 12 taches sur 30 terminees ». Zero reste au singulier, comme en francais.
+  const pluriel = project.tasks_done > 1 ? 's' : ''
+
+  return (
+    <p className="text-[14px] text-[#73757c]">
+      {`${project.tasks_done} tâche${pluriel} sur ${project.tasks_total} terminée${pluriel}`}
+    </p>
+  )
+}
+
+/**
+ * Les trois liens de travail du projet.
+ *
+ * Chacun porte son nom : « voici la preproduction » ne se devine pas d'une
+ * adresse. Ceux qui ne sont pas renseignes ne s'affichent pas — une ligne
+ * « aucun lien » par emplacement vide aurait fait trois lignes mortes.
+ */
+function ProjectLinks({ project }: { project: ProjectDetail }) {
+  const liens = [
+    { label: 'Figma', url: project.figma_url },
+    { label: 'Production', url: project.prod_url },
+    { label: 'Préproduction', url: project.preprod_url },
+  ].filter((lien) => lien.url !== '')
+
+  if (liens.length === 0) {
+    return <p className="text-[14px] text-[#a2a3a7]">Aucun lien</p>
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      {liens.map((lien) => (
+        <a
+          key={lien.label}
+          href={lien.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={lien.url}
+          className="flex items-center gap-1 text-[14px] text-[#4770e4] underline underline-offset-2"
+        >
+          <HugeiconsIcon icon={Link04Icon} size={16} strokeWidth={1.6} />
+          {lien.label}
+        </a>
+      ))}
+    </div>
   )
 }
 
 /**
  * Chassis d'un projet : ce qui ne change pas quand on passe d'un onglet a
  * l'autre.
- *
- * Les quatre chiffres restent sous les yeux d'un onglet a l'autre, et c'est
- * voulu : on deplace une tache sans perdre de vue qu'il reste six jours et que
- * le budget est deja depasse. Les redessiner dans chaque onglet aurait fait
- * quatre chiffres qui sautent a chaque navigation.
  */
 function ProjectLayout() {
-  const project = Route.useLoaderData()
+  const { id } = Route.useParams()
+  const { data: project } = useQuery(projectDetailQuery(id))
+  const favorite = useToggleFavorite(id)
+  const update = useUpdateProject(id)
 
-  const budgetRatio = (project.hoursSpent / project.hoursSold) * 100
-  const overBudget = project.hoursSpent > project.hoursSold
-  const days = daysUntil(project.due)
-  const late = project.status !== 'livre' && days < 0
+  // Le loader a deja rempli le cache : ce cas ne se produit qu'au tout premier
+  // rendu d'une navigation sans prefetch.
+  if (project === undefined) return null
 
-  const pending = DELIVERABLES.filter((item) => item.state === 'review').length
-
-  // La jauge du budget ne se colore que quand il y a de quoi s'inquieter :
-  // encre tant qu'on est au large, orange dans les dix derniers pour cent,
-  // rouge au-dela du vendu.
-  const budgetColor = overBudget
-    ? ALERT_COLOR
-    : budgetRatio >= 90
-      ? WARN_COLOR
-      : BILLABLE_COLOR
+  const status = PROJECT_STATUS[project.status]
+  const start = parseApiDate(project.starts_on)
+  const due = parseApiDate(project.due_on)
 
   return (
     <PageFrame
       title={project.name}
-      description={`${project.client} · ${STATUS[project.status].label}`}
+      trail={[TOUS_LES_PROJETS]}
     >
       <div className="flex min-h-full flex-col">
-        {/* Les quatre chiffres qui decident si l'on doit s'inquieter, avant
-            tout detail : avancement, budget, echeance, validation client. */}
-        <div className="grid shrink-0 grid-cols-2 gap-3 p-4 lg:grid-cols-4">
-          {/* La jauge prenait la couleur du statut : un projet livre affichait
-              donc 100 % en gris, la teinte de « Livré » — une barre pleine qui
-              avait l'air eteinte. L'avancement a sa propre couleur, orange puis
-              verte une fois complet. */}
-          <Tile icon={Loading03Icon} label="AVANCEMENT" value={`${project.progress} %`}>
-            <Meter
-              ratio={project.progress}
-              color={project.progress === 100 ? DONE_COLOR : PROGRESS_COLOR}
-            />
-          </Tile>
+        <div className="flex flex-col gap-5 p-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Le resume se lit sur la carte de la liste mais disparaissait en
+                ouvrant le projet. Il est attache au titre plutot que pose dans
+                le bloc d'informations : ce n'est pas une valeur qu'on releve,
+                c'est ce que le projet est. */}
+            <div className="flex min-w-0 flex-col gap-1">
+              <h1 className="truncate text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
+                {project.name}
+              </h1>
 
-          <Tile
-            icon={Clock01Icon}
-            label="BUDGET CONSOMMÉ"
-            value={`${project.hoursSpent} / ${project.hoursSold} h`}
-            tone={overBudget ? 'alert' : undefined}
-            hint={
-              overBudget
-                ? `${project.hoursSpent - project.hoursSold} h au-delà du vendu`
-                : `${project.hoursSold - project.hoursSpent} h restantes`
-            }
-          >
-            <Meter ratio={budgetRatio} color={budgetColor} />
-          </Tile>
+              {project.description !== '' && (
+                <p className="text-[14px] leading-[1.5] text-[#73757c]">{project.description}</p>
+              )}
+            </div>
 
-          {/* « il y a 52 jours » sous une echeance depassee dit la distance
-              sans dire le probleme. Un retard s'annonce comme un retard. */}
-          <Tile
-            icon={Calendar03Icon}
-            label="ÉCHÉANCE"
-            value={DATE_FORMAT.format(project.due)}
-            tone={late ? 'alert' : undefined}
-            hint={late ? `${-days} jours de retard` : RELATIVE.format(days, 'day')}
-          />
+            <div className="flex shrink-0 items-center gap-4">
+              <Avatars people={project.team} max={6} size={32} />
 
-          <Tile
-            icon={File01Icon}
-            label="EN ATTENTE DU CLIENT"
-            value={`${pending}`}
-            hint={
-              pending === 0
-                ? 'Rien à valider'
-                : `livrable${pending > 1 ? 's' : ''} sur ${DELIVERABLES.length} à valider`
-            }
-          >
-            {/* La part de ce qui dort chez le client, dans le jaune que le
-                module donne deja a l'etat « Chez le client ». */}
-            {pending > 0 && (
-              <Meter
-                ratio={(pending / DELIVERABLES.length) * 100}
-                color={DELIVERABLE_STATE.review.color}
-              />
-            )}
-          </Tile>
+              <div className="flex items-center gap-2">
+                <InviteDialog project={project} />
+
+                <Button
+                  variant="outline"
+                  size="icon-lg"
+                  aria-pressed={project.is_favorite}
+                  aria-label={project.is_favorite ? 'Retirer des favoris' : 'Mettre en favori'}
+                  onClick={() => favorite.mutate(!project.is_favorite)}
+                >
+                  <HugeiconsIcon
+                    icon={StarIcon}
+                    size={20}
+                    strokeWidth={1.8}
+                    className={cn(project.is_favorite && 'fill-brand text-brand')}
+                  />
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon-lg" aria-label="Actions du projet">
+                      <HugeiconsIcon icon={MoreHorizontalIcon} size={20} strokeWidth={1.8} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {/* Le statut se lit deux lignes plus bas mais ne s'y change
+                        pas : c'est la seule valeur de l'en-tete qui bouge en
+                        cours de projet, et aller la modifier dans les
+                        parametres pour la voir revenir ici est un aller-retour
+                        qu'on fait plusieurs fois par semaine.
+
+                        L'etoile, l'invitation et la creation de tache ont deja
+                        leur bouton a cote : les redire ici ne donnerait qu'un
+                        second chemin vers le meme geste. */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <HugeiconsIcon icon={Exchange01Icon} size={16} strokeWidth={1.6} />
+                        Changer le statut
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-44">
+                        {PROJECT_STATUS_ORDER.map((status: ProjectStatus) => (
+                          <DropdownMenuItem
+                            key={status}
+                            disabled={status === project.status || update.isPending}
+                            onSelect={() =>
+                              update.mutate(
+                                { status },
+                                {
+                                  onSuccess: () =>
+                                    toast.success(`Statut : ${PROJECT_STATUS[status].label}`),
+                                  onError: (error) =>
+                                    toast.error(
+                                      error instanceof HttpError
+                                        ? error.message
+                                        : 'Changement impossible',
+                                    ),
+                                },
+                              )
+                            }
+                          >
+                            <span
+                              aria-hidden
+                              className="size-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: PROJECT_STATUS[status].color }}
+                            />
+                            {PROJECT_STATUS[status].label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuItem asChild>
+                      <Link to="/pm/projets/$id/parametres" params={{ id: project.id }}>
+                        <HugeiconsIcon icon={Settings02Icon} size={16} strokeWidth={1.6} />
+                        Paramètres du projet
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/pm/projets" search={{ page: 1, sort: 'due', dir: 'asc' }}>
+                        <HugeiconsIcon icon={ArrowLeft02Icon} size={16} strokeWidth={1.6} />
+                        Retour à la liste
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Un lien vers la zone de danger, pas une suppression :
+                        elle demande de recopier le nom du projet, et un menu
+                        qui effacerait d'un clic viderait ce garde-fou de son
+                        sens. L'entree dit ou aller, l'ecran fait le reste. */}
+                    <DropdownMenuItem asChild variant="destructive">
+                      <Link
+                        to="/pm/projets/$id/parametres/zone-de-danger"
+                        params={{ id: project.id }}
+                      >
+                        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.6} />
+                        Supprimer le projet
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {/* En tete du bloc : un projet appartient d'abord a quelqu'un. */}
+            <MetaRow label="Client">
+              <ProjectClient project={project} />
+            </MetaRow>
+
+            <MetaRow label="Priorité">
+              <PriorityTag priority={project.priority} />
+            </MetaRow>
+
+            <MetaRow label="Statut">
+              <StatusPill label={status.label} color={status.color} pill={status.pill} />
+            </MetaRow>
+
+            <MetaRow label="Début">
+              <p className="text-[14px] text-[#1b1b1b]">
+                {start === null ? 'Sans date de début' : LONG_DATE.format(start)}
+              </p>
+            </MetaRow>
+
+            <MetaRow label="Échéance">
+              <p className="text-[14px] text-[#1b1b1b]">
+                {due === null ? 'Sans échéance' : LONG_DATE.format(due)}
+              </p>
+            </MetaRow>
+
+            <MetaRow label="Avancement">
+              <ProgressBar value={project.progress} />
+              <TasksRatio project={project} />
+            </MetaRow>
+
+            <MetaRow label="Document">
+              <Attachments project={project} />
+            </MetaRow>
+
+            <MetaRow label="Liens">
+              <ProjectLinks project={project} />
+            </MetaRow>
+          </div>
         </div>
 
-        <ProjectTabs id={project.id} />
+        <div className="flex shrink-0 items-center justify-between border-b border-[#e8e8e9] pl-4">
+          <TabBar tabs={TABS} params={{ id: project.id }} layoutId="project-tab" />
+          <NewTaskDialog projectId={project.id} />
+        </div>
 
         <Outlet />
       </div>
