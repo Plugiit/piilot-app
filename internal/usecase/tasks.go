@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 
 	"github.com/plugiit/plugiit-api-go/internal/domain"
 	"github.com/plugiit/plugiit-api-go/internal/repository/db"
+	"github.com/plugiit/plugiit-api-go/internal/storage"
 )
 
 // Borne du tableau. Un projet qui la depasse a un probleme de decoupage, pas
@@ -35,10 +38,18 @@ type TaskSummary struct {
 	Title     string    `json:"title"`
 	Status    string    `json:"status"`
 	Tag       string    `json:"tag"`
-	DueOn     *string   `json:"due_on"`
-	Hours     *float64  `json:"hours"`
-	Position  int       `json:"position"`
-	Assignees []Person  `json:"assignees"`
+	Priority  string    `json:"priority"`
+	// Ce que la carte du kanban montre sans ouvrir la tache. Compteurs tenus
+	// par declencheur en base : aucun COUNT n'est fait au rendu du tableau.
+	Description      string   `json:"description"`
+	SubtasksTotal    int      `json:"subtasks_total"`
+	SubtasksDone     int      `json:"subtasks_done"`
+	CommentsCount    int      `json:"comments_count"`
+	AttachmentsCount int      `json:"attachments_count"`
+	DueOn            *string  `json:"due_on"`
+	Hours            *float64 `json:"hours"`
+	Position         int      `json:"position"`
+	Assignees        []Person `json:"assignees"`
 }
 
 // TaskBoard est le contenu de l'onglet « Tâches » d'un projet.
@@ -48,6 +59,37 @@ type TaskBoard struct {
 	// Limit dit combien de taches l'ecran a le droit d'afficher : compare a
 	// Total, il permet de signaler qu'on n'en montre pas la totalite.
 	Limit int `json:"limit"`
+}
+
+// TaskListItem est une carte de l'ecran « Taches » du module.
+//
+// La meme carte que dans un projet, plus le nom de celui-ci : sortie de sa
+// fiche, une tache ne dit plus a quoi elle se rattache. TaskSummary est
+// embarque plutot que recopie — les deux ecrans dessinent la meme carte, et
+// dupliquer quinze champs garantissait qu'ils finiraient par diverger.
+type TaskListItem struct {
+	TaskSummary
+	ProjectName string `json:"project_name"`
+}
+
+// TaskList est le contenu de l'ecran « Taches », ses deux vues comprises.
+//
+// Pas de pagination, une borne : l'ecran a une vue kanban, et un kanban ne se
+// feuillette pas. Total dit ce qui existe, Limit ce que la vue a le droit de
+// montrer — leur ecart est ce que l'ecran signale.
+type TaskList struct {
+	Items []TaskListItem `json:"items"`
+	Total int64          `json:"total"`
+	Limit int            `json:"limit"`
+}
+
+// TaskFilters porte ce que la barre d'outils de l'ecran « Taches » sait
+// reduire. Tous facultatifs : sans aucun, l'ecran montre l'agence entiere.
+type TaskFilters struct {
+	Status    *string
+	Priority  *string
+	ProjectID *uuid.UUID
+	Search    *string
 }
 
 // Subtask est une ligne de la liste a cocher du panneau.
@@ -93,6 +135,7 @@ type TaskDetail struct {
 	Description string          `json:"description"`
 	Status      string          `json:"status"`
 	Tag         string          `json:"tag"`
+	Priority    string          `json:"priority"`
 	Note        string          `json:"note"`
 	StartsOn    *string         `json:"starts_on"`
 	DueOn       *string         `json:"due_on"`
@@ -111,6 +154,7 @@ type CreateTaskInput struct {
 	Description string
 	Status      string
 	Tag         string
+	Priority    string
 	StartsOn    *time.Time
 	DueOn       *time.Time
 	Hours       *float64
@@ -124,6 +168,7 @@ type UpdateTaskInput struct {
 	Title         *string
 	Description   *string
 	Tag           *string
+	Priority      *string
 	Note          *string
 	Hours         *float64
 	ClearHours    bool
@@ -134,6 +179,13 @@ type UpdateTaskInput struct {
 	ActorID       uuid.UUID
 }
 
+// Priorites acceptees. La table du projet dit la meme chose pour les projets ;
+// les deux restent separees parce que rien ne garantit qu'elles evolueront
+// ensemble.
+var taskPriorities = map[string]struct{}{
+	"low": {}, "medium": {}, "high": {},
+}
+
 var taskStatuses = map[string]struct{}{
 	"todo": {}, "progress": {}, "review": {}, "done": {},
 }
@@ -141,13 +193,82 @@ var taskStatuses = map[string]struct{}{
 // TaskService porte les taches, leurs sous-taches, leurs commentaires et leur
 // journal.
 type TaskService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	files   storage.Store
+	maxFile int64
 }
 
 // NewTaskService construit le service.
-func NewTaskService(pool *pgxpool.Pool) *TaskService {
-	return &TaskService{pool: pool, q: db.New(pool)}
+func NewTaskService(pool *pgxpool.Pool, files storage.Store, maxFile int64) *TaskService {
+	return &TaskService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile}
+}
+
+// List renvoie les taches de toute l'agence, filtrees par la barre d'outils.
+//
+// Deux requetes pour la page, plus une pour les affectations : le compte, la
+// liste, puis les personnes affectees d'un coup — jamais une requete par
+// ligne.
+func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskList, error) {
+	total, err := s.q.CountTasks(ctx, db.CountTasksParams{
+		Status:    f.Status,
+		Priority:  f.Priority,
+		ProjectID: f.ProjectID,
+		Search:    f.Search,
+	})
+	if err != nil {
+		return TaskList{}, fmt.Errorf("comptage des taches : %w", err)
+	}
+
+	rows, err := s.q.ListTasks(ctx, db.ListTasksParams{
+		Status:    f.Status,
+		Priority:  f.Priority,
+		ProjectID: f.ProjectID,
+		Search:    f.Search,
+		PageSize:  taskBoardLimit,
+	})
+	if err != nil {
+		return TaskList{}, fmt.Errorf("lecture des taches : %w", err)
+	}
+
+	items := make([]TaskListItem, 0, len(rows))
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		items = append(items, TaskListItem{
+			TaskSummary: TaskSummary{
+				ID:               row.ID,
+				ProjectID:        row.ProjectID,
+				Title:            row.Title,
+				Status:           row.Status,
+				Tag:              row.Tag,
+				Priority:         row.Priority,
+				Description:      row.Description,
+				SubtasksTotal:    int(row.SubtasksTotal),
+				SubtasksDone:     int(row.SubtasksDone),
+				CommentsCount:    int(row.CommentsCount),
+				AttachmentsCount: int(row.AttachmentsCount),
+				DueOn:            formatDate(row.DueOn),
+				Hours:            row.Hours,
+				Position:         int(row.Position),
+				Assignees:        []Person{},
+			},
+			ProjectName: row.ProjectName,
+		})
+	}
+
+	byTask, err := s.assigneesOf(ctx, ids)
+	if err != nil {
+		return TaskList{}, err
+	}
+
+	for i := range items {
+		if people, ok := byTask[items[i].ID]; ok {
+			items[i].Assignees = people
+		}
+	}
+
+	return TaskList{Items: items, Total: total, Limit: taskBoardLimit}, nil
 }
 
 // Board renvoie le tableau d'un projet : deux requetes, quel que soit le
@@ -171,15 +292,21 @@ func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 		items = append(items, TaskSummary{
-			ID:        row.ID,
-			ProjectID: row.ProjectID,
-			Title:     row.Title,
-			Status:    row.Status,
-			Tag:       row.Tag,
-			DueOn:     formatDate(row.DueOn),
-			Hours:     row.Hours,
-			Position:  int(row.Position),
-			Assignees: []Person{},
+			ID:               row.ID,
+			ProjectID:        row.ProjectID,
+			Title:            row.Title,
+			Status:           row.Status,
+			Tag:              row.Tag,
+			Priority:         row.Priority,
+			Description:      row.Description,
+			SubtasksTotal:    int(row.SubtasksTotal),
+			SubtasksDone:     int(row.SubtasksDone),
+			CommentsCount:    int(row.CommentsCount),
+			AttachmentsCount: int(row.AttachmentsCount),
+			DueOn:            formatDate(row.DueOn),
+			Hours:            row.Hours,
+			Position:         int(row.Position),
+			Assignees:        []Person{},
 		})
 	}
 
@@ -266,6 +393,7 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 		Description: row.Description,
 		Status:      row.Status,
 		Tag:         row.Tag,
+		Priority:    row.Priority,
 		Note:        row.Note,
 		StartsOn:    formatDate(row.StartsOn),
 		DueOn:       formatDate(row.DueOn),
@@ -289,6 +417,14 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (TaskDetai
 
 	if in.Status == "" {
 		in.Status = "todo"
+	}
+	if in.Priority == "" {
+		in.Priority = "medium"
+	}
+	if _, ok := taskPriorities[in.Priority]; !ok {
+		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"priority": "Priorité inconnue",
+		})
 	}
 	if _, ok := taskStatuses[in.Status]; !ok {
 		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
@@ -320,6 +456,7 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (TaskDetai
 		Description: in.Description,
 		Status:      in.Status,
 		Tag:         in.Tag,
+		Priority:    in.Priority,
 		StartsOn:    in.StartsOn,
 		DueOn:       in.DueOn,
 		Hours:       in.Hours,
@@ -365,6 +502,13 @@ func (s *TaskService) Update(ctx context.Context, id uuid.UUID, in UpdateTaskInp
 			"hours": "L'estimation ne peut pas être négative",
 		})
 	}
+	if in.Priority != nil {
+		if _, ok := taskPriorities[*in.Priority]; !ok {
+			return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+				"priority": "Priorité inconnue",
+			})
+		}
+	}
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return TaskDetail{}, domain.ErrValidation.WithDetails(map[string]any{
 			"title": "Le titre de la tâche est requis",
@@ -384,6 +528,7 @@ func (s *TaskService) Update(ctx context.Context, id uuid.UUID, in UpdateTaskInp
 		Title:         in.Title,
 		Description:   in.Description,
 		Tag:           in.Tag,
+		Priority:      in.Priority,
 		Note:          in.Note,
 		Hours:         in.Hours,
 		ClearHours:    in.ClearHours,
@@ -756,4 +901,65 @@ func formatDateValue(value *time.Time) any {
 		return nil
 	}
 	return value.Format(dateLayout)
+}
+
+// AddFile attache un fichier a une tache.
+//
+// Meme deroule que pour un projet : le fichier part sur le disque avant la
+// ligne, parce qu'on ne connait sa taille qu'une fois ecrit, et il est efface
+// si l'insertion echoue. Le compteur de la carte est tenu par declencheur.
+func (s *TaskService) AddFile(
+	ctx context.Context,
+	taskID, uploader uuid.UUID,
+	filename, contentType string,
+	content io.Reader,
+) (Attachment, error) {
+	filename = strings.TrimSpace(filepath.Base(filename))
+	if filename == "" || filename == "." || filename == "/" {
+		return Attachment{}, domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Nom de fichier invalide",
+		})
+	}
+
+	if _, err := s.q.GetTask(ctx, taskID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Attachment{}, domain.ErrNotFound
+		}
+		return Attachment{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
+	key, size, err := s.files.Save(content, s.maxFile)
+	if err != nil {
+		if errors.Is(err, storage.ErrTooLarge) {
+			return Attachment{}, domain.ErrValidation.WithDetails(map[string]any{
+				"file": fmt.Sprintf("Le fichier dépasse %d Mo", s.maxFile/(1<<20)),
+			})
+		}
+		return Attachment{}, fmt.Errorf("ecriture de la piece jointe : %w", err)
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	row, err := s.q.CreateTaskFile(ctx, db.CreateTaskFileParams{
+		TaskID:      &taskID,
+		Filename:    filename,
+		ContentType: contentType,
+		SizeBytes:   size,
+		StorageKey:  key,
+		UploadedBy:  &uploader,
+	})
+	if err != nil {
+		_ = s.files.Remove(key)
+		return Attachment{}, fmt.Errorf("enregistrement de la piece jointe : %w", err)
+	}
+
+	return Attachment{
+		ID:          row.ID,
+		Filename:    row.Filename,
+		ContentType: row.ContentType,
+		SizeBytes:   row.SizeBytes,
+		CreatedAt:   row.CreatedAt,
+	}, nil
 }

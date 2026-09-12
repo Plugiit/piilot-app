@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 
 	"github.com/plugiit/plugiit-api-go/internal/domain"
 	"github.com/plugiit/plugiit-api-go/internal/repository/db"
+	"github.com/plugiit/plugiit-api-go/internal/storage"
 )
 
 // dateLayout est le format des dates sans heure echangees avec le front.
@@ -40,19 +44,33 @@ type Person struct {
 // ce que la ligne affiche, agregats compris — aucun ecran ne complete cette
 // reponse par un second appel.
 type ProjectListItem struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	ClientID   uuid.UUID `json:"client_id"`
-	ClientName string    `json:"client_name"`
-	Status     string    `json:"status"`
-	Progress   int       `json:"progress"`
-	HoursSold  float64   `json:"hours_sold"`
-	HoursSpent float64   `json:"hours_spent"`
-	StartsOn   *string   `json:"starts_on"`
-	DueOn      *string   `json:"due_on"`
-	TasksTotal int       `json:"tasks_total"`
-	TasksDone  int       `json:"tasks_done"`
-	Team       []Person  `json:"team"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Priority    string    `json:"priority"`
+	ClientID    uuid.UUID `json:"client_id"`
+	ClientName  string    `json:"client_name"`
+	Status      string    `json:"status"`
+	Progress    int       `json:"progress"`
+	HoursSold   float64   `json:"hours_sold"`
+	HoursSpent  float64   `json:"hours_spent"`
+	StartsOn    *string   `json:"starts_on"`
+	DueOn       *string   `json:"due_on"`
+	TasksTotal  int       `json:"tasks_total"`
+	TasksDone   int       `json:"tasks_done"`
+	Team        []Person  `json:"team"`
+	// Etoile de l'appelant, pas du projet : deux comptes voient la meme liste
+	// dans un ordre different, et c'est voulu.
+	IsFavorite bool `json:"is_favorite"`
+}
+
+// ProjectShortcut est un projet etoile, tel que la barre laterale le montre :
+// de quoi faire un lien et poser une pastille, rien de plus. Un raccourci n'a
+// pas besoin des agregats d'une ligne de tableau.
+type ProjectShortcut struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Status string    `json:"status"`
 }
 
 // ProjectPage est une page de la liste.
@@ -66,22 +84,41 @@ type ProjectPage struct {
 // ProjectDetail est l'en-tete d'un projet : ce que le chassis affiche, quel que
 // soit l'onglet ouvert.
 type ProjectDetail struct {
-	ID                 uuid.UUID `json:"id"`
-	Name               string    `json:"name"`
-	ClientID           uuid.UUID `json:"client_id"`
-	ClientName         string    `json:"client_name"`
-	ClientContactName  string    `json:"client_contact_name"`
-	ClientContactRole  string    `json:"client_contact_role"`
-	ClientContactEmail *string   `json:"client_contact_email"`
-	Status             string    `json:"status"`
-	Progress           int       `json:"progress"`
-	HoursSold          float64   `json:"hours_sold"`
-	HoursSpent         float64   `json:"hours_spent"`
-	StartsOn           *string   `json:"starts_on"`
-	DueOn              *string   `json:"due_on"`
-	TasksTotal         int       `json:"tasks_total"`
-	TasksDone          int       `json:"tasks_done"`
-	Team               []Person  `json:"team"`
+	ID                 uuid.UUID    `json:"id"`
+	Name               string       `json:"name"`
+	Description        string       `json:"description"`
+	Priority           string       `json:"priority"`
+	ClientID           uuid.UUID    `json:"client_id"`
+	ClientName         string       `json:"client_name"`
+	ClientContactName  string       `json:"client_contact_name"`
+	ClientContactRole  string       `json:"client_contact_role"`
+	ClientContactEmail *string      `json:"client_contact_email"`
+	Status             string       `json:"status"`
+	Progress           int          `json:"progress"`
+	HoursSold          float64      `json:"hours_sold"`
+	HoursSpent         float64      `json:"hours_spent"`
+	StartsOn           *string      `json:"starts_on"`
+	DueOn              *string      `json:"due_on"`
+	TasksTotal         int          `json:"tasks_total"`
+	TasksDone          int          `json:"tasks_done"`
+	Team               []Person     `json:"team"`
+	FigmaURL           string       `json:"figma_url"`
+	ProdURL            string       `json:"prod_url"`
+	PreprodURL         string       `json:"preprod_url"`
+	IsFavorite         bool         `json:"is_favorite"`
+	Files              []Attachment `json:"files"`
+}
+
+// Attachment est une piece jointe, d'un projet ou d'une tache.
+//
+// La cle de stockage n'y figure pas : c'est un detail d'implementation du
+// magasin, et l'exposer donnerait au client une adresse a deviner.
+type Attachment struct {
+	ID          uuid.UUID `json:"id"`
+	Filename    string    `json:"filename"`
+	ContentType string    `json:"content_type"`
+	SizeBytes   int64     `json:"size_bytes"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // ClientItem est une entree du champ « Client » du formulaire de projet.
@@ -101,6 +138,9 @@ type ProjectFilters struct {
 	Dir      string
 	Page     int
 	PageSize int
+	// Viewer decide quelles lignes remontent en tete : les favoris sont
+	// attaches a un compte, pas au projet.
+	Viewer uuid.UUID
 }
 
 // CreateProjectInput decrit un projet a creer.
@@ -109,24 +149,34 @@ type ProjectFilters struct {
 // propose une liste, mais laisse saisir un nom inconnu plutot que d'imposer un
 // detour par un ecran de creation de client qui n'existe pas encore.
 type CreateProjectInput struct {
-	Name       string
-	ClientID   *uuid.UUID
-	ClientName string
-	Status     string
-	Progress   int
-	HoursSold  float64
-	StartsOn   *time.Time
-	DueOn      *time.Time
-	TeamIDs    []uuid.UUID
-	CreatedBy  uuid.UUID
+	Name        string
+	Description string
+	ClientID    *uuid.UUID
+	ClientName  string
+	Status      string
+	Priority    string
+	FigmaURL    string
+	ProdURL     string
+	PreprodURL  string
+	Progress    int
+	HoursSold   float64
+	StartsOn    *time.Time
+	DueOn       *time.Time
+	TeamIDs     []uuid.UUID
+	CreatedBy   uuid.UUID
 }
 
 // UpdateProjectInput ne porte que ce qui change : un champ absent garde sa
 // valeur. Les pointeurs distinguent « non fourni » de « vide ».
 type UpdateProjectInput struct {
 	Name          *string
+	Description   *string
 	ClientID      *uuid.UUID
 	Status        *string
+	Priority      *string
+	FigmaURL      *string
+	ProdURL       *string
+	PreprodURL    *string
 	Progress      *int
 	HoursSold     *float64
 	StartsOn      *time.Time
@@ -142,6 +192,12 @@ var projectStatuses = map[string]struct{}{
 	"cadrage": {}, "production": {}, "attente": {}, "livre": {},
 }
 
+// Priorites acceptees. Meme parti que les statuts : le CHECK de la base dit la
+// meme chose, le refus ici donne une erreur de validation lisible.
+var projectPriorities = map[string]struct{}{
+	"low": {}, "medium": {}, "high": {},
+}
+
 // Colonnes de tri autorisees. La requete construit son ORDER BY a partir de
 // cette valeur : la clore ici est ce qui empeche l'ecran de demander n'importe
 // quoi.
@@ -151,14 +207,17 @@ var projectSorts = map[string]struct{}{
 
 // ProjectService porte les projets et leurs clients.
 type ProjectService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	pool  *pgxpool.Pool
+	q     *db.Queries
+	files storage.Store
+	// Taille maximale d'une piece jointe, en octets.
+	maxFile int64
 }
 
 // NewProjectService construit le service. Le pool sert aux creations, qui
 // ecrivent le projet et son equipe dans la meme transaction.
-func NewProjectService(pool *pgxpool.Pool) *ProjectService {
-	return &ProjectService{pool: pool, q: db.New(pool)}
+func NewProjectService(pool *pgxpool.Pool, files storage.Store, maxFile int64) *ProjectService {
+	return &ProjectService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile}
 }
 
 // List renvoie une page de la liste des projets.
@@ -186,6 +245,7 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 	}
 
 	rows, err := s.q.ListProjects(ctx, db.ListProjectsParams{
+		ViewerID:   f.Viewer,
 		Status:     f.Status,
 		ClientID:   f.ClientID,
 		Search:     f.Search,
@@ -203,19 +263,22 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 		items = append(items, ProjectListItem{
-			ID:         row.ID,
-			Name:       row.Name,
-			ClientID:   row.ClientID,
-			ClientName: row.ClientName,
-			Status:     row.Status,
-			Progress:   int(row.Progress),
-			HoursSold:  row.HoursSold,
-			HoursSpent: row.HoursSpent,
-			StartsOn:   formatDate(row.StartsOn),
-			DueOn:      formatDate(row.DueOn),
-			TasksTotal: int(row.TasksTotal),
-			TasksDone:  int(row.TasksDone),
-			Team:       []Person{},
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Priority:    row.Priority,
+			ClientID:    row.ClientID,
+			ClientName:  row.ClientName,
+			Status:      row.Status,
+			Progress:    int(row.Progress),
+			HoursSold:   row.HoursSold,
+			HoursSpent:  row.HoursSpent,
+			StartsOn:    formatDate(row.StartsOn),
+			DueOn:       formatDate(row.DueOn),
+			TasksTotal:  int(row.TasksTotal),
+			TasksDone:   int(row.TasksDone),
+			Team:        []Person{},
+			IsFavorite:  row.IsFavorite,
 		})
 	}
 
@@ -249,8 +312,12 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 }
 
 // Get renvoie l'en-tete d'un projet.
-func (s *ProjectService) Get(ctx context.Context, id uuid.UUID) (ProjectDetail, error) {
-	row, err := s.q.GetProject(ctx, id)
+//
+// `viewer` sert a l'etoile : elle est personnelle, donc la reponse depend de
+// qui la demande. La passer explicitement evite d'aller la chercher dans le
+// contexte, ce qui rendrait la fonction impossible a tester seule.
+func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (ProjectDetail, error) {
+	row, err := s.q.GetProject(ctx, db.GetProjectParams{ID: id, ViewerID: viewer})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ProjectDetail{}, domain.ErrNotFound
@@ -274,9 +341,32 @@ func (s *ProjectService) Get(ctx context.Context, id uuid.UUID) (ProjectDetail, 
 		})
 	}
 
+	stored, err := s.q.ListProjectFiles(ctx, &id)
+	if err != nil {
+		return ProjectDetail{}, fmt.Errorf("lecture des pieces jointes : %w", err)
+	}
+
+	files := make([]Attachment, 0, len(stored))
+	for _, f := range stored {
+		files = append(files, Attachment{
+			ID:          f.ID,
+			Filename:    f.Filename,
+			ContentType: f.ContentType,
+			SizeBytes:   f.SizeBytes,
+			CreatedAt:   f.CreatedAt,
+		})
+	}
+
 	return ProjectDetail{
 		ID:                 row.ID,
 		Name:               row.Name,
+		Description:        row.Description,
+		Priority:           row.Priority,
+		FigmaURL:           row.FigmaUrl,
+		ProdURL:            row.ProdUrl,
+		PreprodURL:         row.PreprodUrl,
+		IsFavorite:         row.IsFavorite,
+		Files:              files,
 		ClientID:           row.ClientID,
 		ClientName:         row.ClientName,
 		ClientContactName:  row.ClientContactName,
@@ -315,6 +405,32 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 			"status": "Statut inconnu",
 		})
 	}
+
+	if in.Priority == "" {
+		in.Priority = "medium"
+	}
+	if _, ok := projectPriorities[in.Priority]; !ok {
+		return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"priority": "Priorité inconnue",
+		})
+	}
+
+	in.FigmaURL = strings.TrimSpace(in.FigmaURL)
+	in.ProdURL = strings.TrimSpace(in.ProdURL)
+	in.PreprodURL = strings.TrimSpace(in.PreprodURL)
+
+	for _, link := range []struct {
+		field string
+		value string
+	}{
+		{"figma_url", in.FigmaURL},
+		{"prod_url", in.ProdURL},
+		{"preprod_url", in.PreprodURL},
+	} {
+		if err := validateLink(link.field, link.value); err != nil {
+			return ProjectDetail{}, err
+		}
+	}
 	if in.Progress < 0 || in.Progress > 100 {
 		return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
 			"progress": "L'avancement va de 0 à 100",
@@ -350,14 +466,19 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 	}
 
 	project, err := qtx.CreateProject(ctx, db.CreateProjectParams{
-		ClientID:  clientID,
-		Name:      name,
-		Status:    in.Status,
-		Progress:  int16(in.Progress),
-		HoursSold: in.HoursSold,
-		StartsOn:  in.StartsOn,
-		DueOn:     in.DueOn,
-		CreatedBy: &in.CreatedBy,
+		ClientID:    clientID,
+		Name:        name,
+		Description: strings.TrimSpace(in.Description),
+		Status:      in.Status,
+		Priority:    in.Priority,
+		FigmaUrl:    in.FigmaURL,
+		ProdUrl:     in.ProdURL,
+		PreprodUrl:  in.PreprodURL,
+		Progress:    int16(in.Progress),
+		HoursSold:   in.HoursSold,
+		StartsOn:    in.StartsOn,
+		DueOn:       in.DueOn,
+		CreatedBy:   &in.CreatedBy,
 	})
 	if err != nil {
 		return ProjectDetail{}, fmt.Errorf("creation du projet : %w", err)
@@ -376,7 +497,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 		return ProjectDetail{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
 
-	return s.Get(ctx, project.ID)
+	return s.Get(ctx, project.ID, in.CreatedBy)
 }
 
 // resolveClient retrouve le client designe, ou le cree a partir de son nom.
@@ -417,13 +538,47 @@ func (s *ProjectService) resolveClient(ctx context.Context, q *db.Queries, id *u
 }
 
 // Update modifie un projet.
-func (s *ProjectService) Update(ctx context.Context, id uuid.UUID, in UpdateProjectInput) (ProjectDetail, error) {
+func (s *ProjectService) Update(ctx context.Context, id, viewer uuid.UUID, in UpdateProjectInput) (ProjectDetail, error) {
 	if in.Status != nil {
 		if _, ok := projectStatuses[*in.Status]; !ok {
 			return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
 				"status": "Statut inconnu",
 			})
 		}
+	}
+	if in.Priority != nil {
+		if _, ok := projectPriorities[*in.Priority]; !ok {
+			return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+				"priority": "Priorité inconnue",
+			})
+		}
+	}
+	// La creation refusait deja un budget negatif, pas la modification : la
+	// valeur filait jusqu'a la contrainte de base, qui la rejetait en erreur
+	// interne. Une saisie fautive doit rendre 422, pas 500.
+	if in.HoursSold != nil && *in.HoursSold < 0 {
+		return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+			"hours_sold": "Les heures vendues ne peuvent pas être négatives",
+		})
+	}
+	for _, link := range []struct {
+		field string
+		value **string
+	}{
+		{"figma_url", &in.FigmaURL},
+		{"prod_url", &in.ProdURL},
+		{"preprod_url", &in.PreprodURL},
+	} {
+		if *link.value == nil {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(**link.value)
+		if err := validateLink(link.field, trimmed); err != nil {
+			return ProjectDetail{}, err
+		}
+
+		*link.value = &trimmed
 	}
 	if in.Progress != nil && (*in.Progress < 0 || *in.Progress > 100) {
 		return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
@@ -440,7 +595,12 @@ func (s *ProjectService) Update(ctx context.Context, id uuid.UUID, in UpdateProj
 	if _, err := s.q.UpdateProject(ctx, db.UpdateProjectParams{
 		ID:            id,
 		Name:          in.Name,
+		Description:   in.Description,
 		Status:        in.Status,
+		Priority:      in.Priority,
+		FigmaUrl:      in.FigmaURL,
+		ProdUrl:       in.ProdURL,
+		PreprodUrl:    in.PreprodURL,
 		Progress:      progress,
 		HoursSold:     in.HoursSold,
 		ClientID:      in.ClientID,
@@ -455,7 +615,7 @@ func (s *ProjectService) Update(ctx context.Context, id uuid.UUID, in UpdateProj
 		return ProjectDetail{}, fmt.Errorf("mise a jour du projet : %w", err)
 	}
 
-	return s.Get(ctx, id)
+	return s.Get(ctx, id, viewer)
 }
 
 // Delete efface un projet logiquement. Ses taches restent en base, rattachees :
@@ -468,7 +628,7 @@ func (s *ProjectService) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // SetTeam remplace l'equipe affectee.
-func (s *ProjectService) SetTeam(ctx context.Context, id uuid.UUID, userIDs []uuid.UUID) (ProjectDetail, error) {
+func (s *ProjectService) SetTeam(ctx context.Context, id, viewer uuid.UUID, userIDs []uuid.UUID) (ProjectDetail, error) {
 	current, err := s.q.ListMembersOfProjects(ctx, []uuid.UUID{id})
 	if err != nil {
 		return ProjectDetail{}, fmt.Errorf("lecture de l'equipe : %w", err)
@@ -511,7 +671,7 @@ func (s *ProjectService) SetTeam(ctx context.Context, id uuid.UUID, userIDs []uu
 		return ProjectDetail{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
 
-	return s.Get(ctx, id)
+	return s.Get(ctx, id, viewer)
 }
 
 // ListPeople liste les comptes internes.
@@ -659,4 +819,173 @@ func metricOf(total, recent, previous float64) Metric {
 	change := ((recent - previous) / previous) * 100
 
 	return Metric{Value: total, Change: &change}
+}
+
+// validateLink n'accepte qu'une adresse http(s), ou rien.
+//
+// C'est une adresse que la fiche projet rend cliquable : laisser passer un
+// `javascript:` reviendrait a offrir une execution de script a qui peut
+// modifier un projet.
+func validateLink(field, raw string) error {
+	if raw == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			field: "Le lien doit être une adresse http(s)",
+		})
+	}
+
+	return nil
+}
+
+// AddFile enregistre une piece jointe et rend sa fiche.
+//
+// Le fichier part sur le disque avant la ligne de base, parce qu'on ne connait
+// sa taille qu'une fois ecrit. Si l'insertion echoue ensuite, le fichier est
+// efface : mieux vaut un octet perdu qu'un fichier orphelin que plus rien ne
+// designe.
+func (s *ProjectService) AddFile(
+	ctx context.Context,
+	projectID, uploader uuid.UUID,
+	filename, contentType string,
+	content io.Reader,
+) (Attachment, error) {
+	filename = strings.TrimSpace(filepath.Base(filename))
+	if filename == "" || filename == "." || filename == "/" {
+		return Attachment{}, domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Nom de fichier invalide",
+		})
+	}
+
+	// Le projet est verifie avant l'ecriture : la contrainte de cle etrangere
+	// dirait la meme chose, mais apres avoir pose le fichier sur le disque.
+	if _, err := s.q.GetProject(ctx, db.GetProjectParams{ID: projectID, ViewerID: uploader}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Attachment{}, domain.ErrNotFound
+		}
+		return Attachment{}, fmt.Errorf("lecture du projet : %w", err)
+	}
+
+	key, size, err := s.files.Save(content, s.maxFile)
+	if err != nil {
+		if errors.Is(err, storage.ErrTooLarge) {
+			return Attachment{}, domain.ErrValidation.WithDetails(map[string]any{
+				"file": fmt.Sprintf("Le fichier dépasse %d Mo", s.maxFile/(1<<20)),
+			})
+		}
+		return Attachment{}, fmt.Errorf("ecriture de la piece jointe : %w", err)
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	row, err := s.q.CreateProjectFile(ctx, db.CreateProjectFileParams{
+		ProjectID:   &projectID,
+		Filename:    filename,
+		ContentType: contentType,
+		SizeBytes:   size,
+		StorageKey:  key,
+		UploadedBy:  &uploader,
+	})
+	if err != nil {
+		_ = s.files.Remove(key)
+		return Attachment{}, fmt.Errorf("enregistrement de la piece jointe : %w", err)
+	}
+
+	return Attachment{
+		ID:          row.ID,
+		Filename:    row.Filename,
+		ContentType: row.ContentType,
+		SizeBytes:   row.SizeBytes,
+		CreatedAt:   row.CreatedAt,
+	}, nil
+}
+
+// OpenFile rend la fiche d'une piece jointe et son contenu.
+//
+// A l'appelant de fermer le flux.
+func (s *ProjectService) OpenFile(ctx context.Context, fileID uuid.UUID) (Attachment, io.ReadCloser, error) {
+	row, err := s.q.GetAttachment(ctx, fileID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Attachment{}, nil, domain.ErrNotFound
+		}
+		return Attachment{}, nil, fmt.Errorf("lecture de la piece jointe : %w", err)
+	}
+
+	content, err := s.files.Open(row.StorageKey)
+	if err != nil {
+		return Attachment{}, nil, fmt.Errorf("ouverture de la piece jointe : %w", err)
+	}
+
+	return Attachment{
+		ID:          row.ID,
+		Filename:    row.Filename,
+		ContentType: row.ContentType,
+		SizeBytes:   row.SizeBytes,
+		CreatedAt:   row.CreatedAt,
+	}, content, nil
+}
+
+// DeleteFile efface la piece jointe, ligne et fichier.
+func (s *ProjectService) DeleteFile(ctx context.Context, fileID uuid.UUID) error {
+	row, err := s.q.DeleteAttachment(ctx, fileID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrNotFound
+		}
+		return fmt.Errorf("suppression de la piece jointe : %w", err)
+	}
+
+	// Le fichier part apres la ligne : l'inverse laisserait, en cas d'echec de
+	// la suppression en base, une fiche qui pointe vers un fichier absent.
+	if err := s.files.Remove(row.StorageKey); err != nil {
+		return fmt.Errorf("effacement du fichier : %w", err)
+	}
+
+	return nil
+}
+
+// ListFavorites rend les projets etoiles par un compte.
+//
+// C'est la barre laterale qui les demande, pas un ecran : la reponse est donc
+// volontairement maigre et bornee par la requete. Elle n'est pas paginee — un
+// raccourci qui aurait une page 2 ne serait plus un raccourci.
+func (s *ProjectService) ListFavorites(ctx context.Context, viewer uuid.UUID) ([]ProjectShortcut, error) {
+	rows, err := s.q.ListFavoriteProjects(ctx, viewer)
+	if err != nil {
+		return nil, fmt.Errorf("lecture des favoris : %w", err)
+	}
+
+	items := make([]ProjectShortcut, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, ProjectShortcut{ID: row.ID, Name: row.Name, Status: row.Status})
+	}
+
+	return items, nil
+}
+
+// SetFavorite pose ou retire l'etoile d'un projet pour un compte.
+func (s *ProjectService) SetFavorite(ctx context.Context, projectID, userID uuid.UUID, on bool) error {
+	if on {
+		err := s.q.AddProjectFavorite(ctx, db.AddProjectFavoriteParams{UserID: userID, ProjectID: projectID})
+		if err != nil {
+			return fmt.Errorf("mise en favori : %w", err)
+		}
+
+		return nil
+	}
+
+	if err := s.q.RemoveProjectFavorite(ctx, db.RemoveProjectFavoriteParams{
+		UserID:    userID,
+		ProjectID: projectID,
+	}); err != nil {
+		return fmt.Errorf("retrait du favori : %w", err)
+	}
+
+	return nil
 }
