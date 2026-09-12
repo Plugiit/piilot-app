@@ -129,3 +129,41 @@ export function useActiveModule(): AppModule | undefined {
 export function destinationsOf(item: MenuItem): string[] {
   return item.children ? item.children.map((leaf) => leaf.to) : [item.to]
 }
+
+/** Vrai quand `to` designe cette adresse ou l'une de ses sous-pages. */
+function covers(to: string, pathname: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+/**
+ * Destination du menu a laquelle appartient l'adresse courante.
+ *
+ * Une entree reste allumee sur ses sous-pages : la fiche d'un projet est
+ * encore « Projets ». Mais plusieurs entrees peuvent prefixer la meme adresse
+ * — /pm/projets/42 est couvert par « Tableau de bord » (/pm) autant que par
+ * « Projets » (/pm/projets). C'est la plus longue qui gagne, sans quoi le
+ * tableau de bord resterait actif partout dans son module.
+ *
+ * Rendre la destination plutot qu'un booleen par entree laisse un seul
+ * vainqueur : deux entrees ne peuvent pas s'allumer ensemble.
+ */
+export function activeDestination(
+  module: AppModule | undefined,
+  pathname: string,
+): string | undefined {
+  if (module === undefined) return undefined
+
+  let best: string | undefined
+
+  for (const group of module.menu) {
+    for (const item of group.items) {
+      for (const to of destinationsOf(item)) {
+        if (covers(to, pathname) && (best === undefined || to.length > best.length)) {
+          best = to
+        }
+      }
+    }
+  }
+
+  return best
+}
