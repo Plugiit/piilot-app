@@ -12,20 +12,29 @@ import (
 )
 
 type Querier interface {
+	// Poser deux fois la meme etoile n'est pas une erreur : c'est un bouton qu'on
+	// peut recliquer, pas une creation.
+	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
+	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	CreateClient(ctx context.Context, arg CreateClientParams) (Client, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
+	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (Subtask, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
+	CreateTaskFile(ctx context.Context, arg CreateTaskFileParams) (Attachment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
+	// effacer le fichier du disque dans la foulee.
+	DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
 	// Purge des jetons expires depuis assez longtemps pour ne plus rien prouver.
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
@@ -33,6 +42,10 @@ type Querier interface {
 	// Suppression reelle : une sous-tache n'a pas d'histoire propre, et le
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
+	// Une piece jointe se lit par son seul identifiant, quel que soit son
+	// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
+	// de servir celles des projets comme celles des taches.
+	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
 	GetClientByID(ctx context.Context, id uuid.UUID) (Client, error)
 	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
 	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
@@ -49,7 +62,7 @@ type Querier interface {
 	// les index partiels `deleted_at IS NULL`. Le jour ou ces tables grossissent,
 	// c'est un instantane quotidien qu'il faudra stocker, pas un index de plus.
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
-	GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error)
+	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
 	// les deux obtienne un nouvel acces.
@@ -72,6 +85,13 @@ type Querier interface {
 	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
 	// d'exception, sinon elle finit par etre oubliee la ou elle compte.
 	ListClients(ctx context.Context, arg ListClientsParams) ([]Client, error)
+	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
+	//
+	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
+	// tiennent dans un panneau, au-dela l'etoile ne trie plus rien et c'est la
+	// liste des projets qu'il faut ouvrir. La regle du projet veut un LIMIT partout
+	// — ici il n'a pas de page suivante, il a une fin.
+	ListFavoriteProjects(ctx context.Context, userID uuid.UUID) ([]ListFavoriteProjectsRow, error)
 	// Equipes de plusieurs projets en une requete.
 	//
 	// C'est la parade au N+1 de la liste : le handler passe les identifiants de la
@@ -82,6 +102,8 @@ type Querier interface {
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
 	ListPermissionsByRole(ctx context.Context, roleCode string) ([]string, error)
+	// Pieces jointes d'un projet, la derniere deposee en premier.
+	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
 	// Liste paginee du back-office.
 	//
 	// Le nom du client est joint ici plutot que ramene par une seconde requete :
@@ -96,6 +118,20 @@ type Querier interface {
 	ListSubtasks(ctx context.Context, taskID uuid.UUID) ([]Subtask, error)
 	ListTaskActivity(ctx context.Context, arg ListTaskActivityParams) ([]ListTaskActivityRow, error)
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
+	// Pieces jointes de plusieurs taches, pour le tiroir et le tableau.
+	ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Attachment, error)
+	// Taches de toute l'agence, pour l'ecran « Taches » du module.
+	//
+	// Le nom du projet est joint ici : une tache sortie de sa fiche ne dit plus
+	// d'ou elle vient, et l'aller chercher ensuite ferait une requete par ligne.
+	//
+	// Meme borne que le tableau d'un projet, et pour la meme raison : l'ecran a
+	// une vue kanban, et on ne tourne pas la page d'un kanban. Le total part a
+	// cote pour que la vue puisse dire qu'elle n'affiche pas tout.
+	//
+	// La jointure sur les projets vivants fait le reste du filtrage : les taches
+	// d'un projet supprime ne doivent pas reapparaitre dans une liste globale.
+	ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTasksRow, error)
 	// Tableau des taches d'un projet.
 	//
 	// Bornee comme toutes les listes. Un tableau n'a pas de pagination visible —
@@ -111,6 +147,7 @@ type Querier interface {
 	// Separe de UpdateTask parce que c'est le seul mouvement qui journalise un
 	// changement de statut, et que le tableau l'appelle a chaque glissement.
 	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
+	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.

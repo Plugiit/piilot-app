@@ -11,6 +11,18 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+type Attachment struct {
+	ID          uuid.UUID  `json:"id"`
+	ProjectID   *uuid.UUID `json:"project_id"`
+	Filename    string     `json:"filename"`
+	ContentType string     `json:"content_type"`
+	SizeBytes   int64      `json:"size_bytes"`
+	StorageKey  string     `json:"storage_key"`
+	UploadedBy  *uuid.UUID `json:"uploaded_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	TaskID      *uuid.UUID `json:"task_id"`
+}
+
 type Client struct {
 	ID           uuid.UUID  `json:"id"`
 	Name         string     `json:"name"`
@@ -30,21 +42,32 @@ type Permission struct {
 }
 
 type Project struct {
-	ID         uuid.UUID  `json:"id"`
-	ClientID   uuid.UUID  `json:"client_id"`
-	Name       string     `json:"name"`
-	Status     string     `json:"status"`
-	Progress   int16      `json:"progress"`
-	HoursSold  float64    `json:"hours_sold"`
-	HoursSpent float64    `json:"hours_spent"`
-	StartsOn   *time.Time `json:"starts_on"`
-	DueOn      *time.Time `json:"due_on"`
-	TasksTotal int32      `json:"tasks_total"`
-	TasksDone  int32      `json:"tasks_done"`
-	CreatedBy  *uuid.UUID `json:"created_by"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	DeletedAt  *time.Time `json:"deleted_at"`
+	ID          uuid.UUID  `json:"id"`
+	ClientID    uuid.UUID  `json:"client_id"`
+	Name        string     `json:"name"`
+	Status      string     `json:"status"`
+	Progress    int16      `json:"progress"`
+	HoursSold   float64    `json:"hours_sold"`
+	HoursSpent  float64    `json:"hours_spent"`
+	StartsOn    *time.Time `json:"starts_on"`
+	DueOn       *time.Time `json:"due_on"`
+	TasksTotal  int32      `json:"tasks_total"`
+	TasksDone   int32      `json:"tasks_done"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+	Description string     `json:"description"`
+	Priority    string     `json:"priority"`
+	FigmaUrl    string     `json:"figma_url"`
+	ProdUrl     string     `json:"prod_url"`
+	PreprodUrl  string     `json:"preprod_url"`
+}
+
+type ProjectFavorite struct {
+	UserID    uuid.UUID `json:"user_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ProjectMember struct {
@@ -90,22 +113,27 @@ type Subtask struct {
 }
 
 type Task struct {
-	ID          uuid.UUID  `json:"id"`
-	ProjectID   uuid.UUID  `json:"project_id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	Tag         string     `json:"tag"`
-	StartsOn    *time.Time `json:"starts_on"`
-	DueOn       *time.Time `json:"due_on"`
-	Hours       *float64   `json:"hours"`
-	Note        string     `json:"note"`
-	Position    int32      `json:"position"`
-	CompletedAt *time.Time `json:"completed_at"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at"`
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	Title            string     `json:"title"`
+	Description      string     `json:"description"`
+	Status           string     `json:"status"`
+	Tag              string     `json:"tag"`
+	StartsOn         *time.Time `json:"starts_on"`
+	DueOn            *time.Time `json:"due_on"`
+	Hours            *float64   `json:"hours"`
+	Note             string     `json:"note"`
+	Position         int32      `json:"position"`
+	CompletedAt      *time.Time `json:"completed_at"`
+	CreatedBy        *uuid.UUID `json:"created_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	Priority         string     `json:"priority"`
+	SubtasksTotal    int32      `json:"subtasks_total"`
+	SubtasksDone     int32      `json:"subtasks_done"`
+	CommentsCount    int32      `json:"comments_count"`
+	AttachmentsCount int32      `json:"attachments_count"`
 }
 
 type TaskActivity struct {
