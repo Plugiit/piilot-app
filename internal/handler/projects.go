@@ -3,6 +3,9 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -20,11 +23,16 @@ import (
 // testables sans Postgres.
 type ProjectService interface {
 	List(ctx context.Context, f usecase.ProjectFilters) (usecase.ProjectPage, error)
-	Get(ctx context.Context, id uuid.UUID) (usecase.ProjectDetail, error)
+	Get(ctx context.Context, id, viewer uuid.UUID) (usecase.ProjectDetail, error)
 	Create(ctx context.Context, in usecase.CreateProjectInput) (usecase.ProjectDetail, error)
-	Update(ctx context.Context, id uuid.UUID, in usecase.UpdateProjectInput) (usecase.ProjectDetail, error)
+	Update(ctx context.Context, id, viewer uuid.UUID, in usecase.UpdateProjectInput) (usecase.ProjectDetail, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	SetTeam(ctx context.Context, id uuid.UUID, userIDs []uuid.UUID) (usecase.ProjectDetail, error)
+	SetTeam(ctx context.Context, id, viewer uuid.UUID, userIDs []uuid.UUID) (usecase.ProjectDetail, error)
+	AddFile(ctx context.Context, projectID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
+	OpenFile(ctx context.Context, fileID uuid.UUID) (usecase.Attachment, io.ReadCloser, error)
+	DeleteFile(ctx context.Context, fileID uuid.UUID) error
+	SetFavorite(ctx context.Context, projectID, userID uuid.UUID, on bool) error
+	ListFavorites(ctx context.Context, viewer uuid.UUID) ([]usecase.ProjectShortcut, error)
 	ListClients(ctx context.Context, search *string, page, pageSize int) ([]usecase.ClientItem, error)
 	ListPeople(ctx context.Context) ([]usecase.Person, error)
 	Dashboard(ctx context.Context) (usecase.DashboardSummary, error)
@@ -46,15 +54,20 @@ func NewProjects(svc ProjectService) *Projects {
 // liste, mais accepte un nom inconnu plutot que d'exiger un detour par un ecran
 // de creation de client.
 type createProjectRequest struct {
-	Name       string   `json:"name"`
-	ClientID   *string  `json:"client_id"`
-	ClientName string   `json:"client_name"`
-	Status     string   `json:"status"`
-	Progress   int      `json:"progress"`
-	HoursSold  float64  `json:"hours_sold"`
-	StartsOn   *string  `json:"starts_on"`
-	DueOn      *string  `json:"due_on"`
-	TeamIDs    []string `json:"team_ids"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	ClientID    *string  `json:"client_id"`
+	ClientName  string   `json:"client_name"`
+	Status      string   `json:"status"`
+	Priority    string   `json:"priority"`
+	FigmaURL    string   `json:"figma_url"`
+	ProdURL     string   `json:"prod_url"`
+	PreprodURL  string   `json:"preprod_url"`
+	Progress    int      `json:"progress"`
+	HoursSold   float64  `json:"hours_sold"`
+	StartsOn    *string  `json:"starts_on"`
+	DueOn       *string  `json:"due_on"`
+	TeamIDs     []string `json:"team_ids"`
 }
 
 // updateProjectRequest est le corps de PATCH /admin/projects/:id.
@@ -63,13 +76,18 @@ type createProjectRequest struct {
 // Une date explicitement nulle efface l'echeance, ce qu'un champ absent ne fait
 // pas — d'ou le pointeur de pointeur simule par la paire valeur/presence.
 type updateProjectRequest struct {
-	Name      *string  `json:"name"`
-	ClientID  *string  `json:"client_id"`
-	Status    *string  `json:"status"`
-	Progress  *int     `json:"progress"`
-	HoursSold *float64 `json:"hours_sold"`
-	StartsOn  *string  `json:"starts_on"`
-	DueOn     *string  `json:"due_on"`
+	Name        *string  `json:"name"`
+	Description *string  `json:"description"`
+	ClientID    *string  `json:"client_id"`
+	Status      *string  `json:"status"`
+	Priority    *string  `json:"priority"`
+	FigmaURL    *string  `json:"figma_url"`
+	ProdURL     *string  `json:"prod_url"`
+	PreprodURL  *string  `json:"preprod_url"`
+	Progress    *int     `json:"progress"`
+	HoursSold   *float64 `json:"hours_sold"`
+	StartsOn    *string  `json:"starts_on"`
+	DueOn       *string  `json:"due_on"`
 }
 
 type setTeamRequest struct {
@@ -78,11 +96,19 @@ type setTeamRequest struct {
 
 // List sert la liste paginee des projets.
 func (h *Projects) List(c fiber.Ctx) error {
+	// L'etoile etant personnelle, la liste ne peut pas se lire sans savoir qui
+	// la demande : c'est elle qui decide des lignes en tete.
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
 	filters := usecase.ProjectFilters{
 		Sort:     c.Query("sort", "due"),
 		Dir:      c.Query("dir", "asc"),
 		Page:     queryInt(c, "page", 1),
 		PageSize: queryInt(c, "page_size", 20),
+		Viewer:   actor,
 	}
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
@@ -107,6 +133,23 @@ func (h *Projects) List(c fiber.Ctx) error {
 	return c.JSON(page)
 }
 
+// Favorites sert les raccourcis de la barre laterale.
+func (h *Projects) Favorites(c fiber.Ctx) error {
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	items, err := h.svc.ListFavorites(c.Context(), actor)
+	if err != nil {
+		return err
+	}
+
+	// Enveloppe plutot que tableau nu : une reponse JSON qui est un tableau ne
+	// peut plus rien gagner, et le reste de l'API rend deja `{ items }`.
+	return c.JSON(fiber.Map{"items": items})
+}
+
 // Get sert l'en-tete d'un projet.
 func (h *Projects) Get(c fiber.Ctx) error {
 	id, err := pathUUID(c, "id")
@@ -114,7 +157,12 @@ func (h *Projects) Get(c fiber.Ctx) error {
 		return err
 	}
 
-	project, err := h.svc.Get(c.Context(), id)
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	project, err := h.svc.Get(c.Context(), id, actor)
 	if err != nil {
 		return err
 	}
@@ -135,12 +183,17 @@ func (h *Projects) Create(c fiber.Ctx) error {
 	}
 
 	in := usecase.CreateProjectInput{
-		Name:       req.Name,
-		ClientName: req.ClientName,
-		Status:     req.Status,
-		Progress:   req.Progress,
-		HoursSold:  req.HoursSold,
-		CreatedBy:  actor,
+		Name:        req.Name,
+		Description: req.Description,
+		ClientName:  req.ClientName,
+		Status:      req.Status,
+		Priority:    req.Priority,
+		FigmaURL:    req.FigmaURL,
+		ProdURL:     req.ProdURL,
+		PreprodURL:  req.PreprodURL,
+		Progress:    req.Progress,
+		HoursSold:   req.HoursSold,
+		CreatedBy:   actor,
 	}
 
 	if req.ClientID != nil && strings.TrimSpace(*req.ClientID) != "" {
@@ -189,10 +242,15 @@ func (h *Projects) Update(c fiber.Ctx) error {
 	}
 
 	in := usecase.UpdateProjectInput{
-		Name:      req.Name,
-		Status:    req.Status,
-		Progress:  req.Progress,
-		HoursSold: req.HoursSold,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      req.Status,
+		Priority:    req.Priority,
+		FigmaURL:    req.FigmaURL,
+		ProdURL:     req.ProdURL,
+		PreprodURL:  req.PreprodURL,
+		Progress:    req.Progress,
+		HoursSold:   req.HoursSold,
 	}
 
 	if req.ClientID != nil {
@@ -229,7 +287,12 @@ func (h *Projects) Update(c fiber.Ctx) error {
 		}
 	}
 
-	project, err := h.svc.Update(c.Context(), id, in)
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	project, err := h.svc.Update(c.Context(), id, actor, in)
 	if err != nil {
 		return err
 	}
@@ -268,7 +331,12 @@ func (h *Projects) SetTeam(c fiber.Ctx) error {
 		return err
 	}
 
-	project, err := h.svc.SetTeam(c.Context(), id, ids)
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	project, err := h.svc.SetTeam(c.Context(), id, actor, ids)
 	if err != nil {
 		return err
 	}
@@ -380,4 +448,133 @@ func hasJSONKey(body []byte, key string) bool {
 	_, present := raw[key]
 
 	return present
+}
+
+// UploadFile recoit une piece jointe du projet.
+func (h *Projects) UploadFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Aucun fichier reçu sous le champ « file »",
+		})
+	}
+
+	content, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("lecture du fichier envoye : %w", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	file, err := h.svc.AddFile(
+		c.Context(), id, actor,
+		header.Filename,
+		header.Header.Get("Content-Type"),
+		content,
+	)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(file)
+}
+
+// DownloadFile rend le contenu d'une piece jointe.
+//
+// Toujours en piece jointe et jamais affichee dans l'onglet : un fichier
+// televerse est du contenu que l'API n'a pas ecrit, et le rendre a l'ecran
+// depuis le domaine de l'API laisserait un HTML depose executer du script avec
+// les cookies de session. `attachment` et `nosniff` ferment les deux portes —
+// celle du rendu direct, et celle du navigateur qui devine un type plus
+// permissif que celui annonce.
+func (h *Projects) DownloadFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	file, content, err := h.svc.OpenFile(c.Context(), id)
+	if err != nil {
+		return err
+	}
+
+	// Pas de `defer Close` : le corps est ecrit apres le retour du handler, et
+	// fermer ici couperait le flux avant qu'il ne soit lu — la reponse partait
+	// vide. C'est Fiber qui referme le lecteur, parce qu'il porte Close.
+
+	c.Set(fiber.HeaderContentType, file.ContentType)
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set(fiber.HeaderContentDisposition, contentDisposition(file.Filename))
+
+	return c.SendStream(content, int(file.SizeBytes))
+}
+
+// DeleteFile efface une piece jointe.
+func (h *Projects) DeleteFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	if err := h.svc.DeleteFile(c.Context(), id); err != nil {
+		return err
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// Favorite pose l'etoile sur un projet pour le compte appelant.
+func (h *Projects) Favorite(c fiber.Ctx) error { return h.setFavorite(c, true) }
+
+// Unfavorite la retire.
+func (h *Projects) Unfavorite(c fiber.Ctx) error { return h.setFavorite(c, false) }
+
+func (h *Projects) setFavorite(c fiber.Ctx, on bool) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	if err := h.svc.SetFavorite(c.Context(), id, actor, on); err != nil {
+		return err
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// contentDisposition compose l'en-tete de telechargement.
+//
+// Deux formes, comme le veut la RFC 6266 : une version ASCII pour les clients
+// anciens, et `filename*` en UTF-8 pour les noms accentues. Les guillemets et
+// les retours a la ligne sont retires de la premiere — laisses tels quels, ils
+// permettraient d'injecter un en-tete de plus.
+func contentDisposition(filename string) string {
+	ascii := make([]rune, 0, len(filename))
+	for _, r := range filename {
+		switch {
+		case r == '"' || r == '\\' || r == '\r' || r == '\n':
+			ascii = append(ascii, '_')
+		case r < 32 || r > 126:
+			ascii = append(ascii, '_')
+		default:
+			ascii = append(ascii, r)
+		}
+	}
+
+	return fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`,
+		string(ascii), url.PathEscape(filename))
 }
