@@ -473,6 +473,39 @@
         }
       }
     },
+    "/api/v1/admin/projects/favorites": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Projets etoiles par l'appelant",
+        "description": "Raccourcis de la barre laterale. Monte avant /projects/{id} : sans cela le routeur prendrait « favorites » pour un identifiant.",
+        "operationId": "listAdminProjectFavorites",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raccourcis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectShortcutList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/api/v1/admin/projects/{id}": {
       "parameters": [
         {
@@ -740,6 +773,92 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Taches de toute l'agence",
+        "description": "Ecran « Taches » du module, ses deux vues comprises. Filtres facultatifs : sans aucun, la reponse couvre l'agence entiere. Exige tasks.read.",
+        "operationId": "listAdminTasks",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Filtre sur l'intitule de la tache",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Statut exact",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "todo",
+                "progress",
+                "review",
+                "done"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "description": "Priorite exacte",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Taches d'un seul projet",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Taches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -1257,6 +1376,288 @@
           }
         }
       }
+    },
+    "/api/v1/admin/projects/{id}/files": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deposer une piece jointe sur un projet",
+        "operationId": "uploadAdminProjectFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Le fichier. Taille plafonnee par MAX_UPLOAD_MIB, 25 Mo par defaut."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Piece jointe creee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attachment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/favorite": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mettre le projet en favori",
+        "operationId": "favoriteAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sans contenu"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Retirer le projet des favoris",
+        "operationId": "unfavoriteAdminProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sans contenu"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/files/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la piece jointe",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Telecharger une piece jointe",
+        "description": "Toujours servi en piece jointe (Content-Disposition: attachment) avec X-Content-Type-Options: nosniff : le contenu n'a pas ete ecrit par l'API et ne doit jamais s'afficher dans l'onglet.",
+        "operationId": "downloadAdminFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contenu du fichier",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer une piece jointe",
+        "operationId": "deleteAdminFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sans contenu"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/{id}/files": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la tache",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deposer une piece jointe sur une tache",
+        "description": "Le telechargement et la suppression passent par /api/v1/admin/files/{id}, commun aux pieces jointes des projets et des taches.",
+        "operationId": "uploadAdminTaskFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Le fichier. Taille plafonnee par MAX_UPLOAD_MIB, 25 Mo par defaut."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Piece jointe creee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attachment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1455,6 +1856,8 @@
         "required": [
           "id",
           "name",
+          "description",
+          "priority",
           "client_id",
           "client_name",
           "status",
@@ -1463,7 +1866,8 @@
           "hours_spent",
           "tasks_total",
           "tasks_done",
-          "team"
+          "team",
+          "is_favorite"
         ],
         "properties": {
           "id": {
@@ -1472,6 +1876,19 @@
           },
           "name": {
             "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut."
           },
           "client_id": {
             "type": "string",
@@ -1530,6 +1947,10 @@
             "items": {
               "$ref": "#/components/schemas/Person"
             }
+          },
+          "is_favorite": {
+            "type": "boolean",
+            "description": "Etoile du compte appelant. Personnelle : deux comptes n'ont pas les memes, et elle remonte la ligne en tete de liste quel que soit le tri."
           }
         }
       },
@@ -1670,6 +2091,8 @@
         "required": [
           "id",
           "name",
+          "description",
+          "priority",
           "client_id",
           "client_name",
           "status",
@@ -1680,7 +2103,12 @@
           "tasks_done",
           "team",
           "client_contact_name",
-          "client_contact_role"
+          "client_contact_role",
+          "is_favorite",
+          "files",
+          "figma_url",
+          "prod_url",
+          "preprod_url"
         ],
         "properties": {
           "id": {
@@ -1689,6 +2117,19 @@
           },
           "name": {
             "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut."
           },
           "client_id": {
             "type": "string",
@@ -1748,6 +2189,28 @@
               "$ref": "#/components/schemas/Person"
             }
           },
+          "figma_url": {
+            "type": "string",
+            "description": "Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "prod_url": {
+            "type": "string",
+            "description": "Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "preprod_url": {
+            "type": "string",
+            "description": "Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "is_favorite": {
+            "type": "boolean",
+            "description": "Etoile du compte appelant. Personnelle : deux comptes n'ont pas les memes."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            }
+          },
           "client_contact_name": {
             "type": "string"
           },
@@ -1760,6 +2223,48 @@
               "null"
             ],
             "format": "email"
+          }
+        }
+      },
+      "ProjectShortcut": {
+        "type": "object",
+        "description": "Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus.",
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          }
+        }
+      },
+      "ProjectShortcutList": {
+        "type": "object",
+        "description": "Raccourcis du compte appelant. Bornee a vingt entrees et sans pagination : une liste de navigation qui aurait une page 2 ne serait plus un raccourci.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectShortcut"
+            }
           }
         }
       },
@@ -1812,7 +2317,13 @@
           "status",
           "tag",
           "position",
-          "assignees"
+          "assignees",
+          "priority",
+          "description",
+          "subtasks_total",
+          "subtasks_done",
+          "comments_count",
+          "attachments_count"
         ],
         "properties": {
           "id": {
@@ -1838,6 +2349,35 @@
           "tag": {
             "type": "string",
             "description": "Nature de la tache, texte libre"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite de la tache. Vaut 'medium' par defaut."
+          },
+          "description": {
+            "type": "string",
+            "description": "Resume affiche sous le titre sur la carte du kanban."
+          },
+          "subtasks_total": {
+            "type": "integer",
+            "description": "Nombre de sous-taches. Colonne tenue par declencheur : jamais un COUNT au rendu."
+          },
+          "subtasks_done": {
+            "type": "integer",
+            "description": "Sous-taches cochees. Alimente la barre segmentee de la carte."
+          },
+          "comments_count": {
+            "type": "integer",
+            "description": "Commentaires non supprimes. Colonne tenue par declencheur."
+          },
+          "attachments_count": {
+            "type": "integer",
+            "description": "Pieces jointes de la tache. Colonne tenue par declencheur."
           },
           "due_on": {
             "type": [
@@ -1879,6 +2419,49 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TaskSummary"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache."
+          }
+        }
+      },
+      "TaskListItem": {
+        "description": "Carte de l'ecran Taches du module : la meme que dans un projet, plus le nom de celui-ci — sortie de sa fiche, une tache ne dit plus a quoi elle se rattache.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "project_name"
+            ],
+            "properties": {
+              "project_name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "TaskList": {
+        "type": "object",
+        "description": "Contenu de l'ecran Taches, ses deux vues comprises. Borne sans pagination : un kanban ne se feuillette pas.",
+        "required": [
+          "items",
+          "total",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskListItem"
             }
           },
           "total": {
@@ -2023,7 +2606,8 @@
           "created_at",
           "assignees",
           "subtasks",
-          "activity"
+          "activity",
+          "priority"
         ],
         "properties": {
           "id": {
@@ -2057,6 +2641,15 @@
           },
           "tag": {
             "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite de la tache. Vaut 'medium' par defaut."
           },
           "note": {
             "type": "string"
@@ -2125,6 +2718,31 @@
             "type": "string",
             "minLength": 1
           },
+          "description": {
+            "type": "string",
+            "description": "Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut."
+          },
+          "figma_url": {
+            "type": "string",
+            "description": "Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "prod_url": {
+            "type": "string",
+            "description": "Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "preprod_url": {
+            "type": "string",
+            "description": "Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
           "client_id": {
             "type": [
               "string",
@@ -2185,6 +2803,31 @@
           "name": {
             "type": "string",
             "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut."
+          },
+          "figma_url": {
+            "type": "string",
+            "description": "Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "prod_url": {
+            "type": "string",
+            "description": "Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s)."
+          },
+          "preprod_url": {
+            "type": "string",
+            "description": "Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s)."
           },
           "client_id": {
             "type": "string",
@@ -2267,6 +2910,15 @@
           "tag": {
             "type": "string"
           },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite de la tache. Vaut 'medium' par defaut."
+          },
           "starts_on": {
             "type": [
               "string",
@@ -2315,6 +2967,15 @@
           },
           "tag": {
             "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Priorite de la tache. Vaut 'medium' par defaut."
           },
           "note": {
             "type": "string"
@@ -2438,6 +3099,38 @@
               "null"
             ],
             "description": "Variation en pourcentage entre les trente derniers jours et les trente precedents. Nulle quand la periode precedente etait vide : une progression depuis zero est un demarrage, pas « +100 % »."
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "description": "Piece jointe d'un projet ou d'une tache. La cle de stockage n'est pas exposee : le contenu se recupere par GET /api/v1/admin/files/{id}.",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Taille en octets, mesuree a l'ecriture et non annoncee par le client."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
