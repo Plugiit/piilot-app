@@ -33,7 +33,7 @@ export type User = components['schemas']['User']
 /** Enveloppe rendue par login, refresh et me. Les jetons sont dans les cookies. */
 export type SessionResponse = components['schemas']['SessionResponse']
 
-/** Agregats du tableau de bord. Contrat cible : l'API repond encore 501. */
+/** Agregats du tableau de bord. */
 export type DashboardSummary = components['schemas']['DashboardSummary']
 
 /** Projet tel que la vue liste l'affiche. Contrat cible lui aussi. */
@@ -41,3 +41,62 @@ export type Project = components['schemas']['Project']
 
 /** Enveloppe de pagination des listes de projets. */
 export type ProjectPage = components['schemas']['ProjectPage']
+
+/* -------------------------------------------------------------------------
+ * Module PM. Ces types viennent des endpoints reellement ecrits, pas d'un
+ * contrat cible : le module projets et taches repond en base.
+ * ------------------------------------------------------------------------- */
+
+/** En-tete d'un projet : ce que le chassis affiche, quel que soit l'onglet. */
+export type ProjectDetail = components['schemas']['ProjectDetail']
+
+/** Projet etoile, tel que les raccourcis de la barre laterale l'affichent. */
+export type ProjectShortcut = components['schemas']['ProjectShortcut']
+
+/** Identite reduite : pastille d'avatar, nom dans une liste. */
+export type Person = components['schemas']['Person']
+
+/** Client de l'agence, tel que le champ du formulaire de projet le propose. */
+export type Client = components['schemas']['Client']
+
+/** Carte du tableau des taches. */
+export type TaskSummary = components['schemas']['TaskSummary']
+
+/** Carte de l'ecran « Taches » : une TaskSummary qui porte le nom de son projet. */
+export type TaskListItem = components['schemas']['TaskListItem']
+
+/** Enveloppe de l'ecran « Taches » : bornee, non paginee. */
+export type TaskList = components['schemas']['TaskList']
+
+/** Contenu de l'onglet « Tâches » d'un projet. */
+export type TaskBoard = components['schemas']['TaskBoard']
+
+/** Tout ce que le panneau lateral affiche a son ouverture. */
+export type TaskDetail = components['schemas']['TaskDetail']
+
+/** Ligne a cocher du panneau. */
+export type Subtask = components['schemas']['Subtask']
+
+/** Message de l'onglet « Commentaires ». */
+export type TaskComment = components['schemas']['TaskComment']
+
+/** Ligne du journal d'activite d'une tache. */
+export type TaskActivity = components['schemas']['TaskActivity']
+
+/**
+ * Statuts, tires de la spec plutot que reecrits.
+ *
+ * L'union vient de l'enum OpenAPI : ajouter une colonne au tableau cote API
+ * fait echouer la compilation du front la ou le nouveau cas n'est pas traite,
+ * au lieu de le laisser passer silencieusement.
+ */
+export type TaskStatus = NonNullable<TaskSummary['status']>
+export type ProjectStatus = NonNullable<ProjectDetail['status']>
+export type TaskPriority = NonNullable<TaskSummary['priority']>
+export type ProjectPriority = NonNullable<ProjectDetail['priority']>
+
+/** Piece jointe, d'un projet ou d'une tache. Le contenu se lit par /files/{id}. */
+export type Attachment = components['schemas']['Attachment']
+
+/** Chiffres d'en-tete du module PM, avec leur evolution sur trente jours. */
+export type DashboardMetric = components['schemas']['Metric']
