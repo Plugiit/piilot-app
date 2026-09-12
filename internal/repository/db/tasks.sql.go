@@ -28,6 +28,36 @@ func (q *Queries) AssignTask(ctx context.Context, arg AssignTaskParams) error {
 	return err
 }
 
+const countTasks = `-- name: CountTasks :one
+SELECT count(*)
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND ($1::text IS NULL OR t.status = $1::text)
+  AND ($2::text IS NULL OR t.priority = $2::text)
+  AND ($3::uuid IS NULL OR t.project_id = $3::uuid)
+  AND ($4::text IS NULL OR t.title ILIKE '%' || $4::text || '%')
+`
+
+type CountTasksParams struct {
+	Status    *string    `json:"status"`
+	Priority  *string    `json:"priority"`
+	ProjectID *uuid.UUID `json:"project_id"`
+	Search    *string    `json:"search"`
+}
+
+func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTasks,
+		arg.Status,
+		arg.Priority,
+		arg.ProjectID,
+		arg.Search,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTasksOfProject = `-- name: CountTasksOfProject :one
 SELECT count(*) FROM tasks
 WHERE project_id = $1 AND deleted_at IS NULL
@@ -70,16 +100,16 @@ func (q *Queries) CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (S
 }
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (project_id, title, description, status, tag, starts_on, due_on, hours, note, position, created_by)
+INSERT INTO tasks (project_id, title, description, status, tag, priority, starts_on, due_on, hours, note, position, created_by)
 VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     -- Rang calcule dans la requete d'insertion : un SELECT max() suivi d'un
     -- INSERT laisserait deux creations simultanees se donner le meme rang.
     (SELECT coalesce(max(position), 0) + 1 FROM tasks
      WHERE project_id = $1 AND status = $4 AND deleted_at IS NULL),
-    $10
+    $11
 )
-RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at
+RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count
 `
 
 type CreateTaskParams struct {
@@ -88,6 +118,7 @@ type CreateTaskParams struct {
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	Tag         string     `json:"tag"`
+	Priority    string     `json:"priority"`
 	StartsOn    *time.Time `json:"starts_on"`
 	DueOn       *time.Time `json:"due_on"`
 	Hours       *float64   `json:"hours"`
@@ -102,6 +133,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.Description,
 		arg.Status,
 		arg.Tag,
+		arg.Priority,
 		arg.StartsOn,
 		arg.DueOn,
 		arg.Hours,
@@ -126,6 +158,11 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Priority,
+		&i.SubtasksTotal,
+		&i.SubtasksDone,
+		&i.CommentsCount,
+		&i.AttachmentsCount,
 	)
 	return i, err
 }
@@ -189,7 +226,7 @@ func (q *Queries) GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
 
 const getTask = `-- name: GetTask :one
 SELECT
-    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at,
+    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count,
     p.name AS project_name,
     c.name AS client_name
 FROM tasks t
@@ -199,24 +236,29 @@ WHERE t.id = $1 AND t.deleted_at IS NULL
 `
 
 type GetTaskRow struct {
-	ID          uuid.UUID  `json:"id"`
-	ProjectID   uuid.UUID  `json:"project_id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	Tag         string     `json:"tag"`
-	StartsOn    *time.Time `json:"starts_on"`
-	DueOn       *time.Time `json:"due_on"`
-	Hours       *float64   `json:"hours"`
-	Note        string     `json:"note"`
-	Position    int32      `json:"position"`
-	CompletedAt *time.Time `json:"completed_at"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at"`
-	ProjectName string     `json:"project_name"`
-	ClientName  string     `json:"client_name"`
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	Title            string     `json:"title"`
+	Description      string     `json:"description"`
+	Status           string     `json:"status"`
+	Tag              string     `json:"tag"`
+	StartsOn         *time.Time `json:"starts_on"`
+	DueOn            *time.Time `json:"due_on"`
+	Hours            *float64   `json:"hours"`
+	Note             string     `json:"note"`
+	Position         int32      `json:"position"`
+	CompletedAt      *time.Time `json:"completed_at"`
+	CreatedBy        *uuid.UUID `json:"created_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	Priority         string     `json:"priority"`
+	SubtasksTotal    int32      `json:"subtasks_total"`
+	SubtasksDone     int32      `json:"subtasks_done"`
+	CommentsCount    int32      `json:"comments_count"`
+	AttachmentsCount int32      `json:"attachments_count"`
+	ProjectName      string     `json:"project_name"`
+	ClientName       string     `json:"client_name"`
 }
 
 // Tache et son contexte de projet : le tiroir affiche le nom du projet, et
@@ -241,6 +283,11 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Priority,
+		&i.SubtasksTotal,
+		&i.SubtasksDone,
+		&i.CommentsCount,
+		&i.AttachmentsCount,
 		&i.ProjectName,
 		&i.ClientName,
 	)
@@ -453,8 +500,116 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 	return items, nil
 }
 
+const listTasks = `-- name: ListTasks :many
+SELECT
+    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count,
+    p.name AS project_name
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND ($1::text IS NULL OR t.status = $1::text)
+  AND ($2::text IS NULL OR t.priority = $2::text)
+  AND ($3::uuid IS NULL OR t.project_id = $3::uuid)
+  AND ($4::text IS NULL OR t.title ILIKE '%' || $4::text || '%')
+ORDER BY t.status, t.position, t.created_at, t.id
+LIMIT $5
+`
+
+type ListTasksParams struct {
+	Status    *string    `json:"status"`
+	Priority  *string    `json:"priority"`
+	ProjectID *uuid.UUID `json:"project_id"`
+	Search    *string    `json:"search"`
+	PageSize  int32      `json:"page_size"`
+}
+
+type ListTasksRow struct {
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	Title            string     `json:"title"`
+	Description      string     `json:"description"`
+	Status           string     `json:"status"`
+	Tag              string     `json:"tag"`
+	StartsOn         *time.Time `json:"starts_on"`
+	DueOn            *time.Time `json:"due_on"`
+	Hours            *float64   `json:"hours"`
+	Note             string     `json:"note"`
+	Position         int32      `json:"position"`
+	CompletedAt      *time.Time `json:"completed_at"`
+	CreatedBy        *uuid.UUID `json:"created_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	Priority         string     `json:"priority"`
+	SubtasksTotal    int32      `json:"subtasks_total"`
+	SubtasksDone     int32      `json:"subtasks_done"`
+	CommentsCount    int32      `json:"comments_count"`
+	AttachmentsCount int32      `json:"attachments_count"`
+	ProjectName      string     `json:"project_name"`
+}
+
+// Taches de toute l'agence, pour l'ecran « Taches » du module.
+//
+// Le nom du projet est joint ici : une tache sortie de sa fiche ne dit plus
+// d'ou elle vient, et l'aller chercher ensuite ferait une requete par ligne.
+//
+// Meme borne que le tableau d'un projet, et pour la meme raison : l'ecran a
+// une vue kanban, et on ne tourne pas la page d'un kanban. Le total part a
+// cote pour que la vue puisse dire qu'elle n'affiche pas tout.
+//
+// La jointure sur les projets vivants fait le reste du filtrage : les taches
+// d'un projet supprime ne doivent pas reapparaitre dans une liste globale.
+func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTasksRow, error) {
+	rows, err := q.db.Query(ctx, listTasks,
+		arg.Status,
+		arg.Priority,
+		arg.ProjectID,
+		arg.Search,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTasksRow{}
+	for rows.Next() {
+		var i ListTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Tag,
+			&i.StartsOn,
+			&i.DueOn,
+			&i.Hours,
+			&i.Note,
+			&i.Position,
+			&i.CompletedAt,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Priority,
+			&i.SubtasksTotal,
+			&i.SubtasksDone,
+			&i.CommentsCount,
+			&i.AttachmentsCount,
+			&i.ProjectName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksOfProject = `-- name: ListTasksOfProject :many
-SELECT id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at FROM tasks
+SELECT id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count FROM tasks
 WHERE project_id = $1 AND deleted_at IS NULL
 ORDER BY status, position, created_at
 LIMIT $2
@@ -498,6 +653,11 @@ func (q *Queries) ListTasksOfProject(ctx context.Context, arg ListTasksOfProject
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.Priority,
+			&i.SubtasksTotal,
+			&i.SubtasksDone,
+			&i.CommentsCount,
+			&i.AttachmentsCount,
 		); err != nil {
 			return nil, err
 		}
@@ -545,7 +705,7 @@ UPDATE tasks AS t SET
     ),
     updated_at = now()
 WHERE t.id = $3 AND t.deleted_at IS NULL
-RETURNING t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at
+RETURNING t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
 `
 
 type MoveTaskParams struct {
@@ -577,6 +737,11 @@ func (q *Queries) MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Priority,
+		&i.SubtasksTotal,
+		&i.SubtasksDone,
+		&i.CommentsCount,
+		&i.AttachmentsCount,
 	)
 	return i, err
 }
@@ -662,22 +827,24 @@ UPDATE tasks SET
     title       = COALESCE($1::text, title),
     description = COALESCE($2::text, description),
     tag         = COALESCE($3::text, tag),
-    note        = COALESCE($4::text, note),
-    hours       = CASE WHEN $5::boolean THEN NULL
-                       ELSE COALESCE($6::numeric, hours) END,
-    starts_on   = CASE WHEN $7::boolean THEN NULL
-                       ELSE COALESCE($8::date, starts_on) END,
-    due_on      = CASE WHEN $9::boolean THEN NULL
-                       ELSE COALESCE($10::date, due_on) END,
+    priority    = COALESCE($4::text, priority),
+    note        = COALESCE($5::text, note),
+    hours       = CASE WHEN $6::boolean THEN NULL
+                       ELSE COALESCE($7::numeric, hours) END,
+    starts_on   = CASE WHEN $8::boolean THEN NULL
+                       ELSE COALESCE($9::date, starts_on) END,
+    due_on      = CASE WHEN $10::boolean THEN NULL
+                       ELSE COALESCE($11::date, due_on) END,
     updated_at  = now()
-WHERE id = $11 AND deleted_at IS NULL
-RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at
+WHERE id = $12 AND deleted_at IS NULL
+RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count
 `
 
 type UpdateTaskParams struct {
 	Title         *string    `json:"title"`
 	Description   *string    `json:"description"`
 	Tag           *string    `json:"tag"`
+	Priority      *string    `json:"priority"`
 	Note          *string    `json:"note"`
 	ClearHours    bool       `json:"clear_hours"`
 	Hours         *float64   `json:"hours"`
@@ -693,6 +860,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.Title,
 		arg.Description,
 		arg.Tag,
+		arg.Priority,
 		arg.Note,
 		arg.ClearHours,
 		arg.Hours,
@@ -720,6 +888,11 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Priority,
+		&i.SubtasksTotal,
+		&i.SubtasksDone,
+		&i.CommentsCount,
+		&i.AttachmentsCount,
 	)
 	return i, err
 }

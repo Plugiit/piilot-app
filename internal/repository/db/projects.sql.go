@@ -12,6 +12,24 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+const addProjectFavorite = `-- name: AddProjectFavorite :exec
+INSERT INTO project_favorites (user_id, project_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddProjectFavoriteParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+// Poser deux fois la meme etoile n'est pas une erreur : c'est un bouton qu'on
+// peut recliquer, pas une creation.
+func (q *Queries) AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error {
+	_, err := q.db.Exec(ctx, addProjectFavorite, arg.UserID, arg.ProjectID)
+	return err
+}
+
 const addProjectMember = `-- name: AddProjectMember :exec
 INSERT INTO project_members (project_id, user_id)
 VALUES ($1, $2)
@@ -50,31 +68,41 @@ func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (i
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (client_id, name, status, progress, hours_sold, starts_on, due_on, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at
+INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url
 `
 
 type CreateProjectParams struct {
-	ClientID  uuid.UUID  `json:"client_id"`
-	Name      string     `json:"name"`
-	Status    string     `json:"status"`
-	Progress  int16      `json:"progress"`
-	HoursSold float64    `json:"hours_sold"`
-	StartsOn  *time.Time `json:"starts_on"`
-	DueOn     *time.Time `json:"due_on"`
-	CreatedBy *uuid.UUID `json:"created_by"`
+	ClientID    uuid.UUID  `json:"client_id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Priority    string     `json:"priority"`
+	Progress    int16      `json:"progress"`
+	HoursSold   float64    `json:"hours_sold"`
+	StartsOn    *time.Time `json:"starts_on"`
+	DueOn       *time.Time `json:"due_on"`
+	FigmaUrl    string     `json:"figma_url"`
+	ProdUrl     string     `json:"prod_url"`
+	PreprodUrl  string     `json:"preprod_url"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
 	row := q.db.QueryRow(ctx, createProject,
 		arg.ClientID,
 		arg.Name,
+		arg.Description,
 		arg.Status,
+		arg.Priority,
 		arg.Progress,
 		arg.HoursSold,
 		arg.StartsOn,
 		arg.DueOn,
+		arg.FigmaUrl,
+		arg.ProdUrl,
+		arg.PreprodUrl,
 		arg.CreatedBy,
 	)
 	var i Project
@@ -94,6 +122,136 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Description,
+		&i.Priority,
+		&i.FigmaUrl,
+		&i.ProdUrl,
+		&i.PreprodUrl,
+	)
+	return i, err
+}
+
+const createProjectFile = `-- name: CreateProjectFile :one
+INSERT INTO attachments (project_id, filename, content_type, size_bytes, storage_key, uploaded_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id
+`
+
+type CreateProjectFileParams struct {
+	ProjectID   *uuid.UUID `json:"project_id"`
+	Filename    string     `json:"filename"`
+	ContentType string     `json:"content_type"`
+	SizeBytes   int64      `json:"size_bytes"`
+	StorageKey  string     `json:"storage_key"`
+	UploadedBy  *uuid.UUID `json:"uploaded_by"`
+}
+
+func (q *Queries) CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error) {
+	row := q.db.QueryRow(ctx, createProjectFile,
+		arg.ProjectID,
+		arg.Filename,
+		arg.ContentType,
+		arg.SizeBytes,
+		arg.StorageKey,
+		arg.UploadedBy,
+	)
+	var i Attachment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Filename,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.StorageKey,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.TaskID,
+	)
+	return i, err
+}
+
+const createTaskFile = `-- name: CreateTaskFile :one
+INSERT INTO attachments (task_id, filename, content_type, size_bytes, storage_key, uploaded_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id
+`
+
+type CreateTaskFileParams struct {
+	TaskID      *uuid.UUID `json:"task_id"`
+	Filename    string     `json:"filename"`
+	ContentType string     `json:"content_type"`
+	SizeBytes   int64      `json:"size_bytes"`
+	StorageKey  string     `json:"storage_key"`
+	UploadedBy  *uuid.UUID `json:"uploaded_by"`
+}
+
+func (q *Queries) CreateTaskFile(ctx context.Context, arg CreateTaskFileParams) (Attachment, error) {
+	row := q.db.QueryRow(ctx, createTaskFile,
+		arg.TaskID,
+		arg.Filename,
+		arg.ContentType,
+		arg.SizeBytes,
+		arg.StorageKey,
+		arg.UploadedBy,
+	)
+	var i Attachment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Filename,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.StorageKey,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.TaskID,
+	)
+	return i, err
+}
+
+const deleteAttachment = `-- name: DeleteAttachment :one
+DELETE FROM attachments WHERE id = $1 RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id
+`
+
+// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
+// effacer le fichier du disque dans la foulee.
+func (q *Queries) DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error) {
+	row := q.db.QueryRow(ctx, deleteAttachment, id)
+	var i Attachment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Filename,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.StorageKey,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.TaskID,
+	)
+	return i, err
+}
+
+const getAttachment = `-- name: GetAttachment :one
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id FROM attachments WHERE id = $1
+`
+
+// Une piece jointe se lit par son seul identifiant, quel que soit son
+// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
+// de servir celles des projets comme celles des taches.
+func (q *Queries) GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error) {
+	row := q.db.QueryRow(ctx, getAttachment, id)
+	var i Attachment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Filename,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.StorageKey,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.TaskID,
 	)
 	return i, err
 }
@@ -167,15 +325,24 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 
 const getProject = `-- name: GetProject :one
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url,
     c.name          AS client_name,
     c.contact_name  AS client_contact_name,
     c.contact_role  AS client_contact_role,
-    c.contact_email AS client_contact_email
+    c.contact_email AS client_contact_email,
+    EXISTS (
+        SELECT 1 FROM project_favorites f
+        WHERE f.project_id = p.id AND f.user_id = $1
+    ) AS is_favorite
 FROM projects p
 JOIN clients c ON c.id = p.client_id
-WHERE p.id = $1 AND p.deleted_at IS NULL
+WHERE p.id = $2 AND p.deleted_at IS NULL
 `
+
+type GetProjectParams struct {
+	ViewerID uuid.UUID `json:"viewer_id"`
+	ID       uuid.UUID `json:"id"`
+}
 
 type GetProjectRow struct {
 	ID                 uuid.UUID  `json:"id"`
@@ -193,14 +360,20 @@ type GetProjectRow struct {
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	DeletedAt          *time.Time `json:"deleted_at"`
+	Description        string     `json:"description"`
+	Priority           string     `json:"priority"`
+	FigmaUrl           string     `json:"figma_url"`
+	ProdUrl            string     `json:"prod_url"`
+	PreprodUrl         string     `json:"preprod_url"`
 	ClientName         string     `json:"client_name"`
 	ClientContactName  string     `json:"client_contact_name"`
 	ClientContactRole  string     `json:"client_contact_role"`
 	ClientContactEmail *string    `json:"client_contact_email"`
+	IsFavorite         bool       `json:"is_favorite"`
 }
 
-func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error) {
-	row := q.db.QueryRow(ctx, getProject, id)
+func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error) {
+	row := q.db.QueryRow(ctx, getProject, arg.ViewerID, arg.ID)
 	var i GetProjectRow
 	err := row.Scan(
 		&i.ID,
@@ -218,12 +391,62 @@ func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Description,
+		&i.Priority,
+		&i.FigmaUrl,
+		&i.ProdUrl,
+		&i.PreprodUrl,
 		&i.ClientName,
 		&i.ClientContactName,
 		&i.ClientContactRole,
 		&i.ClientContactEmail,
+		&i.IsFavorite,
 	)
 	return i, err
+}
+
+const listFavoriteProjects = `-- name: ListFavoriteProjects :many
+SELECT
+    p.id,
+    p.name,
+    p.status
+FROM project_favorites f
+JOIN projects p ON p.id = f.project_id AND p.deleted_at IS NULL
+WHERE f.user_id = $1
+ORDER BY p.name, p.id
+LIMIT 20
+`
+
+type ListFavoriteProjectsRow struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Status string    `json:"status"`
+}
+
+// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
+//
+// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
+// tiennent dans un panneau, au-dela l'etoile ne trie plus rien et c'est la
+// liste des projets qu'il faut ouvrir. La regle du projet veut un LIMIT partout
+// — ici il n'a pas de page suivante, il a une fin.
+func (q *Queries) ListFavoriteProjects(ctx context.Context, userID uuid.UUID) ([]ListFavoriteProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listFavoriteProjects, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFavoriteProjectsRow{}
+	for rows.Next() {
+		var i ListFavoriteProjectsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMembersOfProjects = `-- name: ListMembersOfProjects :many
@@ -279,34 +502,80 @@ func (q *Queries) ListMembersOfProjects(ctx context.Context, projectIds []uuid.U
 	return items, nil
 }
 
+const listProjectFiles = `-- name: ListProjectFiles :many
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id FROM attachments WHERE project_id = $1 ORDER BY created_at DESC
+`
+
+// Pieces jointes d'un projet, la derniere deposee en premier.
+func (q *Queries) ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error) {
+	rows, err := q.db.Query(ctx, listProjectFiles, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Attachment{}
+	for rows.Next() {
+		var i Attachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Filename,
+			&i.ContentType,
+			&i.SizeBytes,
+			&i.StorageKey,
+			&i.UploadedBy,
+			&i.CreatedAt,
+			&i.TaskID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjects = `-- name: ListProjects :many
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at,
-    c.name AS client_name
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url,
+    c.name AS client_name,
+    -- L'etoile est personnelle : elle se lit pour l'appelant, pas dans l'absolu.
+    EXISTS (
+        SELECT 1 FROM project_favorites f
+        WHERE f.project_id = p.id AND f.user_id = $1
+    ) AS is_favorite
 FROM projects p
 JOIN clients c ON c.id = p.client_id
 WHERE p.deleted_at IS NULL
-  AND ($1::text IS NULL OR p.status = $1::text)
-  AND ($2::uuid IS NULL OR p.client_id = $2::uuid)
-  AND ($3::text IS NULL OR p.name ILIKE '%' || $3::text || '%')
+  AND ($2::text IS NULL OR p.status = $2::text)
+  AND ($3::uuid IS NULL OR p.client_id = $3::uuid)
+  AND ($4::text IS NULL OR p.name ILIKE '%' || $4::text || '%')
 ORDER BY
+    -- Les favoris remontent avant tout le reste, quel que soit le tri demande :
+    -- c'est ce que promet une etoile — epingler, pas ajouter un critere de plus
+    -- qu'un changement de colonne ferait oublier. Le tri choisi s'applique
+    -- ensuite, a l'interieur de chaque groupe.
+    is_favorite DESC,
     -- Un seul ORDER BY parametre plutot que quatre requetes : le tri vient de
     -- l'ecran, et les colonnes possibles sont closes par le handler.
-    CASE WHEN $4::text = 'name' AND $5::text = 'asc' THEN p.name END ASC,
-    CASE WHEN $4::text = 'name' AND $5::text = 'desc' THEN p.name END DESC,
-    CASE WHEN $4::text = 'progress' AND $5::text = 'asc' THEN p.progress END ASC,
-    CASE WHEN $4::text = 'progress' AND $5::text = 'desc' THEN p.progress END DESC,
-    CASE WHEN $4::text = 'budget' AND $5::text = 'asc' THEN p.hours_spent END ASC,
-    CASE WHEN $4::text = 'budget' AND $5::text = 'desc' THEN p.hours_spent END DESC,
-    CASE WHEN $5::text = 'desc' THEN p.due_on END DESC NULLS LAST,
+    CASE WHEN $5::text = 'name' AND $6::text = 'asc' THEN p.name END ASC,
+    CASE WHEN $5::text = 'name' AND $6::text = 'desc' THEN p.name END DESC,
+    CASE WHEN $5::text = 'progress' AND $6::text = 'asc' THEN p.progress END ASC,
+    CASE WHEN $5::text = 'progress' AND $6::text = 'desc' THEN p.progress END DESC,
+    CASE WHEN $5::text = 'budget' AND $6::text = 'asc' THEN p.hours_spent END ASC,
+    CASE WHEN $5::text = 'budget' AND $6::text = 'desc' THEN p.hours_spent END DESC,
+    CASE WHEN $6::text = 'desc' THEN p.due_on END DESC NULLS LAST,
     p.due_on ASC NULLS LAST,
     -- Depart d'egalite stable : sans lui, deux projets de meme echeance
     -- peuvent changer de place d'une page a l'autre et l'un des deux disparait.
     p.id ASC
-LIMIT $7 OFFSET $6
+LIMIT $8 OFFSET $7
 `
 
 type ListProjectsParams struct {
+	ViewerID   uuid.UUID  `json:"viewer_id"`
 	Status     *string    `json:"status"`
 	ClientID   *uuid.UUID `json:"client_id"`
 	Search     *string    `json:"search"`
@@ -317,22 +586,28 @@ type ListProjectsParams struct {
 }
 
 type ListProjectsRow struct {
-	ID         uuid.UUID  `json:"id"`
-	ClientID   uuid.UUID  `json:"client_id"`
-	Name       string     `json:"name"`
-	Status     string     `json:"status"`
-	Progress   int16      `json:"progress"`
-	HoursSold  float64    `json:"hours_sold"`
-	HoursSpent float64    `json:"hours_spent"`
-	StartsOn   *time.Time `json:"starts_on"`
-	DueOn      *time.Time `json:"due_on"`
-	TasksTotal int32      `json:"tasks_total"`
-	TasksDone  int32      `json:"tasks_done"`
-	CreatedBy  *uuid.UUID `json:"created_by"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	DeletedAt  *time.Time `json:"deleted_at"`
-	ClientName string     `json:"client_name"`
+	ID          uuid.UUID  `json:"id"`
+	ClientID    uuid.UUID  `json:"client_id"`
+	Name        string     `json:"name"`
+	Status      string     `json:"status"`
+	Progress    int16      `json:"progress"`
+	HoursSold   float64    `json:"hours_sold"`
+	HoursSpent  float64    `json:"hours_spent"`
+	StartsOn    *time.Time `json:"starts_on"`
+	DueOn       *time.Time `json:"due_on"`
+	TasksTotal  int32      `json:"tasks_total"`
+	TasksDone   int32      `json:"tasks_done"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+	Description string     `json:"description"`
+	Priority    string     `json:"priority"`
+	FigmaUrl    string     `json:"figma_url"`
+	ProdUrl     string     `json:"prod_url"`
+	PreprodUrl  string     `json:"preprod_url"`
+	ClientName  string     `json:"client_name"`
+	IsFavorite  bool       `json:"is_favorite"`
 }
 
 // Liste paginee du back-office.
@@ -346,6 +621,7 @@ type ListProjectsRow struct {
 // declencheur, aucun COUNT n'est fait au rendu.
 func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error) {
 	rows, err := q.db.Query(ctx, listProjects,
+		arg.ViewerID,
 		arg.Status,
 		arg.ClientID,
 		arg.Search,
@@ -377,7 +653,13 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.Description,
+			&i.Priority,
+			&i.FigmaUrl,
+			&i.ProdUrl,
+			&i.PreprodUrl,
 			&i.ClientName,
+			&i.IsFavorite,
 		); err != nil {
 			return nil, err
 		}
@@ -387,6 +669,57 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const listTaskFiles = `-- name: ListTaskFiles :many
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id FROM attachments
+WHERE task_id = ANY($1::uuid[])
+ORDER BY task_id, created_at DESC
+`
+
+// Pieces jointes de plusieurs taches, pour le tiroir et le tableau.
+func (q *Queries) ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Attachment, error) {
+	rows, err := q.db.Query(ctx, listTaskFiles, taskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Attachment{}
+	for rows.Next() {
+		var i Attachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Filename,
+			&i.ContentType,
+			&i.SizeBytes,
+			&i.StorageKey,
+			&i.UploadedBy,
+			&i.CreatedAt,
+			&i.TaskID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeProjectFavorite = `-- name: RemoveProjectFavorite :exec
+DELETE FROM project_favorites WHERE user_id = $1 AND project_id = $2
+`
+
+type RemoveProjectFavoriteParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+func (q *Queries) RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error {
+	_, err := q.db.Exec(ctx, removeProjectFavorite, arg.UserID, arg.ProjectID)
+	return err
 }
 
 const removeProjectMember = `-- name: RemoveProjectMember :exec
@@ -415,23 +748,36 @@ func (q *Queries) SoftDeleteProject(ctx context.Context, id uuid.UUID) error {
 
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects SET
-    name       = COALESCE($1::text, name),
-    status     = COALESCE($2::text, status),
-    progress   = COALESCE($3::smallint, progress),
-    hours_sold = COALESCE($4::numeric, hours_sold),
-    client_id  = COALESCE($5::uuid, client_id),
-    starts_on  = CASE WHEN $6::boolean THEN NULL
-                      ELSE COALESCE($7::date, starts_on) END,
-    due_on     = CASE WHEN $8::boolean THEN NULL
-                      ELSE COALESCE($9::date, due_on) END,
-    updated_at = now()
-WHERE id = $10 AND deleted_at IS NULL
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at
+    name        = COALESCE($1::text, name),
+    -- La description se vide en envoyant la chaine vide, pas en omettant le
+    -- champ : COALESCE ne distingue pas « absent » de « efface », et un projet
+    -- doit pouvoir perdre son resume.
+    description = COALESCE($2::text, description),
+    status      = COALESCE($3::text, status),
+    priority    = COALESCE($4::text, priority),
+    figma_url   = COALESCE($5::text, figma_url),
+    prod_url    = COALESCE($6::text, prod_url),
+    preprod_url = COALESCE($7::text, preprod_url),
+    progress    = COALESCE($8::smallint, progress),
+    hours_sold  = COALESCE($9::numeric, hours_sold),
+    client_id   = COALESCE($10::uuid, client_id),
+    starts_on   = CASE WHEN $11::boolean THEN NULL
+                       ELSE COALESCE($12::date, starts_on) END,
+    due_on      = CASE WHEN $13::boolean THEN NULL
+                       ELSE COALESCE($14::date, due_on) END,
+    updated_at  = now()
+WHERE id = $15 AND deleted_at IS NULL
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url
 `
 
 type UpdateProjectParams struct {
 	Name          *string    `json:"name"`
+	Description   *string    `json:"description"`
 	Status        *string    `json:"status"`
+	Priority      *string    `json:"priority"`
+	FigmaUrl      *string    `json:"figma_url"`
+	ProdUrl       *string    `json:"prod_url"`
+	PreprodUrl    *string    `json:"preprod_url"`
 	Progress      *int16     `json:"progress"`
 	HoursSold     *float64   `json:"hours_sold"`
 	ClientID      *uuid.UUID `json:"client_id"`
@@ -448,7 +794,12 @@ type UpdateProjectParams struct {
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
 	row := q.db.QueryRow(ctx, updateProject,
 		arg.Name,
+		arg.Description,
 		arg.Status,
+		arg.Priority,
+		arg.FigmaUrl,
+		arg.ProdUrl,
+		arg.PreprodUrl,
 		arg.Progress,
 		arg.HoursSold,
 		arg.ClientID,
@@ -475,6 +826,11 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Description,
+		&i.Priority,
+		&i.FigmaUrl,
+		&i.ProdUrl,
+		&i.PreprodUrl,
 	)
 	return i, err
 }
