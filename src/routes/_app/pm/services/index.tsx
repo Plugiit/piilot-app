@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/services/')({
 
 function ServicesPage() {
   return (
-    <PageFrame title="Services" description="Catalogue des prestations de l’agence.">
+    <PageFrame title="Services">
       <EmptyModule name="Services" />
     </PageFrame>
   )

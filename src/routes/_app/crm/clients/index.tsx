@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/crm/clients/')({
 
 function ClientsPage() {
   return (
-    <PageFrame title="Clients" description="Les comptes clients de l’agence.">
+    <PageFrame title="Clients">
       <EmptyModule name="Clients" />
     </PageFrame>
   )

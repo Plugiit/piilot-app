@@ -17,7 +17,6 @@ function RapportsTempsPage() {
   return (
     <PageFrame
       title="Rapports de temps"
-      description="Temps passé agrégé par projet et par période."
     >
       <EmptyModule name="Rapports de temps" />
     </PageFrame>

@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/planning/')({
 
 function PlanningPage() {
   return (
-    <PageFrame title="Planning" description="Jalons et échéances, tous projets confondus.">
+    <PageFrame title="Planning">
       <EmptyModule name="Planning" />
     </PageFrame>
   )

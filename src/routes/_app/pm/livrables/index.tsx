@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/pm/livrables/')({
 
 function LivrablesPage() {
   return (
-    <PageFrame title="Livrables" description="Les livrables et leur validation.">
+    <PageFrame title="Livrables">
       <EmptyModule name="Livrables" />
     </PageFrame>
   )
