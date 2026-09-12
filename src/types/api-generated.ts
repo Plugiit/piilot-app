@@ -150,7 +150,7 @@ export interface paths {
         };
         /**
          * Tableau de bord de l'agence
-         * @description CONTRAT CIBLE — le handler repond encore 501. La reponse 200 decrite ici est ce que la vue attend et ce que l'implementation devra servir ; elle est publiee pour que le front soit type des maintenant.
+         * @description Trois chiffres et leur variation sur trente jours, en une requete SQL. Exige projects.read.
          */
         get: operations["getAdminDashboard"];
         put?: never;
@@ -170,11 +170,385 @@ export interface paths {
         };
         /**
          * Liste des projets
-         * @description CONTRAT CIBLE — le handler repond encore 501. Exige la permission projects.read. La pagination est cote serveur : aucune reponse ne renvoie la collection entiere.
+         * @description Pagination cote serveur. La reponse porte l'equipe et les compteurs de taches de chaque ligne : l'ecran ne fait pas d'appel de second niveau. Exige projects.read.
          */
         get: operations["listAdminProjects"];
         put?: never;
+        /**
+         * Creer un projet
+         * @description Cree le projet, son client s'il est designe par un nom inconnu, et son equipe, dans une seule transaction. Exige projects.write.
+         */
+        post: operations["createAdminProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clients de l'agence
+         * @description Sert le champ « Client » du formulaire de projet. Exige clients.read.
+         */
+        get: operations["listAdminClients"];
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Projets etoiles par l'appelant
+         * @description Raccourcis de la barre laterale. Monte avant /projects/{id} : sans cela le routeur prendrait « favorites » pour un identifiant.
+         */
+        get: operations["listAdminProjectFavorites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** En-tete d'un projet */
+        get: operations["getAdminProject"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un projet
+         * @description Suppression logique. Les taches restent rattachees : restaurer le projet doit les retrouver.
+         */
+        delete: operations["deleteAdminProject"];
+        options?: never;
+        head?: never;
+        /** Modifier un projet */
+        patch: operations["updateAdminProject"];
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Remplacer l'equipe d'un projet */
+        put: operations["setAdminProjectTeam"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Tableau des taches d'un projet
+         * @description Deux requetes SQL quel que soit le nombre de cartes : les affectations de toutes les taches sont chargees d'un coup. Exige tasks.read.
+         */
+        get: operations["getAdminProjectTasks"];
+        put?: never;
+        /** Creer une tache */
+        post: operations["createAdminTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taches de toute l'agence
+         * @description Ecran « Taches » du module, ses deux vues comprises. Filtres facultatifs : sans aucun, la reponse couvre l'agence entiere. Exige tasks.read.
+         */
+        get: operations["listAdminTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Detail d'une tache
+         * @description Tache, affectations, sous-taches et journal. Exige tasks.read.
+         */
+        get: operations["getAdminTask"];
+        put?: never;
+        post?: never;
+        /** Supprimer une tache */
+        delete: operations["deleteAdminTask"];
+        options?: never;
+        head?: never;
+        /** Modifier une tache */
+        patch: operations["updateAdminTask"];
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deplacer une tache dans le tableau
+         * @description Seul un changement de colonne entre au journal : reordonner dans la meme colonne n'est pas un evenement.
+         */
+        post: operations["moveAdminTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}/assignees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Remplacer les personnes affectees */
+        put: operations["setAdminTaskAssignees"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}/subtasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ajouter une sous-tache */
+        post: operations["createAdminSubtask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Commentaires d'une tache */
+        get: operations["listAdminTaskComments"];
+        put?: never;
+        /** Commenter une tache */
+        post: operations["createAdminTaskComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/subtasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la sous-tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Supprimer une sous-tache */
+        delete: operations["deleteAdminSubtask"];
+        options?: never;
+        head?: never;
+        /**
+         * Renommer, cocher ou deplacer une sous-tache
+         * @description Cocher entre au journal de la tache, renommer non : le premier fait avancer le travail, le second corrige une formulation.
+         */
+        patch: operations["updateAdminSubtask"];
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Comptes internes
+         * @description Sert les champs d'affectation : equipe d'un projet, assignes d'une tache. Les comptes clients en sont exclus. Exige users.read.
+         */
+        get: operations["listAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deposer une piece jointe sur un projet */
+        post: operations["uploadAdminProjectFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Mettre le projet en favori */
+        put: operations["favoriteAdminProject"];
+        post?: never;
+        /** Retirer le projet des favoris */
+        delete: operations["unfavoriteAdminProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la piece jointe */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Telecharger une piece jointe
+         * @description Toujours servi en piece jointe (Content-Disposition: attachment) avec X-Content-Type-Options: nosniff : le contenu n'a pas ete ecrit par l'API et ne doit jamais s'afficher dans l'onglet.
+         */
+        get: operations["downloadAdminFile"];
+        put?: never;
+        post?: never;
+        /** Supprimer une piece jointe */
+        delete: operations["deleteAdminFile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deposer une piece jointe sur une tache
+         * @description Le telechargement et la suppression passent par /api/v1/admin/files/{id}, commun aux pieces jointes des projets et des taches.
+         */
+        post: operations["uploadAdminTaskFile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -239,17 +613,44 @@ export interface components {
             /** Format: password */
             password: string;
         };
-        /** @description CONTRAT CIBLE — le module PM n'est pas ecrit. Ce schema est ce que la vue liste affiche, rien de plus : il ne prejuge pas du modele de donnees. */
+        /** @description Ligne de la liste des projets. Porte tout ce que la ligne affiche, agregats et equipe compris : aucun ecran ne complete cette reponse par un second appel. */
         Project: {
             /** Format: uuid */
             id: string;
             name: string;
-            status: string;
-            client_name: string | null;
-            /** @description Avancement en pourcentage, precalcule cote serveur */
-            completion: number;
-            /** Format: date-time */
-            updated_at: string;
+            /** @description Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur. */
+            description: string;
+            /**
+             * @description Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high";
+            /** Format: uuid */
+            client_id: string;
+            client_name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
+            progress: number;
+            hours_sold: number;
+            /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
+            hours_spent: number;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            /** @description Compteur tenu par declencheur en base : jamais un COUNT au rendu */
+            tasks_total: number;
+            tasks_done: number;
+            team: components["schemas"]["Person"][];
+            /** @description Etoile du compte appelant. Personnelle : deux comptes n'ont pas les memes, et elle remonte la ligne en tete de liste quel que soit le tri. */
+            is_favorite: boolean;
         };
         /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
         ProjectPage: {
@@ -259,12 +660,11 @@ export interface components {
             page: number;
             page_size: number;
         };
-        /** @description CONTRAT CIBLE — agregats precalcules, jamais recalcules par COUNT(*) au rendu. */
+        /** @description Chiffres d'en-tete du module. Pas de chiffre d'affaires : la facturation ne fait pas partie de ce projet, les heures vendues sont la donnee la plus proche qui lui appartienne. */
         DashboardSummary: {
-            active_projects: number;
-            tasks_in_progress: number;
-            overdue_tasks: number;
-            open_tickets: number;
+            projects: components["schemas"]["Metric"];
+            clients: components["schemas"]["Metric"];
+            hours_sold: components["schemas"]["Metric"];
         };
         HealthLive: {
             /** @example ok */
@@ -288,6 +688,374 @@ export interface components {
             checks: {
                 [key: string]: string;
             };
+        };
+        /** @description Identite reduite affichee dans les listes et les pastilles d'avatar. */
+        Person: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            /** @description Initiales composees cote serveur, pour que tous les ecrans les affichent pareil */
+            initials: string;
+            avatar_url?: string | null;
+        };
+        /** @description En-tete d'un projet : ce que le chassis affiche, quel que soit l'onglet ouvert. */
+        ProjectDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur. */
+            description: string;
+            /**
+             * @description Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high";
+            /** Format: uuid */
+            client_id: string;
+            client_name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
+            progress: number;
+            hours_sold: number;
+            /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
+            hours_spent: number;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            /** @description Compteur tenu par declencheur en base : jamais un COUNT au rendu */
+            tasks_total: number;
+            tasks_done: number;
+            team: components["schemas"]["Person"][];
+            /** @description Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            figma_url: string;
+            /** @description Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            prod_url: string;
+            /** @description Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            preprod_url: string;
+            /** @description Etoile du compte appelant. Personnelle : deux comptes n'ont pas les memes. */
+            is_favorite: boolean;
+            files: components["schemas"]["Attachment"][];
+            client_contact_name: string;
+            client_contact_role: string;
+            /** Format: email */
+            client_contact_email?: string | null;
+        };
+        /** @description Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus. */
+        ProjectShortcut: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+        };
+        /** @description Raccourcis du compte appelant. Bornee a vingt entrees et sans pagination : une liste de navigation qui aurait une page 2 ne serait plus un raccourci. */
+        ProjectShortcutList: {
+            items: components["schemas"]["ProjectShortcut"][];
+        };
+        /** @description Entree du champ « Client » du formulaire de projet. */
+        Client: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            contact_name: string;
+            contact_role: string;
+        };
+        ClientList: {
+            items: components["schemas"]["Client"][];
+        };
+        /** @description Carte du tableau. Ne porte pas la note ni les sous-taches : elles ne sont lues qu'a l'ouverture du panneau. */
+        TaskSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            title: string;
+            /** @enum {string} */
+            status: "todo" | "progress" | "review" | "done";
+            /** @description Nature de la tache, texte libre */
+            tag: string;
+            /**
+             * @description Priorite de la tache. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high";
+            /** @description Resume affiche sous le titre sur la carte du kanban. */
+            description: string;
+            /** @description Nombre de sous-taches. Colonne tenue par declencheur : jamais un COUNT au rendu. */
+            subtasks_total: number;
+            /** @description Sous-taches cochees. Alimente la barre segmentee de la carte. */
+            subtasks_done: number;
+            /** @description Commentaires non supprimes. Colonne tenue par declencheur. */
+            comments_count: number;
+            /** @description Pieces jointes de la tache. Colonne tenue par declencheur. */
+            attachments_count: number;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            /** @description Estimation. Nulle tant que personne ne l'a donnee. */
+            hours?: number | null;
+            /** @description Rang dans sa colonne */
+            position: number;
+            assignees: components["schemas"]["Person"][];
+        };
+        /** @description Contenu de l'onglet Taches d'un projet. */
+        TaskBoard: {
+            items: components["schemas"]["TaskSummary"][];
+            total: number;
+            /** @description Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache. */
+            limit: number;
+        };
+        /** @description Carte de l'ecran Taches du module : la meme que dans un projet, plus le nom de celui-ci — sortie de sa fiche, une tache ne dit plus a quoi elle se rattache. */
+        TaskListItem: components["schemas"]["TaskSummary"] & {
+            project_name: string;
+        };
+        /** @description Contenu de l'ecran Taches, ses deux vues comprises. Borne sans pagination : un kanban ne se feuillette pas. */
+        TaskList: {
+            items: components["schemas"]["TaskListItem"][];
+            total: number;
+            /** @description Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache. */
+            limit: number;
+        };
+        Subtask: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            done: boolean;
+            position: number;
+        };
+        TaskComment: {
+            /** Format: uuid */
+            id: string;
+            body: string;
+            /** @description Nul quand le compte de l'auteur a ete supprime : le message reste, sans nom. */
+            author?: components["schemas"]["Person"] | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        TaskCommentList: {
+            items: components["schemas"]["TaskComment"][];
+        };
+        /** @description Ligne du journal. Le serveur dit ce qui s'est passe et avec quoi ; l'ecran ecrit la phrase dans sa langue. */
+        TaskActivity: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "created" | "status_changed" | "assigned" | "unassigned" | "subtask_done" | "subtask_undone" | "commented" | "due_changed";
+            payload: {
+                [key: string]: unknown;
+            };
+            actor?: components["schemas"]["Person"] | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description Tout ce que le panneau lateral affiche a son ouverture. Les commentaires en sont absents : ils ont leur onglet, donc leur endpoint. */
+        TaskDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            project_name: string;
+            client_name: string;
+            title: string;
+            description: string;
+            /** @enum {string} */
+            status: "todo" | "progress" | "review" | "done";
+            tag: string;
+            /**
+             * @description Priorite de la tache. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high";
+            note: string;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            hours?: number | null;
+            /** Format: date-time */
+            completed_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            assignees: components["schemas"]["Person"][];
+            subtasks: components["schemas"]["Subtask"][];
+            activity: components["schemas"]["TaskActivity"][];
+        };
+        /** @description Le client se designe par client_id, ou par client_name pour un client encore inconnu : le formulaire propose une liste sans imposer un detour par un ecran de creation de client. */
+        CreateProjectRequest: {
+            name: string;
+            /** @description Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur. */
+            description?: string;
+            /**
+             * @description Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority?: "low" | "medium" | "high";
+            /** @description Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            figma_url?: string;
+            /** @description Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            prod_url?: string;
+            /** @description Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            preprod_url?: string;
+            /** Format: uuid */
+            client_id?: string | null;
+            client_name?: string;
+            /** @enum {string} */
+            status?: "cadrage" | "production" | "attente" | "livre";
+            progress?: number;
+            hours_sold?: number;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            team_ids?: string[];
+        };
+        /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface la date. */
+        UpdateProjectRequest: {
+            name?: string;
+            /** @description Resume affiche sous le titre sur la carte de la liste. Chaine vide quand le projet n'en a pas : un projet sans resume est un cas normal, pas une absence de valeur. */
+            description?: string;
+            /**
+             * @description Priorite affichee a cote de l'echeance. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority?: "low" | "medium" | "high";
+            /** @description Maquette Figma du projet. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            figma_url?: string;
+            /** @description Adresse du site en production. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            prod_url?: string;
+            /** @description Adresse de preproduction. Chaine vide quand il n'y en a pas. Toujours http(s). */
+            preprod_url?: string;
+            /** Format: uuid */
+            client_id?: string;
+            /** @enum {string} */
+            status?: "cadrage" | "production" | "attente" | "livre";
+            progress?: number;
+            hours_sold?: number;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+        };
+        /** @description Remplace l'ensemble : les identifiants absents sont retires. */
+        MembersRequest: {
+            user_ids: string[];
+        };
+        CreateTaskRequest: {
+            title: string;
+            description?: string;
+            /** @enum {string} */
+            status?: "todo" | "progress" | "review" | "done";
+            tag?: string;
+            /**
+             * @description Priorite de la tache. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority?: "low" | "medium" | "high";
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+            hours?: number | null;
+            note?: string;
+            assignee_ids?: string[];
+        };
+        /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface le champ. */
+        UpdateTaskRequest: {
+            title?: string;
+            description?: string;
+            tag?: string;
+            /**
+             * @description Priorite de la tache. Vaut 'medium' par defaut.
+             * @enum {string}
+             */
+            priority?: "low" | "medium" | "high";
+            note?: string;
+            hours?: number | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            starts_on?: string | null;
+            /**
+             * Format: date
+             * @description Date sans heure, AAAA-MM-JJ
+             */
+            due_on?: string | null;
+        };
+        /** @description Deplacement dans le tableau. Sans position, la tache se pose en fin de colonne. */
+        MoveTaskRequest: {
+            /** @enum {string} */
+            status: "todo" | "progress" | "review" | "done";
+            position?: number | null;
+        };
+        CreateSubtaskRequest: {
+            label: string;
+        };
+        UpdateSubtaskRequest: {
+            label?: string;
+            done?: boolean;
+            position?: number;
+        };
+        CreateCommentRequest: {
+            body: string;
+        };
+        PersonList: {
+            items: components["schemas"]["Person"][];
+        };
+        /** @description Un chiffre et son evolution sur trente jours. */
+        Metric: {
+            value: number;
+            /** @description Variation en pourcentage entre les trente derniers jours et les trente precedents. Nulle quand la periode precedente etait vide : une progression depuis zero est un demarrage, pas « +100 % ». */
+            change: number | null;
+        };
+        /** @description Piece jointe d'un projet ou d'une tache. La cle de stockage n'est pas exposee : le contenu se recupere par GET /api/v1/admin/files/{id}. */
+        Attachment: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            content_type: string;
+            /**
+             * Format: int64
+             * @description Taille en octets, mesuree a l'ecriture et non annoncee par le client.
+             */
+            size_bytes: number;
+            /** Format: date-time */
+            created_at: string;
         };
     };
     responses: {
@@ -329,6 +1097,15 @@ export interface components {
         };
         /** @description La route existe, le handler n'est pas encore ecrit */
         NotImplemented: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Ressource introuvable */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -525,7 +1302,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Agregats precalcules du tableau de bord */
+            /** @description Agregats */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -536,20 +1313,19 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            501: components["responses"]["NotImplemented"];
         };
     };
     listAdminProjects: {
         parameters: {
             query?: {
-                /** @description Numero de page, 1 par defaut */
                 page?: number;
-                /** @description Taille de page */
                 page_size?: number;
-                /** @description Recherche partielle sur le nom du projet */
+                /** @description Recherche partielle sur le nom */
                 search?: string;
-                /** @description Filtre sur le statut */
-                status?: string;
+                status?: "cadrage" | "production" | "attente" | "livre";
+                client_id?: string;
+                sort?: "due" | "name" | "progress" | "budget";
+                dir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -568,7 +1344,761 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            501: components["responses"]["NotImplemented"];
+        };
+    };
+    createAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Projet cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminClients: {
+        parameters: {
+            query?: {
+                search?: string;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Clients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminProjectFavorites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Raccourcis */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectShortcutList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projet supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Projet modifie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    setAdminProjectTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembersRequest"];
+            };
+        };
+        responses: {
+            /** @description Projet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tableau */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskBoard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAdminTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Tache creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminTasks: {
+        parameters: {
+            query?: {
+                /** @description Filtre sur l'intitule de la tache */
+                search?: string;
+                /** @description Statut exact */
+                status?: "todo" | "progress" | "review" | "done";
+                /** @description Priorite exacte */
+                priority?: "low" | "medium" | "high";
+                /** @description Taches d'un seul projet */
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Taches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tache */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAdminTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tache supprimee */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAdminTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Tache modifiee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    moveAdminTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Tache deplacee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    setAdminTaskAssignees: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembersRequest"];
+            };
+        };
+        responses: {
+            /** @description Tache */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createAdminSubtask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSubtaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Sous-tache creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subtask"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminTaskComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Commentaires */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCommentList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAdminTaskComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Commentaire poste */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskComment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminSubtask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la sous-tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sous-tache supprimee */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAdminSubtask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la sous-tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubtaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Sous-tache modifiee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subtask"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comptes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    uploadAdminProjectFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Le fichier. Taille plafonnee par MAX_UPLOAD_MIB, 25 Mo par defaut.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Piece jointe creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attachment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    favoriteAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sans contenu */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unfavoriteAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sans contenu */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadAdminFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la piece jointe */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contenu du fichier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAdminFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la piece jointe */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sans contenu */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadAdminTaskFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la tache */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Le fichier. Taille plafonnee par MAX_UPLOAD_MIB, 25 Mo par defaut.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Piece jointe creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attachment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
 }
