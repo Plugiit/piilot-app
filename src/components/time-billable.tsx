@@ -1,6 +1,8 @@
 import { Clock01Icon } from '@hugeicons/core-free-icons'
 
-import { DashboardCard } from '@/components/dashboard-card'
+import { PanelCard } from '@/components/panel-card'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { LIGHT_TOOLTIP } from '@/lib/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -38,6 +40,43 @@ function formatDuration(seconds: number) {
   return [hours, minutes, seconds % 60].map((part) => String(part).padStart(2, '0')).join(':')
 }
 
+/**
+ * Nombre de crans de la jauge.
+ *
+ * La barre etait peinte par un degrade repete au pas de 5px, soit plus de cent
+ * raies sur la largeur d'une carte — trop fines pour se compter, et surtout
+ * recalees a zero au debut de chaque poste : la derniere raie d'un poste
+ * touchait la premiere du suivant, et une raie sur deux se retrouvait coupee.
+ *
+ * Des crans reels, repartis par une grille flex, resolvent les deux : ils sont
+ * assez larges pour se lire, et leur ecart est tenu par un `gap` qu'aucun
+ * arrondi ne peut refermer.
+ *
+ * Soixante-quatre : a demi-chemin entre les cent-vingt raies d'origine, trop
+ * fines pour se distinguer, et les trente-deux d'un premier essai, ou la jauge
+ * se lisait comme une suite de blocs plutot que comme une trame.
+ */
+const TICKS = 64
+
+/**
+ * Poste auquel appartient un cran.
+ *
+ * Le milieu du cran decide, pas son bord : une frontiere qui tombe au milieu
+ * d'un cran le donne au poste qui en occupe la plus grande part, plutot que de
+ * le couper en deux.
+ */
+function segmentAt(index: number) {
+  const position = ((index + 0.5) / TICKS) * BUDGET
+
+  let cumulated = 0
+  for (const segment of SEGMENTS) {
+    cumulated += segment.seconds
+    if (position <= cumulated) return segment
+  }
+
+  return SEGMENTS[SEGMENTS.length - 1]!
+}
+
 const SUMMARY = [
   { label: 'Heures saisies', value: formatDuration(BILLABLE + INTERNAL) },
   { label: 'Heures facturables', value: formatDuration(BILLABLE) },
@@ -47,59 +86,74 @@ const SUMMARY = [
 
 export function TimeBillable() {
   return (
-    <DashboardCard icon={Clock01Icon} title="TEMPS FACTURABLE">
-      <div className="flex flex-1 flex-col justify-between gap-2.5">
-        {/* Le dessin aligne les quatre chiffres sur une ligne fixe, separes par
-            des filets. En grille ils passent a deux colonnes quand la carte se
-            resserre, et le filet suit — c'est celui de gauche, donc il tombe
-            de lui-meme en debut de ligne. */}
-        <div className="grid grid-cols-2 gap-y-3 @xl:grid-cols-4">
-          {SUMMARY.map((entry, index) => (
-            <div
-              key={entry.label}
-              className={cn(
-                'flex flex-col gap-0.5 px-3 first:pl-0',
-                index % 2 === 1 && 'border-l border-[#e6e6e6]',
-                '@xl:border-l @xl:first:border-l-0',
-              )}
-            >
-              <p className="truncate text-[12px] text-[#64748b]">{entry.label}</p>
-              <p className="text-[12px] font-semibold text-[#0f172a] tabular-nums">{entry.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Les raies sont peintes par un degrade repete plutot que par 130
-            elements : a largeur variable, des raies de 2px non compressibles
-            deborderaient de la carte. Le pas de 5px reproduit le trait de 2px
-            et son ecart. */}
-        <div className="flex h-[38px] overflow-hidden rounded-[4px]">
-          {SEGMENTS.map((segment) => (
-            <div
-              key={segment.label}
-              style={{
-                width: `${(segment.seconds / BUDGET) * 100}%`,
-                backgroundImage: `repeating-linear-gradient(90deg, ${segment.color} 0 2px, transparent 2px 5px)`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-[11px] gap-y-2">
-          {SEGMENTS.map((segment) => (
-            <div key={segment.label} className="flex items-center gap-2">
+    <TooltipProvider>
+      <PanelCard icon={Clock01Icon} title="TEMPS FACTURABLE">
+        <div className="flex flex-1 flex-col justify-between gap-2.5">
+          {/* Le dessin aligne les quatre chiffres sur une ligne fixe, separes par
+              des filets. En grille ils passent a deux colonnes quand la carte se
+              resserre, et le filet suit — c'est celui de gauche, donc il tombe
+              de lui-meme en debut de ligne. */}
+          <div className="grid grid-cols-2 gap-y-3 @xl:grid-cols-4">
+            {SUMMARY.map((entry, index) => (
               <div
-                aria-hidden
-                className="size-2 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: segment.color }}
-              />
-              <p className="text-[12px] leading-[1.5] font-medium whitespace-nowrap text-[#030512]">
-                {segment.label}
+                key={entry.label}
+                className={cn(
+                  'flex flex-col gap-0.5 px-3 first:pl-0',
+                  index % 2 === 1 && 'border-l border-[#e6e6e6]',
+                  '@xl:border-l @xl:first:border-l-0',
+                )}
+              >
+                <p className="truncate text-[12px] text-[#64748b]">{entry.label}</p>
+                <p className="text-[12px] font-semibold text-[#0f172a] tabular-nums">{entry.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Les postes se nommaient dans une legende sous la barre. Ils se
+              nomment desormais dans l'infobulle, avec leur duree : la legende
+              disait a quoi correspondaient trois couleurs, l'infobulle dit ce que
+              vaut chacune. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                aria-label={SEGMENTS.map((s) => `${s.label} : ${formatDuration(s.seconds)}`).join(', ')}
+                className="flex h-[38px] items-stretch gap-0.5"
+              >
+                {Array.from({ length: TICKS }, (_, index) => (
+                  <span
+                    key={index}
+                    aria-hidden
+                    className="min-w-px flex-1 rounded-[2px]"
+                    style={{ backgroundColor: segmentAt(index).color }}
+                  />
+                ))}
+              </div>
+            </TooltipTrigger>
+
+            <TooltipContent className={cn(LIGHT_TOOLTIP, 'flex-col items-start gap-1 px-3 py-2')}>
+              <p className="text-[11px] leading-none text-[#777]">
+                Budget de {formatDuration(BUDGET)}
               </p>
-            </div>
-          ))}
+
+              <div className="flex flex-col gap-1 pt-0.5">
+                {SEGMENTS.map((segment) => (
+                  <p
+                    key={segment.label}
+                    className="flex items-center gap-1.5 text-[11px] leading-none text-[#777]"
+                  >
+                    <span
+                      aria-hidden
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{ backgroundColor: segment.color }}
+                    />
+                    {segment.label} · {formatDuration(segment.seconds)}
+                  </p>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </div>
-      </div>
-    </DashboardCard>
+      </PanelCard>
+    </TooltipProvider>
   )
 }

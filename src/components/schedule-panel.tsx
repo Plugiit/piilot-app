@@ -3,7 +3,6 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useMemo, useState } from 'react'
 
-import { TaskDrawer, type TaskDetail } from '@/components/task-drawer'
 import { cn } from '@/lib/utils'
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
@@ -30,7 +29,22 @@ const FILTERS: { label: string; category: string | null }[] = [
  * illisible : on verrait glisser deux fois la meme chose. Deux jours sont
  * vides, l'agenda doit aussi savoir ne rien avoir a dire.
  */
-const EVENTS_BY_DAY: TaskDetail[][] = [
+/**
+ * Evenement de l'agenda.
+ *
+ * Type local, et non celui d'une tache : ces lignes sont un decor de maquette
+ * en attendant le module planning. Le tiroir de tache, lui, ne s'ouvre plus
+ * que sur des taches reelles, depuis le tableau d'un projet.
+ */
+interface ScheduleEvent {
+  id: string
+  title: string
+  category: string
+  color: string
+  when: string
+}
+
+const EVENTS_BY_DAY: ScheduleEvent[][] = [
   [
     {
       category: 'RÉUNION',
@@ -103,23 +117,6 @@ const EVENTS_BY_DAY: TaskDetail[][] = [
   [],
 ]
 
-/**
- * Retrouve une tache par son identifiant, dans toute la semaine.
- *
- * L'URL ne porte que l'identifiant : le jour affiche par l'agenda n'a pas a
- * etre connu pour rouvrir une tache, sinon un lien partage n'ouvrirait que les
- * taches du jour ou le destinataire tombe.
- */
-export function findTask(id: string) {
-  for (const [dayIndex, events] of EVENTS_BY_DAY.entries()) {
-    const task = events.find((event) => event.id === id)
-
-    if (task) return { task, dayIndex }
-  }
-
-  return null
-}
-
 /** La semaine de lundi a dimanche qui contient `date`. */
 function weekOf(date: Date) {
   const monday = new Date(date)
@@ -172,25 +169,8 @@ function MonthArrow({
  * Vit hors de `components/ui/`, reserve aux composants shadcn — voir la note
  * de `stat-card.tsx`.
  */
-export function SchedulePanel({
-  className,
-  openedTaskId,
-  onOpenTask,
-}: {
-  className?: string
-  /** Identifiant lu dans l'URL, `undefined` quand aucun panneau n'est ouvert. */
-  openedTaskId?: string
-  onOpenTask: (id: string | null) => void
-}) {
-  // L'agenda s'ouvre sur le jour de la tache demandee plutot que sur
-  // aujourd'hui : un lien partage doit montrer la tache dans sa semaine, pas
-  // obliger a la chercher. Calcule une seule fois, a l'arrivee — changer de
-  // jour ensuite ne doit pas etre defait par l'URL.
-  const [selected, setSelected] = useState(() => {
-    const found = openedTaskId === undefined ? null : findTask(openedTaskId)
-
-    return found === null ? new Date() : (weekOf(new Date())[found.dayIndex] ?? new Date())
-  })
+export function SchedulePanel({ className }: { className?: string }) {
+  const [selected, setSelected] = useState(() => new Date())
 
   // La semaine se deduit du jour choisi : changer de mois deplace le jour, et
   // la bande suit — une semaine gardee a part pourrait montrer un autre mois
@@ -204,8 +184,6 @@ export function SchedulePanel({
 
   const month = MONTH_FORMAT.format(selected)
   const [filter, setFilter] = useState<string | null>(null)
-
-  const opened = openedTaskId === undefined ? null : (findTask(openedTaskId)?.task ?? null)
 
   const events = (EVENTS_BY_DAY[(selected.getDay() + 6) % 7] ?? []).filter(
     (event) => filter === null || event.category === filter,
@@ -243,8 +221,8 @@ export function SchedulePanel({
     <aside className={cn('flex flex-col gap-3 bg-white p-4', className)}>
       <h2 className="text-[16px] font-medium text-[#111]">Agenda</h2>
 
-      <div className="flex flex-col gap-3 border-b border-[#ebebeb] pb-4">
-        <div className="flex items-center justify-between gap-2 rounded-[12px] bg-[#f8f8f8] px-2 py-2.5">
+      <div className="border-surface-sunken flex flex-col gap-3 border-b pb-4">
+        <div className="bg-surface flex items-center justify-between gap-2 rounded-[12px] px-2 py-2.5">
           <MonthArrow direction="previous" onClick={() => goToMonth(-1)} />
           <p className="truncate text-[14px] font-semibold text-[#1f2937] first-letter:uppercase">
             {month}
@@ -280,17 +258,19 @@ export function SchedulePanel({
                       {WEEKDAY_FORMAT.format(date).replace('.', '')}
                     </p>
 
-                    {/* Le jour choisi ne se signale plus que par sa couleur :
-                        sur un panneau blanc, le fond blanc du dessin ne tenait
-                        que par son ombre. */}
+                    {/* Le jour choisi porte de nouveau la pastille blanche du
+                        dessin : sur un panneau blanc elle ne tient que par son
+                        ombre portee, que la maquette pose desormais. */}
                     <button
                       type="button"
                       aria-pressed={active}
                       aria-label={DAY_FORMAT.format(date)}
                       onClick={() => selectDay(date)}
                       className={cn(
-                        'flex size-8 items-center justify-center rounded-full text-center text-[14px] leading-[1.5] font-semibold transition-colors hover:bg-[#f0f0f0]',
-                        active ? 'text-[#ff782b]' : 'text-[#111]',
+                        'flex size-8 items-center justify-center rounded-full text-center text-[14px] leading-[1.5] font-semibold transition-colors',
+                        active
+                          ? 'bg-white text-[#ff782b] drop-shadow-[0px_4px_2px_rgba(0,0,0,0.06)]'
+                          : 'text-[#111] hover:bg-[#f0f0f0]',
                       )}
                     >
                       {date.getDate()}
@@ -305,7 +285,7 @@ export function SchedulePanel({
         {/* Les marges negatives rendent au defilement les 16px que le panneau
             prend en padding : sans elles, la premiere et la derniere pilule
             resteraient coupees en butee. */}
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((entry) => {
             const active = entry.category === filter
 
@@ -316,10 +296,13 @@ export function SchedulePanel({
                 aria-pressed={active}
                 onClick={() => selectFilter(entry.category)}
                 className={cn(
-                  'shrink-0 rounded-[12px] px-4 py-2 text-[12px] font-medium whitespace-nowrap text-[#111] transition-colors',
+                  'shrink-0 rounded-[12px] border px-4 py-2 text-[12px] font-medium whitespace-nowrap transition-colors',
+                  // Le filtre actif prend l'orange plein plutot qu'une pastille
+                  // blanche : sur un panneau blanc, le blanc sur blanc ne
+                  // distinguait rien.
                   active
-                    ? 'border border-[#efefef] bg-white'
-                    : 'border border-transparent bg-[#fafafa] hover:bg-[#f0f0f0]',
+                    ? 'border-[#ff782b] bg-[#ff782b] text-white'
+                    : 'border-surface-sunken bg-white text-[#111] hover:bg-[#f8f8f8]',
                 )}
               >
                 {entry.label}
@@ -351,20 +334,30 @@ export function SchedulePanel({
             </p>
           ) : (
             events.map((event) => (
-              <button
-                key={event.title}
-                type="button"
-                onClick={() => onOpenTask(event.id)}
-                className="flex w-full gap-3 rounded-[8px] text-left transition-colors hover:bg-[#f8f8f8]"
-              >
-                {/* Le dessin exporte ce filet en SVG. Une regle de 3px le rend a
-                    l'identique et laisse la couleur suivre la categorie, ce
-                    qu'un fichier fige ne permettrait pas. */}
-                <div
-                  aria-hidden
-                  className="w-[3px] shrink-0 self-stretch rounded-full"
-                  style={{ backgroundColor: event.color }}
-                />
+              <div key={event.title} className="flex w-full gap-1 rounded-[8px] text-left">
+                {/* Le filet du dessin : un trait de 2px qui part a 7px du haut,
+                    coiffe d'un demi-disque de 12px bombe vers la gauche, les
+                    deux alignes sur le meme bord droit.
+
+                    Dessine en CSS plutot qu'importe en SVG : le fichier exporte
+                    fige sa couleur — la maquette en compte d'ailleurs deux
+                    copies pour deux teintes — alors qu'ici elle suit la
+                    categorie de l'evenement.
+
+                    Le demi-disque est un rectangle de 6 sur 12 dont les deux
+                    coins gauches sont arrondis de 6 : a cette proportion, le
+                    rayon consomme toute la hauteur et l'arc est un demi-cercle
+                    exact. */}
+                <div aria-hidden className="relative w-[10px] shrink-0 self-stretch">
+                  <span
+                    className="absolute top-0 left-0 h-3 w-[6px] rounded-l-full"
+                    style={{ backgroundColor: event.color }}
+                  />
+                  <span
+                    className="absolute top-[7px] bottom-0 left-[4px] w-[2px]"
+                    style={{ backgroundColor: event.color }}
+                  />
+                </div>
 
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <p
@@ -379,13 +372,11 @@ export function SchedulePanel({
                     <p className="text-[14px] leading-[1.5] text-[#111]/70">{event.when}</p>
                   </div>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </motion.div>
       </AnimatePresence>
-
-      <TaskDrawer task={opened} onClose={() => onOpenTask(null)} />
     </aside>
   )
 }
