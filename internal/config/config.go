@@ -46,6 +46,13 @@ type Config struct {
 	// defaut : le binaire porte son schema. A couper si les migrations sont
 	// jouees par une etape de deploiement dediee.
 	RunMigrations bool
+
+	// Repertoire des pieces jointes des projets, et taille maximale d'un
+	// fichier. Le stockage est sur disque local : suffisant pour une instance,
+	// a remplacer par un stockage objet europeen le jour ou il y en aura
+	// plusieurs derriere un repartiteur.
+	FilesDir     string
+	MaxUploadMiB int64
 }
 
 // Load lit la configuration depuis l'environnement et echoue si une valeur
@@ -67,6 +74,8 @@ func Load() (Config, error) {
 		WriteTimeout:    envDuration("WRITE_TIMEOUT", 30*time.Second),
 		ShutdownTimeout: envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		RunMigrations:   envBool("RUN_MIGRATIONS", true),
+		FilesDir:        env("FILES_DIR", "./data/files"),
+		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -81,6 +90,10 @@ func Load() (Config, error) {
 	case EnvDevelopment, EnvStaging, EnvProduction:
 	default:
 		return Config{}, fmt.Errorf("APP_ENV invalide : %q", cfg.Env)
+	}
+
+	if cfg.MaxUploadMiB < 1 {
+		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
 	}
 
 	return cfg, nil

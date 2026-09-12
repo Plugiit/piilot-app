@@ -23,6 +23,7 @@ import (
 	"github.com/plugiit/plugiit-api-go/internal/middleware"
 	"github.com/plugiit/plugiit-api-go/internal/repository"
 	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/plugiit-api-go/internal/storage"
 	"github.com/plugiit/plugiit-api-go/internal/usecase"
 )
 
@@ -79,8 +80,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	signer := security.NewTokenSigner(cfg.JWTSecret, "plugiit-api")
 	authService := usecase.NewAuthService(pool, signer, cfg.AccessTTL, cfg.RefreshTTL)
-	projectService := usecase.NewProjectService(pool)
-	taskService := usecase.NewTaskService(pool)
+	files, err := storage.NewLocal(cfg.FilesDir)
+	if err != nil {
+		return err
+	}
+
+	projectService := usecase.NewProjectService(pool, files, cfg.MaxUploadMiB*(1<<20))
+	taskService := usecase.NewTaskService(pool, files, cfg.MaxUploadMiB*(1<<20))
 
 	cookies := handler.CookieConfig{
 		Domain: cfg.CookieDomain,
@@ -139,6 +145,10 @@ func newApp(cfg config.Config, log *slog.Logger) *fiber.App {
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		ErrorHandler: middleware.ErrorHandler(log),
+		// Le plafond du serveur suit celui des pieces jointes, avec un Mo de
+		// marge pour l'enveloppe multipart. Sans ce reglage, Fiber refuserait
+		// a 4 Mo par defaut, bien avant la limite annoncee a l'utilisateur.
+		BodyLimit: int(cfg.MaxUploadMiB+1) * (1 << 20),
 	})
 
 	app.Use(requestid.New())
