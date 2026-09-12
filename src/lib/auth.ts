@@ -44,8 +44,8 @@ export function isInternal(user: User): boolean {
  * garde son segment en attendant d'etre ecrit et de rejoindre le sien.
  *
  * Un interne atterrit sur `/pm` : le travail quotidien de l'agence se fait
- * dans les projets, pas devant les agregats de la racine, qu'on ouvre quand on
- * les cherche. Le tableau de bord reste accessible par la navigation.
+ * dans les projets. La racine n'est pas un ecran, seulement une redirection
+ * vers ici — il n'y a pas d'accueil au-dessus des modules.
  *
  * C'est le role qui decide ou atterrit une connexion, et cette fonction est la
  * seule source de cette regle — la connexion et les gardes s'y referent toutes.

@@ -10,11 +10,56 @@ import type { ApiError, paths } from '@/types/api'
  * pas de l'exfiltrer. En contrepartie l'API doit autoriser explicitement
  * l'origine de l'admin (ADMIN_ORIGINS cote Go).
  */
+const BASE_URL: string = import.meta.env.VITE_API_URL ?? ''
+
 export const api = createClient<paths>({
-  baseUrl: import.meta.env.VITE_API_URL ?? '',
+  baseUrl: BASE_URL,
   credentials: 'include',
   headers: { 'X-Requested-With': 'XMLHttpRequest' },
 })
+
+/** Adresse absolue d'un chemin d'API — pour un lien que le navigateur suit lui-meme. */
+export function apiUrl(path: string): string {
+  return `${BASE_URL}${path}`
+}
+
+/**
+ * Envoi d'un fichier en multipart.
+ *
+ * `openapi-fetch` serialise en JSON : le seul endpoint qui recoit un fichier
+ * passe donc par `fetch` directement. Il reprend les memes reglages que le
+ * client — cookie de session et en-tete anti-CSRF — et rend la meme
+ * `HttpError`, pour que les appelants n'aient pas deux formes d'echec a
+ * traiter.
+ *
+ * Le `Content-Type` n'est pas pose a la main : le navigateur doit y mettre la
+ * frontiere multipart qu'il vient de tirer, et l'ecraser casserait le
+ * decoupage cote serveur.
+ */
+export async function postFile<T>(path: string, field: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append(field, file)
+
+  const response = await fetch(apiUrl(path), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    body: form,
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Partial<ApiError>
+
+    throw new HttpError(
+      response.status,
+      payload.code ?? 'UNKNOWN',
+      payload.message ?? 'Une erreur est survenue',
+      payload.details ?? {},
+    )
+  }
+
+  return (await response.json()) as T
+}
 
 /** Erreur portant le code stable renvoye par l'API. */
 export class HttpError extends Error {
