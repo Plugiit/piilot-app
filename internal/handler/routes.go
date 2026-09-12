@@ -82,10 +82,29 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects := r.Group("/projects")
 	projects.Get("", deps.Guard.RequirePermission("projects.read"), deps.Projects.List)
 	projects.Post("", deps.Guard.RequirePermission("projects.write"), deps.Projects.Create)
+	// Avant « /:id », sans quoi le routeur prendrait « favorites » pour un
+	// identifiant de projet : Fiber essaie les routes dans l'ordre ou elles
+	// sont montees, la plus specifique doit donc passer la premiere.
+	projects.Get("/favorites", deps.Guard.RequirePermission("projects.read"), deps.Projects.Favorites)
 	projects.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.Get)
 	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
 	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)
 	projects.Put("/:id/team", deps.Guard.RequirePermission("projects.write"), deps.Projects.SetTeam)
+
+	// Pieces jointes. L'envoi est sous le projet — c'est lui qui les porte a
+	// l'ecran — mais le telechargement et la suppression passent par
+	// l'identifiant du fichier : une fois deposee, une piece jointe se
+	// designe seule.
+	projects.Post("/:id/files", deps.Guard.RequirePermission("projects.write"), deps.Projects.UploadFile)
+
+	// L'etoile est un marquage personnel : elle ne demande pas le droit
+	// d'ecrire sur le projet, seulement celui de le voir.
+	projects.Put("/:id/favorite", deps.Guard.RequirePermission("projects.read"), deps.Projects.Favorite)
+	projects.Delete("/:id/favorite", deps.Guard.RequirePermission("projects.read"), deps.Projects.Unfavorite)
+
+	files := r.Group("/files")
+	files.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.DownloadFile)
+	files.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.DeleteFile)
 
 	// Le tableau des taches est une vue du projet, sa creation aussi : les deux
 	// vivent sous le projet parce que c'est lui qui les porte a l'ecran.
@@ -95,12 +114,16 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Une fois ouverte, une tache se manipule par son seul identifiant : le
 	// panneau lateral se partage par lien, sans le projet dans l'adresse.
 	tasks := r.Group("/tasks")
+	// L'ecran « Taches » du module, qui traverse les projets. Monte avant
+	// « /:id » par principe, meme si les deux chemins ne se confondent pas.
+	tasks.Get("", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.List)
 	tasks.Get("/:id", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Get)
 	tasks.Patch("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Update)
 	tasks.Delete("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Delete)
 	tasks.Post("/:id/move", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Move)
 	tasks.Put("/:id/assignees", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.SetAssignees)
 	tasks.Post("/:id/subtasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddSubtask)
+	tasks.Post("/:id/files", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.UploadFile)
 	tasks.Get("/:id/comments", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Comments)
 	tasks.Post("/:id/comments", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddComment)
 

@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -13,7 +16,9 @@ import (
 
 // TaskService est le contrat dont les endpoints de taches ont besoin.
 type TaskService interface {
+	AddFile(ctx context.Context, taskID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
 	Board(ctx context.Context, projectID uuid.UUID) (usecase.TaskBoard, error)
+	List(ctx context.Context, f usecase.TaskFilters) (usecase.TaskList, error)
 	Get(ctx context.Context, id uuid.UUID) (usecase.TaskDetail, error)
 	Create(ctx context.Context, in usecase.CreateTaskInput) (usecase.TaskDetail, error)
 	Update(ctx context.Context, id uuid.UUID, in usecase.UpdateTaskInput) (usecase.TaskDetail, error)
@@ -42,6 +47,7 @@ type createTaskRequest struct {
 	Description string   `json:"description"`
 	Status      string   `json:"status"`
 	Tag         string   `json:"tag"`
+	Priority    string   `json:"priority"`
 	StartsOn    *string  `json:"starts_on"`
 	DueOn       *string  `json:"due_on"`
 	Hours       *float64 `json:"hours"`
@@ -53,6 +59,7 @@ type updateTaskRequest struct {
 	Title       *string  `json:"title"`
 	Description *string  `json:"description"`
 	Tag         *string  `json:"tag"`
+	Priority    *string  `json:"priority"`
 	Note        *string  `json:"note"`
 	Hours       *float64 `json:"hours"`
 	StartsOn    *string  `json:"starts_on"`
@@ -97,6 +104,40 @@ func (h *Tasks) Board(c fiber.Ctx) error {
 	return c.JSON(board)
 }
 
+// List sert l'ecran « Taches » du module, ses deux vues comprises.
+//
+// Les valeurs de statut et de priorite ne sont pas validees ici : une valeur
+// inconnue ne fait correspondre aucune ligne, ce qui est exactement ce qu'un
+// filtre doit faire. Refuser la requete obligerait a tenir la liste des
+// valeurs a deux endroits, dont un qui ne decide de rien.
+func (h *Tasks) List(c fiber.Ctx) error {
+	var filters usecase.TaskFilters
+
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		filters.Status = &status
+	}
+	if priority := strings.TrimSpace(c.Query("priority")); priority != "" {
+		filters.Priority = &priority
+	}
+	if search := strings.TrimSpace(c.Query("search")); search != "" {
+		filters.Search = &search
+	}
+	if raw := strings.TrimSpace(c.Query("project_id")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"project_id": "Identifiant invalide"})
+		}
+		filters.ProjectID = &id
+	}
+
+	list, err := h.svc.List(c.Context(), filters)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(list)
+}
+
 // Create ajoute une tache au projet.
 func (h *Tasks) Create(c fiber.Ctx) error {
 	projectID, err := pathUUID(c, "id")
@@ -133,6 +174,7 @@ func (h *Tasks) Create(c fiber.Ctx) error {
 		Description: req.Description,
 		Status:      req.Status,
 		Tag:         req.Tag,
+		Priority:    req.Priority,
 		StartsOn:    starts,
 		DueOn:       due,
 		Hours:       req.Hours,
@@ -183,6 +225,7 @@ func (h *Tasks) Update(c fiber.Ctx) error {
 		Title:       req.Title,
 		Description: req.Description,
 		Tag:         req.Tag,
+		Priority:    req.Priority,
 		Note:        req.Note,
 		Hours:       req.Hours,
 		ActorID:     actor,
@@ -387,4 +430,46 @@ func (h *Tasks) AddComment(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(comment)
+}
+
+// UploadFile attache un fichier a une tache.
+//
+// Le telechargement et la suppression n'ont pas leur pendant ici : ils passent
+// par /files/{id}, qui sert indifferemment les pieces jointes des projets et
+// celles des taches.
+func (h *Tasks) UploadFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Aucun fichier reçu sous le champ « file »",
+		})
+	}
+
+	content, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("lecture du fichier envoye : %w", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	file, err := h.svc.AddFile(
+		c.Context(), id, actor,
+		header.Filename,
+		header.Header.Get("Content-Type"),
+		content,
+	)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(file)
 }
