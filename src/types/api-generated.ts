@@ -700,6 +700,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/crm/clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tableau des clients
+         * @description Sert l'ecran CRM > Clients. La recherche porte sur le nom du client et sur celui de son contact. Exige clients.read.
+         */
+        get: operations["listCrmClients"];
+        put?: never;
+        /**
+         * Inscrire un client
+         * @description Cree un client depuis l'ecran CRM. Le nom est unique, casse ignoree. Exige clients.write.
+         */
+        post: operations["createCrmClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tableau des contacts
+         * @description Sert l'ecran CRM > Contacts. La recherche porte sur le nom, l'e-mail et le nom du client. Exige clients.read.
+         */
+        get: operations["listCrmContacts"];
+        put?: never;
+        /**
+         * Inscrire un contact
+         * @description Cree un contact chez son client. Exige clients.write.
+         */
+        post: operations["createCrmContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/{id}/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contacts d'un client
+         * @description Alimente le menu deroulant qui designe le contact principal : les contacts du client, puis les contacts libres — ces derniers rattaches au moment ou on les choisit. Exige clients.read.
+         */
+        get: operations["listContactsOfClient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/{id}/primary-contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Designer le contact principal
+         * @description Le contact doit appartenir au client : la cle etrangere composite l'impose en base. Exige clients.write.
+         */
+        put: operations["setPrimaryContact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/contacts/free": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contacts libres
+         * @description Contacts sans entreprise, tels que le formulaire de creation d'un client les propose. Un contact deja rattache n'y figure pas : il appartient a un autre client. Exige clients.read.
+         */
+        get: operations["listFreeContacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiche d'un client
+         * @description Tout ce que la fiche affiche, en un appel. Exige clients.read.
+         */
+        get: operations["getCrmClient"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un client
+         * @description Suppression logique. Refusee tant que le client porte des projets ou des comptes de portail ; ses contacts sont effaces avec lui. Exige clients.write.
+         */
+        delete: operations["deleteCrmClient"];
+        options?: never;
+        head?: never;
+        /**
+         * Renommer un client
+         * @description Le contact principal a sa propre route. Exige clients.write.
+         */
+        patch: operations["updateCrmClient"];
+        trace?: never;
+    };
+    "/api/v1/admin/crm/contacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un contact
+         * @description Suppression logique. La designation de contact principal qui le vise est retiree au passage. Exige clients.write.
+         */
+        delete: operations["deleteCrmContact"];
+        options?: never;
+        head?: never;
+        /**
+         * Modifier un contact
+         * @description Identite seule. Exige clients.write.
+         */
+        patch: operations["updateCrmContact"];
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kanban commercial
+         * @description Toutes les cartes, bornees et non paginees. Exige clients.read.
+         */
+        get: operations["getCrmClientBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Deplacer un client dans le pipeline
+         * @description Ne touche que le statut : glisser une carte ne doit pas reecrire les coordonnees. Exige clients.write.
+         */
+        put: operations["moveCrmClientStatus"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -931,6 +1131,50 @@ export interface components {
         };
         ClientList: {
             items: components["schemas"]["Client"][];
+        };
+        /** @description Ligne du tableau « Clients » du CRM. */
+        CrmClient: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Interlocuteur principal, nul tant que le client n'a designe personne. */
+            primary_contact: components["schemas"]["ContactRef"] | null;
+            contacts_count: number;
+            /** @description Projets non livres du client. Colonne tenue par declencheur, jamais recomptee au rendu. */
+            projects_active: number;
+            /** @description Comptes de portail rattaches au client. Colonne tenue par declencheur. */
+            portal_users: number;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * @description Etape du pipeline commercial.
+             * @enum {string}
+             */
+            status: "lead" | "devis" | "actif" | "veille" | "perdu";
+            /** @description Membre de l'agence qui suit ce client. Nul quand personne n'est designe. */
+            account_manager: components["schemas"]["Person"] | null;
+            website: string;
+            phone: string;
+            address: string;
+            postal_code: string;
+            city: string;
+            country: string;
+            siret: string;
+            vat_number: string;
+        };
+        /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
+        CrmClientPage: {
+            items: components["schemas"]["CrmClient"][];
+            /** @description Nombre total d'elements, tous filtres appliques */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        /** @description Corps de creation d'un client. `contact_id` designe un contact libre a adopter — creer une personne se fait depuis l'ecran Contacts. */
+        CreateClientRequest: {
+            name: string;
+            /** Format: uuid */
+            contact_id?: string | null;
         };
         /** @description Carte du tableau. Ne porte pas la note ni les sous-taches : elles ne sont lues qu'a l'ouverture du panneau. */
         TaskSummary: {
@@ -1271,6 +1515,164 @@ export interface components {
              * @description Curseur de la page suivante. Nul quand il n'y a plus rien apres.
              */
             before: string | null;
+        };
+        /** @description Contact reduit : de quoi nommer un interlocuteur dans une liste. */
+        ContactRef: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            role: string;
+            /** Format: email */
+            email: string | null;
+        };
+        /** @description Ligne du tableau « Contacts ». Porte le nom de son client. */
+        CrmContact: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            client_id: string | null;
+            client_name: string | null;
+            firstname: string;
+            lastname: string;
+            role: string;
+            /** Format: email */
+            email: string | null;
+            phone: string;
+            /** @description Le client designe cette personne comme interlocuteur principal. */
+            is_primary: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
+        CrmContactPage: {
+            items: components["schemas"]["CrmContact"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        ContactRefList: {
+            items: components["schemas"]["ContactRef"][];
+        };
+        /** @description Corps de creation d'un contact. Un prenom ou un nom suffit ; sans `client_id`, le contact est libre, en attente d'une entreprise. */
+        CreateContactRequest: {
+            /** Format: uuid */
+            client_id?: string | null;
+            firstname?: string;
+            lastname?: string;
+            role?: string;
+            /** Format: email */
+            email?: string;
+            phone?: string;
+            /** @description Designe la personne comme interlocuteur principal. Le tout premier contact d'un client l'est de toute facon. */
+            primary?: boolean;
+        };
+        /** @description Designe l'interlocuteur principal. `null` retire la designation. */
+        SetPrimaryContactRequest: {
+            /** Format: uuid */
+            contact_id: string | null;
+        };
+        /** @description Entree d'un menu deroulant de contacts. `is_free` distingue les contacts du client de ceux qui n'ont pas d'entreprise : choisir l'un des seconds le rattache. */
+        ContactOption: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            role: string;
+            /** Format: email */
+            email: string | null;
+            is_free: boolean;
+        };
+        ContactOptionList: {
+            items: components["schemas"]["ContactOption"][];
+        };
+        /** @description Projet du client, reduit a ce que sa fiche montre. */
+        ClientProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            progress: number;
+            /** Format: date */
+            due_on: string | null;
+        };
+        /** @description Compte de portail rattache au client. */
+        PortalAccount: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            firstname: string;
+            lastname: string;
+            avatar_url: string | null;
+            /** Format: date-time */
+            last_login_at: string | null;
+        };
+        /** @description Tout ce que la fiche d'un client affiche : son en-tete, ses contacts, ses projets et ses comptes de portail. Un seul appel la remplit. */
+        CrmClientDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            primary_contact: components["schemas"]["ContactRef"] | null;
+            contacts_count: number;
+            projects_active: number;
+            portal_users: number;
+            /** Format: date-time */
+            created_at: string;
+            contacts: components["schemas"]["CrmContact"][];
+            projects: components["schemas"]["ClientProject"][];
+            accounts: components["schemas"]["PortalAccount"][];
+            /**
+             * @description Etape du pipeline commercial.
+             * @enum {string}
+             */
+            status: "lead" | "devis" | "actif" | "veille" | "perdu";
+            /** @description Membre de l'agence qui suit ce client. Nul quand personne n'est designe. */
+            account_manager: components["schemas"]["Person"] | null;
+            website: string;
+            phone: string;
+            address: string;
+            postal_code: string;
+            city: string;
+            country: string;
+            siret: string;
+            vat_number: string;
+        };
+        /** @description Fiche modifiable d'un client. Tous les champs voyagent ensemble : n'en envoyer qu'une partie effacerait le reste. */
+        UpdateClientRequest: {
+            name: string;
+            /** @enum {string} */
+            status: "lead" | "devis" | "actif" | "veille" | "perdu";
+            /** Format: uuid */
+            account_manager_id?: string | null;
+            website?: string;
+            phone?: string;
+            address?: string;
+            postal_code?: string;
+            city?: string;
+            country?: string;
+            siret?: string;
+            vat_number?: string;
+        };
+        /** @description Identite d'un contact. Le rattachement a un client n'est pas ici. */
+        UpdateContactRequest: {
+            firstname?: string;
+            lastname?: string;
+            role?: string;
+            /** Format: email */
+            email?: string;
+            phone?: string;
+        };
+        MoveClientStatusRequest: {
+            /** @enum {string} */
+            status: "lead" | "devis" | "actif" | "veille" | "perdu";
+        };
+        /** @description Kanban commercial : toutes les cartes, bornees. */
+        CrmClientBoard: {
+            items: components["schemas"]["CrmClient"][];
+            /** @description La borne a coupe : toutes les cartes ne sont pas la. */
+            truncated: boolean;
         };
     };
     responses: {
@@ -2525,6 +2927,435 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listCrmClients: {
+        parameters: {
+            query?: {
+                /** @description Nom du client ou nom du contact */
+                search?: string;
+                /** @description Etape du pipeline */
+                status?: "lead" | "devis" | "actif" | "veille" | "perdu";
+                /** @description Chargé de compte */
+                manager_id?: string;
+                /** @description Ne garde que les clients qui ont au moins un compte de portail, ou ceux qui n'en ont aucun. Absent, le filtre ne s'applique pas. */
+                has_portal?: boolean;
+                sort?: "name" | "projects" | "created";
+                dir?: "asc" | "desc";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page de clients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClientPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createCrmClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClientRequest"];
+            };
+        };
+        responses: {
+            /** @description Client cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClient"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Un client porte deja ce nom */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listCrmContacts: {
+        parameters: {
+            query?: {
+                search?: string;
+                /** @description Ne garde que les contacts de ce client */
+                client_id?: string;
+                /** @description Ne garde que les contacts sans entreprise */
+                only_free?: boolean;
+                sort?: "name" | "client";
+                dir?: "asc" | "desc";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page de contacts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmContactPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createCrmContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Contact cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmContact"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Ce contact existe deja chez ce client */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listContactsOfClient: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contacts du client */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactOptionList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setPrimaryContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPrimaryContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Designation enregistree */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listFreeContacts: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contacts libres */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactRefList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getCrmClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fiche du client */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClientDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCrmClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Client supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Des projets ou des comptes s'y rattachent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateCrmClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateClientRequest"];
+            };
+        };
+        responses: {
+            /** @description Client modifie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClient"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Un client porte deja ce nom */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteCrmContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contact supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCrmContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Contact modifie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmContact"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Ce contact existe deja chez ce client */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getCrmClientBoard: {
+        parameters: {
+            query?: {
+                search?: string;
+                manager_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cartes du kanban */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClientBoard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    moveCrmClientStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveClientStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Client deplace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmClient"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
 }
