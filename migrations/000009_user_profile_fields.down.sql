@@ -1,0 +1,10 @@
+ALTER TABLE users
+    DROP CONSTRAINT IF EXISTS users_gender_check;
+
+ALTER TABLE users
+    DROP COLUMN IF EXISTS country,
+    DROP COLUMN IF EXISTS city,
+    DROP COLUMN IF EXISTS postal_code,
+    DROP COLUMN IF EXISTS address,
+    DROP COLUMN IF EXISTS phone,
+    DROP COLUMN IF EXISTS gender;
