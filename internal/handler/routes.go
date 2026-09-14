@@ -12,6 +12,8 @@ type Deps struct {
 	Auth     *Auth
 	Projects *Projects
 	Tasks    *Tasks
+	Clients  *Clients
+	Contacts *Contacts
 
 	Notifications *Notifications
 
@@ -87,8 +89,35 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Projects.Dashboard)
 
 	// Clients : le strict necessaire au champ « Client » du formulaire de
-	// projet. Le CRM leur donnera leurs propres ecrans.
+	// projet — un menu deroulant, pas un ecran.
 	r.Get("/clients", deps.Guard.RequirePermission("clients.read"), deps.Projects.ListClients)
+
+	// CRM. Le tableau des clients a sa propre route parce qu'il a son propre
+	// contenu : les agregats qu'une ligne affiche n'ont rien a faire dans le
+	// menu deroulant ci-dessus, et l'y ajouter l'alourdirait pour tout le monde.
+	// Les contacts partagent les permissions des clients : un contact n'existe
+	// pas sans son entreprise, et qui peut voir l'une voit l'autre. Un couple
+	// `contacts.read` / `contacts.write` n'aurait jamais ete donne separement.
+	crm := r.Group("/crm")
+	crm.Get("/clients", deps.Guard.RequirePermission("clients.read"), deps.Clients.List)
+	crm.Post("/clients", deps.Guard.RequirePermission("clients.write"), deps.Clients.Create)
+	// Avant « /:id » : sans quoi le routeur prendrait « board » pour un
+	// identifiant de client.
+	crm.Get("/clients/board", deps.Guard.RequirePermission("clients.read"), deps.Clients.Board)
+	crm.Get("/clients/:id", deps.Guard.RequirePermission("clients.read"), deps.Clients.Get)
+	crm.Patch("/clients/:id", deps.Guard.RequirePermission("clients.write"), deps.Clients.Update)
+	crm.Delete("/clients/:id", deps.Guard.RequirePermission("clients.write"), deps.Clients.Delete)
+	crm.Put("/clients/:id/status", deps.Guard.RequirePermission("clients.write"), deps.Clients.MoveStatus)
+	crm.Get("/clients/:id/contacts", deps.Guard.RequirePermission("clients.read"), deps.Contacts.ListOfClient)
+	crm.Put("/clients/:id/primary-contact", deps.Guard.RequirePermission("clients.write"), deps.Clients.SetPrimaryContact)
+	// Avant « /contacts » sans parametre ? Non : chemin distinct, aucun conflit.
+	// Les contacts libres ont leur route parce qu'ils servent un autre ecran —
+	// le formulaire de creation d'un client, qui ne peut adopter qu'eux.
+	crm.Get("/contacts/free", deps.Guard.RequirePermission("clients.read"), deps.Contacts.ListFree)
+	crm.Get("/contacts", deps.Guard.RequirePermission("clients.read"), deps.Contacts.List)
+	crm.Post("/contacts", deps.Guard.RequirePermission("clients.write"), deps.Contacts.Create)
+	crm.Patch("/contacts/:id", deps.Guard.RequirePermission("clients.write"), deps.Contacts.Update)
+	crm.Delete("/contacts/:id", deps.Guard.RequirePermission("clients.write"), deps.Contacts.Delete)
 
 	// Comptes internes, pour les champs d'affectation. Lecture seule : gerer
 	// les comptes est un autre ecran, et une autre permission.
