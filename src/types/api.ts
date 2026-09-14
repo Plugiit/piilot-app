@@ -100,3 +100,14 @@ export type Attachment = components['schemas']['Attachment']
 
 /** Chiffres d'en-tete du module PM, avec leur evolution sur trente jours. */
 export type DashboardMetric = components['schemas']['Metric']
+
+/**
+ * Une ligne du panneau de notifications.
+ *
+ * Nommee `AppNotification` : `Notification` est deja pris par l'API du
+ * navigateur, et l'ombrer ferait passer un type pour l'autre sans que rien ne
+ * le signale.
+ */
+export type AppNotification = components['schemas']['Notification']
+
+export type NotificationFeed = components['schemas']['NotificationFeed']

@@ -138,7 +138,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Modifier son compte
+         * @description Etat civil et adresse du compte appelant.
+         */
+        patch: operations["updateMe"];
         trace?: never;
     };
     "/api/v1/admin/dashboard": {
@@ -555,6 +559,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Changer son mot de passe
+         * @description Revoque toutes les sessions du compte et efface les cookies de celle-ci : il faut se reconnecter.
+         */
+        post: operations["changeMyPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deposer sa photo de profil
+         * @description PNG, JPEG, WEBP ou GIF, 2 Mio au plus. L'ancienne photo est effacee.
+         */
+        post: operations["uploadMyAvatar"];
+        /** Retirer sa photo de profil */
+        delete: operations["deleteMyAvatar"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/avatars/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cle de la photo, telle qu'elle figure dans avatar_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Lire une photo de profil
+         * @description Ouverte a tout compte connecte : ces adresses figurent dans les equipes et les affectations. Le type est devine au contenu.
+         */
+        get: operations["getAvatar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Panneau de notifications
+         * @description Les notifications du compte appelant, les plus recentes d'abord, avec le compteur de non-lues. Pagination par curseur : la liste s'allonge par le haut, un offset ferait reapparaitre une ligne deja vue.
+         */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Flux des notifications
+         * @description Server-Sent Events. Un evenement « notification » par notification creee, portant son identifiant et son genre : l'ecran recharge sa liste, qui reste la seule source de verite. Des lignes de commentaire tiennent la connexion ouverte.
+         */
+        get: operations["streamNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tout marquer comme lu */
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la notification */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Marquer une notification comme lue */
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -594,6 +739,21 @@ export interface components {
              */
             role: string;
             avatar_url: string | null;
+            /**
+             * @description Vide quand rien n'est renseigne : un compte n'a pas a se declarer pour exister.
+             * @enum {string}
+             */
+            gender: "" | "male" | "female" | "nonbinary";
+            /** @description Numero de telephone. Chaine vide quand il n'y en a pas. */
+            phone: string;
+            /** @description Voie et complement. Chaine vide quand il n'y en a pas. */
+            address: string;
+            /** @description Code postal. Chaine vide quand il n'y en a pas. */
+            postal_code: string;
+            /** @description Ville. Chaine vide quand il n'y en a pas. */
+            city: string;
+            /** @description Pays. Chaine vide quand il n'y en a pas. */
+            country: string;
             /**
              * @description Permissions du role, pour masquer les actions inaccessibles. Confort d'affichage : l'API reste la seule autorite.
              * @example [
@@ -895,6 +1055,8 @@ export interface components {
             created_at: string;
             assignees: components["schemas"]["Person"][];
             subtasks: components["schemas"]["Subtask"][];
+            /** @description Pieces jointes de la tache, la derniere deposee en premier. Le contenu se telecharge par GET /api/v1/admin/files/{id}. */
+            files: components["schemas"]["Attachment"][];
             activity: components["schemas"]["TaskActivity"][];
         };
         /** @description Le client se designe par client_id, ou par client_name pour un client encore inconnu : le formulaire propose une liste sans imposer un detour par un ecran de creation de client. */
@@ -1056,6 +1218,59 @@ export interface components {
             size_bytes: number;
             /** Format: date-time */
             created_at: string;
+        };
+        /** @description Mise a jour partielle du compte appelant. Une cle absente laisse la valeur en place. Ni le role ni l'etat du compte n'y figurent : ce sont des droits, ils se changent depuis l'administration des comptes. */
+        UpdateProfileRequest: {
+            firstname?: string;
+            lastname?: string;
+            /** Format: email */
+            email?: string;
+            /**
+             * @description Vide quand rien n'est renseigne : un compte n'a pas a se declarer pour exister.
+             * @enum {string}
+             */
+            gender?: "" | "male" | "female" | "nonbinary";
+            phone?: string;
+            address?: string;
+            postal_code?: string;
+            city?: string;
+            country?: string;
+        };
+        /** @description Le mot de passe courant est exige meme si l'appelant est authentifie : un jeton vole suffirait autrement a verrouiller le compte de son titulaire. Toutes les sessions sont revoquees, celle qui fait le changement comprise. */
+        ChangePasswordRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        /** @description Une ligne du panneau. Le serveur dit ce qui s'est passe et avec quoi ; l'ecran ecrit la phrase dans sa langue. */
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created";
+            /** @description De quoi ecrire la phrase sans relire la tache : son titre au moment du geste, l'ancien et le nouveau statut. */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            task_id: string | null;
+            /** Format: uuid */
+            project_id: string | null;
+            /** @description Auteur du geste. Nul quand son compte a ete supprime. */
+            actor: components["schemas"]["Person"] | null;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        NotificationFeed: {
+            items: components["schemas"]["Notification"][];
+            /** Format: int64 */
+            unread: number;
+            /**
+             * Format: date-time
+             * @description Curseur de la page suivante. Nul quand il n'y a plus rien apres.
+             */
+            before: string | null;
         };
     };
     responses: {
@@ -1291,6 +1506,32 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Profil mis a jour */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     getAdminDashboard: {
@@ -2099,6 +2340,191 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    changeMyPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Mot de passe change, sessions revoquees */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    uploadMyAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Profil avec sa nouvelle photo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteMyAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profil sans photo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cle de la photo, telle qu'elle figure dans avatar_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contenu de l'image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description Ne rendre que ce qui precede cette date (curseur). */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notifications et compteur */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeed"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    streamNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flux ouvert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compteur vide */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la notification */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification lue */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }
