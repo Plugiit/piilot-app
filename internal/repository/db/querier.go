@@ -17,11 +17,20 @@ type Querier interface {
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
+	// Une adresse de photo est-elle celle d'un compte ?
+	//
+	// Le magasin de fichiers est commun aux pieces jointes et aux photos : sans
+	// cette verification, l'endpoint des photos servirait n'importe quelle image
+	// du magasin a qui en devinerait la cle, court-circuitant les droits du projet
+	// qui la porte.
+	AvatarURLExists(ctx context.Context, avatarUrl *string) (bool, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
+	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	CreateClient(ctx context.Context, arg CreateClientParams) (Client, error)
+	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
@@ -98,6 +107,19 @@ type Querier interface {
 	// page entiere et repartit les lignes ensuite. Une requete par projet aurait
 	// fait vingt allers-retours pour afficher vingt lignes.
 	ListMembersOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListMembersOfProjectsRow, error)
+	// Qui prevenir pour un geste pose sur une tache.
+	//
+	// Les administrateurs suivent tout ce qui se passe ; les personnes affectees a
+	// la tache suivent la leur. L'auteur du geste est exclu ici plutot que dans
+	// chaque appelant : personne n'a besoin d'etre prevenu de ce qu'il vient de
+	// faire, et l'oubli ne se verrait qu'a l'usage.
+	ListNotificationRecipients(ctx context.Context, arg ListNotificationRecipientsParams) ([]uuid.UUID, error)
+	// Les notifications d'une personne, les plus recentes d'abord.
+	//
+	// Pagination par curseur et non par offset : la liste s'allonge par le haut,
+	// et un OFFSET ferait reapparaitre une ligne deja lue des qu'une notification
+	// arrive pendant la lecture.
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
 	// Permissions d'un role, servies telles quelles au front pour qu'il masque les
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
@@ -143,6 +165,10 @@ type Querier interface {
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
+	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
+	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
+	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
 	// Deplacement dans le tableau : la colonne, et le rang dans cette colonne.
 	// Separe de UpdateTask parce que c'est le seul mouvement qui journalise un
 	// changement de statut, et que le tableau l'appelle a chaque glissement.
@@ -170,6 +196,18 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (Subtask, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
+	// La photo se retire en passant NULL, d'ou un parametre nullable plutot qu'un
+	// COALESCE : « absent » et « efface » doivent se distinguer.
+	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)
+	// L'empreinte est calculee par l'appelant : la base ne voit jamais le mot de
+	// passe en clair.
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	// Mise a jour partielle du compte par son titulaire.
+	//
+	// Ni le role ni l'etat du compte n'y figurent : ce sont des droits, ils se
+	// changent depuis l'administration des comptes, pas depuis ses propres
+	// reglages.
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

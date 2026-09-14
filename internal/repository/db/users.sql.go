@@ -11,6 +11,25 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+const avatarURLExists = `-- name: AvatarURLExists :one
+SELECT EXISTS (
+    SELECT 1 FROM users WHERE avatar_url = $1 AND deleted_at IS NULL
+)
+`
+
+// Une adresse de photo est-elle celle d'un compte ?
+//
+// Le magasin de fichiers est commun aux pieces jointes et aux photos : sans
+// cette verification, l'endpoint des photos servirait n'importe quelle image
+// du magasin a qui en devinerait la cle, court-circuitant les droits du projet
+// qui la porte.
+func (q *Queries) AvatarURLExists(ctx context.Context, avatarUrl *string) (bool, error) {
+	row := q.db.QueryRow(ctx, avatarURLExists, avatarUrl)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
 WHERE deleted_at IS NULL
@@ -27,7 +46,7 @@ func (q *Queries) CountUsers(ctx context.Context, role *string) (int64, error) {
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, firstname, lastname, role)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
 `
 
 type CreateUserParams struct {
@@ -60,12 +79,18 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
 WHERE email = $1 AND deleted_at IS NULL
 `
 
@@ -85,12 +110,18 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -110,12 +141,18 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
 WHERE deleted_at IS NULL
   AND ($1::text IS NULL OR role = $1::text)
 ORDER BY firstname, lastname
@@ -151,6 +188,12 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.Gender,
+			&i.Phone,
+			&i.Address,
+			&i.PostalCode,
+			&i.City,
+			&i.Country,
 		); err != nil {
 			return nil, err
 		}
@@ -170,4 +213,131 @@ WHERE id = $1
 func (q *Queries) TouchUserLogin(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, touchUserLogin, id)
 	return err
+}
+
+const updateUserAvatar = `-- name: UpdateUserAvatar :one
+UPDATE users SET avatar_url = $1::text, updated_at = now()
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl *string   `json:"avatar_url"`
+	ID        uuid.UUID `json:"id"`
+}
+
+// La photo se retire en passant NULL, d'ou un parametre nullable plutot qu'un
+// COALESCE : « absent » et « efface » doivent se distinguer.
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Role,
+		&i.AvatarUrl,
+		&i.TotpSecret,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users SET password_hash = $2, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+type UpdateUserPasswordParams struct {
+	ID           uuid.UUID `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+}
+
+// L'empreinte est calculee par l'appelant : la base ne voit jamais le mot de
+// passe en clair.
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET
+    firstname   = COALESCE($1::text, firstname),
+    lastname    = COALESCE($2::text, lastname),
+    email       = COALESCE($3::citext, email),
+    gender      = COALESCE($4::text, gender),
+    phone       = COALESCE($5::text, phone),
+    address     = COALESCE($6::text, address),
+    postal_code = COALESCE($7::text, postal_code),
+    city        = COALESCE($8::text, city),
+    country     = COALESCE($9::text, country),
+    updated_at  = now()
+WHERE id = $10 AND deleted_at IS NULL
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
+`
+
+type UpdateUserProfileParams struct {
+	Firstname  *string   `json:"firstname"`
+	Lastname   *string   `json:"lastname"`
+	Email      *string   `json:"email"`
+	Gender     *string   `json:"gender"`
+	Phone      *string   `json:"phone"`
+	Address    *string   `json:"address"`
+	PostalCode *string   `json:"postal_code"`
+	City       *string   `json:"city"`
+	Country    *string   `json:"country"`
+	ID         uuid.UUID `json:"id"`
+}
+
+// Mise a jour partielle du compte par son titulaire.
+//
+// Ni le role ni l'etat du compte n'y figurent : ce sont des droits, ils se
+// changent depuis l'administration des comptes, pas depuis ses propres
+// reglages.
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.Firstname,
+		arg.Lastname,
+		arg.Email,
+		arg.Gender,
+		arg.Phone,
+		arg.Address,
+		arg.PostalCode,
+		arg.City,
+		arg.Country,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Role,
+		&i.AvatarUrl,
+		&i.TotpSecret,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+	)
+	return i, err
 }

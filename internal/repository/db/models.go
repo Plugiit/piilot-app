@@ -34,6 +34,18 @@ type Client struct {
 	DeletedAt    *time.Time `json:"deleted_at"`
 }
 
+type Notification struct {
+	ID        uuid.UUID  `json:"id"`
+	UserID    uuid.UUID  `json:"user_id"`
+	ActorID   *uuid.UUID `json:"actor_id"`
+	Kind      string     `json:"kind"`
+	Payload   []byte     `json:"payload"`
+	TaskID    *uuid.UUID `json:"task_id"`
+	ProjectID *uuid.UUID `json:"project_id"`
+	ReadAt    *time.Time `json:"read_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 type Permission struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
@@ -174,4 +186,10 @@ type User struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 	DeletedAt    *time.Time `json:"deleted_at"`
+	Gender       string     `json:"gender"`
+	Phone        string     `json:"phone"`
+	Address      string     `json:"address"`
+	PostalCode   string     `json:"postal_code"`
+	City         string     `json:"city"`
+	Country      string     `json:"country"`
 }
