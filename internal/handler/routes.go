@@ -12,7 +12,10 @@ type Deps struct {
 	Auth     *Auth
 	Projects *Projects
 	Tasks    *Tasks
-	Guard    *middleware.Guard
+
+	Notifications *Notifications
+
+	Guard *middleware.Guard
 }
 
 // Register monte toutes les routes de l'API.
@@ -49,6 +52,18 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 	// ou ils sont passes. Une garde placee apres ne s'executerait que si le
 	// handler appelait Next(), donc jamais — elle ne protegerait rien.
 	r.Get("/me", deps.Guard.Authenticated, deps.Auth.Me)
+
+	// Reglages du compte appelant. Pas de permission a verifier au-dela de
+	// l'authentification : chacun dispose du sien, et rien ici ne touche aux
+	// droits — ni le role, ni l'etat du compte.
+	r.Patch("/me", deps.Guard.Authenticated, deps.Auth.UpdateMe)
+	r.Post("/me/password", deps.Guard.Authenticated, deps.Auth.ChangePassword)
+	r.Post("/me/avatar", deps.Guard.Authenticated, deps.Auth.UploadAvatar)
+	r.Delete("/me/avatar", deps.Guard.Authenticated, deps.Auth.DeleteAvatar)
+
+	// Les photos se lisent entre comptes connectes : elles s'affichent dans les
+	// equipes et les affectations, pas seulement sur ses propres reglages.
+	r.Get("/avatars/:key", deps.Guard.Authenticated, deps.Auth.Avatar)
 }
 
 // registerAdminRoutes monte les endpoints de l'admin. Tout est authentifie et
@@ -124,6 +139,17 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	tasks.Put("/:id/assignees", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.SetAssignees)
 	tasks.Post("/:id/subtasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddSubtask)
 	tasks.Post("/:id/files", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.UploadFile)
+
+	// Notifications du compte appelant. Aucune permission a verifier au-dela de
+	// l'authentification : chacun ne voit que les siennes, la clause est dans
+	// la requete.
+	notifications := r.Group("/notifications")
+	notifications.Get("", deps.Notifications.List)
+	// Le flux precede « /:id » : monte apres, « stream » serait lu comme un
+	// identifiant et rejete par l'analyse de l'UUID.
+	notifications.Get("/stream", deps.Notifications.Stream)
+	notifications.Post("/read", deps.Notifications.MarkAllRead)
+	notifications.Post("/:id/read", deps.Notifications.MarkRead)
 	tasks.Get("/:id/comments", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Comments)
 	tasks.Post("/:id/comments", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddComment)
 

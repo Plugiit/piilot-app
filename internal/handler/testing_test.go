@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,6 +58,30 @@ func (s *stubAuth) Logout(context.Context, string) error {
 func (s *stubAuth) Me(context.Context, uuid.UUID) (usecase.Profile, error) {
 	s.meCalled = true
 	return s.profile, nil
+}
+
+func (s *stubAuth) UpdateProfile(
+	context.Context, uuid.UUID, usecase.UpdateProfileInput,
+) (usecase.Profile, error) {
+	return s.profile, nil
+}
+
+func (s *stubAuth) ChangePassword(context.Context, uuid.UUID, string, string) error {
+	return nil
+}
+
+func (s *stubAuth) SetAvatarFile(
+	context.Context, uuid.UUID, string, io.Reader,
+) (usecase.Profile, error) {
+	return s.profile, nil
+}
+
+func (s *stubAuth) RemoveAvatar(context.Context, uuid.UUID) (usecase.Profile, error) {
+	return s.profile, nil
+}
+
+func (s *stubAuth) OpenAvatar(context.Context, string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
 }
 
 // stubLimiter remplace le compteur Redis. blocked simule un quota depasse ;
