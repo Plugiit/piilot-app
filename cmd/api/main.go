@@ -99,6 +99,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	taskService := usecase.NewTaskService(pool, files, cfg.MaxUploadMiB*(1<<20), notifyBus)
 
+	clientService := usecase.NewClientService(pool)
+	contactService := usecase.NewContactService(pool)
+
 	cookies := handler.CookieConfig{
 		Domain: cfg.CookieDomain,
 		// Secure partout sauf en developpement : en local l'API est servie en
@@ -111,6 +114,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Auth:     handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
 		Projects: handler.NewProjects(projectService),
 		Tasks:    handler.NewTasks(taskService),
+		Clients:  handler.NewClients(clientService),
+		Contacts: handler.NewContacts(contactService),
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
 		Guard:         middleware.NewGuard(signer, authService),
