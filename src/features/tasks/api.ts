@@ -1,8 +1,8 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { projectKeys } from '@/features/projects/api'
-import { api, unwrap } from '@/lib/api'
-import type { TaskBoard, TaskList, TaskPriority, TaskStatus } from '@/types/api'
+import { api, postFile, unwrap } from '@/lib/api'
+import type { Attachment, TaskBoard, TaskList, TaskPriority, TaskStatus } from '@/types/api'
 
 /**
  * Cles de cache des taches.
@@ -368,6 +368,28 @@ export function useDeleteSubtask(taskId: string) {
   return useMutation({
     mutationFn: async (id: string) =>
       unwrap(await api.DELETE('/api/v1/admin/subtasks/{id}', { params: { path: { id } } })),
+    onSuccess: () => invalidate(taskId, null),
+  })
+}
+
+/** Depot d'une piece jointe sur une tache. */
+export function useUploadTaskFile(taskId: string) {
+  const invalidate = useTaskInvalidation()
+
+  return useMutation({
+    mutationFn: (file: File) =>
+      postFile<Attachment>(`/api/v1/admin/tasks/${taskId}/files`, 'file', file),
+    onSuccess: () => invalidate(taskId, null),
+  })
+}
+
+/** Retrait d'une piece jointe. */
+export function useDeleteTaskFile(taskId: string) {
+  const invalidate = useTaskInvalidation()
+
+  return useMutation({
+    mutationFn: async (fileId: string) =>
+      unwrap(await api.DELETE('/api/v1/admin/files/{id}', { params: { path: { id: fileId } } })),
     onSuccess: () => invalidate(taskId, null),
   })
 }
