@@ -8,9 +8,14 @@ import {
   Folder01Icon,
   Home03Icon,
   LayoutTable01Icon,
+  LockKeyIcon,
   Message01Icon,
+  Notification01Icon,
+  PlugSocketIcon,
+  Settings02Icon,
   Tag01Icon,
   Ticket02Icon,
+  UserCircleIcon,
   UserMultipleIcon,
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
@@ -119,10 +124,37 @@ export const MODULES: AppModule[] = [
  *
  * Les sous-routes gardent leur module actif : /pm/xyz reste Project Management.
  */
+/**
+ * Reglages du compte connecte.
+ *
+ * A l'ecart de `MODULES` : le rail montre les modules metier, et le compte ne
+ * s'y range pas — on y entre par son portrait, en bas de la barre. Il a en
+ * revanche besoin d'une navigation de panneau comme les autres, d'ou un module
+ * a part entiere plutot qu'un cas special dans le panneau.
+ */
+export const ACCOUNT_MODULE: AppModule = {
+  icon: Settings02Icon,
+  label: 'Paramètres',
+  to: '/compte',
+  menu: [
+    {
+      label: 'Mon compte',
+      items: [
+        { icon: UserCircleIcon, label: 'Informations personnelles', to: '/compte' },
+        { icon: LockKeyIcon, label: 'Sécurité', to: '/compte/securite' },
+        { icon: Notification01Icon, label: 'Notifications', to: '/compte/notifications' },
+        { icon: PlugSocketIcon, label: 'Intégrations', to: '/compte/integrations' },
+      ],
+    },
+  ],
+}
+
 export function useActiveModule(): AppModule | undefined {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
 
-  return MODULES.find((module) => pathname === module.to || pathname.startsWith(`${module.to}/`))
+  return [...MODULES, ACCOUNT_MODULE].find(
+    (module) => pathname === module.to || pathname.startsWith(`${module.to}/`),
+  )
 }
 
 /** Destinations d'une entree : la sienne, ou celles de ses sous-entrees. */
