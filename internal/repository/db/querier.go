@@ -17,6 +17,12 @@ type Querier interface {
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
+	// Rattache un contact libre a un client.
+	//
+	// La condition sur `client_id IS NULL` fait de cette requete une prise de
+	// possession sure : deux clients crees en meme temps avec le meme contact, un
+	// seul l'obtient, et l'autre ne touche aucune ligne.
+	AttachContactToClient(ctx context.Context, arg AttachContactToClientParams) (Contact, error)
 	// Une adresse de photo est-elle celle d'un compte ?
 	//
 	// Le magasin de fichiers est commun aux pieces jointes et aux photos : sans
@@ -24,12 +30,26 @@ type Querier interface {
 	// du magasin a qui en devinerait la cle, court-circuitant les droits du projet
 	// qui la porte.
 	AvatarURLExists(ctx context.Context, avatarUrl *string) (bool, error)
+	// Retire la designation qui pointe vers ce contact, quel que soit le client.
+	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
+	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
+	ClearPrimaryContactOf(ctx context.Context, primaryContactID *uuid.UUID) error
+	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
+	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
+	// Tous statuts confondus, livres compris : c'est ce qui decide si un client
+	// peut disparaitre. Un projet livre garde la trace de qui l'a commande.
+	CountProjectsOfClient(ctx context.Context, clientID uuid.UUID) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
-	CreateClient(ctx context.Context, arg CreateClientParams) (Client, error)
+	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
+	// cle etrangere composite exige qu'un contact principal lui appartienne deja.
+	CreateClient(ctx context.Context, name string) (Client, error)
+	// `client_id` peut etre nul : le contact est alors libre, en attente d'une
+	// entreprise.
+	CreateContact(ctx context.Context, arg CreateContactParams) (Contact, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
@@ -59,6 +79,10 @@ type Querier interface {
 	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
 	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
 	GetClientByName(ctx context.Context, name string) (Client, error)
+	GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error)
+	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs
+	// que le tableau montre deja.
+	GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientRow, error)
 	// Chiffres d'en-tete du tableau de bord.
 	//
 	// Une seule requete pour les trois tuiles, comparaison comprise : chaque
@@ -93,7 +117,48 @@ type Querier interface {
 	// Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
 	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
 	// d'exception, sinon elle finit par etre oubliee la ou elle compte.
-	ListClients(ctx context.Context, arg ListClientsParams) ([]Client, error)
+	//
+	// L'interlocuteur affiche est le contact principal, joint a gauche : un client
+	// sans contact reste proposable.
+	ListClients(ctx context.Context, arg ListClientsParams) ([]ListClientsRow, error)
+	// Toutes les cartes du kanban, tous statuts confondus.
+	//
+	// Bornee et non paginee, comme le tableau des taches : un kanban se lit en
+	// entier ou pas du tout. Le handler previent quand la borne est atteinte.
+	ListClientsBoard(ctx context.Context, arg ListClientsBoardParams) ([]ListClientsBoardRow, error)
+	// Alimente le menu deroulant qui designe le contact principal d'un client.
+	//
+	// Il propose deux ensembles : les contacts du client, et les contacts libres —
+	// ces derniers etant rattaches au moment ou on les choisit. Sans eux, un
+	// contact cree sans entreprise n'aurait aucun moyen d'en rejoindre une.
+	//
+	// Les contacts d'un AUTRE client restent exclus : la cle etrangere composite
+	// les refuserait, et les proposer laisserait croire qu'on peut se les prendre.
+	// Cast explicite pour sqlc, qui sans lui rend un `interface{}`.
+	// Les siens d'abord : ce sont eux qu'on cherche le plus souvent.
+	ListContactsOfClient(ctx context.Context, arg ListContactsOfClientParams) ([]ListContactsOfClientRow, error)
+	// Liste paginee de l'ecran CRM.
+	//
+	// Distincte de ListClients, qui sert le champ « Client » d'un formulaire :
+	// celle-la remplit un tableau, avec sa recherche, son filtre et son tri. Les
+	// confondre reviendrait a faire porter a un menu deroulant les besoins d'un
+	// ecran, et inversement.
+	//
+	// `projects_active` et `portal_users` sont lus tels quels : colonnes tenues
+	// par declencheur, aucun COUNT au rendu. `contacts_count` en est un vrai, mais
+	// sur un index partiel et pour la seule page affichee.
+	ListCrmClients(ctx context.Context, arg ListCrmClientsParams) ([]ListCrmClientsRow, error)
+	// Liste paginee de l'ecran « Contacts ».
+	//
+	// Jointure a gauche : un contact libre n'a pas encore d'entreprise, et doit
+	// rester visible — c'est meme la seule liste ou on le retrouve.
+	//
+	// `is_primary` dit si la personne est l'interlocuteur principal de son client.
+	// `coalesce` et non la seule egalite : chez un client qui n'a designe
+	// personne, `primary_contact_id` est NULL et la comparaison rendrait NULL —
+	// que le scan Go refuserait dans un booleen. Le cast explicite est la pour
+	// sqlc, qui sans lui rend un `interface{}`.
+	ListCrmContacts(ctx context.Context, arg ListCrmContactsParams) ([]ListCrmContactsRow, error)
 	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
 	//
 	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
@@ -101,6 +166,10 @@ type Querier interface {
 	// liste des projets qu'il faut ouvrir. La regle du projet veut un LIMIT partout
 	// — ici il n'a pas de page suivante, il a une fin.
 	ListFavoriteProjects(ctx context.Context, userID uuid.UUID) ([]ListFavoriteProjectsRow, error)
+	// Contacts sans entreprise, tels que le formulaire de creation d'un client les
+	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
+	// client, et le nouveau ne peut pas le lui prendre.
+	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
 	// Equipes de plusieurs projets en une requete.
 	//
 	// C'est la parade au N+1 de la liste : le handler passe les identifiants de la
@@ -124,6 +193,10 @@ type Querier interface {
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
 	ListPermissionsByRole(ctx context.Context, roleCode string) ([]string, error)
+	// Comptes de portail rattaches au client. La colonne existe, l'ecran qui la
+	// remplit non : la fiche la montre pour que le jour ou on rattachera quelqu'un,
+	// ce soit visible.
+	ListPortalUsersOfClient(ctx context.Context, arg ListPortalUsersOfClientParams) ([]ListPortalUsersOfClientRow, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
 	// Liste paginee du back-office.
@@ -136,6 +209,9 @@ type Querier interface {
 	// Les compteurs de taches sont lus tels quels : ce sont des colonnes tenues par
 	// declencheur, aucun COUNT n'est fait au rendu.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
+	// Projets du client, tels que sa fiche les liste. Bornee : une fiche montre ce
+	// qui se lit d'un coup d'oeil, pas tout l'historique d'un gros compte.
+	ListProjectsOfClient(ctx context.Context, arg ListProjectsOfClientParams) ([]ListProjectsOfClientRow, error)
 	ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, error)
 	ListSubtasks(ctx context.Context, taskID uuid.UUID) ([]Subtask, error)
 	ListTaskActivity(ctx context.Context, arg ListTaskActivityParams) ([]ListTaskActivityRow, error)
@@ -169,6 +245,10 @@ type Querier interface {
 	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
 	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
+	// Deplacement d'une carte du kanban. Distincte de UpdateClient : glisser une
+	// carte ne doit pas reecrire les coordonnees de l'entreprise avec ce que
+	// l'ecran avait en memoire.
+	MoveClientStatus(ctx context.Context, arg MoveClientStatusParams) (Client, error)
 	// Deplacement dans le tableau : la colonne, et le rang dans cette colonne.
 	// Separe de UpdateTask parce que c'est le seul mouvement qui journalise un
 	// changement de statut, et que le tableau l'appelle a chaque glissement.
@@ -185,11 +265,34 @@ type Querier interface {
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
 	RoleHasPermission(ctx context.Context, arg RoleHasPermissionParams) (bool, error)
+	// Designe le contact principal. `NULL` le retire.
+	//
+	// La condition sur `client_id` est une ceinture : la cle etrangere composite
+	// refuse deja le contact d'un autre client, mais elle rendrait une erreur de
+	// contrainte la ou un zero ligne touchee se traduit en « introuvable ».
+	SetPrimaryContact(ctx context.Context, arg SetPrimaryContactParams) error
+	// Suppression logique, comme partout ailleurs : un client efface par erreur
+	// doit pouvoir revenir. La designation du contact principal est retiree par la
+	// meme occasion, sans quoi elle pointerait depuis une ligne morte.
+	SoftDeleteClient(ctx context.Context, id uuid.UUID) error
+	SoftDeleteContact(ctx context.Context, id uuid.UUID) error
+	// Les contacts d'un client efface le sont avec lui : ils n'existaient que pour
+	// lui. La suppression est logique, comme celle du client, et se defait donc de
+	// la meme facon.
+	SoftDeleteContactsOfClient(ctx context.Context, clientID *uuid.UUID) error
 	SoftDeleteProject(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTask(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTaskComment(ctx context.Context, arg SoftDeleteTaskCommentParams) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
+	// Modification de la fiche. Les compteurs n'y sont pas — ils sont tenus par
+	// declencheur — ni le contact principal, qui a sa propre route parce que la
+	// cle etrangere composite impose un ordre.
+	UpdateClient(ctx context.Context, arg UpdateClientParams) (Client, error)
+	// Modification de l'identite. Le rattachement a un client n'est pas ici : il
+	// passe par la designation du contact principal, qui sait tenir la cle
+	// etrangere composite dans le bon ordre.
+	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	// Mise a jour partielle : chaque champ absent de la requete garde sa valeur.
 	// COALESCE sur un parametre nullable dit exactement cela, et evite d'ecrire
 	// une requete par champ modifiable.

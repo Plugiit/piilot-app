@@ -24,14 +24,37 @@ type Attachment struct {
 }
 
 type Client struct {
-	ID           uuid.UUID  `json:"id"`
-	Name         string     `json:"name"`
-	ContactName  string     `json:"contact_name"`
-	ContactEmail *string    `json:"contact_email"`
-	ContactRole  string     `json:"contact_role"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	DeletedAt    *time.Time `json:"deleted_at"`
+	ID               uuid.UUID  `json:"id"`
+	Name             string     `json:"name"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	ProjectsActive   int32      `json:"projects_active"`
+	PortalUsers      int32      `json:"portal_users"`
+	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
+	Status           string     `json:"status"`
+	AccountManagerID *uuid.UUID `json:"account_manager_id"`
+	Website          string     `json:"website"`
+	Phone            string     `json:"phone"`
+	Address          string     `json:"address"`
+	PostalCode       string     `json:"postal_code"`
+	City             string     `json:"city"`
+	Country          string     `json:"country"`
+	Siret            string     `json:"siret"`
+	VatNumber        string     `json:"vat_number"`
+}
+
+type Contact struct {
+	ID        uuid.UUID  `json:"id"`
+	ClientID  *uuid.UUID `json:"client_id"`
+	Firstname string     `json:"firstname"`
+	Lastname  string     `json:"lastname"`
+	Role      string     `json:"role"`
+	Email     *string    `json:"email"`
+	Phone     string     `json:"phone"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type Notification struct {
@@ -192,4 +215,5 @@ type User struct {
 	PostalCode   string     `json:"postal_code"`
 	City         string     `json:"city"`
 	Country      string     `json:"country"`
+	ClientID     *uuid.UUID `json:"client_id"`
 }
