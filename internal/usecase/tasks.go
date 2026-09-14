@@ -144,6 +144,7 @@ type TaskDetail struct {
 	CreatedAt   time.Time       `json:"created_at"`
 	Assignees   []Person        `json:"assignees"`
 	Subtasks    []Subtask       `json:"subtasks"`
+	Files       []Attachment    `json:"files"`
 	Activity    []ActivityEntry `json:"activity"`
 }
 
@@ -193,6 +194,9 @@ var taskStatuses = map[string]struct{}{
 // TaskService porte les taches, leurs sous-taches, leurs commentaires et leur
 // journal.
 type TaskService struct {
+	// Diffusion des notifications. Nul en test : le service journalise et
+	// ecrit en base sans que personne n'ait a ecouter.
+	bus     Bus
 	pool    *pgxpool.Pool
 	q       *db.Queries
 	files   storage.Store
@@ -200,7 +204,7 @@ type TaskService struct {
 }
 
 // NewTaskService construit le service.
-func NewTaskService(pool *pgxpool.Pool, files storage.Store, maxFile int64) *TaskService {
+func NewTaskService(pool *pgxpool.Pool, files storage.Store, maxFile int64, bus Bus) *TaskService {
 	return &TaskService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile}
 }
 
@@ -355,6 +359,22 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 		})
 	}
 
+	fileRows, err := s.q.ListTaskFiles(ctx, []uuid.UUID{id})
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("lecture des pieces jointes : %w", err)
+	}
+
+	files := make([]Attachment, 0, len(fileRows))
+	for _, file := range fileRows {
+		files = append(files, Attachment{
+			ID:          file.ID,
+			Filename:    file.Filename,
+			ContentType: file.ContentType,
+			SizeBytes:   file.SizeBytes,
+			CreatedAt:   file.CreatedAt,
+		})
+	}
+
 	activityRows, err := s.q.ListTaskActivity(ctx, db.ListTaskActivityParams{
 		TaskID:   id,
 		PageSize: taskActivityLimit,
@@ -402,6 +422,7 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 		CreatedAt:   row.CreatedAt,
 		Assignees:   assignees,
 		Subtasks:    subtasks,
+		Files:       files,
 		Activity:    activity,
 	}, nil
 }
@@ -484,6 +505,16 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (TaskDetai
 		return TaskDetail{}, err
 	}
 
+	if err := notifyTask(ctx, qtx, s.bus, TaskEvent{
+		TaskID:    task.ID,
+		ProjectID: task.ProjectID,
+		ActorID:   in.ActorID,
+		Kind:      NotifyTaskCreated,
+		Payload:   map[string]any{"title": task.Title},
+	}); err != nil {
+		return TaskDetail{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return TaskDetail{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
@@ -551,6 +582,20 @@ func (s *TaskService) Update(ctx context.Context, id uuid.UUID, in UpdateTaskInp
 		}); err != nil {
 			return TaskDetail{}, err
 		}
+
+		if err := notifyTask(ctx, s.q, s.bus, TaskEvent{
+			TaskID:    id,
+			ProjectID: updated.ProjectID,
+			ActorID:   in.ActorID,
+			Kind:      NotifyTaskDueChanged,
+			Payload: map[string]any{
+				"title": updated.Title,
+				"from":  formatDateValue(before.DueOn),
+				"to":    formatDateValue(updated.DueOn),
+			},
+		}); err != nil {
+			return TaskDetail{}, err
+		}
 	}
 
 	return s.Get(ctx, id)
@@ -598,6 +643,20 @@ func (s *TaskService) Move(ctx context.Context, id uuid.UUID, status string, pos
 		}); err != nil {
 			return TaskDetail{}, err
 		}
+
+		if err := notifyTask(ctx, s.q, s.bus, TaskEvent{
+			TaskID:    id,
+			ProjectID: before.ProjectID,
+			ActorID:   actorID,
+			Kind:      NotifyTaskStatusChanged,
+			Payload: map[string]any{
+				"title": before.Title,
+				"from":  before.Status,
+				"to":    status,
+			},
+		}); err != nil {
+			return TaskDetail{}, err
+		}
 	}
 
 	return s.Get(ctx, id)
@@ -613,6 +672,14 @@ func (s *TaskService) Delete(ctx context.Context, id uuid.UUID) error {
 
 // SetAssignees remplace les personnes affectees et journalise l'ecart.
 func (s *TaskService) SetAssignees(ctx context.Context, id uuid.UUID, userIDs []uuid.UUID, actorID uuid.UUID) (TaskDetail, error) {
+	task, err := s.q.GetTask(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TaskDetail{}, domain.ErrNotFound
+		}
+		return TaskDetail{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
 	current, err := s.assigneesOf(ctx, []uuid.UUID{id})
 	if err != nil {
 		return TaskDetail{}, err
@@ -650,6 +717,19 @@ func (s *TaskService) SetAssignees(ctx context.Context, id uuid.UUID, userIDs []
 		}); err != nil {
 			return TaskDetail{}, err
 		}
+
+		// Destinataire impose : la personne vient d'etre retiree, elle ne
+		// figure plus parmi les affectees qu'on irait chercher.
+		if err := notifyTask(ctx, qtx, s.bus, TaskEvent{
+			TaskID:     id,
+			ProjectID:  task.ProjectID,
+			ActorID:    actorID,
+			Kind:       NotifyTaskUnassigned,
+			Payload:    map[string]any{"title": task.Title},
+			Recipients: []uuid.UUID{personID},
+		}); err != nil {
+			return TaskDetail{}, err
+		}
 	}
 
 	for _, userID := range userIDs {
@@ -662,6 +742,17 @@ func (s *TaskService) SetAssignees(ctx context.Context, id uuid.UUID, userIDs []
 		}
 		if err := logActivity(ctx, qtx, id, actorID, "assigned", map[string]any{
 			"user_id": userID,
+		}); err != nil {
+			return TaskDetail{}, err
+		}
+
+		if err := notifyTask(ctx, qtx, s.bus, TaskEvent{
+			TaskID:     id,
+			ProjectID:  task.ProjectID,
+			ActorID:    actorID,
+			Kind:       NotifyTaskAssigned,
+			Payload:    map[string]any{"title": task.Title},
+			Recipients: []uuid.UUID{userID},
 		}); err != nil {
 			return TaskDetail{}, err
 		}
@@ -788,6 +879,14 @@ func (s *TaskService) AddComment(ctx context.Context, taskID uuid.UUID, authorID
 		})
 	}
 
+	task, err := s.q.GetTask(ctx, taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Comment{}, domain.ErrNotFound
+		}
+		return Comment{}, fmt.Errorf("lecture de la tache : %w", err)
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Comment{}, fmt.Errorf("ouverture de la transaction : %w", err)
@@ -809,6 +908,16 @@ func (s *TaskService) AddComment(ctx context.Context, taskID uuid.UUID, authorID
 	}
 
 	if err := logActivity(ctx, qtx, taskID, authorID, "commented", map[string]any{}); err != nil {
+		return Comment{}, err
+	}
+
+	if err := notifyTask(ctx, qtx, s.bus, TaskEvent{
+		TaskID:    taskID,
+		ProjectID: task.ProjectID,
+		ActorID:   authorID,
+		Kind:      NotifyTaskCommented,
+		Payload:   map[string]any{"title": task.Title, "excerpt": excerpt(trimmed)},
+	}); err != nil {
 		return Comment{}, err
 	}
 
@@ -962,4 +1071,25 @@ func (s *TaskService) AddFile(
 		SizeBytes:   row.SizeBytes,
 		CreatedAt:   row.CreatedAt,
 	}, nil
+}
+
+// excerpt raccourcit un commentaire pour la ligne de notification.
+//
+// Le panneau annonce ce qui s'est passe ; lire le commentaire entier se fait
+// dans la tache. Coupe sur un mot plutot qu'au milieu d'un caractere, les
+// accents comptant pour plusieurs octets.
+func excerpt(body string) string {
+	const limit = 120
+
+	runes := []rune(body)
+	if len(runes) <= limit {
+		return body
+	}
+
+	cut := string(runes[:limit])
+	if space := strings.LastIndex(cut, " "); space > limit/2 {
+		cut = cut[:space]
+	}
+
+	return cut + "…"
 }
