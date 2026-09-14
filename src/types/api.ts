@@ -59,6 +59,39 @@ export type Person = components['schemas']['Person']
 /** Client de l'agence, tel que le champ du formulaire de projet le propose. */
 export type Client = components['schemas']['Client']
 
+/** Ligne du tableau « Clients » : le meme client, avec ses agregats. */
+export type CrmClient = components['schemas']['CrmClient']
+
+/** Enveloppe paginee du tableau « Clients ». */
+export type CrmClientPage = components['schemas']['CrmClientPage']
+
+/** Contact reduit : ce qu'une ligne de client montre de son interlocuteur. */
+export type ContactRef = components['schemas']['ContactRef']
+
+/** Kanban commercial : toutes les cartes, bornees. */
+export type CrmClientBoard = components['schemas']['CrmClientBoard']
+
+/** Etape du pipeline commercial, tiree de la spec plutot que reecrite. */
+export type ClientStatus = NonNullable<CrmClient['status']>
+
+/** Tout ce que la fiche d'un client affiche, en un appel. */
+export type CrmClientDetail = components['schemas']['CrmClientDetail']
+
+/** Projet du client, reduit a ce que sa fiche montre. */
+export type ClientProject = components['schemas']['ClientProject']
+
+/** Compte de portail rattache a un client. */
+export type PortalAccount = components['schemas']['PortalAccount']
+
+/** Entree d'un menu de contacts : un ContactRef qui dit s'il est encore libre. */
+export type ContactOption = components['schemas']['ContactOption']
+
+/** Ligne du tableau « Contacts ». */
+export type CrmContact = components['schemas']['CrmContact']
+
+/** Enveloppe paginee du tableau « Contacts ». */
+export type CrmContactPage = components['schemas']['CrmContactPage']
+
 /** Carte du tableau des taches. */
 export type TaskSummary = components['schemas']['TaskSummary']
 
