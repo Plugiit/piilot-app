@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   projectDetailQuery,
-  projectFileUrl,
+  fileUrl,
   useDeleteProjectFile,
   useToggleFavorite,
   useUpdateProject,
@@ -144,7 +144,7 @@ function Attachments({ project }: { project: ProjectDetail }) {
         <span key={file.id} className="group/file flex items-center gap-1">
           <HugeiconsIcon icon={File01Icon} size={16} strokeWidth={1.6} className="text-[#73757c]" />
           <a
-            href={projectFileUrl(file.id)}
+            href={fileUrl(file.id)}
             className="text-[14px] text-[#1b1b1b] underline underline-offset-2"
           >
             {file.filename}

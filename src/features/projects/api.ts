@@ -255,8 +255,13 @@ export function useDeleteProjectFile(projectId: string) {
   })
 }
 
-/** Adresse de telechargement d'une piece jointe. */
-export function projectFileUrl(fileId: string): string {
+/**
+ * Adresse de telechargement d'une piece jointe.
+ *
+ * Commune aux projets et aux taches : l'endpoint l'est aussi, une piece jointe
+ * se lit par son seul identifiant.
+ */
+export function fileUrl(fileId: string): string {
   return apiUrl(`/api/v1/admin/files/${fileId}`)
 }
 

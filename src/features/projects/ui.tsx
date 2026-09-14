@@ -194,7 +194,11 @@ export function Avatars({
                 className="flex size-full items-center justify-center font-medium text-[#1b1b1b]"
                 style={{ fontSize: Math.max(9, Math.round(size * 0.42)) }}
               >
-                {member.initials}
+                {/* Un compte sans prenom ni nom n'a pas d'initiales, et la
+                    pastille resterait vide — elle ressemblerait alors a une
+                    image qui n'a pas charge. Le point d'interrogation dit que
+                    la personne existe mais ne s'est pas nommee. */}
+                {member.initials === '' ? '?' : member.initials}
               </span>
             ) : (
               <img src={member.avatar_url} alt="" loading="lazy" className="size-full object-cover" />

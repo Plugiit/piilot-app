@@ -11,7 +11,7 @@ import { projectDetailQuery, useDeleteProject } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
 import type { ProjectDetail } from '@/types/api'
 
-import { CHAMP, Card, Field } from '../../-settings-ui'
+import { CHAMP, Card, Field } from '@/components/settings-ui'
 
 export const Route = createFileRoute('/_app/pm/projets/$id_/parametres/zone-de-danger')({
   component: DangerPage,

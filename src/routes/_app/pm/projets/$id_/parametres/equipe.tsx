@@ -14,7 +14,7 @@ import { Avatars, TeamPicker } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import type { ProjectDetail } from '@/types/api'
 
-import { Card, Field, SaveBar } from '../../-settings-ui'
+import { Card, Field, SaveBar } from '@/components/settings-ui'
 
 export const Route = createFileRoute('/_app/pm/projets/$id_/parametres/equipe')({
   loader: ({ context }) =>

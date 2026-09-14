@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   projectDetailQuery,
-  projectFileUrl,
+  fileUrl,
   useDeleteProjectFile,
   useUpdateProject,
   useUploadProjectFile,
@@ -22,7 +22,7 @@ import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectPriority } from '@/types/api'
 
-import { CHAMP, Card, Choices, Field, SaveBar } from '../../-settings-ui'
+import { CHAMP, Card, Choices, Field, SaveBar } from '@/components/settings-ui'
 
 /**
  * Un lien vide est permis — tous les projets n'ont pas de preproduction — mais
@@ -158,7 +158,7 @@ function Documents({ project }: { project: ProjectDetail }) {
                 className="shrink-0 text-[#73757c]"
               />
               <a
-                href={projectFileUrl(file.id)}
+                href={fileUrl(file.id)}
                 className="min-w-0 flex-1 truncate text-[14px] text-[#1b1b1b] underline underline-offset-2"
               >
                 {file.filename}
