@@ -775,6 +775,16 @@ func isForeignKeyViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
 
+// isUniqueViolation reconnait une contrainte d'unicite violee.
+//
+// L'unicite est arbitree par la base et non par une lecture prealable : entre
+// le SELECT et l'INSERT, deux requetes simultanees passeraient toutes les deux.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
 // Metric est un chiffre du tableau de bord et son evolution.
 //
 // `Change` est nul quand la periode precedente etait vide : une progression
