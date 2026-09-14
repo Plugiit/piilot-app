@@ -13,6 +13,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { PhoneField } from '@/components/phone-field'
 import { CHAMP, Card, Field, SaveBar } from '@/components/settings-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,13 +31,6 @@ import {
   useUpdateProfile,
   useUploadAvatar,
 } from '@/lib/auth'
-import {
-  COUNTRIES,
-  flagOf,
-  formatNational,
-  splitPhone,
-  stripTrunk,
-} from '@/lib/countries'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
 
@@ -225,6 +219,7 @@ function ContactForm({ user }: { user: User }) {
 
         <Field label="Téléphone" error={form.formState.errors.phone?.message}>
           <PhoneField
+            className={cn(CHAMP, 'data-[size=default]:h-auto')}
             value={phone}
             onChange={(next) => form.setValue('phone', next, { shouldDirty: true })}
           />
@@ -280,83 +275,6 @@ function ContactForm({ user }: { user: User }) {
         />
       </Card>
     </form>
-  )
-}
-
-/**
- * Numero de telephone, precede de son indicatif.
- *
- * Les deux se rangent dans un seul champ en base : un numero se lit et se
- * compose d'un bloc, et separer l'indicatif aurait demande une colonne de plus
- * pour une valeur qui ne se lit jamais seule. Le decoupage se fait ici, a
- * l'affichage.
- *
- * Le declencheur ne montre que le drapeau et l'indicatif : le nom du pays
- * tiendrait la moitie de la ligne, et il se lit dans le menu au moment ou l'on
- * choisit.
- */
-function PhoneField({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (next: string) => void
-}) {
-  const { country, national } = splitPhone(value)
-
-  return (
-    <div className="flex items-start gap-2">
-      <Select
-        value={country.code}
-        onValueChange={(code) => {
-          const next = COUNTRIES.find((item) => item.code === code)
-
-          // Le numero ne bouge pas, seul son indicatif change : le prefixe
-          // national du pays qu'on quitte a deja ete retire a la saisie.
-          if (next !== undefined) onChange(national === '' ? '' : next.dial + national)
-        }}
-      >
-        <SelectTrigger
-          aria-label="Indicatif du pays"
-          className={cn(CHAMP, 'w-[104px] shrink-0 data-[size=default]:h-auto')}
-        >
-          <SelectValue>
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden>{flagOf(country.code)}</span>
-              {country.dial}
-            </span>
-          </SelectValue>
-        </SelectTrigger>
-
-        <SelectContent className="w-[280px]">
-          {COUNTRIES.map((item) => (
-            <SelectItem key={item.code} value={item.code}>
-              <span aria-hidden>{flagOf(item.code)}</span>
-              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-              <span className="text-[#73757c]">{item.dial}</span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Le champ ne garde que des chiffres, retire le prefixe national et
-          les espace selon le pays. La saisie se lit donc formatee pendant
-          qu'on tape, et c'est la forme internationale compacte qui part au
-          serveur — celle qui se compose partout. */}
-      <Input
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel-national"
-        placeholder={formatNational(country, '612345678')}
-        value={formatNational(country, national)}
-        onChange={(event) => {
-          const digits = stripTrunk(country, event.target.value.replace(/\D/g, ''))
-
-          onChange(digits === '' ? '' : country.dial + digits)
-        }}
-        className={CHAMP}
-      />
-    </div>
   )
 }
 

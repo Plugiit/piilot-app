@@ -168,3 +168,16 @@ export function formatNational(country: Country, digits: string): string {
 
   return parts.join(' ')
 }
+
+/**
+ * Numero tel qu'on le lit : l'indicatif, puis le national espace selon le pays.
+ *
+ * Les listes affichent la valeur stockee, qui est la forme internationale
+ * compacte — « +33612345678 » se lit mal. Le formulaire fait deja ce decoupage
+ * pour la saisie ; celle-ci le refait pour la lecture seule.
+ */
+export function formatPhone(value: string): string {
+  const { country, national } = splitPhone(value)
+
+  return national === '' ? '' : `${country.dial} ${formatNational(country, national)}`
+}

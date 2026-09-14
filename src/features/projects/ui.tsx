@@ -201,7 +201,16 @@ export function Avatars({
                 {member.initials === '' ? '?' : member.initials}
               </span>
             ) : (
-              <img src={member.avatar_url} alt="" loading="lazy" className="size-full object-cover" />
+              // `draggable={false}` : une image se glisse nativement, et le
+              // navigateur volerait le geste aux cartes deplacables qui portent
+              // un avatar.
+              <img
+                src={member.avatar_url}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                className="size-full object-cover"
+              />
             )}
           </div>
         )
