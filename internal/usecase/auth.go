@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +19,7 @@ import (
 	"github.com/plugiit/plugiit-api-go/internal/domain"
 	"github.com/plugiit/plugiit-api-go/internal/repository/db"
 	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/plugiit-api-go/internal/storage"
 )
 
 // Profile est l'identite rendue au front. Volontairement distinct de db.User :
@@ -30,6 +33,15 @@ type Profile struct {
 	Lastname  string    `json:"lastname"`
 	Role      string    `json:"role"`
 	AvatarURL *string   `json:"avatar_url"`
+	// Etat civil et coordonnees. Chaines vides plutot que nulles quand rien
+	// n'est renseigne : l'ecran les pose dans des champs de saisie, qui n'ont
+	// que faire de la nuance entre « vide » et « absent ».
+	Gender     string `json:"gender"`
+	Phone      string `json:"phone"`
+	Address    string `json:"address"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
+	Country    string `json:"country"`
 	// Permissions du role, servies au front pour qu'il masque les actions
 	// inaccessibles. C'est un confort d'affichage, pas une protection.
 	Permissions []string `json:"permissions"`
@@ -62,17 +74,29 @@ type AuthService struct {
 	signer     *security.TokenSigner
 	accessTTL  time.Duration
 	refreshTTL time.Duration
+	// Photos de profil. Le meme magasin que les pieces jointes : en ouvrir un
+	// second voudrait dire une seconde sauvegarde a tenir.
+	files     storage.Store
+	maxAvatar int64
 }
 
 // NewAuthService construit le service. Le pool est requis en plus des requetes
 // generees : la rotation d'un jeton ouvre une transaction.
-func NewAuthService(pool *pgxpool.Pool, signer *security.TokenSigner, accessTTL, refreshTTL time.Duration) *AuthService {
+func NewAuthService(
+	pool *pgxpool.Pool,
+	signer *security.TokenSigner,
+	accessTTL, refreshTTL time.Duration,
+	files storage.Store,
+	maxAvatar int64,
+) *AuthService {
 	return &AuthService{
 		pool:       pool,
 		q:          db.New(pool),
 		signer:     signer,
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
+		files:      files,
+		maxAvatar:  maxAvatar,
 	}
 }
 
@@ -291,6 +315,279 @@ func (s *AuthService) profile(ctx context.Context, user db.User) (Profile, error
 		Lastname:    user.Lastname,
 		Role:        user.Role,
 		AvatarURL:   user.AvatarUrl,
+		Gender:      user.Gender,
+		Phone:       user.Phone,
+		Address:     user.Address,
+		PostalCode:  user.PostalCode,
+		City:        user.City,
+		Country:     user.Country,
 		Permissions: permissions,
 	}, nil
+}
+
+// genders borne les valeurs admises pour le sexe.
+//
+// La chaine vide en fait partie : c'est ce que vaut « non renseigne », et un
+// compte n'a pas a se declarer pour exister. La contrainte est aussi posee en
+// base — celle-ci evite un aller-retour pour une faute de frappe, celle-la
+// garantit que rien d'autre n'entre par une autre porte.
+var genders = map[string]bool{
+	"":          true,
+	"male":      true,
+	"female":    true,
+	"nonbinary": true,
+}
+
+// UpdateProfileInput porte ce qu'un compte peut changer de lui-meme. Chaque
+// champ absent laisse la valeur en place.
+type UpdateProfileInput struct {
+	Firstname  *string
+	Lastname   *string
+	Email      *string
+	Gender     *string
+	Phone      *string
+	Address    *string
+	PostalCode *string
+	City       *string
+	Country    *string
+}
+
+// UpdateProfile modifie l'etat civil et l'adresse du compte appelant.
+//
+// Ni le role ni les permissions n'y passent : ce sont des droits, ils se
+// changent depuis l'administration des comptes. Un compte qui pourrait elever
+// son propre role rendrait le RBAC decoratif.
+func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, in UpdateProfileInput) (Profile, error) {
+	if in.Email != nil {
+		email := strings.TrimSpace(*in.Email)
+
+		if !strings.Contains(email, "@") {
+			return Profile{}, domain.ErrValidation.WithDetails(map[string]any{
+				"email": "Adresse invalide",
+			})
+		}
+
+		in.Email = &email
+	}
+
+	if in.Gender != nil && !genders[*in.Gender] {
+		return Profile{}, domain.ErrValidation.WithDetails(map[string]any{
+			"gender": "Valeur inconnue",
+		})
+	}
+
+	user, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
+		ID:         userID,
+		Firstname:  in.Firstname,
+		Lastname:   in.Lastname,
+		Email:      in.Email,
+		Gender:     in.Gender,
+		Phone:      in.Phone,
+		Address:    in.Address,
+		PostalCode: in.PostalCode,
+		City:       in.City,
+		Country:    in.Country,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Profile{}, domain.ErrNotFound
+		}
+		// L'unicite est posee en base : c'est elle qui arbitre, pas une lecture
+		// prealable qui laisserait passer deux inscriptions simultanees.
+		if isUniqueViolation(err) {
+			return Profile{}, domain.ErrValidation.WithDetails(map[string]any{
+				"email": "Cette adresse est déjà utilisée",
+			})
+		}
+		return Profile{}, fmt.Errorf("mise a jour du compte : %w", err)
+	}
+
+	return s.profile(ctx, user)
+}
+
+// ChangePassword remplace le mot de passe apres verification de l'actuel.
+//
+// Le mot de passe courant est exige meme si l'appelant est deja authentifie :
+// un jeton vole suffirait autrement a verrouiller le compte de son titulaire.
+// Toutes les sessions sont ensuite revoquees, y compris celle qui vient de
+// faire le changement — c'est le sens d'un changement de mot de passe.
+func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, current, next string) error {
+	user, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrUnauthorized
+		}
+		return fmt.Errorf("lecture du compte : %w", err)
+	}
+
+	if !security.VerifyPassword(user.PasswordHash, current) {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"current_password": "Mot de passe incorrect",
+		})
+	}
+
+	hash, err := security.HashPassword(next)
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"password": err.Error(),
+		})
+	}
+
+	if err := s.q.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{
+		ID:           userID,
+		PasswordHash: hash,
+	}); err != nil {
+		return fmt.Errorf("ecriture du mot de passe : %w", err)
+	}
+
+	if err := s.q.RevokeAllUserRefreshTokens(ctx, userID); err != nil {
+		return fmt.Errorf("revocation des sessions : %w", err)
+	}
+
+	return nil
+}
+
+// SetAvatar pose la photo du compte, ou la retire quand l'adresse est vide.
+func (s *AuthService) SetAvatar(ctx context.Context, userID uuid.UUID, url *string) (Profile, error) {
+	user, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+		ID:        userID,
+		AvatarUrl: url,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Profile{}, domain.ErrNotFound
+		}
+		return Profile{}, fmt.Errorf("mise a jour de la photo : %w", err)
+	}
+
+	return s.profile(ctx, user)
+}
+
+// avatarTypes borne les formats acceptes pour une photo de profil.
+//
+// Une liste blanche et non un refus du seul SVG : le SVG porte du script, mais
+// c'est la logique inverse qui tient — on sait ce qu'un navigateur affiche
+// sans risque, on ne sait pas ce qu'il fera de tout le reste.
+var avatarTypes = map[string]bool{
+	"image/png":  true,
+	"image/jpeg": true,
+	"image/webp": true,
+	"image/gif":  true,
+}
+
+// SetAvatarFile range la photo envoyee et la rattache au compte.
+//
+// L'ancienne est effacee apres coup : la garder ferait grossir le disque d'une
+// image morte a chaque changement, et plus rien ne la designe une fois la
+// nouvelle adresse ecrite.
+func (s *AuthService) SetAvatarFile(
+	ctx context.Context,
+	userID uuid.UUID,
+	contentType string,
+	content io.Reader,
+) (Profile, error) {
+	if !avatarTypes[contentType] {
+		return Profile{}, domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Format accepté : PNG, JPEG, WEBP ou GIF",
+		})
+	}
+
+	previous, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Profile{}, domain.ErrUnauthorized
+		}
+		return Profile{}, fmt.Errorf("lecture du compte : %w", err)
+	}
+
+	key, _, err := s.files.Save(content, s.maxAvatar)
+	if err != nil {
+		if errors.Is(err, storage.ErrTooLarge) {
+			return Profile{}, domain.ErrValidation.WithDetails(map[string]any{
+				"file": "Image trop volumineuse",
+			})
+		}
+		return Profile{}, fmt.Errorf("ecriture de la photo : %w", err)
+	}
+
+	url := avatarURL(key)
+
+	profile, err := s.SetAvatar(ctx, userID, &url)
+	if err != nil {
+		// La ligne n'a pas ete ecrite : le fichier ne doit pas rester seul.
+		_ = s.files.Remove(key)
+
+		return Profile{}, err
+	}
+
+	if old := avatarKey(previous.AvatarUrl); old != "" {
+		_ = s.files.Remove(old)
+	}
+
+	return profile, nil
+}
+
+// RemoveAvatar retire la photo du compte et efface le fichier.
+func (s *AuthService) RemoveAvatar(ctx context.Context, userID uuid.UUID) (Profile, error) {
+	previous, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Profile{}, domain.ErrUnauthorized
+		}
+		return Profile{}, fmt.Errorf("lecture du compte : %w", err)
+	}
+
+	profile, err := s.SetAvatar(ctx, userID, nil)
+	if err != nil {
+		return Profile{}, err
+	}
+
+	if old := avatarKey(previous.AvatarUrl); old != "" {
+		_ = s.files.Remove(old)
+	}
+
+	return profile, nil
+}
+
+// OpenAvatar rend le contenu d'une photo rangee dans le magasin.
+//
+// La cle doit etre celle d'un compte : le magasin est commun aux pieces
+// jointes, et ouvrir une cle quelconque reviendrait a servir les fichiers des
+// projets par une porte qui n'en verifie pas les droits.
+func (s *AuthService) OpenAvatar(ctx context.Context, key string) (io.ReadCloser, error) {
+	url := avatarURL(key)
+
+	known, err := s.q.AvatarURLExists(ctx, &url)
+	if err != nil {
+		return nil, fmt.Errorf("verification de la photo : %w", err)
+	}
+
+	if !known {
+		return nil, domain.ErrNotFound
+	}
+
+	content, err := s.files.Open(key)
+	if err != nil {
+		return nil, domain.ErrNotFound
+	}
+
+	return content, nil
+}
+
+// avatarPrefix est le chemin sous lequel les photos se relisent.
+const avatarPrefix = "/api/v1/auth/avatars/"
+
+func avatarURL(key string) string { return avatarPrefix + key }
+
+// avatarKey retrouve la cle d'une adresse que nous avons ecrite.
+//
+// Rend une chaine vide pour tout le reste : les comptes d'avant portent des
+// images en « data: » dans ce meme champ, et il n'y a rien a effacer pour
+// celles-la.
+func avatarKey(url *string) string {
+	if url == nil || !strings.HasPrefix(*url, avatarPrefix) {
+		return ""
+	}
+
+	return strings.TrimPrefix(*url, avatarPrefix)
 }
