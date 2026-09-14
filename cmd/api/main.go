@@ -79,14 +79,25 @@ func run(cfg config.Config, log *slog.Logger) error {
 	app := newApp(cfg, log)
 
 	signer := security.NewTokenSigner(cfg.JWTSecret, "plugiit-api")
-	authService := usecase.NewAuthService(pool, signer, cfg.AccessTTL, cfg.RefreshTTL)
 	files, err := storage.NewLocal(cfg.FilesDir)
 	if err != nil {
 		return err
 	}
 
+	// Une photo de profil se borne plus serre qu'une piece jointe : elle est
+	// relue a chaque affichage de liste, et deux megaoctets suffisent largement
+	// a un portrait.
+	authService := usecase.NewAuthService(
+		pool, signer, cfg.AccessTTL, cfg.RefreshTTL, files, 2*(1<<20),
+	)
+
 	projectService := usecase.NewProjectService(pool, files, cfg.MaxUploadMiB*(1<<20))
-	taskService := usecase.NewTaskService(pool, files, cfg.MaxUploadMiB*(1<<20))
+	// Le bus porte les notifications jusqu'aux flux ouverts ; le service les
+	// ecrit et les relit.
+	notifyBus := repository.NewNotifyBus(rdb)
+	notificationService := usecase.NewNotificationService(pool, notifyBus)
+
+	taskService := usecase.NewTaskService(pool, files, cfg.MaxUploadMiB*(1<<20), notifyBus)
 
 	cookies := handler.CookieConfig{
 		Domain: cfg.CookieDomain,
@@ -100,7 +111,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Auth:     handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
 		Projects: handler.NewProjects(projectService),
 		Tasks:    handler.NewTasks(taskService),
-		Guard:    middleware.NewGuard(signer, authService),
+
+		Notifications: handler.NewNotifications(notificationService, notifyBus),
+		Guard:         middleware.NewGuard(signer, authService),
 	})
 
 	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,
