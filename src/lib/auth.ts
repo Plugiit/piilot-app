@@ -1,6 +1,6 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { api, unwrap } from '@/lib/api'
+import { api, postFile, unwrap } from '@/lib/api'
 import type { User } from '@/types/api'
 
 /**
@@ -52,4 +52,65 @@ export function isInternal(user: User): boolean {
  */
 export function homeFor(user: User): '/pm' | '/client' {
   return isInternal(user) ? '/pm' : '/client'
+}
+
+/**
+ * Mise a jour du compte connecte.
+ *
+ * Le cache de session est reecrit avec la reponse plutot qu'invalide : le
+ * serveur rend le profil complet, le relire aussitot ferait un aller-retour
+ * pour rien — et l'avatar de la barre laterale clignoterait entre-temps.
+ */
+export function useUpdateProfile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (body: {
+      firstname?: string
+      lastname?: string
+      email?: string
+    }) => unwrap(await api.PATCH('/api/v1/auth/me', { body })).user,
+    onSuccess: (user) => queryClient.setQueryData(sessionQuery.queryKey, user),
+  })
+}
+
+/**
+ * Changement de mot de passe.
+ *
+ * Le serveur revoque toutes les sessions, celle-ci comprise : il n'y a plus de
+ * session a rafraichir apres coup, l'appelant doit renvoyer vers la connexion.
+ */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (body: { current_password: string; new_password: string }) =>
+      unwrap(await api.POST('/api/v1/auth/me/password', { body })),
+  })
+}
+
+/** Depot de la photo de profil. */
+export function useUploadAvatar() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const response = await postFile<{ user: User }>(
+        '/api/v1/auth/me/avatar',
+        'file',
+        file,
+      )
+
+      return response.user
+    },
+    onSuccess: (user) => queryClient.setQueryData(sessionQuery.queryKey, user),
+  })
+}
+
+/** Retrait de la photo de profil. */
+export function useRemoveAvatar() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE('/api/v1/auth/me/avatar')).user,
+    onSuccess: (user) => queryClient.setQueryData(sessionQuery.queryKey, user),
+  })
 }
