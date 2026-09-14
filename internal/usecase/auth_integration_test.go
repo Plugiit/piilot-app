@@ -25,6 +25,7 @@ import (
 	"github.com/plugiit/plugiit-api-go/internal/domain"
 	"github.com/plugiit/plugiit-api-go/internal/repository"
 	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/plugiit-api-go/internal/storage"
 	"github.com/plugiit/plugiit-api-go/internal/usecase"
 )
 
@@ -34,6 +35,8 @@ const (
 	// Mot de passe de test : au-dessus du plancher de 12 caracteres impose par
 	// security.HashPassword.
 	testPassword = "mot-de-passe-de-test-suffisant"
+	// Plafond d'une photo de profil, comme en production.
+	testMaxAvatar = 2 * (1 << 20)
 )
 
 // newService ouvre la base et construit le service. Echoue bruyamment si
@@ -57,7 +60,14 @@ func newService(t *testing.T) (*usecase.AuthService, *pgxpool.Pool) {
 
 	signer := security.NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "plugiit-api")
 
-	return usecase.NewAuthService(pool, signer, testAccessTTL, testRefreshTTL), pool
+	// Les avatars atterrissent dans un dossier temporaire, efface avec le test :
+	// rien ici ne lit ni n'ecrit de photo, mais le service exige un stockage.
+	files, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatalf("stockage de test : %v", err)
+	}
+
+	return usecase.NewAuthService(pool, signer, testAccessTTL, testRefreshTTL, files, testMaxAvatar), pool
 }
 
 // createUser insere un compte jetable et programme sa suppression. L'email est
