@@ -11,7 +11,7 @@ import { PROJECT_STATUS, PROJECT_STATUS_ORDER } from '@/features/projects/format
 import { HttpError } from '@/lib/api'
 import type { ProjectDetail, ProjectStatus } from '@/types/api'
 
-import { CHAMP, Card, Choices, Field, SaveBar } from '../../-settings-ui'
+import { CHAMP, Card, Choices, Field, SaveBar } from '@/components/settings-ui'
 
 const schema = z
   .object({

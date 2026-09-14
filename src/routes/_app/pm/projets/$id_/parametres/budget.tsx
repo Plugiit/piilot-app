@@ -13,7 +13,7 @@ import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/api'
 
-import { CHAMP, Card, Field, SaveBar } from '../../-settings-ui'
+import { CHAMP, Card, Field, SaveBar } from '@/components/settings-ui'
 
 const schema = z.object({
   hours_sold: z.number().min(0, 'Un nombre positif est attendu'),
