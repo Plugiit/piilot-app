@@ -1,5 +1,7 @@
-import { CheckListIcon, Menu01Icon, Notification03Icon } from '@hugeicons/core-free-icons'
+import { CheckListIcon, Menu01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+
+import { NotificationBell } from '@/features/notifications/bell'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Fragment, useState, type ReactNode } from 'react'
 
@@ -117,21 +119,7 @@ function FrameHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="border-surface-sunken relative flex items-center justify-center rounded-[12px] border bg-white p-2.5"
-        >
-          <HugeiconsIcon
-            icon={Notification03Icon}
-            size={20}
-            strokeWidth={1.6}
-            className="text-[#111]"
-          />
-          {/* Pastille de la maquette : posee sur l'angle du glyphe, cerclee de
-              blanc pour se detacher du trait de la cloche. */}
-          <span className="absolute top-[9px] right-[10px] size-1.5 rounded-full bg-[#ff782b] ring-2 ring-white" />
-        </button>
+        <NotificationBell />
 
         {/* Ne s'affiche que sur les ecrans qui ont un panneau a replier, et
             qu'a partir de la largeur ou ce panneau est une colonne : plus bas

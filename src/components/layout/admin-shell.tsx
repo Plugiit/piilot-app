@@ -3,7 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { AnimatePresence, motion, type Transition } from 'framer-motion'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import accountMarkUrl from '@/assets/sidebar/rail-bottom.png'
@@ -28,6 +28,7 @@ import {
   type MenuItem,
 } from '@/components/layout/modules'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
 import { logout } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
@@ -268,9 +269,19 @@ function AccountButton({ user }: { user: User }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Menu du compte"
-        className="size-8.75 overflow-hidden rounded-[8px] bg-[#02474f] p-[7.955px] outline-none"
+        className="size-8.75 overflow-hidden rounded-[8px] outline-none"
       >
-        <img src={accountMarkUrl} alt="" className="size-full object-contain" />
+        {user.avatar_url == null || user.avatar_url === '' ? (
+          <span className="flex size-full items-center justify-center rounded-[8px] bg-[#02474f] p-[7.955px]">
+            <img src={accountMarkUrl} alt="" className="size-full object-contain" />
+          </span>
+        ) : (
+          <img
+            src={user.avatar_url}
+            alt=""
+            className="size-full rounded-[8px] object-cover"
+          />
+        )}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" side="top" className="w-52">
@@ -283,7 +294,16 @@ function AccountButton({ user }: { user: User }) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem onSelect={() => void handleLogout()}>
+        <DropdownMenuItem asChild>
+          <Link to="/compte">
+            <Settings />
+            Paramètres
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem variant="destructive" onSelect={() => void handleLogout()}>
           <LogOut />
           Déconnexion
         </DropdownMenuItem>
@@ -675,6 +695,12 @@ export function AdminShell({
   title: string
   user: User
 }) {
+  // Le flux des notifications s'ouvre ici et non avec la cloche : le chassis
+  // est monte une fois pour toute la session, quand l'en-tete se remonte a
+  // chaque changement d'ecran — l'abonnement se serait ferme et rouvert a
+  // chaque navigation.
+  useNotificationStream()
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
 
