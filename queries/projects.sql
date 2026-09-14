@@ -53,16 +53,20 @@ WHERE p.deleted_at IS NULL
 -- name: GetProject :one
 SELECT
     p.*,
-    c.name          AS client_name,
-    c.contact_name  AS client_contact_name,
-    c.contact_role  AS client_contact_role,
-    c.contact_email AS client_contact_email,
+    c.name AS client_name,
+    -- L'interlocuteur du projet est le contact principal de son client. Joint
+    -- a gauche : un client sans contact ne doit pas faire disparaitre le
+    -- projet de la fiche.
+    btrim(coalesce(ct.firstname, '') || ' ' || coalesce(ct.lastname, '')) AS client_contact_name,
+    coalesce(ct.role, '')                                                 AS client_contact_role,
+    ct.email                                                              AS client_contact_email,
     EXISTS (
         SELECT 1 FROM project_favorites f
         WHERE f.project_id = p.id AND f.user_id = sqlc.arg('viewer_id')
     ) AS is_favorite
 FROM projects p
 JOIN clients c ON c.id = p.client_id
+LEFT JOIN contacts ct ON ct.id = c.primary_contact_id AND ct.deleted_at IS NULL
 WHERE p.id = sqlc.arg('id') AND p.deleted_at IS NULL;
 
 -- name: ListMembersOfProjects :many

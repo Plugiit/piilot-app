@@ -46,7 +46,7 @@ func (q *Queries) CountUsers(ctx context.Context, role *string) (int64, error) {
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, firstname, lastname, role)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
 `
 
 type CreateUserParams struct {
@@ -85,12 +85,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PostalCode,
 		&i.City,
 		&i.Country,
+		&i.ClientID,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
 WHERE email = $1 AND deleted_at IS NULL
 `
 
@@ -116,12 +117,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.PostalCode,
 		&i.City,
 		&i.Country,
+		&i.ClientID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -147,12 +149,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.PostalCode,
 		&i.City,
 		&i.Country,
+		&i.ClientID,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
 WHERE deleted_at IS NULL
   AND ($1::text IS NULL OR role = $1::text)
 ORDER BY firstname, lastname
@@ -194,6 +197,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.PostalCode,
 			&i.City,
 			&i.Country,
+			&i.ClientID,
 		); err != nil {
 			return nil, err
 		}
@@ -218,7 +222,7 @@ func (q *Queries) TouchUserLogin(ctx context.Context, id uuid.UUID) error {
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $1::text, updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
 `
 
 type UpdateUserAvatarParams struct {
@@ -250,6 +254,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.PostalCode,
 		&i.City,
 		&i.Country,
+		&i.ClientID,
 	)
 	return i, err
 }
@@ -284,7 +289,7 @@ UPDATE users SET
     country     = COALESCE($9::text, country),
     updated_at  = now()
 WHERE id = $10 AND deleted_at IS NULL
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
 `
 
 type UpdateUserProfileParams struct {
@@ -338,6 +343,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.PostalCode,
 		&i.City,
 		&i.Country,
+		&i.ClientID,
 	)
 	return i, err
 }

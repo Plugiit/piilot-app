@@ -529,7 +529,7 @@ func (s *ProjectService) resolveClient(ctx context.Context, q *db.Queries, id *u
 		return uuid.Nil, fmt.Errorf("recherche du client : %w", err)
 	}
 
-	created, err := q.CreateClient(ctx, db.CreateClientParams{Name: trimmed})
+	created, err := q.CreateClient(ctx, trimmed)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("creation du client : %w", err)
 	}
