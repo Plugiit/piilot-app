@@ -224,6 +224,47 @@
             "$ref": "#/components/responses/Unauthorized"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Modifier son compte",
+        "description": "Etat civil et adresse du compte appelant.",
+        "operationId": "updateMe",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil mis a jour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
       }
     },
     "/api/v1/admin/dashboard": {
@@ -1658,6 +1699,294 @@
           }
         }
       }
+    },
+    "/api/v1/auth/me/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Changer son mot de passe",
+        "description": "Revoque toutes les sessions du compte et efface les cookies de celle-ci : il faut se reconnecter.",
+        "operationId": "changeMyPassword",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Mot de passe change, sessions revoquees"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me/avatar": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Deposer sa photo de profil",
+        "description": "PNG, JPEG, WEBP ou GIF, 2 Mio au plus. L'ancienne photo est effacee.",
+        "operationId": "uploadMyAvatar",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil avec sa nouvelle photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Retirer sa photo de profil",
+        "operationId": "deleteMyAvatar",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profil sans photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/avatars/{key}": {
+      "parameters": [
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "description": "Cle de la photo, telle qu'elle figure dans avatar_url",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Lire une photo de profil",
+        "description": "Ouverte a tout compte connecte : ces adresses figurent dans les equipes et les affectations. Le type est devine au contenu.",
+        "operationId": "getAvatar",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contenu de l'image",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/notifications": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Panneau de notifications",
+        "description": "Les notifications du compte appelant, les plus recentes d'abord, avec le compteur de non-lues. Pagination par curseur : la liste s'allonge par le haut, un offset ferait reapparaitre une ligne deja vue.",
+        "operationId": "listNotifications",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "description": "Ne rendre que ce qui precede cette date (curseur).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications et compteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationFeed"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/notifications/stream": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Flux des notifications",
+        "description": "Server-Sent Events. Un evenement « notification » par notification creee, portant son identifiant et son genre : l'ecran recharge sa liste, qui reste la seule source de verite. Des lignes de commentaire tiennent la connexion ouverte.",
+        "operationId": "streamNotifications",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flux ouvert",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/notifications/read": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Tout marquer comme lu",
+        "operationId": "markAllNotificationsRead",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Compteur vide"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/notifications/{id}/read": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la notification",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Marquer une notification comme lue",
+        "operationId": "markNotificationRead",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Notification lue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1774,7 +2103,13 @@
           "lastname",
           "role",
           "avatar_url",
-          "permissions"
+          "permissions",
+          "gender",
+          "phone",
+          "address",
+          "postal_code",
+          "city",
+          "country"
         ],
         "properties": {
           "id": {
@@ -1805,6 +2140,36 @@
               "string",
               "null"
             ]
+          },
+          "gender": {
+            "type": "string",
+            "description": "Vide quand rien n'est renseigne : un compte n'a pas a se declarer pour exister.",
+            "enum": [
+              "",
+              "male",
+              "female",
+              "nonbinary"
+            ]
+          },
+          "phone": {
+            "type": "string",
+            "description": "Numero de telephone. Chaine vide quand il n'y en a pas."
+          },
+          "address": {
+            "type": "string",
+            "description": "Voie et complement. Chaine vide quand il n'y en a pas."
+          },
+          "postal_code": {
+            "type": "string",
+            "description": "Code postal. Chaine vide quand il n'y en a pas."
+          },
+          "city": {
+            "type": "string",
+            "description": "Ville. Chaine vide quand il n'y en a pas."
+          },
+          "country": {
+            "type": "string",
+            "description": "Pays. Chaine vide quand il n'y en a pas."
           },
           "permissions": {
             "type": "array",
@@ -2606,6 +2971,7 @@
           "created_at",
           "assignees",
           "subtasks",
+          "files",
           "activity",
           "priority"
         ],
@@ -2697,6 +3063,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "files": {
+            "type": "array",
+            "description": "Pieces jointes de la tache, la derniere deposee en premier. Le contenu se telecharge par GET /api/v1/admin/files/{id}.",
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
             }
           },
           "activity": {
@@ -3131,6 +3504,155 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "description": "Mise a jour partielle du compte appelant. Une cle absente laisse la valeur en place. Ni le role ni l'etat du compte n'y figurent : ce sont des droits, ils se changent depuis l'administration des comptes.",
+        "properties": {
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Vide quand rien n'est renseigne : un compte n'a pas a se declarer pour exister.",
+            "enum": [
+              "",
+              "male",
+              "female",
+              "nonbinary"
+            ]
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "postal_code": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "Le mot de passe courant est exige meme si l'appelant est authentifie : un jeton vole suffirait autrement a verrouiller le compte de son titulaire. Toutes les sessions sont revoquees, celle qui fait le changement comprise.",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 12
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "description": "Une ligne du panneau. Le serveur dit ce qui s'est passe et avec quoi ; l'ecran ecrit la phrase dans sa langue.",
+        "required": [
+          "id",
+          "kind",
+          "payload",
+          "task_id",
+          "project_id",
+          "actor",
+          "read_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "task_created",
+              "task_status_changed",
+              "task_assigned",
+              "task_unassigned",
+              "task_commented",
+              "task_due_changed",
+              "project_created"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "De quoi ecrire la phrase sans relire la tache : son titre au moment du geste, l'ancien et le nouveau statut."
+          },
+          "task_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              }
+            ],
+            "nullable": true,
+            "description": "Auteur du geste. Nul quand son compte a ete supprime."
+          },
+          "read_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NotificationFeed": {
+        "type": "object",
+        "required": [
+          "items",
+          "unread",
+          "before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "before": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Curseur de la page suivante. Nul quand il n'y a plus rien apres."
           }
         }
       }
