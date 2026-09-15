@@ -1,10 +1,15 @@
-import { Contact01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
+import { Clock01Icon, Contact01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 
-import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
+import {
+  CLIENT_AGE_TINT,
+  CLIENT_STATUS,
+  CLIENT_STATUS_ORDER,
+  clientAge,
+} from '@/features/clients/format'
 import { Avatars } from '@/features/projects/ui'
 import { cn } from '@/lib/utils'
 import type { ClientStatus, CrmClient } from '@/types/api'
@@ -33,6 +38,8 @@ function ClientCard({
   // Un glisser se termine par un clic que le navigateur envoie quand meme : le
   // relachement au-dessus du nom declencherait sinon sa navigation.
   const carried = useRef(false)
+
+  const age = clientAge(client.status_changed_at)
 
   return (
     <motion.article
@@ -85,9 +92,26 @@ function ClientCard({
       )}
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <span className="flex items-center gap-1 text-[12px] text-[#73757c]">
-          <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={1.6} />
-          {client.projects_active}
+        <span className="flex items-center gap-2.5">
+          <span className="flex items-center gap-1 text-[12px] text-[#73757c]">
+            <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={1.6} />
+            {client.projects_active}
+          </span>
+
+          {/* Anciennete dans l'etape : ce qu'un pipeline sert a voir. Sans
+              elle, une carte arrivee hier et une carte bloquee depuis six
+              semaines se lisent pareil. */}
+          <span
+            title={age.title}
+            className={cn(
+              'flex items-center gap-1 text-[12px]',
+              age.level !== 'fresh' && 'font-medium',
+            )}
+            style={{ color: CLIENT_AGE_TINT[age.level] }}
+          >
+            <HugeiconsIcon icon={Clock01Icon} size={14} strokeWidth={1.6} />
+            {age.label}
+          </span>
         </span>
 
         {client.account_manager !== null && (
