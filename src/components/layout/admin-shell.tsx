@@ -1,4 +1,5 @@
 import { ArrowDown01Icon, Search01Icon, StarIcon } from '@hugeicons/core-free-icons'
+import { toast } from 'sonner'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
@@ -258,7 +259,18 @@ function AccountButton({ user }: { user: User }) {
   const queryClient = useQueryClient()
 
   async function handleLogout() {
-    await logout()
+    // Reseau coupe ou API en erreur : sans ce filet la promesse rejetait, le
+    // vidage du cache et la redirection ne s'executaient jamais, et l'on
+    // croyait etre deconnecte sans l'etre. Sur un poste partage, ca compte.
+    //
+    // On sort quand meme : le jeton est en cookie httpOnly et l'appel a pu
+    // aboutir avant la coupure. Rester sur place serait le pire des deux.
+    try {
+      await logout()
+    } catch {
+      toast.error('La déconnexion n’a pas pu être confirmée par le serveur.')
+    }
+
     // Le cache porte des donnees du compte qui se deconnecte : le vider evite
     // qu'une connexion suivante voie brievement les ecrans du precedent.
     queryClient.clear()
@@ -312,24 +324,35 @@ function AccountButton({ user }: { user: User }) {
   )
 }
 
-/** Champ de recherche de la maquette : decoratif tant qu'il n'y a rien a chercher. */
+/**
+ * Champ de recherche de la maquette, tant qu'il n'y a rien a chercher.
+ *
+ * Il se disait deja decoratif, mais c'en etait un vrai : un `<input>`
+ * focalisable, sans `value` ni `onChange`, pose sur TOUS les ecrans du
+ * back-office. On y tapait, le texte s'affichait, rien ne se passait. Et le
+ * badge « / » n'etait relie a aucun ecouteur clavier.
+ *
+ * Le dessin est conserve au pixel pres, mais avec un `<span>` : rien a
+ * focaliser, rien qui avale une frappe, et le badge d'un raccourci qui
+ * n'existe pas est retire. Le jour ou une recherche globale existera, ce
+ * composant redeviendra un champ — `ui/command.tsx` est deja installe pour ca.
+ */
 function SearchField() {
   return (
-    <div className="bg-surface-sunken border-surface-sunken flex h-[39px] w-full items-center gap-1.5 rounded-[10px] border py-2.5 pr-[7px] pl-3.5">
+    <div
+      aria-hidden
+      title="La recherche globale n’est pas encore disponible"
+      className="bg-surface-sunken border-surface-sunken flex h-[39px] w-full items-center gap-1.5 rounded-[10px] border py-2.5 pr-[7px] pl-3.5"
+    >
       <HugeiconsIcon
         icon={Search01Icon}
         size={17}
         strokeWidth={1.6}
         className="shrink-0 text-[#73757c]"
       />
-      <input
-        type="search"
-        placeholder="Rechercher"
-        className="min-w-0 flex-1 bg-transparent text-sm text-[#111] outline-none placeholder:text-[#73757c]"
-      />
-      <kbd className="flex size-[26px] shrink-0 items-center justify-center rounded-md border border-[#e6e6e6] bg-white text-xs font-medium text-[#333]">
-        /
-      </kbd>
+      <span className="min-w-0 flex-1 truncate text-sm text-[#73757c] select-none">
+        Rechercher
+      </span>
     </div>
   )
 }
