@@ -67,7 +67,7 @@ func (q *Queries) CountProjectsOfClient(ctx context.Context, clientID uuid.UUID)
 const createClient = `-- name: CreateClient :one
 INSERT INTO clients (name)
 VALUES ($1)
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
 `
 
 // Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
@@ -94,12 +94,13 @@ func (q *Queries) CreateClient(ctx context.Context, name string) (Client, error)
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 	)
 	return i, err
 }
 
 const getClientByID = `-- name: GetClientByID :one
-SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number FROM clients
+SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at FROM clients
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -125,12 +126,13 @@ func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (Client, erro
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 	)
 	return i, err
 }
 
 const getClientByName = `-- name: GetClientByName :one
-SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number FROM clients
+SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at FROM clients
 WHERE lower(name) = lower($1::text) AND deleted_at IS NULL
 `
 
@@ -158,13 +160,14 @@ func (q *Queries) GetClientByName(ctx context.Context, name string) (Client, err
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 	)
 	return i, err
 }
 
 const getCrmClient = `-- name: GetCrmClient :one
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
     ct.id                      AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -202,6 +205,7 @@ type GetCrmClientRow struct {
 	Country          string     `json:"country"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
+	StatusChangedAt  time.Time  `json:"status_changed_at"`
 	ContactID        *uuid.UUID `json:"contact_id"`
 	ContactFirstname string     `json:"contact_firstname"`
 	ContactLastname  string     `json:"contact_lastname"`
@@ -237,6 +241,7 @@ func (q *Queries) GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientR
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 		&i.ContactID,
 		&i.ContactFirstname,
 		&i.ContactLastname,
@@ -252,7 +257,7 @@ func (q *Queries) GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientR
 
 const listClients = `-- name: ListClients :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
     btrim(coalesce(ct.firstname, '') || ' ' || coalesce(ct.lastname, '')) AS contact_name,
     coalesce(ct.role, '')                                                 AS contact_role
 FROM clients c
@@ -288,6 +293,7 @@ type ListClientsRow struct {
 	Country          string     `json:"country"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
+	StatusChangedAt  time.Time  `json:"status_changed_at"`
 	ContactName      string     `json:"contact_name"`
 	ContactRole      string     `json:"contact_role"`
 }
@@ -326,6 +332,7 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 			&i.Country,
 			&i.Siret,
 			&i.VatNumber,
+			&i.StatusChangedAt,
 			&i.ContactName,
 			&i.ContactRole,
 		); err != nil {
@@ -341,7 +348,7 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 
 const listClientsBoard = `-- name: ListClientsBoard :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
     ct.id                      AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -393,6 +400,7 @@ type ListClientsBoardRow struct {
 	Country          string     `json:"country"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
+	StatusChangedAt  time.Time  `json:"status_changed_at"`
 	ContactID        *uuid.UUID `json:"contact_id"`
 	ContactFirstname string     `json:"contact_firstname"`
 	ContactLastname  string     `json:"contact_lastname"`
@@ -436,6 +444,7 @@ func (q *Queries) ListClientsBoard(ctx context.Context, arg ListClientsBoardPara
 			&i.Country,
 			&i.Siret,
 			&i.VatNumber,
+			&i.StatusChangedAt,
 			&i.ContactID,
 			&i.ContactFirstname,
 			&i.ContactLastname,
@@ -458,7 +467,7 @@ func (q *Queries) ListClientsBoard(ctx context.Context, arg ListClientsBoardPara
 
 const listCrmClients = `-- name: ListCrmClients :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
     ct.id                 AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -533,6 +542,7 @@ type ListCrmClientsRow struct {
 	Country          string     `json:"country"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
+	StatusChangedAt  time.Time  `json:"status_changed_at"`
 	ContactID        *uuid.UUID `json:"contact_id"`
 	ContactFirstname string     `json:"contact_firstname"`
 	ContactLastname  string     `json:"contact_lastname"`
@@ -591,6 +601,7 @@ func (q *Queries) ListCrmClients(ctx context.Context, arg ListCrmClientsParams) 
 			&i.Country,
 			&i.Siret,
 			&i.VatNumber,
+			&i.StatusChangedAt,
 			&i.ContactID,
 			&i.ContactFirstname,
 			&i.ContactLastname,
@@ -717,7 +728,7 @@ UPDATE clients
 SET status = $1,
     updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
 `
 
 type MoveClientStatusParams struct {
@@ -750,6 +761,7 @@ func (q *Queries) MoveClientStatus(ctx context.Context, arg MoveClientStatusPara
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 	)
 	return i, err
 }
@@ -785,7 +797,7 @@ SET name               = $1,
     vat_number         = $11,
     updated_at         = now()
 WHERE id = $12 AND deleted_at IS NULL
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
 `
 
 type UpdateClientParams struct {
@@ -841,6 +853,7 @@ func (q *Queries) UpdateClient(ctx context.Context, arg UpdateClientParams) (Cli
 		&i.Country,
 		&i.Siret,
 		&i.VatNumber,
+		&i.StatusChangedAt,
 	)
 	return i, err
 }

@@ -294,6 +294,65 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
 	return i, err
 }
 
+const getTaskProgressByTag = `-- name: GetTaskProgressByTag :many
+SELECT
+    (CASE WHEN t.tag = '' THEN 'Sans nature' ELSE t.tag END)::text AS tag,
+    count(*) FILTER (WHERE t.status = 'todo')                   AS todo,
+    count(*) FILTER (WHERE t.status IN ('progress', 'review'))  AS progress,
+    count(*) FILTER (WHERE t.status = 'done')                   AS done
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+GROUP BY 1
+ORDER BY count(*) DESC, 1
+LIMIT 5
+`
+
+type GetTaskProgressByTagRow struct {
+	Tag      string `json:"tag"`
+	Todo     int64  `json:"todo"`
+	Progress int64  `json:"progress"`
+	Done     int64  `json:"done"`
+}
+
+// Avancement des taches par nature, pour le tableau de bord.
+//
+// La nature est le champ libre `tag` — « Design », « Integration », « Contenu »
+// — c'est-a-dire l'axe que le graphique appelle « domaine ». Les taches qui
+// n'en portent pas sont regroupees plutot qu'ecartees : les omettre donnerait
+// un graphique qui ne compte pas tout ce qui existe.
+//
+// « En cours » agrege `progress` et `review` : le dessin n'a que trois etats
+// places, et une tache en relecture est commencee sans etre finie.
+//
+// Bornee a cinq lignes, les natures les plus portees devant : le panneau a la
+// place de quelques barres, et une agence qui inventerait trente etiquettes
+// n'y lirait plus rien.
+func (q *Queries) GetTaskProgressByTag(ctx context.Context) ([]GetTaskProgressByTagRow, error) {
+	rows, err := q.db.Query(ctx, getTaskProgressByTag)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTaskProgressByTagRow{}
+	for rows.Next() {
+		var i GetTaskProgressByTagRow
+		if err := rows.Scan(
+			&i.Tag,
+			&i.Todo,
+			&i.Progress,
+			&i.Done,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAssigneesOfTasks = `-- name: ListAssigneesOfTasks :many
 SELECT
     ta.task_id,

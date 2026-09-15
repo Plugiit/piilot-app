@@ -42,6 +42,8 @@ type Querier interface {
 	CountProjectsOfClient(ctx context.Context, clientID uuid.UUID) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
+	// Total pour la pagination, aux memes conditions que la liste.
+	CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAssignedToParams) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
@@ -60,6 +62,18 @@ type Querier interface {
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
 	CreateTaskFile(ctx context.Context, arg CreateTaskFileParams) (Attachment, error)
+	// Depot d'un ticket.
+	//
+	// Le numero n'est pas fourni : l'identite de la colonne l'attribue, ce qui
+	// rend deux creations simultanees incapables d'obtenir le meme.
+	//
+	// La CTE evite un second aller-retour pour le nom du projet : la ligne rendue a
+	// la meme forme que celles de la liste, et l'ecran peut l'afficher telle quelle.
+	CreateTicket(ctx context.Context, arg CreateTicketParams) (CreateTicketRow, error)
+	// Inscrit un changement au journal.
+	CreateTicketEvent(ctx context.Context, arg CreateTicketEventParams) (CreateTicketEventRow, error)
+	// Inscrit un message au registre.
+	CreateTicketMessage(ctx context.Context, arg CreateTicketMessageParams) (CreateTicketMessageRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
 	// effacer le fichier du disque dans la foulee.
@@ -109,6 +123,26 @@ type Querier interface {
 	// Tache et son contexte de projet : le tiroir affiche le nom du projet, et
 	// l'aller chercher a part ferait une requete de plus pour un seul mot.
 	GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
+	// Avancement des taches par nature, pour le tableau de bord.
+	//
+	// La nature est le champ libre `tag` — « Design », « Integration », « Contenu »
+	// — c'est-a-dire l'axe que le graphique appelle « domaine ». Les taches qui
+	// n'en portent pas sont regroupees plutot qu'ecartees : les omettre donnerait
+	// un graphique qui ne compte pas tout ce qui existe.
+	//
+	// « En cours » agrege `progress` et `review` : le dessin n'a que trois etats
+	// places, et une tache en relecture est commencee sans etre finie.
+	//
+	// Bornee a cinq lignes, les natures les plus portees devant : le panneau a la
+	// place de quelques barres, et une agence qui inventerait trente etiquettes
+	// n'y lirait plus rien.
+	GetTaskProgressByTag(ctx context.Context) ([]GetTaskProgressByTagRow, error)
+	// Fiche d'un ticket : son en-tete et ses coordonnees.
+	//
+	// Les messages et les evenements font l'objet de deux requetes a part : les
+	// ramener par jointure multiplierait l'en-tete par le nombre de lignes du
+	// registre.
+	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
@@ -238,8 +272,44 @@ type Querier interface {
 	// lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
 	// qu'il n'affiche pas tout.
 	ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]Task, error)
+	// Ce qui est arrive au ticket, dans le meme ordre.
+	ListTicketEvents(ctx context.Context, ticketID uuid.UUID) ([]ListTicketEventsRow, error)
+	// Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
+	ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]ListTicketMessagesRow, error)
+	// Tickets.
+	//
+	// Les trois vues de l'ecran — tableau, kanban par projet, kanban par statut —
+	// partagent la meme barre d'outils, donc les memes filtres. Ils sont ecrits une
+	// fois par requete plutot que composes en Go : sqlc verifie alors le SQL a la
+	// generation, ce qu'une concatenation de chaines interdirait.
+	//
+	// `assignee_id` n'est pas un filtre mais une clause : l'ecran ne montre que les
+	// tickets du compte appelant, et l'identifiant vient de la session.
+	// Page du tableau, du plus recemment mis a jour au plus ancien — l'ordre dans
+	// lequel on reprend son travail.
+	//
+	// La recherche porte sur le sujet et sur le numero : « 47 » doit retrouver le
+	// ticket #47, c'est ainsi qu'on le designe a l'oral.
+	ListTicketsAssignedTo(ctx context.Context, arg ListTicketsAssignedToParams) ([]ListTicketsAssignedToRow, error)
+	// Toutes les cartes des deux kanbans, aux memes filtres que le tableau.
+	//
+	// Bornee et non paginee, comme les kanbans des taches et des clients : un
+	// tableau se lit en entier ou pas du tout, et paginer une colonne n'aurait
+	// aucun sens. Le handler previent quand la borne a coupe.
+	//
+	// Trie par numero decroissant et non par mise a jour : dans un tableau, c'est
+	// la colonne qui porte le classement, et l'ordre a l'interieur doit rester
+	// stable d'un affichage a l'autre.
+	ListTicketsBoardAssignedTo(ctx context.Context, arg ListTicketsBoardAssignedToParams) ([]ListTicketsBoardAssignedToRow, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	// Prend le verrou d'ecriture sur un ticket, le temps de la transaction.
+	//
+	// Sans lui, deux ecritures concurrentes lisent toutes deux l'etat d'avant et
+	// inscrivent chacune sa ligne au journal : on se retrouve avec deux
+	// « renomme de A vers B » pour un seul renommage. Le verrou les met en file,
+	// la seconde voit le travail de la premiere et n'a plus rien a journaliser.
+	LockTicket(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
 	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
@@ -299,6 +369,20 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (Subtask, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
+	// Applique les changements qu'une entree du registre porte.
+	//
+	// Un `coalesce` par champ : ce qui n'est pas demande garde sa valeur, ce qui
+	// evite de relire puis reecrire les deux autres colonnes a chaque fois.
+	//
+	// L'assigne a son propre drapeau parce que NULL y est une valeur qui veut dire
+	// quelque chose — « remettre a prendre ». Sans lui, on ne saurait pas
+	// distinguer « ne touche pas a l'assignation » de « retire-la ».
+	//
+	// Ne rend rien : le service relit la fiche dans la meme transaction pour
+	// comparer l'avant et l'apres, et en tirer les lignes du journal.
+	UpdateTicketFields(ctx context.Context, arg UpdateTicketFieldsParams) error
+	// Renomme un ticket. Le numero, lui, ne bouge jamais.
+	UpdateTicketSubject(ctx context.Context, arg UpdateTicketSubjectParams) error
 	// La photo se retire en passant NULL, d'ou un parametre nullable plutot qu'un
 	// COALESCE : « absent » et « efface » doivent se distinguer.
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)
