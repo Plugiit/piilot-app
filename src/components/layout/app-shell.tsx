@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { LogOut } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
@@ -56,7 +57,18 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
   const queryClient = useQueryClient()
 
   async function handleLogout() {
-    await logout()
+    // Reseau coupe ou API en erreur : sans ce filet la promesse rejetait, le
+    // vidage du cache et la redirection ne s'executaient jamais, et l'on
+    // croyait etre deconnecte sans l'etre. Sur un poste partage, ca compte.
+    //
+    // On sort quand meme : le jeton est en cookie httpOnly et l'appel a pu
+    // aboutir avant la coupure. Rester sur place serait le pire des deux.
+    try {
+      await logout()
+    } catch {
+      toast.error('La déconnexion n’a pas pu être confirmée par le serveur.')
+    }
+
     // Le cache porte des donnees du compte qui se deconnecte : le vider evite
     // qu'une connexion suivante voie brievement les ecrans du precedent.
     queryClient.clear()
