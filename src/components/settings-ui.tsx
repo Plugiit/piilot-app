@@ -1,6 +1,15 @@
+import { useBlocker } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 /**
@@ -137,14 +146,55 @@ export function SaveBar({
   pending: boolean
   onCancel: () => void
 }) {
+  // Quitter un onglet de reglages effacait la saisie en cours sans un mot : la
+  // barre d'onglets et « Revenir au projet » naviguent sans rien demander,
+  // alors que le formulaire sait pourtant qu'il est modifie — c'est ce meme
+  // `dirty` qui active le bouton Enregistrer.
+  //
+  // Le garde-fou vit ici et non dans chaque ecran : les cinq onglets qui
+  // montent cette barre lui passent deja leur etat, et un seul endroit vaut
+  // mieux que cinq rappels a ne pas oublier. `enableBeforeUnload` couvre en
+  // prime la fermeture de l'onglet du navigateur.
+  const blocker = useBlocker({ shouldBlockFn: () => dirty, withResolver: true })
+
   return (
-    <div className="flex items-center justify-end gap-2">
-      <Button type="button" variant="ghost" size="lg" onClick={onCancel} disabled={!dirty}>
-        Annuler
-      </Button>
-      <Button type="submit" size="lg" disabled={pending || !dirty}>
-        {pending ? 'Enregistrement…' : 'Enregistrer'}
-      </Button>
-    </div>
+    <>
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" size="lg" onClick={onCancel} disabled={!dirty}>
+          Annuler
+        </Button>
+        <Button type="submit" size="lg" disabled={pending || !dirty}>
+          {pending ? 'Enregistrement…' : 'Enregistrer'}
+        </Button>
+      </div>
+
+      {/* Fermer la fenetre autrement qu'en choisissant vaut « rester » : c'est
+          le choix qui ne perd rien. */}
+      <Dialog
+        open={blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifications non enregistrées</DialogTitle>
+            <DialogDescription>
+              Cet écran porte des modifications que vous n’avez pas enregistrées. Les quitter
+              maintenant les perdra.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => blocker.reset?.()}>
+              Rester sur la page
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => blocker.proceed?.()}>
+              Quitter sans enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
