@@ -54,6 +54,10 @@ type CrmClientItem struct {
 	ProjectsActive int       `json:"projects_active"`
 	PortalUsers    int       `json:"portal_users"`
 	CreatedAt      time.Time `json:"created_at"`
+	// Entree dans l'etape courante, tenue par declencheur. C'est de quoi le
+	// kanban tire l'anciennete d'une carte : l'ecart se calcule a l'affichage,
+	// une duree renvoyee ici serait fausse des la seconde suivante.
+	StatusChangedAt time.Time `json:"status_changed_at"`
 }
 
 // CrmClientPage est une page de la liste.
@@ -142,21 +146,22 @@ func (s *ClientService) List(ctx context.Context, f CrmClientFilters) (CrmClient
 	items := make([]CrmClientItem, 0, len(rows))
 	for _, row := range rows {
 		item := CrmClientItem{
-			ID:             row.ID,
-			Name:           row.Name,
-			Status:         row.Status,
-			ContactsCount:  int(row.ContactsCount),
-			Website:        row.Website,
-			Phone:          row.Phone,
-			Address:        row.Address,
-			PostalCode:     row.PostalCode,
-			City:           row.City,
-			Country:        row.Country,
-			Siret:          row.Siret,
-			VatNumber:      row.VatNumber,
-			ProjectsActive: int(row.ProjectsActive),
-			PortalUsers:    int(row.PortalUsers),
-			CreatedAt:      row.CreatedAt,
+			ID:              row.ID,
+			Name:            row.Name,
+			Status:          row.Status,
+			ContactsCount:   int(row.ContactsCount),
+			Website:         row.Website,
+			Phone:           row.Phone,
+			Address:         row.Address,
+			PostalCode:      row.PostalCode,
+			City:            row.City,
+			Country:         row.Country,
+			Siret:           row.Siret,
+			VatNumber:       row.VatNumber,
+			ProjectsActive:  int(row.ProjectsActive),
+			PortalUsers:     int(row.PortalUsers),
+			CreatedAt:       row.CreatedAt,
+			StatusChangedAt: row.StatusChangedAt,
 		}
 
 		// Les jointures sont a gauche : sans contact principal ni chargé de
@@ -360,21 +365,22 @@ func (s *ClientService) Get(ctx context.Context, id uuid.UUID) (CrmClientDetail,
 
 	detail := CrmClientDetail{
 		CrmClientItem: CrmClientItem{
-			ID:             row.ID,
-			Name:           row.Name,
-			Status:         row.Status,
-			ContactsCount:  int(row.ContactsCount),
-			Website:        row.Website,
-			Phone:          row.Phone,
-			Address:        row.Address,
-			PostalCode:     row.PostalCode,
-			City:           row.City,
-			Country:        row.Country,
-			Siret:          row.Siret,
-			VatNumber:      row.VatNumber,
-			ProjectsActive: int(row.ProjectsActive),
-			PortalUsers:    int(row.PortalUsers),
-			CreatedAt:      row.CreatedAt,
+			ID:              row.ID,
+			Name:            row.Name,
+			Status:          row.Status,
+			ContactsCount:   int(row.ContactsCount),
+			Website:         row.Website,
+			Phone:           row.Phone,
+			Address:         row.Address,
+			PostalCode:      row.PostalCode,
+			City:            row.City,
+			Country:         row.Country,
+			Siret:           row.Siret,
+			VatNumber:       row.VatNumber,
+			ProjectsActive:  int(row.ProjectsActive),
+			PortalUsers:     int(row.PortalUsers),
+			CreatedAt:       row.CreatedAt,
+			StatusChangedAt: row.StatusChangedAt,
 		},
 	}
 
@@ -607,20 +613,21 @@ func (s *ClientService) MoveStatus(ctx context.Context, id uuid.UUID, status str
 // touche, et l'ecran relit la liste.
 func itemOfClient(row db.Client) CrmClientItem {
 	return CrmClientItem{
-		ID:             row.ID,
-		Name:           row.Name,
-		Status:         row.Status,
-		Website:        row.Website,
-		Phone:          row.Phone,
-		Address:        row.Address,
-		PostalCode:     row.PostalCode,
-		City:           row.City,
-		Country:        row.Country,
-		Siret:          row.Siret,
-		VatNumber:      row.VatNumber,
-		ProjectsActive: int(row.ProjectsActive),
-		PortalUsers:    int(row.PortalUsers),
-		CreatedAt:      row.CreatedAt,
+		ID:              row.ID,
+		Name:            row.Name,
+		Status:          row.Status,
+		Website:         row.Website,
+		Phone:           row.Phone,
+		Address:         row.Address,
+		PostalCode:      row.PostalCode,
+		City:            row.City,
+		Country:         row.Country,
+		Siret:           row.Siret,
+		VatNumber:       row.VatNumber,
+		ProjectsActive:  int(row.ProjectsActive),
+		PortalUsers:     int(row.PortalUsers),
+		CreatedAt:       row.CreatedAt,
+		StatusChangedAt: row.StatusChangedAt,
 	}
 }
 
@@ -734,21 +741,22 @@ func (s *ClientService) Board(ctx context.Context, f CrmClientFilters) (CrmClien
 	board.Items = make([]CrmClientItem, 0, len(rows))
 	for _, row := range rows {
 		item := CrmClientItem{
-			ID:             row.ID,
-			Name:           row.Name,
-			Status:         row.Status,
-			ContactsCount:  int(row.ContactsCount),
-			Website:        row.Website,
-			Phone:          row.Phone,
-			Address:        row.Address,
-			PostalCode:     row.PostalCode,
-			City:           row.City,
-			Country:        row.Country,
-			Siret:          row.Siret,
-			VatNumber:      row.VatNumber,
-			ProjectsActive: int(row.ProjectsActive),
-			PortalUsers:    int(row.PortalUsers),
-			CreatedAt:      row.CreatedAt,
+			ID:              row.ID,
+			Name:            row.Name,
+			Status:          row.Status,
+			ContactsCount:   int(row.ContactsCount),
+			Website:         row.Website,
+			Phone:           row.Phone,
+			Address:         row.Address,
+			PostalCode:      row.PostalCode,
+			City:            row.City,
+			Country:         row.Country,
+			Siret:           row.Siret,
+			VatNumber:       row.VatNumber,
+			ProjectsActive:  int(row.ProjectsActive),
+			PortalUsers:     int(row.PortalUsers),
+			CreatedAt:       row.CreatedAt,
+			StatusChangedAt: row.StatusChangedAt,
 		}
 
 		if row.ContactID != nil {

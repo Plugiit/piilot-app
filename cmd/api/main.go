@@ -118,6 +118,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Contacts: handler.NewContacts(contactService),
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
+		Tickets:       handler.NewTickets(usecase.NewTicketService(pool)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 

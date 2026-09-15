@@ -804,6 +804,21 @@ type DashboardSummary struct {
 	Projects  Metric `json:"projects"`
 	Clients   Metric `json:"clients"`
 	HoursSold Metric `json:"hours_sold"`
+	// Avancement des taches par nature. Vide tant qu'aucune tache n'existe :
+	// l'ecran montre alors un panneau vide plutot que des chiffres inventes.
+	TaskProgress []TaskProgress `json:"task_progress"`
+}
+
+// TaskProgress est une ligne du graphique « Avancement des taches » : une
+// nature de tache, et ce qu'elle porte par etat.
+//
+// « En cours » agrege `progress` et `review` : le graphique n'a que trois
+// etats places, et une tache en relecture est commencee sans etre finie.
+type TaskProgress struct {
+	Tag      string `json:"tag"`
+	Todo     int    `json:"todo"`
+	Progress int    `json:"progress"`
+	Done     int    `json:"done"`
 }
 
 // Dashboard renvoie les chiffres d'en-tete, en une requete.
@@ -813,10 +828,26 @@ func (s *ProjectService) Dashboard(ctx context.Context) (DashboardSummary, error
 		return DashboardSummary{}, fmt.Errorf("lecture des agregats : %w", err)
 	}
 
+	rows, err := s.q.GetTaskProgressByTag(ctx)
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("avancement des taches : %w", err)
+	}
+
+	progress := make([]TaskProgress, 0, len(rows))
+	for _, r := range rows {
+		progress = append(progress, TaskProgress{
+			Tag:      r.Tag,
+			Todo:     int(r.Todo),
+			Progress: int(r.Progress),
+			Done:     int(r.Done),
+		})
+	}
+
 	return DashboardSummary{
-		Projects:  metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
-		Clients:   metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
-		HoursSold: metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		Projects:     metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
+		Clients:      metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
+		HoursSold:    metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		TaskProgress: progress,
 	}, nil
 }
 
