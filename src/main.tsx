@@ -2,13 +2,43 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { toast } from 'sonner'
 
 import { createQueryClient } from '@/lib/query-client'
 import { routeTree } from './routeTree.gen'
 
 import './index.css'
 
-const queryClient = createQueryClient()
+/**
+ * Une seule redirection par expiration.
+ *
+ * Un ecran emet plusieurs requetes : quand la session expire, elles echouent
+ * toutes en meme temps. Sans ce verrou, on empilerait autant de messages et de
+ * navigations qu'il y avait d'appels en vol. Il se leve a la connexion
+ * suivante, quand `/login` rend la main.
+ */
+let redirecting = false
+
+const queryClient = createQueryClient(() => {
+  // Deja sur la connexion : il n'y a rien a quitter, et y renvoyer bouclerait.
+  if (redirecting || router.state.location.pathname === '/login') return
+
+  redirecting = true
+
+  // `redirect` ramene l'utilisateur ou il etait une fois reconnecte, comme le
+  // fait deja la garde de session.
+  const from = router.state.location.href
+
+  toast.error('Votre session a expiré. Reconnectez-vous pour continuer.')
+
+  void router.navigate({ to: '/login', search: { redirect: from } }).then(() => {
+    // Le cache porte les donnees de la session expiree. Il est vide apres la
+    // navigation et non pendant : le purger depuis le gestionnaire d'erreur du
+    // cache reviendrait a le modifier au milieu de son propre parcours.
+    queryClient.clear()
+    redirecting = false
+  })
+})
 
 const router = createRouter({
   routeTree,

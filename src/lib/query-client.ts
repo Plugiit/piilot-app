@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 
 import { HttpError } from '@/lib/api'
 
@@ -25,8 +25,22 @@ const RETRYABLE_STATUSES = new Set([
  * donnees d'administration ne changent pas assez vite pour que ce delai pose
  * probleme, et toute mutation invalide explicitement ses cles.
  */
-export function createQueryClient() {
+export function createQueryClient(onUnauthorized: () => void) {
+  // Un 401 peut tomber sur n'importe quelle requete, y compris pendant qu'on
+  // remplit un formulaire. La garde de session, elle, vit dans `beforeLoad` et
+  // ne s'execute donc qu'a la navigation : une session qui expire sur place
+  // n'etait vue par personne, et l'ecran se couvrait de messages « Non
+  // authentifie » sans jamais proposer de se reconnecter.
+  //
+  // Les deux caches sont couverts : une lecture qui expire et un enregistrement
+  // qui expire meritent la meme issue.
+  function reportUnauthorized(error: unknown) {
+    if (error instanceof HttpError && error.isUnauthorized) onUnauthorized()
+  }
+
   return new QueryClient({
+    queryCache: new QueryCache({ onError: reportUnauthorized }),
+    mutationCache: new MutationCache({ onError: reportUnauthorized }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,
