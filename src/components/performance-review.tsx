@@ -1,9 +1,12 @@
 import { ChartHistogramIcon } from '@hugeicons/core-free-icons'
+import { useQuery } from '@tanstack/react-query'
 
 import { PanelCard } from '@/components/panel-card'
+import { dashboardQuery } from '@/features/projects/api'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { LIGHT_TOOLTIP } from '@/lib/tooltip'
 import { cn } from '@/lib/utils'
+import type { TaskProgress } from '@/types/api'
 
 /**
  * Etats d'avancement, dans l'ordre ou ils s'empilent sur la barre.
@@ -13,60 +16,88 @@ import { cn } from '@/lib/utils'
  * moins » la ou il faut lire « autre chose ».
  */
 const STATES = [
-  { key: 'pending', label: 'En attente', color: '#f06fff' },
+  { key: 'pending', label: 'À faire', color: '#f06fff' },
   { key: 'progress', label: 'En cours', color: '#b872e6' },
   { key: 'done', label: 'Terminé', color: '#7c8bfe' },
   { key: 'planned', label: 'Planifié', color: '#f7f7f7' },
 ] as const
 
-/** Graduation de l'axe, et donc plafond d'une ligne. */
-const SCALE = [0, 10, 20, 30, 40, 50]
-const MAX = 50
+/**
+ * Plafond de l'axe, deduit des donnees.
+ *
+ * Il etait fige a 50, ce qui convenait aux chiffres inventes et a rien
+ * d'autre : une nature qui porterait soixante taches aurait deborde de sa
+ * barre. On arrondit a la dizaine superieure pour que les six graduations
+ * tombent rondes, et on garde 50 comme plancher — sous cette valeur, l'axe se
+ * regraduerait a chaque tache creee, et les barres sauteraient d'un rendu a
+ * l'autre sans que rien de visible ait change.
+ */
+function scaleOf(rows: TaskProgress[]) {
+  const busiest = rows.reduce((top, row) => Math.max(top, row.todo + row.progress + row.done), 0)
+  const max = Math.max(50, Math.ceil(busiest / 10) * 10)
 
-/** Figes : le module n'a pas encore de quoi compter ses taches. */
-const ROWS = [
-  { domain: 'Design UI/UX', pending: 7, progress: 7, done: 7 },
-  { domain: 'Développement', pending: 4, progress: 3, done: 9 },
-  { domain: 'Marketing', pending: 9, progress: 6, done: 6 },
-]
+  return { max, ticks: [0, 1, 2, 3, 4, 5].map((step) => (max / 5) * step) }
+}
 
 /** Ce qu'une ligne porte, planifie compris — le gris est ce qui reste a placer. */
-function countsOf(row: (typeof ROWS)[number]) {
-  const placed = row.pending + row.progress + row.done
+function countsOf(row: TaskProgress, max: number) {
+  const placed = row.todo + row.progress + row.done
 
   return {
-    pending: row.pending,
+    pending: row.todo,
     progress: row.progress,
     done: row.done,
-    planned: Math.max(0, MAX - placed),
+    planned: Math.max(0, max - placed),
     placed,
   }
 }
 
 export function PerformanceReview() {
+  const { data, isPending } = useQuery(dashboardQuery)
+
+  const rows = data?.task_progress ?? []
+  const { max, ticks } = scaleOf(rows)
+
   return (
     <TooltipProvider>
       <PanelCard icon={ChartHistogramIcon} title="AVANCEMENT DES TÂCHES">
         <div className="flex flex-1 flex-col gap-2.5">
-          <div className="flex flex-col gap-[11px]">
-            {ROWS.map((row) => {
-              const counts = countsOf(row)
+          {/* Le panneau montrait trois domaines inventes quoi qu'il arrive. Il
+              dit maintenant quand il n'a rien a montrer, plutot que d'afficher
+              des barres qui ne correspondent a aucune tache. */}
+          {!isPending && rows.length === 0 && (
+            <p className="py-6 text-center text-[13px] text-[#8d8d8d]">
+              Aucune tâche à afficher.
+            </p>
+          )}
+
+          {isPending && (
+            <div className="flex flex-col gap-[11px]">
+              {[0, 1, 2].map((line) => (
+                <div key={line} className="h-4 animate-pulse rounded-[4px] bg-[#f2f2f2]" />
+              ))}
+            </div>
+          )}
+
+          <div className={cn('flex flex-col gap-[11px]', rows.length === 0 && 'hidden')}>
+            {rows.map((row) => {
+              const counts = countsOf(row, max)
 
               return (
                 // La ligne entiere declenche l'infobulle, libelle compris : viser
                 // une barre de 16px de haut demanderait de la precision pour
                 // rien, et le segment le plus court fait quelques pixels.
-                <Tooltip key={row.domain}>
+                <Tooltip key={row.tag}>
                   <TooltipTrigger asChild>
                     <div
-                      aria-label={`${row.domain} : ${counts.placed} tâches placées`}
+                      aria-label={`${row.tag} : ${counts.placed} tâches placées`}
                       className="flex items-center justify-between gap-3"
                     >
                       {/* Largeur fixe pour que les trois barres partent du meme
                           bord : alignees sur le texte, elles commenceraient
                           chacune ailleurs et l'axe ne voudrait plus rien dire. */}
                       <p className="w-[92px] shrink-0 truncate text-[12px] leading-[1.5] tracking-[-0.24px] text-[#111]/80">
-                        {row.domain}
+                        {row.tag}
                       </p>
 
                       {/* Le dessin fige la barre a 335px. Ici elle prend la place
@@ -79,7 +110,7 @@ export function PerformanceReview() {
                             className="h-4 rounded-[4px]"
                             style={{
                               backgroundColor: state.color,
-                              width: `${(row[state.key] / MAX) * 100}%`,
+                              width: `${(counts[state.key] / max) * 100}%`,
                             }}
                           />
                         ))}
@@ -97,7 +128,7 @@ export function PerformanceReview() {
                       disait a quoi correspondaient quatre couleurs, l'infobulle
                       dit ce que vaut chacune pour la ligne qu'on regarde. */}
                   <TooltipContent className={cn(LIGHT_TOOLTIP, 'flex-col items-start gap-1 px-3 py-2')}>
-                    <p className="text-[11px] leading-none text-[#777]">{row.domain}</p>
+                    <p className="text-[11px] leading-none text-[#777]">{row.tag}</p>
                     <p className="text-[13px] leading-none font-medium">
                       {counts.placed} tâches placées
                     </p>
@@ -123,7 +154,7 @@ export function PerformanceReview() {
             })}
 
             <div className="flex items-center justify-between pl-[104px] text-[12px] leading-[1.5] text-[#111]/50">
-              {SCALE.map((tick) => (
+              {ticks.map((tick) => (
                 <p key={tick}>{tick}</p>
               ))}
             </div>
