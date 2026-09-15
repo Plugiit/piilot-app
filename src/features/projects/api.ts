@@ -8,6 +8,8 @@ export interface ProjectListParams {
   pageSize: number
   search?: string
   status?: ProjectStatus
+  /** Client dont on ne veut que les projets. L'API l'accepte sous `client_id`. */
+  clientId?: string
   sort?: 'due' | 'name' | 'progress' | 'budget'
   dir?: 'asc' | 'desc'
 }
@@ -59,6 +61,7 @@ export function projectListQuery(params: ProjectListParams) {
               page_size: params.pageSize,
               search: params.search,
               status: params.status,
+              client_id: params.clientId,
               sort: params.sort,
               dir: params.dir,
             },
