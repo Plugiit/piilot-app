@@ -55,6 +55,7 @@ import {
   tintOf,
 } from '@/features/projects/format'
 import { HttpError } from '@/lib/api'
+import { useSearchField } from '@/lib/search-field'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { Person, Project, ProjectStatus } from '@/types/api'
@@ -612,6 +613,7 @@ function ProjectsPage() {
     pageSize: PAGE_SIZE,
     search: search.search?.trim() === '' ? undefined : search.search,
     status: search.status,
+    clientId: search.client_id,
     sort: search.sort,
     dir: search.dir,
   }
@@ -639,8 +641,16 @@ function ProjectsPage() {
 
   /** Tout changement de filtre ramene en page 1 : la page 2 d'une autre liste n'a pas de sens. */
   function setFilter(patch: { search?: string; status?: ProjectStatus; client_id?: string }) {
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }) })
+    // `replace` : un filtre affine la vue courante, il ne fait pas une
+    // etape a part. Sans lui, chaque frappe et chaque case cochee laissait
+    // une entree a repasser au retour arriere.
+    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true })
   }
+
+  // La frappe est immediate a l'ecran, l'adresse ne suit qu'apres une pause.
+  const [draft, setDraft] = useSearchField(search.search ?? '', (value) =>
+    setFilter({ search: value === '' ? undefined : value }),
+  )
 
   /** Recliquer sur la colonne active inverse le sens plutot que de ne rien faire. */
   function setSort(sort: Sort) {
@@ -672,8 +682,8 @@ function ProjectsPage() {
             />
             <Input
               type="search"
-              value={search.search ?? ''}
-              onChange={(event) => setFilter({ search: event.target.value || undefined })}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
               placeholder="Rechercher un projet"
               aria-label="Rechercher un projet"
               className="h-9 pl-8 text-[13px]"

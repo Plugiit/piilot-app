@@ -13,6 +13,7 @@ import { projectListQuery } from '@/features/projects/api'
 import { TASK_STATUS, TASK_STATUS_ORDER } from '@/features/projects/format'
 import { taskListQuery, type TaskListParams } from '@/features/tasks/api'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
+import { useSearchField } from '@/lib/search-field'
 import type { TaskStatus } from '@/types/api'
 
 /**
@@ -73,8 +74,16 @@ function TasksLayout() {
   )
 
   function setFilter(patch: { search?: string; status?: TaskStatus; projet?: string }) {
-    void navigate({ search: (prev) => ({ ...prev, ...patch }) })
+    // `replace` : un filtre affine la vue courante, il ne fait pas une
+    // etape a part. Sans lui, chaque frappe et chaque case cochee laissait
+    // une entree a repasser au retour arriere.
+    void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
   }
+
+  // La frappe est immediate a l'ecran, l'adresse ne suit qu'apres une pause.
+  const [draft, setDraft] = useSearchField(search.search ?? '', (value) =>
+    setFilter({ search: value === '' ? undefined : value }),
+  )
 
   const statusOptions: Option[] = TASK_STATUS_ORDER.map((status) => ({
     value: status,
@@ -104,8 +113,8 @@ function TasksLayout() {
               />
               <Input
                 type="search"
-                value={search.search ?? ''}
-                onChange={(event) => setFilter({ search: event.target.value || undefined })}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
                 placeholder="Rechercher une tâche"
                 aria-label="Rechercher une tâche"
                 className="h-9 pl-8 text-[13px]"
