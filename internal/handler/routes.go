@@ -16,6 +16,7 @@ type Deps struct {
 	Contacts *Contacts
 
 	Notifications *Notifications
+	Tickets       *Tickets
 
 	Guard *middleware.Guard
 }
@@ -168,6 +169,22 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	tasks.Put("/:id/assignees", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.SetAssignees)
 	tasks.Post("/:id/subtasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.AddSubtask)
 	tasks.Post("/:id/files", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.UploadFile)
+
+	// Tickets confies au compte appelant.
+	//
+	// Pas de parametre `assignee_id` : l'identifiant vient de la session, sinon
+	// changer l'adresse suffirait a lire les tickets de quelqu'un d'autre.
+	tickets := r.Group("/tickets")
+	tickets.Get("/mine", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.Mine)
+	tickets.Get("/mine/board", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.MineBoard)
+	tickets.Post("", deps.Guard.RequirePermission("tickets.write"), deps.Tickets.Create)
+
+	// La fiche et son registre. « /mine » et « /mine/board » sont montes plus
+	// haut : places apres, « mine » serait lu comme un identifiant et rejete
+	// par l'analyse de l'UUID.
+	tickets.Get("/:id", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.Get)
+	tickets.Post("/:id/messages", deps.Guard.RequirePermission("tickets.write"), deps.Tickets.PostMessage)
+	tickets.Patch("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Tickets.Rename)
 
 	// Notifications du compte appelant. Aucune permission a verifier au-dela de
 	// l'authentification : chacun ne voit que les siennes, la clause est dans
