@@ -900,6 +900,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/tickets/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes tickets
+         * @description Sert l'ecran PM > Tickets : les tickets confies au compte appelant, du plus recemment mis a jour au plus ancien. L'assigne vient de la session et n'est pas un parametre. Exige tickets.read.
+         */
+        get: operations["listMyTickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Déposer un ticket
+         * @description Cree un ticket. Le deposant est lu dans la session. Exige tickets.write.
+         */
+        post: operations["createTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tickets/mine/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes tickets, en kanban
+         * @description Sert les vues kanban de l'ecran PM > Tickets. Bornee a 300 cartes. L'assigne vient de la session. Exige tickets.read.
+         */
+        get: operations["listMyTicketsBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tickets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiche d'un ticket
+         * @description Sert l'ecran de discussion : en-tete, coordonnees et registre en un appel. Exige tickets.read.
+         */
+        get: operations["getTicket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Renommer un ticket
+         * @description Change le sujet et l'inscrit au journal. Un sujet identique n'ecrit rien. Rend la fiche entiere. Exige tickets.write.
+         */
+        patch: operations["renameTicket"];
+        trace?: never;
+    };
+    "/api/v1/admin/tickets/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inscrire au registre
+         * @description Inscrit un message et, si l'entree le demande, deplace le ticket en journalisant le changement. Les deux ecritures sont dans la meme transaction. Rend la fiche entiere. Exige tickets.write.
+         */
+        post: operations["postTicketMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1025,6 +1129,8 @@ export interface components {
             projects: components["schemas"]["Metric"];
             clients: components["schemas"]["Metric"];
             hours_sold: components["schemas"]["Metric"];
+            /** @description Avancement des taches par nature, cinq lignes au plus, les natures les plus portees devant. Vide tant qu'aucune tache n'existe. */
+            task_progress: components["schemas"]["TaskProgress"][];
         };
         HealthLive: {
             /** @example ok */
@@ -1146,6 +1252,11 @@ export interface components {
             portal_users: number;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description Entree dans l'etape courante du pipeline, tenue par declencheur. Le kanban en tire l'anciennete d'une carte ; l'ecart se calcule a l'affichage, une duree renvoyee ici serait fausse des la seconde suivante.
+             */
+            status_changed_at: string;
             /**
              * @description Etape du pipeline commercial.
              * @enum {string}
@@ -1620,6 +1731,11 @@ export interface components {
             portal_users: number;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description Entree dans l'etape courante du pipeline, tenue par declencheur. Le kanban en tire l'anciennete d'une carte ; l'ecart se calcule a l'affichage, une duree renvoyee ici serait fausse des la seconde suivante.
+             */
+            status_changed_at: string;
             contacts: components["schemas"]["CrmContact"][];
             projects: components["schemas"]["ClientProject"][];
             accounts: components["schemas"]["PortalAccount"][];
@@ -1673,6 +1789,146 @@ export interface components {
             items: components["schemas"]["CrmClient"][];
             /** @description La borne a coupe : toutes les cartes ne sont pas la. */
             truncated: boolean;
+        };
+        /** @description Une nature de tache et ce qu'elle porte par etat. « En cours » agrege les taches en cours et en relecture. */
+        TaskProgress: {
+            /** @description Nature de la tache. « Sans nature » regroupe celles qui n'en portent pas. */
+            tag: string;
+            todo: number;
+            progress: number;
+            done: number;
+        };
+        /** @description Projet d'un ticket : de quoi poser un lien, pas une fiche. */
+        TicketProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @description Ligne du tableau « Tickets ». Les cles de tracker, status et priority sont stables ; leurs libelles francais vivent dans le front, pour qu'un intitule reformule ne demande pas de migrer les donnees. */
+        Ticket: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: int64
+             * @description Numero lisible, unique pour toute l'agence et jamais reutilise.
+             */
+            numero: number;
+            project: components["schemas"]["TicketProject"];
+            /** @enum {string} */
+            tracker: "anomalie" | "evolution" | "assistance";
+            /** @enum {string} */
+            status: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+            /** @enum {string} */
+            priority: "low" | "normal" | "high" | "urgent" | "critical";
+            subject: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description Page du tableau des tickets. */
+        TicketPage: {
+            items: components["schemas"]["Ticket"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        /** @description Depot d'un ticket. Ni `status` ni `numero` : un ticket nait dans le backlog, et le numero est attribue par la base. */
+        CreateTicket: {
+            /** Format: uuid */
+            project_id: string;
+            subject: string;
+            description?: string;
+            /** @enum {string} */
+            tracker: "anomalie" | "evolution" | "assistance";
+            /** @enum {string} */
+            priority: "low" | "normal" | "high" | "urgent" | "critical";
+            /**
+             * Format: uuid
+             * @description A qui confier le ticket. Absent ou nul : il reste a prendre.
+             */
+            assignee_id?: string | null;
+        };
+        /** @description Toutes les cartes du kanban, bornees et non paginees. Le regroupement par projet ou par statut se fait cote client : c'est une facon de lire, pas un jeu de donnees different. */
+        TicketBoard: {
+            items: components["schemas"]["Ticket"][];
+            /** @description Vrai quand la borne a coupe : l'ecran previent alors. */
+            truncated: boolean;
+        };
+        /** @description Qui a parle ou agi. Nul quand le compte a quitte l'agence : le registre garde la trace, il perd son auteur. */
+        TicketPerson: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            initials: string;
+            avatar_url: string | null;
+            /** @description admin, team ou client. Vide quand le role n'est pas porte par la requete. */
+            role: string;
+        };
+        /** @description Une entree du registre. Messages et changements d'etat y prennent la meme forme parce que l'ecran les entrelace sur un seul fil ; `kind` dit laquelle des deux moities porte du sens. */
+        TicketEntry: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "message" | "event";
+            /** Format: date-time */
+            at: string;
+            author: components["schemas"]["TicketPerson"] | null;
+            /** @description Texte du message. Vide pour un evenement. */
+            body: string;
+            /** @description Note interne : le portail client ne la sert jamais. */
+            is_internal: boolean;
+            /**
+             * @description Champ modifie. Vide pour un message.
+             * @enum {string}
+             */
+            field: "" | "status" | "priority" | "tracker" | "assignee" | "subject";
+            old_value: string;
+            new_value: string;
+        };
+        /** @description Fiche d'un ticket : son en-tete, ses coordonnees et son registre, en un appel. */
+        TicketDetail: components["schemas"]["Ticket"] & {
+            description: string;
+            client: components["schemas"]["TicketProject"] | null;
+            assignee: components["schemas"]["TicketPerson"] | null;
+            reporter: components["schemas"]["TicketPerson"] | null;
+            /** @description Registre fusionne et trie du plus ancien au plus recent. */
+            entries: components["schemas"]["TicketEntry"][];
+        };
+        /** @description Une entree a inscrire au registre. Les changements sont facultatifs mais au meme endroit que le message : repondre et faire avancer un ticket sont un seul geste. Seuls les changements reels sont journalises. */
+        PostTicketMessage: {
+            body: string;
+            /**
+             * @description Note interne. Par defaut faux : une note interne doit etre un choix explicite.
+             * @default false
+             */
+            is_internal: boolean;
+            /**
+             * @description Absent ou nul pour ne pas deplacer le ticket.
+             * @enum {string|null}
+             */
+            status?: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule" | null;
+            /**
+             * @description Absent ou nul pour ne pas changer la priorite.
+             * @enum {string|null}
+             */
+            priority?: "low" | "normal" | "high" | "urgent" | "critical" | null;
+            /**
+             * @description Vrai pour appliquer `assignee_id`. Son propre drapeau parce que nul y veut dire « remettre a prendre », indistinguable sinon de « ne touche pas a l'assignation ».
+             * @default false
+             */
+            change_assignee: boolean;
+            /**
+             * Format: uuid
+             * @description A qui confier le ticket. Nul avec change_assignee : le ticket redevient a prendre.
+             */
+            assignee_id?: string | null;
+        };
+        /** @description Nouveau sujet du ticket. Le numero, lui, ne bouge jamais. */
+        RenameTicket: {
+            subject: string;
         };
     };
     responses: {
@@ -3350,6 +3606,188 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CrmClient"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listMyTickets: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le sujet et sur le numero : « 47 » retrouve le ticket #47. */
+                search?: string;
+                /** @description Ne garde qu'un statut */
+                status?: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+                /** @description Ne garde qu'une nature */
+                tracker?: "anomalie" | "evolution" | "assistance";
+                /** @description Ne garde qu'une priorite */
+                priority?: "low" | "normal" | "high" | "urgent" | "critical";
+                /** @description Ne garde que les tickets de ce projet */
+                project_id?: string;
+                /** @description Page demandee */
+                page?: number;
+                /** @description Lignes par page */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page des tickets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTicket"];
+            };
+        };
+        responses: {
+            /** @description Ticket cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listMyTicketsBoard: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le sujet et sur le numero : « 47 » retrouve le ticket #47. */
+                search?: string;
+                /** @description Ne garde qu'un statut */
+                status?: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+                /** @description Ne garde qu'une nature */
+                tracker?: "anomalie" | "evolution" | "assistance";
+                /** @description Ne garde qu'une priorite */
+                priority?: "low" | "normal" | "high" | "urgent" | "critical";
+                /** @description Ne garde que les tickets de ce projet */
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cartes du kanban */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketBoard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fiche du ticket */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    renameTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameTicket"];
+            };
+        };
+        responses: {
+            /** @description Fiche a jour */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postTicketMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostTicketMessage"];
+            };
+        };
+        responses: {
+            /** @description Entree inscrite ; la fiche a jour */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
                 };
             };
             401: components["responses"]["Unauthorized"];
