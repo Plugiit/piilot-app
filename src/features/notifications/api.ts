@@ -18,9 +18,19 @@ export const notificationKeys = {
 export const notificationFeedQuery = queryOptions({
   queryKey: notificationKeys.feed(),
   queryFn: async () => unwrap(await api.GET('/api/v1/admin/notifications')),
-  // Le flux previent des nouveautes ; ce delai n'est qu'un filet quand il est
-  // coupe.
+  // Le commentaire ci-dessus annoncait un flux temps reel qui n'existe pas :
+  // aucun EventSource ni WebSocket n'est ouvert nulle part. Sans relance, le
+  // compteur de non-lues restait fige tant qu'on ne naviguait pas — et le
+  // defaut global `refetchOnWindowFocus: false` faisait que revenir sur
+  // l'onglet ne le reveillait meme pas.
+  //
+  // Une minute de fraicheur, une relance toutes les deux : la cloche suit sans
+  // que l'onglet en arriere-plan tienne le serveur occupe. `IfStale` evite de
+  // redemander quand la reponse est encore fraiche.
   staleTime: 60_000,
+  refetchInterval: 120_000,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: 'always',
 })
 
 /** Marque une notification comme lue. */

@@ -125,7 +125,15 @@ export function useCreateContact() {
   })
 }
 
-/** Designe l'interlocuteur principal d'un client. `null` retire la designation. */
+/**
+ * Designe l'interlocuteur principal d'un client. `null` retire la designation.
+ *
+ * Invalide les deux racines et non les seules listes : le menu qui porte ce
+ * geste vit sur la fiche du client, rangee sous `detail` — s'arreter a `lists()`
+ * laissait a l'ecran la designation d'avant jusqu'au prochain rechargement. Le
+ * menu deroulant lui-meme, sous `of-client`, gardait de meme un `is_primary`
+ * perime.
+ */
 export function useSetPrimaryContact() {
   const queryClient = useQueryClient()
 
@@ -138,8 +146,8 @@ export function useSetPrimaryContact() {
         }),
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: clientKeys.lists() })
-      void queryClient.invalidateQueries({ queryKey: contactKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: clientKeys.all })
+      void queryClient.invalidateQueries({ queryKey: contactKeys.all })
     },
   })
 }
