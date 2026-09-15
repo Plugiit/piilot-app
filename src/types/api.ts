@@ -33,8 +33,33 @@ export type User = components['schemas']['User']
 /** Enveloppe rendue par login, refresh et me. Les jetons sont dans les cookies. */
 export type SessionResponse = components['schemas']['SessionResponse']
 
+/** Fiche d'un ticket : en-tete, coordonnees et registre. */
+export type TicketDetail = components['schemas']['TicketDetail']
+
+/** Une entree du registre : un message ou un changement d'etat. */
+export type TicketEntry = components['schemas']['TicketEntry']
+
+/** Qui a parle ou agi sur un ticket. */
+export type TicketPerson = components['schemas']['TicketPerson']
+
+/** Ligne du tableau « Tickets ». */
+export type Ticket = components['schemas']['Ticket']
+
+/** Nature d'un ticket : anomalie, evolution ou assistance. */
+export type TicketTracker = Ticket['tracker']
+
+/** Etat d'avancement d'un ticket. */
+export type TicketStatus = Ticket['status']
+
+/** Gravite d'un ticket. */
+export type TicketPriority = Ticket['priority']
+
 /** Agregats du tableau de bord. */
 export type DashboardSummary = components['schemas']['DashboardSummary']
+
+/** Une nature de tache et ce qu'elle porte par etat, pour le graphique
+ *  « Avancement des taches ». */
+export type TaskProgress = components['schemas']['TaskProgress']
 
 /** Projet tel que la vue liste l'affiche. Contrat cible lui aussi. */
 export type Project = components['schemas']['Project']
