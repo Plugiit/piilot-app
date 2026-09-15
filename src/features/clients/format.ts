@@ -48,3 +48,53 @@ export const CLIENT_STATUS: Record<
     pill: { bg: '#ffe8ec', border: '#ffd0d8', text: '#a30f2c' },
   },
 }
+
+/**
+ * Anciennete d'une carte dans son etape, telle que le kanban l'affiche.
+ *
+ * Le serveur renvoie une date et non une duree : un ecart calcule la-bas
+ * serait faux des la seconde suivante, et le cache de TanStack Query le
+ * garderait faux jusqu'a la prochaine invalidation.
+ *
+ * `level` decide de la teinte. Le seuil est le meme pour les cinq etapes :
+ * c'est le choix retenu — une regle unique, sans exception a retenir, au prix
+ * de colonnes « Actif » durablement en rouge, ce qui y est normal et non
+ * alarmant.
+ */
+export type ClientAgeLevel = 'fresh' | 'warn' | 'stale'
+
+export interface ClientAge {
+  /** Duree abregee : « 3 j », « 5 sem. », « 8 mois », « 2 ans ». */
+  label: string
+  level: ClientAgeLevel
+  /** Phrase entiere, pour le lecteur d'ecran et l'infobulle. */
+  title: string
+}
+
+const DAY = 24 * 60 * 60 * 1000
+
+export function clientAge(statusChangedAt: string, now: Date = new Date()): ClientAge {
+  // `max(0)` : une horloge de poste en avance sur le serveur donnerait un ecart
+  // negatif, et « -1 j dans cette etape » est pire qu'un arrondi a zero.
+  const days = Math.max(0, Math.floor((now.getTime() - Date.parse(statusChangedAt)) / DAY))
+
+  let label: string
+  if (days < 7) label = `${days} j`
+  else if (days < 30) label = `${Math.floor(days / 7)} sem.`
+  else if (days < 365) label = `${Math.floor(days / 30)} mois`
+  else {
+    const years = Math.floor(days / 365)
+    label = `${years} an${years > 1 ? 's' : ''}`
+  }
+
+  const level: ClientAgeLevel = days >= 90 ? 'stale' : days >= 30 ? 'warn' : 'fresh'
+
+  return { label, level, title: `Dans cette étape depuis ${label.replace('.', '')}` }
+}
+
+/** Teintes de l'anciennete, du neutre a l'alerte. */
+export const CLIENT_AGE_TINT: Record<ClientAgeLevel, string> = {
+  fresh: '#73757c',
+  warn: '#9a6a00',
+  stale: '#a30f2c',
+}

@@ -164,60 +164,59 @@ function ClientDetailPage() {
       trail={[{ label: 'Clients', to: '/crm/clients', search: { page: 1 } }]}
     >
       <div className="flex flex-col gap-4 p-4">
-        {/* En-tete : qui est ce client, et les deux gestes qui le concernent. */}
-        <header className="border-surface-sunken bg-surface flex flex-wrap items-center justify-between gap-2 overflow-clip rounded-[12px] border p-0.5">
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-[10px] border border-[#ebebeb] bg-white p-4">
+        {/* En-tete : qui est ce client, et les gestes qui le concernent.
+            Pose a plat, comme la fiche projet. L'encadrer en carte le rangeait
+            au meme niveau que les blocs qu'il surplombe, et le titre y etait
+            redit une troisieme fois apres l'onglet et le fil d'Ariane. */}
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-heading text-[20px] leading-[1.3] font-semibold text-[#111]">
+              <h1 className="truncate text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
                 {client.name}
               </h1>
               <StatusPill label={status.label} color={status.color} pill={status.pill} />
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="text-[13px] text-[#8d8d8d]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-[14px] leading-[1.5] text-[#73757c]">
                 Client depuis le {DATE_FORMAT.format(new Date(client.created_at))}
               </span>
 
               {client.account_manager !== null && (
-                <span className="flex items-center gap-1.5 text-[13px] text-[#606060]">
+                <span className="flex items-center gap-1.5 text-[14px] leading-[1.5] text-[#73757c]">
                   <Avatars people={[client.account_manager]} max={1} size={20} />
                   {`${client.account_manager.firstname} ${client.account_manager.lastname}`.trim()}
                 </span>
               )}
             </div>
-
-            <div className="mt-1 flex items-center gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <span className="text-[11px] text-[#8d8d8d]">
-                  Étape {step + 1} sur {CLIENT_STATUS_ORDER.length}
-                </span>
-                <Meter ratio={pipeline} color={status.color} />
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-[11px] text-[#8d8d8d]">Contact principal</span>
-                <PrimaryContactPicker
-                  clientId={client.id}
-                  current={client.primary_contact}
-                  contactsCount={client.contacts_count}
-                />
-              </div>
-            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 px-2">
-            <EditClientDialog
-              client={client}
-              trigger={<Button variant="outline">Modifier</Button>}
-            />
+          {/* L'avancement dans le pipeline ne figure plus ici : la tuile
+              « Étape », deux lignes plus bas, porte deja la meme jauge et la
+              meme mention. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="px-1.5 text-[11px] text-[#8d8d8d]">Contact principal</span>
+              <PrimaryContactPicker
+                clientId={client.id}
+                current={client.primary_contact}
+                contactsCount={client.contacts_count}
+              />
+            </div>
 
-            {/* Supprimer depuis la fiche renvoie a la liste : rester sur la
-                page d'un client efface n'aurait plus rien a montrer. */}
-            <ClientRowActions
-              client={client}
-              onDeleted={() => void navigate({ to: '/crm/clients', search: { page: 1 } })}
-            />
+            <div className="flex items-center gap-2">
+              <EditClientDialog
+                client={client}
+                trigger={<Button variant="outline">Modifier</Button>}
+              />
+
+              {/* Supprimer depuis la fiche renvoie a la liste : rester sur la
+                  page d'un client efface n'aurait plus rien a montrer. */}
+              <ClientRowActions
+                client={client}
+                onDeleted={() => void navigate({ to: '/crm/clients', search: { page: 1 } })}
+              />
+            </div>
           </div>
         </header>
 

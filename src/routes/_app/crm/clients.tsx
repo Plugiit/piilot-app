@@ -12,6 +12,7 @@ import { type CrmClientParams } from '@/features/clients/api'
 import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
 import { NewClientDialog } from '@/features/clients/new-client-dialog'
 import { peopleQuery } from '@/features/projects/api'
+import { useSearchField } from '@/lib/search-field'
 import type { ClientStatus, Person } from '@/types/api'
 
 /**
@@ -66,8 +67,16 @@ function ClientsLayout() {
   // Tout changement de filtre ramene page 1 : rester en page 3 d'une liste qui
   // vient de se reduire n'afficherait rien.
   function setFilter(patch: Partial<Omit<ClientsSearch, 'page'>>) {
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }) })
+    // `replace` : un filtre affine la vue courante, il ne fait pas une
+    // etape a part. Sans lui, chaque frappe et chaque case cochee laissait
+    // une entree a repasser au retour arriere.
+    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true })
   }
+
+  // La frappe est immediate a l'ecran, l'adresse ne suit qu'apres une pause.
+  const [draft, setDraft] = useSearchField(search.search ?? '', (value) =>
+    setFilter({ search: value === '' ? undefined : value }),
+  )
 
   const statusOptions: Option[] = CLIENT_STATUS_ORDER.map((status) => ({
     value: status,
@@ -97,8 +106,8 @@ function ClientsLayout() {
               />
               <Input
                 type="search"
-                value={search.search ?? ''}
-                onChange={(event) => setFilter({ search: event.target.value || undefined })}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
                 placeholder="Rechercher un client ou un contact"
                 aria-label="Rechercher un client ou un contact"
                 className="h-9 pl-8 text-[13px]"
