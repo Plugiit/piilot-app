@@ -42,6 +42,7 @@ type Client struct {
 	Country          string     `json:"country"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
+	StatusChangedAt  time.Time  `json:"status_changed_at"`
 }
 
 type Contact struct {
@@ -194,6 +195,42 @@ type TaskComment struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+type Ticket struct {
+	ID          uuid.UUID  `json:"id"`
+	Numero      int64      `json:"numero"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	Subject     string     `json:"subject"`
+	Description string     `json:"description"`
+	Tracker     string     `json:"tracker"`
+	Status      string     `json:"status"`
+	Priority    string     `json:"priority"`
+	AssigneeID  *uuid.UUID `json:"assignee_id"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+}
+
+type TicketEvent struct {
+	ID        uuid.UUID  `json:"id"`
+	TicketID  uuid.UUID  `json:"ticket_id"`
+	ActorID   *uuid.UUID `json:"actor_id"`
+	Field     string     `json:"field"`
+	OldValue  string     `json:"old_value"`
+	NewValue  string     `json:"new_value"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type TicketMessage struct {
+	ID         uuid.UUID  `json:"id"`
+	TicketID   uuid.UUID  `json:"ticket_id"`
+	AuthorID   *uuid.UUID `json:"author_id"`
+	Body       string     `json:"body"`
+	IsInternal bool       `json:"is_internal"`
+	CreatedAt  time.Time  `json:"created_at"`
+	DeletedAt  *time.Time `json:"deleted_at"`
 }
 
 type User struct {
