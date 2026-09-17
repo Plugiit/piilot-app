@@ -20,7 +20,7 @@ export const Route = createFileRoute('/_app/compte')({
  */
 function AccountLayout() {
   return (
-    <PageFrame title="Paramètres">
+    <PageFrame title="Mon compte">
       <div className="flex flex-col gap-5 p-6">
         <header className="flex w-full flex-col gap-0.5">
           <h1 className="text-[20px] leading-[1.4] font-medium text-[#1b1b1b]">Mon compte</h1>
