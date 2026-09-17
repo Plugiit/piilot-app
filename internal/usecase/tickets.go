@@ -53,6 +53,11 @@ type TicketItem struct {
 	// l'oral : « regarde le #47 ».
 	Numero  int64         `json:"numero"`
 	Project TicketProject `json:"project"`
+	// Assignee est nul quand le ticket est a prendre — un etat normal — et
+	// quand le compte a quitte l'agence : le ticket reste, son destinataire
+	// non. Le tableau personnel le renvoie aussi, ou il vaut toujours soi :
+	// un type unique pour les quatre vues vaut mieux que deux qui divergent.
+	Assignee *TicketPerson `json:"assignee"`
 	// anomalie, evolution ou assistance.
 	Tracker string `json:"tracker"`
 	// backlog, todo, in_progress, in_review, ready_to_deploy, done ou annule.
@@ -153,6 +158,10 @@ func (s *TicketService) ListAssignedTo(
 			Subject:   row.Subject,
 			CreatedAt: row.CreatedAt,
 			UpdatedAt: row.UpdatedAt,
+			Assignee: personOfTicket(
+				row.AssigneeID, row.AssigneeFirstname, row.AssigneeLastname,
+				row.AssigneeAvatarUrl, "",
+			),
 		})
 	}
 
@@ -210,6 +219,127 @@ func (s *TicketService) BoardAssignedTo(
 			Subject:   row.Subject,
 			CreatedAt: row.CreatedAt,
 			UpdatedAt: row.UpdatedAt,
+			Assignee: personOfTicket(
+				row.AssigneeID, row.AssigneeFirstname, row.AssigneeLastname,
+				row.AssigneeAvatarUrl, "",
+			),
+		})
+	}
+
+	return board, nil
+}
+
+// ListByProject renvoie une page des tickets d'un projet, pour l'onglet
+// « Tickets » de sa fiche.
+//
+// Le projet est un argument et non un filtre : on lit la fiche d'un projet, pas
+// une liste qu'on restreindrait ensuite. `f.ProjectID` n'est donc pas lu.
+//
+// Aucune verification d'existence du projet : un identifiant inconnu rend une
+// page vide plutot qu'un 404, et la fiche qui porte cet onglet a deja repondu
+// 404 avant de l'afficher. La verifier ici couterait un SELECT par appel pour
+// un cas qu'aucun ecran n'atteint.
+func (s *TicketService) ListByProject(
+	ctx context.Context,
+	projectID uuid.UUID,
+	f TicketFilters,
+	page, pageSize int,
+) (TicketPage, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 25
+	}
+
+	rows, err := s.q.ListTicketsByProject(ctx, db.ListTicketsByProjectParams{
+		ProjectID:  projectID,
+		Search:     f.Search,
+		Status:     f.Status,
+		Tracker:    f.Tracker,
+		Priority:   f.Priority,
+		PageSize:   int32(pageSize),
+		PageOffset: int32((page - 1) * pageSize),
+	})
+	if err != nil {
+		return TicketPage{}, fmt.Errorf("liste des tickets du projet : %w", err)
+	}
+
+	total, err := s.q.CountTicketsByProject(ctx, db.CountTicketsByProjectParams{
+		ProjectID: projectID,
+		Search:    f.Search,
+		Status:    f.Status,
+		Tracker:   f.Tracker,
+		Priority:  f.Priority,
+	})
+	if err != nil {
+		return TicketPage{}, fmt.Errorf("compte des tickets du projet : %w", err)
+	}
+
+	items := make([]TicketItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, TicketItem{
+			ID:        row.ID,
+			Numero:    row.Numero,
+			Project:   TicketProject{ID: row.ProjectID, Name: row.ProjectName},
+			Tracker:   row.Tracker,
+			Status:    row.Status,
+			Priority:  row.Priority,
+			Subject:   row.Subject,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+			Assignee: personOfTicket(
+				row.AssigneeID, row.AssigneeFirstname, row.AssigneeLastname,
+				row.AssigneeAvatarUrl, "",
+			),
+		})
+	}
+
+	return TicketPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// BoardByProject renvoie toutes les cartes du kanban d'un projet.
+//
+// Le front les repartit par statut. Pas de regroupement par projet ici, comme
+// sur l'ecran « Tickets » : dans un projet, il ne ferait qu'une colonne.
+func (s *TicketService) BoardByProject(
+	ctx context.Context,
+	projectID uuid.UUID,
+	f TicketFilters,
+) (TicketBoard, error) {
+	rows, err := s.q.ListTicketsBoardByProject(ctx, db.ListTicketsBoardByProjectParams{
+		ProjectID: projectID,
+		Search:    f.Search,
+		Status:    f.Status,
+		Tracker:   f.Tracker,
+		Priority:  f.Priority,
+		PageSize:  ticketBoardLimit + 1,
+	})
+	if err != nil {
+		return TicketBoard{}, fmt.Errorf("kanban des tickets du projet : %w", err)
+	}
+
+	board := TicketBoard{Truncated: len(rows) > ticketBoardLimit}
+	if board.Truncated {
+		rows = rows[:ticketBoardLimit]
+	}
+
+	board.Items = make([]TicketItem, 0, len(rows))
+	for _, row := range rows {
+		board.Items = append(board.Items, TicketItem{
+			ID:        row.ID,
+			Numero:    row.Numero,
+			Project:   TicketProject{ID: row.ProjectID, Name: row.ProjectName},
+			Tracker:   row.Tracker,
+			Status:    row.Status,
+			Priority:  row.Priority,
+			Subject:   row.Subject,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+			Assignee: personOfTicket(
+				row.AssigneeID, row.AssigneeFirstname, row.AssigneeLastname,
+				row.AssigneeAvatarUrl, "",
+			),
 		})
 	}
 
@@ -320,7 +450,6 @@ type TicketDetail struct {
 	TicketItem
 	Description string         `json:"description"`
 	Client      *TicketProject `json:"client"`
-	Assignee    *TicketPerson  `json:"assignee"`
 	Reporter    *TicketPerson  `json:"reporter"`
 	// Le registre, deja fusionne et trie du plus ancien au plus recent.
 	Entries []TicketEntry `json:"entries"`
