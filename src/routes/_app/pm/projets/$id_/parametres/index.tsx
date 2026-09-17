@@ -18,6 +18,7 @@ import {
   useUploadProjectFile,
 } from '@/features/projects/api'
 import { PRIORITY_TONE } from '@/features/projects/format'
+import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectPriority } from '@/types/api'
@@ -41,6 +42,10 @@ const schema = z.object({
   name: z.string().trim().min(1, 'Le nom du projet est requis'),
   description: z.string().trim(),
   priority: z.enum(['low', 'medium', 'high']),
+  // Vide quand le projet ne releve d'aucune prestation : un chantier interne.
+  // Le formulaire envoie toujours la liste entiere, que l'API applique telle
+  // quelle.
+  service_ids: z.array(z.string()),
   figma_url: lien,
   prod_url: lien,
   preprod_url: lien,
@@ -200,6 +205,7 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
       name: project.name,
       description: project.description,
       priority: project.priority,
+      service_ids: project.services.map((service) => service.id),
       figma_url: project.figma_url,
       prod_url: project.prod_url,
       preprod_url: project.preprod_url,
@@ -239,6 +245,13 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
             value={form.watch('priority')}
             options={PRIORITES}
             onChange={(value) => form.setValue('priority', value, { shouldDirty: true })}
+          />
+        </Field>
+
+        <Field label="Services">
+          <ServicesPicker
+            value={form.watch('service_ids')}
+            onChange={(value) => form.setValue('service_ids', value, { shouldDirty: true })}
           />
         </Field>
       </Card>

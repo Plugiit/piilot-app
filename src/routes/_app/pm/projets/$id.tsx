@@ -1,22 +1,26 @@
 import {
   ArrowLeft02Icon,
+  CheckmarkSquare02Icon,
   Delete02Icon,
-  DashboardSquare01Icon,
   Exchange01Icon,
+  KanbanIcon,
   Link04Icon,
   ListViewIcon,
   Mail01Icon,
   MoreHorizontalIcon,
   Settings02Icon,
   StarIcon,
+  Ticket02Icon,
   File01Icon,
   Attachment02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound, Outlet, useMatchRoute } from '@tanstack/react-router'
+import { motion } from 'framer-motion'
 import { useRef, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
 import { PageFrame, type Crumb } from '@/components/layout/page-frame'
 import { TabBar, type Tab } from '@/components/layout/tab-bar'
@@ -42,7 +46,10 @@ import {
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate } from '@/features/projects/format'
 import { Avatars, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
+import { ServicePills } from '@/features/services/tag'
+import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
 import { HttpError } from '@/lib/api'
+import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectStatus } from '@/types/api'
 
@@ -54,7 +61,22 @@ const LONG_DATE = new Intl.DateTimeFormat('fr-FR', {
   year: 'numeric',
 })
 
+/**
+ * La facon de regarder vit dans l'adresse, et sur le chassis plutot que sur
+ * chaque onglet : on passe des taches aux tickets sans changer de lunettes, et
+ * « le kanban de ce projet » se partage par lien.
+ */
+//
+// Optionnelle et sans valeur de repli inscrite : le tableau est ce qu'on voit
+// sans rien demander, et `?vue=table` n'apprendrait rien a une adresse. La
+// declarer requise obligerait par ailleurs chaque lien vers un projet — il y en
+// a dans les listes, les tableaux et les cartes — a porter une vue.
+const searchSchema = z.object({
+  vue: z.enum(['table', 'kanban']).optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/_app/pm/projets/$id')({
+  validateSearch: searchSchema,
   // Le projet est precharge ici et relu par `useQuery` dans le composant : le
   // loader supprime le clignotement a l'arrivee, la requete laisse les
   // compteurs se rafraichir quand une tache change de colonne.
@@ -102,10 +124,82 @@ const TOUS_LES_PROJETS: Crumb = {
   search: { page: 1, sort: 'due', dir: 'asc' },
 }
 
+/**
+ * Les onglets disent QUOI, la bascule dit COMMENT.
+ *
+ * Deux axes et non un seul : « Liste » et « Kanban » etaient deux vues des
+ * seules taches, et poser « Tickets » a cote aurait mis une entite en face de
+ * deux facons de lire. Chaque entite qui arrive ajoute un onglet, pas une
+ * entree par vue.
+ */
 const TABS: Tab[] = [
-  { to: '/pm/projets/$id', label: 'Liste', icon: ListViewIcon },
-  { to: '/pm/projets/$id/kanban', label: 'Kanban', icon: DashboardSquare01Icon },
+  { to: '/pm/projets/$id/taches', label: 'Tâches', icon: CheckmarkSquare02Icon },
+  { to: '/pm/projets/$id/tickets', label: 'Tickets', icon: Ticket02Icon },
 ]
+
+// Deux tailles pour un meme rendu : les tracés n'occupent pas la meme part de
+// leur boite — 20/24 pour les barres de la liste, 18/24 pour le carre du
+// kanban. A taille egale, la liste paraissait un dixieme plus grosse que le
+// kanban pose a cote d'elle ; ces deux valeurs leur donnent la meme emprise.
+const VUES = [
+  { vue: 'table', label: 'Tableau', icon: ListViewIcon, size: 15 },
+  { vue: 'kanban', label: 'Kanban', icon: KanbanIcon, size: 17 },
+] as const
+
+/**
+ * Bascule entre les deux facons de lire l'onglet ouvert.
+ *
+ * Meme dessin que le rail des modules : un creux qui porte deux cases, et une
+ * pastille blanche qui glisse de l'une a l'autre. Le geste est le meme — passer
+ * d'une vue a l'autre sans quitter ce qu'on regarde — donc il se montre pareil.
+ *
+ * La pastille est un noeud unique porte par `layoutId` : Framer l'interpole
+ * d'une case a la suivante au lieu de l'effacer ici pour la repeindre la.
+ *
+ * Des liens et non des boutons : la vue vit dans l'adresse, au meme titre que
+ * l'onglet. Chacune s'ouvre donc dans un nouvel onglet et se met en favori.
+ */
+function ViewSwitch() {
+  const { vue } = Route.useSearch()
+  const transition = useSlideTransition()
+
+  return (
+    <div className="bg-surface-sunken flex items-center gap-1 rounded-[12px]">
+      {VUES.map((item) => {
+        const active = (vue ?? 'table') === item.vue
+
+        return (
+          <Link
+            key={item.vue}
+            to="."
+            search={(prev) => ({ ...prev, vue: item.vue })}
+            aria-label={item.label}
+            title={item.label}
+            className="relative flex size-8 items-center justify-center rounded-[12px]"
+          >
+            {/* 10px et non 12 : un enfant en retrait de 2px doit retrancher
+                ce retrait au rayon du parent pour que les deux arrondis
+                restent concentriques. Le rail des modules garde 12px des deux
+                cotes, par choix de dessin assume a cet endroit-la. */}
+            {active && (
+              <motion.span
+                layoutId="project-view-highlight"
+                transition={transition}
+                className="absolute inset-[2px] rounded-[10px] border border-[#e6e6e6] bg-white"
+              />
+            )}
+            <HugeiconsIcon
+              icon={item.icon}
+              size={item.size}
+              strokeWidth={1.8}
+              className={cn('relative z-10', active ? 'text-[#111]' : 'text-[#999]')}
+            />
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
 
 /** Une ligne du bloc d'informations : intitule a gauche, valeur a droite. */
 function MetaRow({ label, children }: { label: string; children: ReactNode }) {
@@ -308,6 +402,8 @@ function ProjectLayout() {
   const { data: project } = useQuery(projectDetailQuery(id))
   const favorite = useToggleFavorite(id)
   const update = useUpdateProject(id)
+  const matchRoute = useMatchRoute()
+  const surTickets = matchRoute({ to: '/pm/projets/$id/tickets', params: { id } }) !== false
 
   // Le loader a deja rempli le cache : ce cas ne se produit qu'au tout premier
   // rendu d'une navigation sans prefetch.
@@ -457,6 +553,14 @@ function ProjectLayout() {
               <PriorityTag priority={project.priority} />
             </MetaRow>
 
+            {/* La ligne ne s'affiche que s'il y a des services : « Aucun » sur
+                tous les projets internes n'apprendrait rien. */}
+            {project.services.length > 0 && (
+              <MetaRow label={project.services.length > 1 ? 'Services' : 'Service'}>
+                <ServicePills services={project.services} />
+              </MetaRow>
+            )}
+
             <MetaRow label="Statut">
               <StatusPill label={status.label} color={status.color} pill={status.pill} />
             </MetaRow>
@@ -488,9 +592,24 @@ function ProjectLayout() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between border-b border-[#e8e8e9] pl-4">
-          <TabBar tabs={TABS} params={{ id: project.id }} layoutId="project-tab" />
-          <NewTaskDialog projectId={project.id} />
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8e8e9] px-4">
+          <TabBar tabs={TABS} params={{ id: project.id }} layoutId="project-tab" keepSearch />
+
+          {/* L'action suit l'onglet : on depose un ticket depuis les tickets,
+              on cree une tache depuis les taches. Les deux boutons cote a cote
+              auraient demande de lire lequel des deux on visait.
+
+              Rien ici ne doit depasser la hauteur d'un onglet : le filet actif
+              est ancre au bas de son lien, et une rangee plus haute que les
+              onglets les centrerait en decollant le filet du bord. */}
+          <div className="flex items-center gap-2">
+            <ViewSwitch />
+            {surTickets ? (
+              <NewTicketDialog projectId={project.id} />
+            ) : (
+              <NewTaskDialog projectId={project.id} />
+            )}
+          </div>
         </div>
 
         <Outlet />

@@ -30,6 +30,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { clientListQuery, peopleQuery, useCreateProject } from '@/features/projects/api'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, tintOf } from '@/features/projects/format'
+import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { ProjectStatus } from '@/types/api'
@@ -50,6 +51,8 @@ const schema = z.object({
     .trim()
     .refine((value) => value === '' || Number(value) >= 0, 'Un nombre positif est attendu'),
   due_on: z.string().trim(),
+  // Vide quand le projet ne releve d'aucune prestation.
+  service_ids: z.array(z.string()),
 })
 
 type Values = z.infer<typeof schema>
@@ -79,7 +82,14 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', client_name: '', status: 'cadrage', hours_sold: '', due_on: '' },
+    defaultValues: {
+      name: '',
+      client_name: '',
+      status: 'cadrage',
+      hours_sold: '',
+      due_on: '',
+      service_ids: [],
+    },
   })
 
   function submit(values: Values) {
@@ -90,6 +100,7 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
         status: values.status,
         hours_sold: values.hours_sold === '' ? 0 : Number(values.hours_sold),
         due_on: values.due_on === '' ? null : values.due_on,
+        service_ids: values.service_ids,
         team_ids: team,
       },
       {
@@ -213,6 +224,20 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="service_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Services</FormLabel>
+                  <FormControl>
+                    <ServicesPicker value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
