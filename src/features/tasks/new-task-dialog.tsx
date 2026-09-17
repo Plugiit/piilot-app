@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { PRIORITY_TONE, TASK_STATUS, TASK_STATUS_ORDER } from '@/features/projects/format'
 import { projectListQuery } from '@/features/projects/api'
 import { useCreateTask } from '@/features/tasks/api'
+import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { TaskPriority, TaskStatus } from '@/types/api'
@@ -47,6 +48,9 @@ const schema = z.object({
   title: z.string().trim().min(1, 'Le libellé est requis'),
   status: z.enum(['todo', 'progress', 'review', 'done']),
   priority: z.enum(['low', 'medium', 'high']),
+  // Vide quand la tache ne releve d'aucune prestation : une reunion interne,
+  // un correctif d'intendance.
+  service_ids: z.array(z.string()),
   due_on: z.string().trim(),
 })
 
@@ -85,6 +89,7 @@ export function NewTaskDialog({
       title: '',
       status: 'todo',
       priority: 'medium',
+      service_ids: [],
       due_on: '',
     },
   })
@@ -99,6 +104,7 @@ export function NewTaskDialog({
         title: values.title,
         status: values.status,
         priority: values.priority,
+        service_ids: values.service_ids,
         due_on: values.due_on === '' ? null : values.due_on,
       },
       {
@@ -109,6 +115,7 @@ export function NewTaskDialog({
             title: '',
             status: 'todo',
             priority: 'medium',
+            service_ids: [],
             due_on: '',
           })
           setOpen(false)
@@ -249,6 +256,20 @@ export function NewTaskDialog({
                       </button>
                     ))}
                   </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="service_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Services</FormLabel>
+                  <FormControl>
+                    <ServicesPicker value={field.value} onChange={field.onChange} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
