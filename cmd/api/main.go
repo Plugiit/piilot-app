@@ -119,12 +119,21 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
 		Tickets:       handler.NewTickets(usecase.NewTicketService(pool)),
+		Deliverables:  handler.NewDeliverables(usecase.NewDeliverableService(pool)),
+		Services:      handler.NewServices(usecase.NewServiceService(pool)),
+		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
+		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 
 	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,
 	// donc au premier signal d'arret.
 	repository.StartRefreshTokenPurge(ctx, pool, log)
+
+	// Recuperation des logos d'apps depuis leur adresse. En tache de fond et
+	// jamais dans le cycle d'une requete : c'est le seul endroit du projet qui
+	// sort vers un serveur tiers, et un ecran ne doit pas l'attendre.
+	repository.StartFaviconFetch(ctx, pool, files, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
