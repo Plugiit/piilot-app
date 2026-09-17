@@ -23,6 +23,10 @@ export const ticketKeys = {
   all: ['tickets'] as const,
   mine: (f: TicketFilters, page: number) => [...ticketKeys.all, 'mine', f, page] as const,
   board: (f: TicketFilters) => [...ticketKeys.all, 'board', f] as const,
+  project: (projectId: string, page: number) =>
+    [...ticketKeys.all, 'project', projectId, page] as const,
+  projectBoard: (projectId: string) =>
+    [...ticketKeys.all, 'project', projectId, 'board'] as const,
 }
 
 /** Les filtres voyagent sous les noms que l'API attend. */
@@ -104,6 +108,43 @@ export function myTicketsBoardQuery(f: TicketFilters) {
     queryKey: ticketKeys.board(f),
     queryFn: async () =>
       unwrap(await api.GET('/api/v1/admin/tickets/mine/board', { params: { query: queryOf(f) } })),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Les tickets d'un projet, pour l'onglet de sa fiche.
+ *
+ * Tous les tickets du projet et non les seuls miens : devant un projet, la
+ * question est « qui a quoi », pas « qu'ai-je a faire ». D'ou un endpoint a
+ * part plutot que « /mine » filtre par projet.
+ *
+ * Pas de filtres : l'onglet n'a pas de barre d'outils. L'ecran « Tickets » du
+ * module la porte deja, et c'est la qu'on va pour chercher.
+ */
+export function projectTicketsQuery(projectId: string, page: number) {
+  return queryOptions({
+    queryKey: ticketKeys.project(projectId, page),
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/v1/admin/projects/{id}/tickets', {
+          params: { path: { id: projectId }, query: { page, page_size: TICKETS_PAGE_SIZE } },
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Les memes tickets en kanban, que la vue repartit par statut. */
+export function projectTicketsBoardQuery(projectId: string) {
+  return queryOptions({
+    queryKey: ticketKeys.projectBoard(projectId),
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/v1/admin/projects/{id}/tickets/board', {
+          params: { path: { id: projectId } },
+        }),
+      ),
     placeholderData: keepPreviousData,
   })
 }
