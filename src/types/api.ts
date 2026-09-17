@@ -169,3 +169,27 @@ export type DashboardMetric = components['schemas']['Metric']
 export type AppNotification = components['schemas']['Notification']
 
 export type NotificationFeed = components['schemas']['NotificationFeed']
+
+/** Ligne de l'ecran « Livrables ». */
+export type Deliverable = components['schemas']['Deliverable']
+
+/** brouillon, en_attente, valide ou retours. */
+export type DeliverableStatus = Deliverable['status']
+
+/** Une version dans le fil d'un livrable. */
+export type DeliverableEntry = components['schemas']['DeliverableEntry']
+
+/** Prestation du referentiel de l'agence. */
+export type Service = components['schemas']['Service']
+
+/** Service porte par un projet ou une tache, reduit a sa pastille. */
+export type ServiceTag = components['schemas']['ServiceTag']
+
+/** Application jointe depuis le rail de la barre latérale. */
+export type SidebarApp = components['schemas']['SidebarApp']
+
+/** Ligne de pointage. */
+export type TimeEntry = components['schemas']['TimeEntry']
+
+/** Feuille de temps : les lignes d'une plage, leur total, et le total par jour. */
+export type TimeSheet = components['schemas']['TimeSheet']
