@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { peopleQuery, projectListQuery } from '@/features/projects/api'
+import { Avatars } from '@/features/projects/ui'
 import { useCreateTicket } from '@/features/tickets/api'
 import {
   TICKET_PRIORITY,
@@ -68,35 +69,44 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-export function NewTicketDialog() {
+/**
+ * Depose un ticket.
+ *
+ * Deux appelants, deux situations. Dans la fiche d'un projet, `projectId` est
+ * connu : le champ « Projet » ne s'affiche pas, il n'y aurait qu'une reponse
+ * possible. Sur l'ecran « Tickets » du module, qui traverse les projets, il
+ * faut bien demander lequel.
+ */
+export function NewTicketDialog({ projectId }: { projectId?: string }) {
   const [open, setOpen] = useState(false)
 
   // Les deux listes ne partent qu'a l'ouverture : l'ecran des tickets n'a
-  // besoin ni des projets ni des comptes pour s'afficher.
+  // besoin ni des projets ni des comptes pour s'afficher. Et pas de liste de
+  // projets du tout quand il est deja connu.
   const { data: projects } = useQuery({
     ...projectListQuery({ page: 1, pageSize: 100, sort: 'name', dir: 'asc' }),
-    enabled: open,
+    enabled: open && projectId === undefined,
   })
   const { data: people } = useQuery({ ...peopleQuery, enabled: open })
 
   const create = useCreateTicket()
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      project_id: '',
-      subject: '',
-      description: '',
-      tracker: 'anomalie',
-      priority: 'normal',
-      assignee_id: '',
-    },
-  })
+  const vierge: FormValues = {
+    project_id: projectId ?? '',
+    subject: '',
+    description: '',
+    tracker: 'anomalie',
+    priority: 'normal',
+    assignee_id: '',
+  }
+
+  const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: vierge })
 
   function onSubmit(values: FormValues) {
     create.mutate(
       {
         ...values,
+        project_id: projectId ?? values.project_id,
         description: values.description.trim(),
         assignee_id: values.assignee_id === '' ? null : values.assignee_id,
       },
@@ -104,7 +114,7 @@ export function NewTicketDialog() {
         onSuccess: (ticket) => {
           toast.success(`Ticket #${ticket.numero} déposé`)
           setOpen(false)
-          form.reset()
+          form.reset(vierge)
         },
         onError: (error) => {
           toast.error(error instanceof HttpError ? error.message : 'Dépôt impossible')
@@ -114,7 +124,15 @@ export function NewTicketDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        // Le chassis d'un projet garde ce dialogue monte en passant au projet
+        // suivant : sans cette remise a zero, il rouvrirait sur le precedent.
+        if (next) form.reset(vierge)
+      }}
+    >
       <DialogTrigger asChild>
         {/* `lg` : le declencheur vit sur la rangee des onglets, qu'il ne doit
             pas rehausser sous peine d'en decoller le filet actif. */}
@@ -134,30 +152,32 @@ export function NewTicketDialog() {
 
         <Form {...form}>
           <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            <FormField
-              control={form.control}
-              name="project_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Projet</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choisir un projet" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {(projects?.items ?? []).map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {projectId === undefined && (
+              <FormField
+                control={form.control}
+                name="project_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Projet</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choisir un projet" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {(projects?.items ?? []).map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -240,6 +260,7 @@ export function NewTicketDialog() {
                     <SelectContent>
                       {(people?.items ?? []).map((person: Person) => (
                         <SelectItem key={person.id} value={person.id}>
+                          <Avatars people={[person]} max={1} size={20} />
                           {`${person.firstname} ${person.lastname}`.trim() || 'Sans nom'}
                         </SelectItem>
                       ))}
@@ -269,10 +290,10 @@ export function NewTicketDialog() {
             />
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button type="button" size="lg" variant="outline" onClick={() => setOpen(false)}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={create.isPending}>
+              <Button type="submit" size="lg" disabled={create.isPending}>
                 {create.isPending ? 'Dépôt…' : 'Déposer'}
               </Button>
             </DialogFooter>

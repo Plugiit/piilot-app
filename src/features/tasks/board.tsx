@@ -174,6 +174,24 @@ function TaskCard({
         {task.project_name !== undefined && (
           <span className="truncate text-[12px] text-[#73757c]">{task.project_name}</span>
         )}
+
+        {/* Les services ne prennent la place de rien : des points de couleur
+            suffisent a dire de quelles prestations releve la tache. */}
+        {task.services.length > 0 && (
+          <span
+            title={task.services.map((service) => service.name).join(', ')}
+            className="ml-auto flex shrink-0 items-center gap-0.5"
+          >
+            {task.services.map((service) => (
+              <span
+                key={service.id}
+                aria-hidden
+                className="size-2 rounded-full"
+                style={{ backgroundColor: service.color }}
+              />
+            ))}
+          </span>
+        )}
       </div>
 
       <button
