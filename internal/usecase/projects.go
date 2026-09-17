@@ -59,6 +59,10 @@ type ProjectListItem struct {
 	TasksTotal  int       `json:"tasks_total"`
 	TasksDone   int       `json:"tasks_done"`
 	Team        []Person  `json:"team"`
+	// Prestations vendues. Vide quand le projet n'en releve d'aucune — un
+	// chantier interne — et souvent plusieurs : une refonte, c'est du design
+	// et du developpement.
+	Services []ServiceTag `json:"services"`
 	// Etoile de l'appelant, pas du projet : deux comptes voient la meme liste
 	// dans un ordre different, et c'est voulu.
 	IsFavorite bool `json:"is_favorite"`
@@ -107,6 +111,7 @@ type ProjectDetail struct {
 	PreprodURL         string       `json:"preprod_url"`
 	IsFavorite         bool         `json:"is_favorite"`
 	Files              []Attachment `json:"files"`
+	Services           []ServiceTag `json:"services"`
 }
 
 // Attachment est une piece jointe, d'un projet ou d'une tache.
@@ -164,6 +169,7 @@ type CreateProjectInput struct {
 	DueOn       *time.Time
 	TeamIDs     []uuid.UUID
 	CreatedBy   uuid.UUID
+	ServiceIDs  []uuid.UUID
 }
 
 // UpdateProjectInput ne porte que ce qui change : un champ absent garde sa
@@ -183,6 +189,10 @@ type UpdateProjectInput struct {
 	ClearStartsOn bool
 	DueOn         *time.Time
 	ClearDueOn    bool
+	// Nul quand le formulaire ne parle pas des services ; une tranche vide les
+	// detache tous. La difference compte : une mise a jour partielle ne doit
+	// pas effacer ce qu'elle ignore.
+	ServiceIDs *[]uuid.UUID
 }
 
 // Statuts acceptes, en un seul endroit. Le CHECK de la base dit la meme chose ;
@@ -278,6 +288,7 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 			TasksTotal:  int(row.TasksTotal),
 			TasksDone:   int(row.TasksDone),
 			Team:        []Person{},
+			Services:    []ServiceTag{},
 			IsFavorite:  row.IsFavorite,
 		})
 	}
@@ -306,6 +317,26 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 				items[i].Team = team
 			}
 		}
+
+		// Meme parade pour les services : une collection ne se joint pas a la
+		// liste, elle se charge d'un coup et se repartit ensuite.
+		tags, err := s.q.ListServicesOfProjects(ctx, ids)
+		if err != nil {
+			return ProjectPage{}, fmt.Errorf("lecture des services : %w", err)
+		}
+
+		byService := make(map[uuid.UUID][]ServiceTag, len(ids))
+		for _, t := range tags {
+			byService[t.ProjectID] = append(byService[t.ProjectID], ServiceTag{
+				ID: t.ID, Name: t.Name, Color: t.Color,
+			})
+		}
+
+		for i := range items {
+			if services, ok := byService[items[i].ID]; ok {
+				items[i].Services = services
+			}
+		}
 	}
 
 	return ProjectPage{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize}, nil
@@ -328,6 +359,16 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 	members, err := s.q.ListMembersOfProjects(ctx, []uuid.UUID{id})
 	if err != nil {
 		return ProjectDetail{}, fmt.Errorf("lecture de l'equipe : %w", err)
+	}
+
+	tags, err := s.q.ListServicesOfProjects(ctx, []uuid.UUID{id})
+	if err != nil {
+		return ProjectDetail{}, fmt.Errorf("lecture des services : %w", err)
+	}
+
+	services := make([]ServiceTag, 0, len(tags))
+	for _, t := range tags {
+		services = append(services, ServiceTag{ID: t.ID, Name: t.Name, Color: t.Color})
 	}
 
 	team := make([]Person, 0, len(members))
@@ -381,6 +422,7 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 		TasksTotal:         int(row.TasksTotal),
 		TasksDone:          int(row.TasksDone),
 		Team:               team,
+		Services:           services,
 	}, nil
 }
 
@@ -490,6 +532,22 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 			UserID:    member,
 		}); err != nil {
 			return ProjectDetail{}, fmt.Errorf("affectation de l'equipe : %w", err)
+		}
+	}
+
+	for _, serviceID := range in.ServiceIDs {
+		if err := qtx.AddProjectService(ctx, db.AddProjectServiceParams{
+			ProjectID: project.ID,
+			ServiceID: serviceID,
+		}); err != nil {
+			// Un service inconnu est une faute de la requete, pas une panne.
+			if isForeignKeyViolation(err) {
+				return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+					"service_ids": "Un des services n'existe pas",
+				})
+			}
+
+			return ProjectDetail{}, fmt.Errorf("affectation des services : %w", err)
 		}
 	}
 
@@ -613,6 +671,30 @@ func (s *ProjectService) Update(ctx context.Context, id, viewer uuid.UUID, in Up
 			return ProjectDetail{}, domain.ErrNotFound
 		}
 		return ProjectDetail{}, fmt.Errorf("mise a jour du projet : %w", err)
+	}
+
+	// Nul quand le formulaire ne parle pas des services : ce qu'une mise a jour
+	// partielle ignore, elle ne doit pas l'effacer. Une tranche vide, elle,
+	// detache tout — c'est ce que dit un selecteur qu'on a vide.
+	if in.ServiceIDs != nil {
+		if err := s.q.SetProjectServices(ctx, id); err != nil {
+			return ProjectDetail{}, fmt.Errorf("remise a zero des services : %w", err)
+		}
+
+		for _, serviceID := range *in.ServiceIDs {
+			if err := s.q.AddProjectService(ctx, db.AddProjectServiceParams{
+				ProjectID: id,
+				ServiceID: serviceID,
+			}); err != nil {
+				if isForeignKeyViolation(err) {
+					return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
+						"service_ids": "Un des services n'existe pas",
+					})
+				}
+
+				return ProjectDetail{}, fmt.Errorf("affectation des services : %w", err)
+			}
+		}
 	}
 
 	return s.Get(ctx, id, viewer)

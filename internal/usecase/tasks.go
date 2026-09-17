@@ -50,6 +50,10 @@ type TaskSummary struct {
 	Hours            *float64 `json:"hours"`
 	Position         int      `json:"position"`
 	Assignees        []Person `json:"assignees"`
+	// Prestations sur lesquelles la tache compte. Vide quand elle n'en releve
+	// d'aucune — une reunion interne, un correctif d'intendance — et parfois
+	// plusieurs.
+	Services []ServiceTag `json:"services"`
 }
 
 // TaskBoard est le contenu de l'onglet « Tâches » d'un projet.
@@ -146,6 +150,7 @@ type TaskDetail struct {
 	Subtasks    []Subtask       `json:"subtasks"`
 	Files       []Attachment    `json:"files"`
 	Activity    []ActivityEntry `json:"activity"`
+	Services    []ServiceTag    `json:"services"`
 }
 
 // CreateTaskInput decrit une tache a creer.
@@ -162,6 +167,7 @@ type CreateTaskInput struct {
 	Note        string
 	AssigneeIDs []uuid.UUID
 	ActorID     uuid.UUID
+	ServiceIDs  []uuid.UUID
 }
 
 // UpdateTaskInput ne porte que ce qui change.
@@ -177,7 +183,10 @@ type UpdateTaskInput struct {
 	ClearStartsOn bool
 	DueOn         *time.Time
 	ClearDueOn    bool
-	ActorID       uuid.UUID
+	// Nul quand le formulaire ne parle pas des services ; une tranche vide les
+	// detache tous.
+	ServiceIDs *[]uuid.UUID
+	ActorID    uuid.UUID
 }
 
 // Priorites acceptees. La table du projet dit la meme chose pour les projets ;
@@ -241,9 +250,12 @@ func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskList, error)
 		ids = append(ids, row.ID)
 		items = append(items, TaskListItem{
 			TaskSummary: TaskSummary{
-				ID:               row.ID,
-				ProjectID:        row.ProjectID,
-				Title:            row.Title,
+				ID:        row.ID,
+				ProjectID: row.ProjectID,
+				Title:     row.Title,
+				// Vide et non nulle : le contrat annonce un tableau, et
+				// l'ecran qui compte ses elements tomberait sur un nul.
+				Services:         []ServiceTag{},
 				Status:           row.Status,
 				Tag:              row.Tag,
 				Priority:         row.Priority,
@@ -266,9 +278,17 @@ func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskList, error)
 		return TaskList{}, err
 	}
 
+	byService, err := s.servicesOf(ctx, ids)
+	if err != nil {
+		return TaskList{}, err
+	}
+
 	for i := range items {
 		if people, ok := byTask[items[i].ID]; ok {
 			items[i].Assignees = people
+		}
+		if services, ok := byService[items[i].ID]; ok {
+			items[i].Services = services
 		}
 	}
 
@@ -299,6 +319,7 @@ func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard
 			ID:               row.ID,
 			ProjectID:        row.ProjectID,
 			Title:            row.Title,
+			Services:         []ServiceTag{},
 			Status:           row.Status,
 			Tag:              row.Tag,
 			Priority:         row.Priority,
@@ -319,9 +340,17 @@ func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard
 		return TaskBoard{}, err
 	}
 
+	byService, err := s.servicesOf(ctx, ids)
+	if err != nil {
+		return TaskBoard{}, err
+	}
+
 	for i := range items {
 		if people, ok := byTask[items[i].ID]; ok {
 			items[i].Assignees = people
+		}
+		if services, ok := byService[items[i].ID]; ok {
+			items[i].Services = services
 		}
 	}
 
@@ -340,6 +369,11 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 	}
 
 	byTask, err := s.assigneesOf(ctx, []uuid.UUID{id})
+	if err != nil {
+		return TaskDetail{}, err
+	}
+
+	byService, err := s.servicesOf(ctx, []uuid.UUID{id})
 	if err != nil {
 		return TaskDetail{}, err
 	}
@@ -421,6 +455,7 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 		CompletedAt: row.CompletedAt,
 		CreatedAt:   row.CreatedAt,
 		Assignees:   assignees,
+		Services:    servicesOrEmpty(byService[id]),
 		Subtasks:    subtasks,
 		Files:       files,
 		Activity:    activity,
@@ -501,6 +536,10 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (TaskDetai
 		}
 	}
 
+	if err := setTaskServices(ctx, qtx, task.ID, in.ServiceIDs); err != nil {
+		return TaskDetail{}, err
+	}
+
 	if err := logActivity(ctx, qtx, task.ID, in.ActorID, "created", map[string]any{"title": task.Title}); err != nil {
 		return TaskDetail{}, err
 	}
@@ -573,6 +612,14 @@ func (s *TaskService) Update(ctx context.Context, id uuid.UUID, in UpdateTaskInp
 			return TaskDetail{}, domain.ErrNotFound
 		}
 		return TaskDetail{}, fmt.Errorf("mise a jour de la tache : %w", err)
+	}
+
+	// Nul quand le formulaire n'en parle pas : une mise a jour partielle ne
+	// doit pas effacer ce qu'elle ignore.
+	if in.ServiceIDs != nil {
+		if err := setTaskServices(ctx, s.q, id, *in.ServiceIDs); err != nil {
+			return TaskDetail{}, err
+		}
 	}
 
 	if !sameDate(before.DueOn, updated.DueOn) {
@@ -952,6 +999,72 @@ func (s *TaskService) assigneesOf(ctx context.Context, ids []uuid.UUID) (map[uui
 	}
 
 	return byTask, nil
+}
+
+// servicesOf charge les services de plusieurs taches en une requete.
+//
+// Jumeau de assigneesOf, et pour la meme raison : une collection jointe a la
+// liste en multiplierait les lignes.
+func (s *TaskService) servicesOf(
+	ctx context.Context,
+	ids []uuid.UUID,
+) (map[uuid.UUID][]ServiceTag, error) {
+	byTask := map[uuid.UUID][]ServiceTag{}
+
+	if len(ids) == 0 {
+		return byTask, nil
+	}
+
+	rows, err := s.q.ListServicesOfTasks(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("lecture des services : %w", err)
+	}
+
+	for _, row := range rows {
+		byTask[row.TaskID] = append(byTask[row.TaskID], ServiceTag{
+			ID: row.ID, Name: row.Name, Color: row.Color,
+		})
+	}
+
+	return byTask, nil
+}
+
+// servicesOrEmpty rend une tranche vide plutot que nulle.
+//
+// Une tache sans service n'a pas d'entree dans la carte des services : la
+// lecture rend alors le zero du type, c'est-a-dire nil, qui se serialise en
+// `null`. Le contrat annonce un tableau, et l'ecran qui en compte les elements
+// tombe sur un nul.
+func servicesOrEmpty(services []ServiceTag) []ServiceTag {
+	if services == nil {
+		return []ServiceTag{}
+	}
+
+	return services
+}
+
+// setTaskServices remplace les services d'une tache par la liste fournie.
+func setTaskServices(ctx context.Context, q *db.Queries, taskID uuid.UUID, ids []uuid.UUID) error {
+	if err := q.ClearTaskServices(ctx, taskID); err != nil {
+		return fmt.Errorf("remise a zero des services : %w", err)
+	}
+
+	for _, serviceID := range ids {
+		if err := q.AddTaskService(ctx, db.AddTaskServiceParams{
+			TaskID:    taskID,
+			ServiceID: serviceID,
+		}); err != nil {
+			if isForeignKeyViolation(err) {
+				return domain.ErrValidation.WithDetails(map[string]any{
+					"service_ids": "Un des services n'existe pas",
+				})
+			}
+
+			return fmt.Errorf("affectation des services : %w", err)
+		}
+	}
+
+	return nil
 }
 
 // logActivity ecrit une ligne de journal.
