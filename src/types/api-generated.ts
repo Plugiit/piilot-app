@@ -298,6 +298,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/projects/{id}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Tickets d'un projet
+         * @description Sert l'onglet « Tickets » de la fiche d'un projet : tous ses tickets, quel qu'en soit l'assigne, du plus recemment mis a jour au plus ancien. Le projet vient du chemin — un project_id en parametre y serait sans effet. Un projet inconnu rend une page vide plutot qu'un 404 : la fiche qui porte cet onglet a deja repondu 404 avant de l'afficher. Exige tickets.read.
+         */
+        get: operations["listProjectTickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/tickets/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Tickets d'un projet, en kanban
+         * @description Sert la vue kanban du meme onglet, que le front repartit par statut. Bornee a 300 cartes. Exige tickets.read.
+         */
+        get: operations["listProjectTicketsBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/tasks": {
         parameters: {
             query?: never;
@@ -1004,6 +1050,325 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Livrables de l'agence
+         * @description Sert l'ecran PM > Livrables, qui traverse les projets : ce qui attend une reponse du client, et depuis quand. Trie du plus recemment soumis au plus ancien, brouillons en queue. Exige deliverables.read.
+         */
+        get: operations["listDeliverables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deposer un livrable
+         * @description Cree un livrable et sa premiere version d'un seul geste : un livrable sans rien a montrer n'est pas quelque chose qu'on depose. Exige deliverables.write.
+         */
+        post: operations["createDeliverable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/deliverables/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du livrable */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Fil d'un livrable
+         * @description Toutes les versions d'un livrable, de la premiere a la derniere, avec la decision rendue sur chacune. C'est la trace que le module existe pour garder. Exige deliverables.read.
+         */
+        get: operations["listDeliverableVersions"];
+        put?: never;
+        /**
+         * Soumettre une version
+         * @description Ajoute une version au livrable et en fait la version courante : la v2 apres des retours. Exige deliverables.write.
+         */
+        post: operations["submitDeliverableVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/deliverables/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du livrable */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trancher sur un livrable
+         * @description Enregistre la reponse du client sur la version courante. Une decision deja rendue n'est pas reecrite. Exige deliverables.validate, que portent le role client — qui tranche pour lui-meme — et le role team, qui enregistre une reponse recue ailleurs.
+         */
+        post: operations["decideDeliverable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Referentiel des services
+         * @description Sert l'ecran PM > Services, par ordre alphabetique. Exige projects.read.
+         */
+        get: operations["listServices"];
+        put?: never;
+        /**
+         * Ajouter un service
+         * @description Deux services ne peuvent pas porter le meme nom : ils se confondraient dans un menu deroulant. Exige projects.write.
+         */
+        post: operations["createService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/services/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du service */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un service
+         * @description Suppression douce : un service retire a pu etiqueter des donnees passees. Exige projects.write.
+         */
+        delete: operations["deleteService"];
+        options?: never;
+        head?: never;
+        /**
+         * Modifier un service
+         * @description Les trois champs partent ensemble : le formulaire les montre tous. Exige projects.write.
+         */
+        patch: operations["updateService"];
+        trace?: never;
+    };
+    "/api/v1/admin/sidebar-apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apps du rail
+         * @description Sert le rail de la barre laterale et l'ecran qui le regle. Ouverte a tout compte connecte : le rail s'affiche sur chaque page.
+         */
+        get: operations["listSidebarApps"];
+        put?: never;
+        /**
+         * Ajouter une app
+         * @description L'app se place en queue du rail. Exige users.write.
+         */
+        post: operations["createSidebarApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sidebar-apps/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Retirer une app
+         * @description Suppression douce ; le fichier du logo est efface, plus rien ne le designant. Exige users.write.
+         */
+        delete: operations["deleteSidebarApp"];
+        options?: never;
+        head?: never;
+        /**
+         * Modifier une app
+         * @description Exige users.write.
+         */
+        patch: operations["updateSidebarApp"];
+        trace?: never;
+    };
+    "/api/v1/admin/sidebar-apps/{id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deposer un logo
+         * @description SVG, PNG, JPEG, WEBP ou GIF, 512 Ko au plus. L'ancien logo est efface. Exige users.write.
+         */
+        post: operations["uploadSidebarAppLogo"];
+        /**
+         * Retirer le logo
+         * @description L'app retombe sur sa pastille teintee. Exige users.write.
+         */
+        delete: operations["deleteSidebarAppLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sidebar-apps/logos/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cle du logo, telle qu'elle figure dans logo_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Lire un logo
+         * @description Le type est devine au contenu, jamais repris de ce qui a ete annonce au depot. Servi avec nosniff et une politique qui coupe tout script.
+         */
+        get: operations["getSidebarAppLogo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sidebar-apps/{id}/logo/auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Repasser le logo en automatique
+         * @description Efface le logo courant et rouvre la recuperation depuis l'adresse du site. Repond sans logo : la recuperation se fait en tache de fond, et le logo apparait au passage suivant du job. Exige users.write.
+         */
+        post: operations["refetchSidebarAppLogo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mon temps passe
+         * @description Sert l'ecran PM > Temps > Saisie. Le compte vient de la session : on relit son propre pointage, jamais celui d'un autre. Sans parametre, la journee courante.
+         */
+        get: operations["getTimeSheet"];
+        put?: never;
+        /**
+         * Pointer du temps
+         * @description Enregistre une saisie au nom du compte connecte. Met a jour les heures consommees du projet, tenues par declencheur.
+         */
+        post: operations["createTimeEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la saisie */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer une saisie
+         * @description Suppression douce. Les heures du projet sont recalculees.
+         */
+        delete: operations["deleteTimeEntry"];
+        options?: never;
+        head?: never;
+        /**
+         * Modifier une saisie
+         * @description Une saisie qui n'appartient pas au compte appelant rend 404 : elle ne correspond a aucune ligne.
+         */
+        patch: operations["updateTimeEntry"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1115,6 +1480,8 @@ export interface components {
             team: components["schemas"]["Person"][];
             /** @description Etoile du compte appelant. Personnelle : deux comptes n'ont pas les memes, et elle remonte la ligne en tete de liste quel que soit le tri. */
             is_favorite: boolean;
+            /** @description Prestations dont releve l'entite. Vide quand aucune. */
+            services: components["schemas"]["ServiceTag"][];
         };
         /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
         ProjectPage: {
@@ -1214,6 +1581,8 @@ export interface components {
             client_contact_role: string;
             /** Format: email */
             client_contact_email?: string | null;
+            /** @description Prestations dont releve l'entite. Vide quand aucune. */
+            services: components["schemas"]["ServiceTag"][];
         };
         /** @description Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus. */
         ProjectShortcut: {
@@ -1323,6 +1692,8 @@ export interface components {
             /** @description Rang dans sa colonne */
             position: number;
             assignees: components["schemas"]["Person"][];
+            /** @description Prestations dont releve l'entite. Vide quand aucune. */
+            services: components["schemas"]["ServiceTag"][];
         };
         /** @description Contenu de l'onglet Taches d'un projet. */
         TaskBoard: {
@@ -1413,6 +1784,8 @@ export interface components {
             /** @description Pieces jointes de la tache, la derniere deposee en premier. Le contenu se telecharge par GET /api/v1/admin/files/{id}. */
             files: components["schemas"]["Attachment"][];
             activity: components["schemas"]["TaskActivity"][];
+            /** @description Prestations dont releve l'entite. Vide quand aucune. */
+            services: components["schemas"]["ServiceTag"][];
         };
         /** @description Le client se designe par client_id, ou par client_name pour un client encore inconnu : le formulaire propose une liste sans imposer un detour par un ecran de creation de client. */
         CreateProjectRequest: {
@@ -1448,6 +1821,8 @@ export interface components {
              */
             due_on?: string | null;
             team_ids?: string[];
+            /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
+            service_ids?: string[];
         };
         /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface la date. */
         UpdateProjectRequest: {
@@ -1481,6 +1856,8 @@ export interface components {
              * @description Date sans heure, AAAA-MM-JJ
              */
             due_on?: string | null;
+            /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
+            service_ids?: string[];
         };
         /** @description Remplace l'ensemble : les identifiants absents sont retires. */
         MembersRequest: {
@@ -1510,6 +1887,8 @@ export interface components {
             hours?: number | null;
             note?: string;
             assignee_ids?: string[];
+            /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
+            service_ids?: string[];
         };
         /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface le champ. */
         UpdateTaskRequest: {
@@ -1533,6 +1912,8 @@ export interface components {
              * @description Date sans heure, AAAA-MM-JJ
              */
             due_on?: string | null;
+            /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
+            service_ids?: string[];
         };
         /** @description Deplacement dans le tableau. Sans position, la tache se pose en fin de colonne. */
         MoveTaskRequest: {
@@ -1814,6 +2195,8 @@ export interface components {
              */
             numero: number;
             project: components["schemas"]["TicketProject"];
+            /** @description Nul quand le ticket est a prendre, ou quand le compte a quitte l'agence. Sur « mes tickets », vaut toujours le compte appelant. */
+            assignee: components["schemas"]["TicketPerson"] | null;
             /** @enum {string} */
             tracker: "anomalie" | "evolution" | "assistance";
             /** @enum {string} */
@@ -1892,7 +2275,6 @@ export interface components {
         TicketDetail: components["schemas"]["Ticket"] & {
             description: string;
             client: components["schemas"]["TicketProject"] | null;
-            assignee: components["schemas"]["TicketPerson"] | null;
             reporter: components["schemas"]["TicketPerson"] | null;
             /** @description Registre fusionne et trie du plus ancien au plus recent. */
             entries: components["schemas"]["TicketEntry"][];
@@ -1929,6 +2311,157 @@ export interface components {
         /** @description Nouveau sujet du ticket. Le numero, lui, ne bouge jamais. */
         RenameTicket: {
             subject: string;
+        };
+        /** @description Projet ou client d'un livrable, reduit a ce que la ligne affiche : un lien, pas une fiche. */
+        DeliverableRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @description Version courante d'un livrable. */
+        DeliverableVersion: {
+            /** Format: uuid */
+            id: string;
+            /** @description Numero au sein du livrable : « la v2 est partie ». */
+            numero: number;
+            /** @description Lien vers la ou le livrable vit. Vide quand la version porte un fichier. */
+            url: string;
+            /** Format: uuid */
+            attachment_id: string | null;
+            /**
+             * Format: date-time
+             * @description L'ecran en tire l'anciennete de l'attente ; une duree renvoyee ici serait fausse des la seconde suivante.
+             */
+            submitted_at: string;
+            submitter: components["schemas"]["Person"] | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            feedback: string;
+        };
+        /** @description Ligne de l'ecran « Livrables ». Le statut n'est porte par aucune colonne : c'est la decision de la version courante, et l'absence de version vaut brouillon. */
+        Deliverable: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            status: "brouillon" | "en_attente" | "valide" | "retours";
+            project: components["schemas"]["DeliverableRef"];
+            client: components["schemas"]["DeliverableRef"];
+            /** @description Nul tant qu'aucune version n'a ete soumise. */
+            version: components["schemas"]["DeliverableVersion"] | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DeliverablePage: {
+            items: components["schemas"]["Deliverable"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        /** @description Une version dans le fil d'un livrable : ce qui a ete soumis, et ce qu'on a repondu. */
+        DeliverableEntry: {
+            /** Format: uuid */
+            id: string;
+            numero: number;
+            url: string;
+            /** Format: uuid */
+            attachment_id: string | null;
+            /** Format: date-time */
+            submitted_at: string;
+            submitter: components["schemas"]["Person"] | null;
+            /** @enum {string} */
+            decision: "en_attente" | "valide" | "retours";
+            /** Format: date-time */
+            decided_at: string | null;
+            decider: components["schemas"]["Person"] | null;
+            /** @description admin, team ou client : dit si le client a tranche lui-meme, ou si l'agence a enregistre une reponse recue ailleurs. Vide sans decision. */
+            decider_role: string;
+            feedback: string;
+        };
+        DeliverableFeed: {
+            items: components["schemas"]["DeliverableEntry"][];
+        };
+        /** @description Prestation du referentiel de l'agence. Une nomenclature, pas une grille tarifaire : ni taux ni unite de vente, la facturation restant hors de ce projet. */
+        Service: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            /** @description Teinte de la pastille, en notation hexadecimale. */
+            color: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ServicePage: {
+            items: components["schemas"]["Service"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        /** @description Service porte par un projet ou une tache : de quoi peindre une pastille et le nommer. Un service retire du referentiel disparait de ces listes. */
+        ServiceTag: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+        };
+        /** @description Application jointe depuis le rail. Le logo est un fichier depose ; sans lui, le rail affiche une pastille teintee a l'initiale. */
+        SidebarApp: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Adresse de l'outil, en http ou https. */
+            url: string;
+            /** @description Adresse de relecture du logo. Nulle tant qu'aucun fichier n'a ete depose et qu'aucun favicon n'a pu etre recupere — la recuperation se fait en tache de fond, le logo peut donc apparaitre quelques instants apres la creation. */
+            logo_url: string | null;
+            /** @description Teinte de la pastille affichee a defaut de logo. */
+            color: string;
+            /** @description Rang dans le rail. */
+            position: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** @description Vrai quand le logo a ete recupere depuis l'adresse du site plutot que depose. Un logo depose n'est jamais ecrase par une recuperation. */
+            logo_is_favicon: boolean;
+        };
+        SidebarAppList: {
+            items: components["schemas"]["SidebarApp"][];
+        };
+        /** @description Ligne de pointage. La duree est en minutes : c'est l'unite de saisie, et la seule exacte — les heures se composent a l'affichage, sur des sommes. */
+        TimeEntry: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date
+             * @description Jour pointe.
+             */
+            spent_on: string;
+            /** @description Duree en minutes, de 1 a 1440. */
+            minutes: number;
+            note: string;
+            project: components["schemas"]["DeliverableRef"];
+            /** @description Nulle pour un echange client, une reunion. */
+            task: components["schemas"]["DeliverableRef"] | null;
+            /** @description Prestation sur laquelle l'heure compte. Une seule par ligne. */
+            service: components["schemas"]["ServiceTag"] | null;
+        };
+        TimeDay: {
+            /** Format: date */
+            day: string;
+            /** Format: int64 */
+            minutes: number;
+        };
+        /** @description Ce que l'ecran de saisie affiche : les lignes de la plage, leur total, et le total de chaque jour. */
+        TimeSheet: {
+            items: components["schemas"]["TimeEntry"][];
+            /**
+             * Format: int64
+             * @description Total de la plage, calcule par la base : la liste est bornee, le total ne l'est pas.
+             */
+            total_minutes: number;
+            /** @description Un poste par jour ayant recu du temps. Les jours vides n'y figurent pas. */
+            days: components["schemas"]["TimeDay"][];
         };
     };
     responses: {
@@ -2486,6 +3019,78 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listProjectTickets: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le sujet et sur le numero : « 47 » retrouve le ticket #47. */
+                search?: string;
+                /** @description Ne garde qu'un statut */
+                status?: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+                /** @description Ne garde qu'une nature */
+                tracker?: "anomalie" | "evolution" | "assistance";
+                /** @description Ne garde qu'une priorite */
+                priority?: "low" | "normal" | "high" | "urgent" | "critical";
+                /** @description Page demandee */
+                page?: number;
+                /** @description Lignes par page */
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page des tickets du projet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listProjectTicketsBoard: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le sujet et sur le numero : « 47 » retrouve le ticket #47. */
+                search?: string;
+                /** @description Ne garde qu'un statut */
+                status?: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+                /** @description Ne garde qu'une nature */
+                tracker?: "anomalie" | "evolution" | "assistance";
+                /** @description Ne garde qu'une priorite */
+                priority?: "low" | "normal" | "high" | "urgent" | "critical";
+            };
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cartes du kanban */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketBoard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listAdminTasks: {
@@ -3788,6 +4393,652 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listDeliverables: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le titre du livrable */
+                search?: string;
+                /** @description Ne garde qu'un etat */
+                status?: "brouillon" | "en_attente" | "valide" | "retours";
+                /** @description Ne garde que les livrables de ce projet */
+                project_id?: string;
+                /** @description Page demandee */
+                page?: number;
+                /** @description Lignes par page */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page des livrables */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverablePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createDeliverable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    description?: string;
+                    /** @description Lien vers la preproduction, la maquette ou le document. */
+                    url: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Livrable depose */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deliverable"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listDeliverableVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du livrable */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fil du livrable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableFeed"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    submitDeliverableVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du livrable */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    url: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Version soumise */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deliverable"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    decideDeliverable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du livrable */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "valide" | "retours";
+                    /** @description Ce que le client repond. Vide pour une validation sans commentaire. */
+                    feedback?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Livrable tranche */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deliverable"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listServices: {
+        parameters: {
+            query?: {
+                /** @description Porte sur le nom et la description */
+                search?: string;
+                /** @description Page demandee */
+                page?: number;
+                /** @description Lignes par page */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page du referentiel */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServicePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    description?: string;
+                    /** @description Teinte hexadecimale. Le gris des libelles secondaires par defaut. */
+                    color?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Service cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du service */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du service */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    description?: string;
+                    /** @description Teinte hexadecimale. Le gris des libelles secondaires par defaut. */
+                    color?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Service modifie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listSidebarApps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apps, dans leur ordre */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarAppList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createSidebarApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @description Adresse commencant par http:// ou https://. */
+                    url: string;
+                    /** @description Teinte de la pastille de repli. */
+                    color?: string;
+                    /** @description Rang dans le rail. Absent pour le laisser en place. */
+                    position?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description App creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarApp"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteSidebarApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App retiree */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSidebarApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @description Adresse commencant par http:// ou https://. */
+                    url: string;
+                    /** @description Teinte de la pastille de repli. */
+                    color?: string;
+                    /** @description Rang dans le rail. Absent pour le laisser en place. */
+                    position?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description App modifiee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarApp"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    uploadSidebarAppLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description App avec son nouveau logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarApp"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteSidebarAppLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App sans logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarApp"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSidebarAppLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cle du logo, telle qu'elle figure dans logo_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier du logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    refetchSidebarAppLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de l'app */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recuperation relancee ; l'app revient sans logo en attendant */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidebarApp"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTimeSheet: {
+        parameters: {
+            query?: {
+                /** @description Premier jour de la plage (AAAA-MM-JJ). Aujourd'hui par defaut. */
+                from?: string;
+                /** @description Dernier jour de la plage. Egal a `from` par defaut. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feuille de temps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeSheet"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    project_id: string;
+                    /** Format: uuid */
+                    task_id?: string | null;
+                    /** Format: uuid */
+                    service_id?: string | null;
+                    /** Format: date */
+                    spent_on: string;
+                    minutes: number;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saisie enregistree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntry"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la saisie */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saisie supprimee */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la saisie */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    project_id: string;
+                    /** Format: uuid */
+                    task_id?: string | null;
+                    /** Format: uuid */
+                    service_id?: string | null;
+                    /** Format: date */
+                    spent_on: string;
+                    minutes: number;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saisie modifiee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntry"];
                 };
             };
             401: components["responses"]["Unauthorized"];
