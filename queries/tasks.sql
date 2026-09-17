@@ -6,9 +6,11 @@
 -- c'est elle qui empeche un projet devenu fourre-tout de ramener dix mille
 -- lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
 -- qu'il n'affiche pas tout.
-SELECT * FROM tasks
-WHERE project_id = sqlc.arg('project_id') AND deleted_at IS NULL
-ORDER BY status, position, created_at
+SELECT
+    t.*
+FROM tasks t
+WHERE t.project_id = sqlc.arg('project_id') AND t.deleted_at IS NULL
+ORDER BY t.status, t.position, t.created_at
 LIMIT sqlc.arg('page_size');
 
 -- name: ListTasks :many
@@ -203,3 +205,49 @@ LIMIT sqlc.arg('page_size');
 -- name: LogTaskActivity :exec
 INSERT INTO task_activity (task_id, actor_id, kind, payload)
 VALUES ($1, $2, $3, $4);
+
+-- name: GetTaskProgressByTag :many
+-- Avancement des taches par nature, pour le tableau de bord.
+--
+-- La nature est le champ libre `tag` — « Design », « Integration », « Contenu »
+-- — c'est-a-dire l'axe que le graphique appelle « domaine ». Les taches qui
+-- n'en portent pas sont regroupees plutot qu'ecartees : les omettre donnerait
+-- un graphique qui ne compte pas tout ce qui existe.
+--
+-- « En cours » agrege `progress` et `review` : le dessin n'a que trois etats
+-- places, et une tache en relecture est commencee sans etre finie.
+--
+-- Bornee a cinq lignes, les natures les plus portees devant : le panneau a la
+-- place de quelques barres, et une agence qui inventerait trente etiquettes
+-- n'y lirait plus rien.
+SELECT
+    (CASE WHEN t.tag = '' THEN 'Sans nature' ELSE t.tag END)::text AS tag,
+    count(*) FILTER (WHERE t.status = 'todo')                   AS todo,
+    count(*) FILTER (WHERE t.status IN ('progress', 'review'))  AS progress,
+    count(*) FILTER (WHERE t.status = 'done')                   AS done
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+GROUP BY 1
+ORDER BY count(*) DESC, 1
+LIMIT 5;
+
+-- name: ListServicesOfTasks :many
+-- Services de plusieurs taches en une requete, comme pour les affectations.
+SELECT
+    ts.task_id,
+    s.id,
+    s.name,
+    s.color
+FROM task_services ts
+JOIN services s ON s.id = ts.service_id AND s.deleted_at IS NULL
+WHERE ts.task_id = ANY(sqlc.arg('task_ids')::uuid[])
+ORDER BY ts.task_id, s.name, s.id;
+
+-- name: ClearTaskServices :exec
+DELETE FROM task_services WHERE task_id = sqlc.arg('task_id');
+
+-- name: AddTaskService :exec
+INSERT INTO task_services (task_id, service_id)
+VALUES (sqlc.arg('task_id'), sqlc.arg('service_id'))
+ON CONFLICT DO NOTHING;

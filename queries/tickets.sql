@@ -24,9 +24,14 @@ SELECT
     t.created_at,
     t.updated_at,
     p.id   AS project_id,
-    p.name AS project_name
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
   AND t.assignee_id = sqlc.arg('assignee_id')
   AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
@@ -78,15 +83,118 @@ SELECT
     t.created_at,
     t.updated_at,
     p.id   AS project_id,
-    p.name AS project_name
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
   AND t.assignee_id = sqlc.arg('assignee_id')
   AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
   AND (sqlc.narg('tracker')::text IS NULL OR t.tracker = sqlc.narg('tracker')::text)
   AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
   AND (sqlc.narg('project_id')::uuid IS NULL OR t.project_id = sqlc.narg('project_id')::uuid)
+  AND (
+      sqlc.narg('search')::text IS NULL
+      OR t.subject ILIKE '%' || sqlc.narg('search')::text || '%'
+      OR t.numero::text = sqlc.narg('search')::text
+  )
+ORDER BY t.numero DESC
+LIMIT sqlc.arg('page_size');
+
+-- Les tickets d'un projet, pour l'onglet « Tickets » de sa fiche.
+--
+-- `project_id` y est la clause que `assignee_id` est au tableau personnel : on
+-- lit la fiche d'un projet, pas une liste qu'on filtrerait ensuite. L'assigne
+-- n'est donc plus une clause mais une colonne — la question qu'on se pose
+-- devant un projet est « qui a quoi », quand devant son propre tableau elle ne
+-- se pose pas.
+
+-- name: ListTicketsByProject :many
+-- Page de l'onglet, du plus recemment mis a jour au plus ancien, comme le
+-- tableau personnel. tickets_project_idx porte les deux colonnes dans cet
+-- ordre : la premiere page se lit sans tri.
+SELECT
+    t.id,
+    t.numero,
+    t.subject,
+    t.tracker,
+    t.status,
+    t.priority,
+    t.created_at,
+    t.updated_at,
+    p.id   AS project_id,
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND t.project_id = sqlc.arg('project_id')
+  AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('tracker')::text IS NULL OR t.tracker = sqlc.narg('tracker')::text)
+  AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
+  AND (
+      sqlc.narg('search')::text IS NULL
+      OR t.subject ILIKE '%' || sqlc.narg('search')::text || '%'
+      OR t.numero::text = sqlc.narg('search')::text
+  )
+ORDER BY t.updated_at DESC, t.numero DESC
+LIMIT sqlc.arg('page_size') OFFSET sqlc.arg('page_offset');
+
+-- name: CountTicketsByProject :one
+-- Total pour la pagination, aux memes conditions que la liste.
+SELECT count(*)
+FROM tickets t
+WHERE t.deleted_at IS NULL
+  AND t.project_id = sqlc.arg('project_id')
+  AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('tracker')::text IS NULL OR t.tracker = sqlc.narg('tracker')::text)
+  AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
+  AND (
+      sqlc.narg('search')::text IS NULL
+      OR t.subject ILIKE '%' || sqlc.narg('search')::text || '%'
+      OR t.numero::text = sqlc.narg('search')::text
+  );
+
+-- name: ListTicketsBoardByProject :many
+-- Toutes les cartes du kanban d'un projet.
+--
+-- Bornee et non paginee comme le kanban personnel, et triee par numero
+-- decroissant pour la meme raison : dans un tableau, c'est la colonne qui porte
+-- le classement, et l'ordre a l'interieur doit rester stable.
+--
+-- Un seul regroupement ici, par statut : repartir par projet les tickets d'un
+-- projet donnerait une colonne unique.
+SELECT
+    t.id,
+    t.numero,
+    t.subject,
+    t.tracker,
+    t.status,
+    t.priority,
+    t.created_at,
+    t.updated_at,
+    p.id   AS project_id,
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND t.project_id = sqlc.arg('project_id')
+  AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('tracker')::text IS NULL OR t.tracker = sqlc.narg('tracker')::text)
+  AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
   AND (
       sqlc.narg('search')::text IS NULL
       OR t.subject ILIKE '%' || sqlc.narg('search')::text || '%'

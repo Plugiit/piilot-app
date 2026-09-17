@@ -224,3 +224,31 @@ ON CONFLICT DO NOTHING;
 
 -- name: RemoveProjectFavorite :exec
 DELETE FROM project_favorites WHERE user_id = $1 AND project_id = $2;
+
+-- name: ListServicesOfProjects :many
+-- Services de plusieurs projets en une requete.
+--
+-- Meme parade au N+1 que pour les equipes : une collection ne se joint pas a la
+-- liste — elle multiplierait les lignes — elle se charge d'un coup pour la page
+-- entiere, et le service la repartit ensuite.
+SELECT
+    ps.project_id,
+    s.id,
+    s.name,
+    s.color
+FROM project_services ps
+JOIN services s ON s.id = ps.service_id AND s.deleted_at IS NULL
+WHERE ps.project_id = ANY(sqlc.arg('project_ids')::uuid[])
+ORDER BY ps.project_id, s.name, s.id;
+
+-- name: SetProjectServices :exec
+-- Remplace les services d'un projet par la liste fournie.
+--
+-- Effacer puis reinserer plutot que calculer une difference : la liste est
+-- courte, et le formulaire envoie toujours l'etat complet qu'il veut voir.
+DELETE FROM project_services WHERE project_id = sqlc.arg('project_id');
+
+-- name: AddProjectService :exec
+INSERT INTO project_services (project_id, service_id)
+VALUES (sqlc.arg('project_id'), sqlc.arg('service_id'))
+ON CONFLICT DO NOTHING;
