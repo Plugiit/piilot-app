@@ -29,6 +29,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ServicesPicker } from '@/features/services/tag'
 import { fileUrl, projectDetailQuery } from '@/features/projects/api'
 import {
   PRIORITY_TONE,
@@ -640,6 +641,16 @@ function TaskProperties({ task }: { task: TaskDetail }) {
           value={task.due_on}
           label="Échéance"
           onChange={(next) => update.mutate({ due_on: next }, { onError: reportError })}
+        />
+      </PropertyRow>
+
+      {/* Le selecteur est toujours la, contrairement a la pastille de la carte :
+          c'est ici qu'on attache une tache a une prestation, et une ligne qu'il
+          faudrait reveler rendrait le geste introuvable. */}
+      <PropertyRow label="Services :">
+        <ServicesPicker
+          value={task.services.map((service) => service.id)}
+          onChange={(next) => update.mutate({ service_ids: next }, { onError: reportError })}
         />
       </PropertyRow>
 

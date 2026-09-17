@@ -93,13 +93,6 @@ export const MODULES: AppModule[] = [
           { icon: Ticket02Icon, label: 'Tickets', to: '/pm/tickets' },
         ],
       },
-      {
-        label: 'Référentiels',
-        items: [
-          { icon: LayoutTable01Icon, label: 'Modèles de projet', to: '/pm/modeles' },
-          { icon: Tag01Icon, label: 'Services', to: '/pm/services' },
-        ],
-      },
     ],
   },
   {
@@ -117,6 +110,33 @@ export const MODULES: AppModule[] = [
       },
     ],
   },
+  {
+    icon: Settings02Icon,
+    label: 'Paramètres',
+    to: '/parametres',
+    menu: [
+      {
+        // Les referentiels valent pour toute l'agence, pas pour le seul module
+        // PM ou ils vivaient : un service etiquette aussi bien un projet qu'une
+        // tache, et rien n'interdit qu'il serve ailleurs demain.
+        label: 'Référentiels',
+        items: [
+          { icon: Tag01Icon, label: 'Services', to: '/parametres/services' },
+          { icon: LayoutTable01Icon, label: 'Modèles de projet', to: '/parametres/modeles' },
+        ],
+      },
+      {
+        label: 'Accès',
+        items: [
+          { icon: UserMultipleIcon, label: 'Comptes et rôles', to: '/parametres/comptes' },
+        ],
+      },
+      {
+        label: 'Apparence',
+        items: [{ icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps' }],
+      },
+    ],
+  },
 ]
 
 /**
@@ -127,14 +147,19 @@ export const MODULES: AppModule[] = [
 /**
  * Reglages du compte connecte.
  *
+ * « Mon compte » et non « Parametres » : ce dernier nomme desormais les
+ * reglages de l'application, qui ont leur place dans le rail. Le groupe de menu
+ * ci-dessous portait deja ce titre — le module prend le nom de ce qu'il
+ * contient.
+ *
  * A l'ecart de `MODULES` : le rail montre les modules metier, et le compte ne
  * s'y range pas — on y entre par son portrait, en bas de la barre. Il a en
  * revanche besoin d'une navigation de panneau comme les autres, d'ou un module
  * a part entiere plutot qu'un cas special dans le panneau.
  */
 export const ACCOUNT_MODULE: AppModule = {
-  icon: Settings02Icon,
-  label: 'Paramètres',
+  icon: UserCircleIcon,
+  label: 'Mon compte',
   to: '/compte',
   menu: [
     {
