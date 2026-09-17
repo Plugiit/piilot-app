@@ -17,6 +17,8 @@ type TicketService interface {
 	ListAssignedTo(ctx context.Context, userID uuid.UUID, f usecase.TicketFilters, page, pageSize int) (usecase.TicketPage, error)
 	Create(ctx context.Context, in usecase.CreateTicketInput) (usecase.TicketItem, error)
 	BoardAssignedTo(ctx context.Context, userID uuid.UUID, f usecase.TicketFilters) (usecase.TicketBoard, error)
+	ListByProject(ctx context.Context, projectID uuid.UUID, f usecase.TicketFilters, page, pageSize int) (usecase.TicketPage, error)
+	BoardByProject(ctx context.Context, projectID uuid.UUID, f usecase.TicketFilters) (usecase.TicketBoard, error)
 	Get(ctx context.Context, id uuid.UUID) (usecase.TicketDetail, error)
 	PostMessage(ctx context.Context, ticketID uuid.UUID, in usecase.PostMessageInput) (usecase.TicketDetail, error)
 	Rename(ctx context.Context, ticketID uuid.UUID, subject string, actorID *uuid.UUID) (usecase.TicketDetail, error)
@@ -118,6 +120,56 @@ func (h *Tickets) MineBoard(c fiber.Ctx) error {
 	}
 
 	board, err := h.svc.BoardAssignedTo(c.Context(), userID, filters)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(board)
+}
+
+// ProjectList sert le tableau de l'onglet « Tickets » d'un projet.
+//
+// Le projet vient de l'adresse et non des filtres : c'est la fiche qu'on lit.
+// Un `project_id` en parametre de recherche y serait sans effet.
+func (h *Tickets) ProjectList(c fiber.Ctx) error {
+	projectID, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	filters, err := ticketFiltersFrom(c)
+	if err != nil {
+		return err
+	}
+
+	page, err := h.svc.ListByProject(
+		c.Context(),
+		projectID,
+		filters,
+		queryInt(c, "page", 1),
+		queryInt(c, "page_size", 25),
+	)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(page)
+}
+
+// ProjectBoard sert le kanban du meme onglet : les memes cartes, que le front
+// repartit par statut.
+func (h *Tickets) ProjectBoard(c fiber.Ctx) error {
+	projectID, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	filters, err := ticketFiltersFrom(c)
+	if err != nil {
+		return err
+	}
+
+	board, err := h.svc.BoardByProject(c.Context(), projectID, filters)
 	if err != nil {
 		return err
 	}

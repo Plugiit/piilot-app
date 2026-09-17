@@ -53,6 +53,7 @@ type createTaskRequest struct {
 	Hours       *float64 `json:"hours"`
 	Note        string   `json:"note"`
 	AssigneeIDs []string `json:"assignee_ids"`
+	ServiceIDs  []string `json:"service_ids"`
 }
 
 type updateTaskRequest struct {
@@ -64,6 +65,7 @@ type updateTaskRequest struct {
 	Hours       *float64 `json:"hours"`
 	StartsOn    *string  `json:"starts_on"`
 	DueOn       *string  `json:"due_on"`
+	ServiceIDs  []string `json:"service_ids"`
 }
 
 type moveTaskRequest struct {
@@ -168,6 +170,11 @@ func (h *Tasks) Create(c fiber.Ctx) error {
 		return err
 	}
 
+	services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+	if err != nil {
+		return err
+	}
+
 	task, err := h.svc.Create(c.Context(), usecase.CreateTaskInput{
 		ProjectID:   projectID,
 		Title:       req.Title,
@@ -181,6 +188,7 @@ func (h *Tasks) Create(c fiber.Ctx) error {
 		Note:        req.Note,
 		AssigneeIDs: assignees,
 		ActorID:     actor,
+		ServiceIDs:  services,
 	})
 	if err != nil {
 		return err
@@ -254,6 +262,15 @@ func (h *Tasks) Update(c fiber.Ctx) error {
 		} else {
 			in.DueOn = due
 		}
+	}
+	// La cle absente laisse les services en place ; presente, elle fixe la
+	// liste entiere — vide comprise.
+	if hasJSONKey(body, "service_ids") {
+		services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+		if err != nil {
+			return err
+		}
+		in.ServiceIDs = &services
 	}
 
 	task, err := h.svc.Update(c.Context(), id, in)

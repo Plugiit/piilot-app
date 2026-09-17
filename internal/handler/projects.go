@@ -68,6 +68,7 @@ type createProjectRequest struct {
 	StartsOn    *string  `json:"starts_on"`
 	DueOn       *string  `json:"due_on"`
 	TeamIDs     []string `json:"team_ids"`
+	ServiceIDs  []string `json:"service_ids"`
 }
 
 // updateProjectRequest est le corps de PATCH /admin/projects/:id.
@@ -88,6 +89,7 @@ type updateProjectRequest struct {
 	HoursSold   *float64 `json:"hours_sold"`
 	StartsOn    *string  `json:"starts_on"`
 	DueOn       *string  `json:"due_on"`
+	ServiceIDs  []string `json:"service_ids"`
 }
 
 type setTeamRequest struct {
@@ -221,6 +223,12 @@ func (h *Projects) Create(c fiber.Ctx) error {
 	}
 	in.TeamIDs = team
 
+	services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+	if err != nil {
+		return err
+	}
+	in.ServiceIDs = services
+
 	project, err := h.svc.Create(c.Context(), in)
 	if err != nil {
 		return err
@@ -285,6 +293,15 @@ func (h *Projects) Update(c fiber.Ctx) error {
 			}
 			in.DueOn = due
 		}
+	}
+	// La cle absente laisse les services en place ; presente, elle fixe la
+	// liste entiere — vide comprise, qui les detache tous.
+	if hasJSONKey(body, "service_ids") {
+		services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+		if err != nil {
+			return err
+		}
+		in.ServiceIDs = &services
 	}
 
 	actor, ok := middleware.UserIDFrom(c)
