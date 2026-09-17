@@ -53,6 +53,43 @@ func (q *Queries) CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAs
 	return count, err
 }
 
+const countTicketsByProject = `-- name: CountTicketsByProject :one
+SELECT count(*)
+FROM tickets t
+WHERE t.deleted_at IS NULL
+  AND t.project_id = $1
+  AND ($2::text IS NULL OR t.status = $2::text)
+  AND ($3::text IS NULL OR t.tracker = $3::text)
+  AND ($4::text IS NULL OR t.priority = $4::text)
+  AND (
+      $5::text IS NULL
+      OR t.subject ILIKE '%' || $5::text || '%'
+      OR t.numero::text = $5::text
+  )
+`
+
+type CountTicketsByProjectParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Status    *string   `json:"status"`
+	Tracker   *string   `json:"tracker"`
+	Priority  *string   `json:"priority"`
+	Search    *string   `json:"search"`
+}
+
+// Total pour la pagination, aux memes conditions que la liste.
+func (q *Queries) CountTicketsByProject(ctx context.Context, arg CountTicketsByProjectParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTicketsByProject,
+		arg.ProjectID,
+		arg.Status,
+		arg.Tracker,
+		arg.Priority,
+		arg.Search,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTicket = `-- name: CreateTicket :one
 WITH nouveau AS (
     INSERT INTO tickets (
@@ -427,9 +464,14 @@ SELECT
     t.created_at,
     t.updated_at,
     p.id   AS project_id,
-    p.name AS project_name
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
   AND t.assignee_id = $1
   AND ($2::text IS NULL OR t.status = $2::text)
@@ -457,16 +499,20 @@ type ListTicketsAssignedToParams struct {
 }
 
 type ListTicketsAssignedToRow struct {
-	ID          uuid.UUID `json:"id"`
-	Numero      int64     `json:"numero"`
-	Subject     string    `json:"subject"`
-	Tracker     string    `json:"tracker"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ProjectID   uuid.UUID `json:"project_id"`
-	ProjectName string    `json:"project_name"`
+	ID                uuid.UUID  `json:"id"`
+	Numero            int64      `json:"numero"`
+	Subject           string     `json:"subject"`
+	Tracker           string     `json:"tracker"`
+	Status            string     `json:"status"`
+	Priority          string     `json:"priority"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	ProjectName       string     `json:"project_name"`
+	AssigneeID        *uuid.UUID `json:"assignee_id"`
+	AssigneeFirstname *string    `json:"assignee_firstname"`
+	AssigneeLastname  *string    `json:"assignee_lastname"`
+	AssigneeAvatarUrl *string    `json:"assignee_avatar_url"`
 }
 
 // Tickets.
@@ -512,6 +558,10 @@ func (q *Queries) ListTicketsAssignedTo(ctx context.Context, arg ListTicketsAssi
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ProjectName,
+			&i.AssigneeID,
+			&i.AssigneeFirstname,
+			&i.AssigneeLastname,
+			&i.AssigneeAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -534,9 +584,14 @@ SELECT
     t.created_at,
     t.updated_at,
     p.id   AS project_id,
-    p.name AS project_name
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
   AND t.assignee_id = $1
   AND ($2::text IS NULL OR t.status = $2::text)
@@ -563,16 +618,20 @@ type ListTicketsBoardAssignedToParams struct {
 }
 
 type ListTicketsBoardAssignedToRow struct {
-	ID          uuid.UUID `json:"id"`
-	Numero      int64     `json:"numero"`
-	Subject     string    `json:"subject"`
-	Tracker     string    `json:"tracker"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ProjectID   uuid.UUID `json:"project_id"`
-	ProjectName string    `json:"project_name"`
+	ID                uuid.UUID  `json:"id"`
+	Numero            int64      `json:"numero"`
+	Subject           string     `json:"subject"`
+	Tracker           string     `json:"tracker"`
+	Status            string     `json:"status"`
+	Priority          string     `json:"priority"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	ProjectName       string     `json:"project_name"`
+	AssigneeID        *uuid.UUID `json:"assignee_id"`
+	AssigneeFirstname *string    `json:"assignee_firstname"`
+	AssigneeLastname  *string    `json:"assignee_lastname"`
+	AssigneeAvatarUrl *string    `json:"assignee_avatar_url"`
 }
 
 // Toutes les cartes des deux kanbans, aux memes filtres que le tableau.
@@ -612,6 +671,233 @@ func (q *Queries) ListTicketsBoardAssignedTo(ctx context.Context, arg ListTicket
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ProjectName,
+			&i.AssigneeID,
+			&i.AssigneeFirstname,
+			&i.AssigneeLastname,
+			&i.AssigneeAvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketsBoardByProject = `-- name: ListTicketsBoardByProject :many
+SELECT
+    t.id,
+    t.numero,
+    t.subject,
+    t.tracker,
+    t.status,
+    t.priority,
+    t.created_at,
+    t.updated_at,
+    p.id   AS project_id,
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND t.project_id = $1
+  AND ($2::text IS NULL OR t.status = $2::text)
+  AND ($3::text IS NULL OR t.tracker = $3::text)
+  AND ($4::text IS NULL OR t.priority = $4::text)
+  AND (
+      $5::text IS NULL
+      OR t.subject ILIKE '%' || $5::text || '%'
+      OR t.numero::text = $5::text
+  )
+ORDER BY t.numero DESC
+LIMIT $6
+`
+
+type ListTicketsBoardByProjectParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Status    *string   `json:"status"`
+	Tracker   *string   `json:"tracker"`
+	Priority  *string   `json:"priority"`
+	Search    *string   `json:"search"`
+	PageSize  int32     `json:"page_size"`
+}
+
+type ListTicketsBoardByProjectRow struct {
+	ID                uuid.UUID  `json:"id"`
+	Numero            int64      `json:"numero"`
+	Subject           string     `json:"subject"`
+	Tracker           string     `json:"tracker"`
+	Status            string     `json:"status"`
+	Priority          string     `json:"priority"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	ProjectName       string     `json:"project_name"`
+	AssigneeID        *uuid.UUID `json:"assignee_id"`
+	AssigneeFirstname *string    `json:"assignee_firstname"`
+	AssigneeLastname  *string    `json:"assignee_lastname"`
+	AssigneeAvatarUrl *string    `json:"assignee_avatar_url"`
+}
+
+// Toutes les cartes du kanban d'un projet.
+//
+// Bornee et non paginee comme le kanban personnel, et triee par numero
+// decroissant pour la meme raison : dans un tableau, c'est la colonne qui porte
+// le classement, et l'ordre a l'interieur doit rester stable.
+//
+// Un seul regroupement ici, par statut : repartir par projet les tickets d'un
+// projet donnerait une colonne unique.
+func (q *Queries) ListTicketsBoardByProject(ctx context.Context, arg ListTicketsBoardByProjectParams) ([]ListTicketsBoardByProjectRow, error) {
+	rows, err := q.db.Query(ctx, listTicketsBoardByProject,
+		arg.ProjectID,
+		arg.Status,
+		arg.Tracker,
+		arg.Priority,
+		arg.Search,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTicketsBoardByProjectRow{}
+	for rows.Next() {
+		var i ListTicketsBoardByProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Numero,
+			&i.Subject,
+			&i.Tracker,
+			&i.Status,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.AssigneeID,
+			&i.AssigneeFirstname,
+			&i.AssigneeLastname,
+			&i.AssigneeAvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketsByProject = `-- name: ListTicketsByProject :many
+
+SELECT
+    t.id,
+    t.numero,
+    t.subject,
+    t.tracker,
+    t.status,
+    t.priority,
+    t.created_at,
+    t.updated_at,
+    p.id   AS project_id,
+    p.name AS project_name,
+    a.id         AS assignee_id,
+    a.firstname  AS assignee_firstname,
+    a.lastname   AS assignee_lastname,
+    a.avatar_url AS assignee_avatar_url
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+LEFT JOIN users a ON a.id = t.assignee_id AND a.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND t.project_id = $1
+  AND ($2::text IS NULL OR t.status = $2::text)
+  AND ($3::text IS NULL OR t.tracker = $3::text)
+  AND ($4::text IS NULL OR t.priority = $4::text)
+  AND (
+      $5::text IS NULL
+      OR t.subject ILIKE '%' || $5::text || '%'
+      OR t.numero::text = $5::text
+  )
+ORDER BY t.updated_at DESC, t.numero DESC
+LIMIT $7 OFFSET $6
+`
+
+type ListTicketsByProjectParams struct {
+	ProjectID  uuid.UUID `json:"project_id"`
+	Status     *string   `json:"status"`
+	Tracker    *string   `json:"tracker"`
+	Priority   *string   `json:"priority"`
+	Search     *string   `json:"search"`
+	PageOffset int32     `json:"page_offset"`
+	PageSize   int32     `json:"page_size"`
+}
+
+type ListTicketsByProjectRow struct {
+	ID                uuid.UUID  `json:"id"`
+	Numero            int64      `json:"numero"`
+	Subject           string     `json:"subject"`
+	Tracker           string     `json:"tracker"`
+	Status            string     `json:"status"`
+	Priority          string     `json:"priority"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	ProjectName       string     `json:"project_name"`
+	AssigneeID        *uuid.UUID `json:"assignee_id"`
+	AssigneeFirstname *string    `json:"assignee_firstname"`
+	AssigneeLastname  *string    `json:"assignee_lastname"`
+	AssigneeAvatarUrl *string    `json:"assignee_avatar_url"`
+}
+
+// Les tickets d'un projet, pour l'onglet « Tickets » de sa fiche.
+//
+// `project_id` y est la clause que `assignee_id` est au tableau personnel : on
+// lit la fiche d'un projet, pas une liste qu'on filtrerait ensuite. L'assigne
+// n'est donc plus une clause mais une colonne — la question qu'on se pose
+// devant un projet est « qui a quoi », quand devant son propre tableau elle ne
+// se pose pas.
+// Page de l'onglet, du plus recemment mis a jour au plus ancien, comme le
+// tableau personnel. tickets_project_idx porte les deux colonnes dans cet
+// ordre : la premiere page se lit sans tri.
+func (q *Queries) ListTicketsByProject(ctx context.Context, arg ListTicketsByProjectParams) ([]ListTicketsByProjectRow, error) {
+	rows, err := q.db.Query(ctx, listTicketsByProject,
+		arg.ProjectID,
+		arg.Status,
+		arg.Tracker,
+		arg.Priority,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTicketsByProjectRow{}
+	for rows.Next() {
+		var i ListTicketsByProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Numero,
+			&i.Subject,
+			&i.Tracker,
+			&i.Status,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.AssigneeID,
+			&i.AssigneeFirstname,
+			&i.AssigneeLastname,
+			&i.AssigneeAvatarUrl,
 		); err != nil {
 			return nil, err
 		}

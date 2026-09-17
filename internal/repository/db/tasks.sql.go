@@ -12,6 +12,22 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+const addTaskService = `-- name: AddTaskService :exec
+INSERT INTO task_services (task_id, service_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddTaskServiceParams struct {
+	TaskID    uuid.UUID `json:"task_id"`
+	ServiceID uuid.UUID `json:"service_id"`
+}
+
+func (q *Queries) AddTaskService(ctx context.Context, arg AddTaskServiceParams) error {
+	_, err := q.db.Exec(ctx, addTaskService, arg.TaskID, arg.ServiceID)
+	return err
+}
+
 const assignTask = `-- name: AssignTask :exec
 INSERT INTO task_assignees (task_id, user_id)
 VALUES ($1, $2)
@@ -25,6 +41,15 @@ type AssignTaskParams struct {
 
 func (q *Queries) AssignTask(ctx context.Context, arg AssignTaskParams) error {
 	_, err := q.db.Exec(ctx, assignTask, arg.TaskID, arg.UserID)
+	return err
+}
+
+const clearTaskServices = `-- name: ClearTaskServices :exec
+DELETE FROM task_services WHERE task_id = $1
+`
+
+func (q *Queries) ClearTaskServices(ctx context.Context, taskID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearTaskServices, taskID)
 	return err
 }
 
@@ -403,6 +428,51 @@ func (q *Queries) ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID)
 	return items, nil
 }
 
+const listServicesOfTasks = `-- name: ListServicesOfTasks :many
+SELECT
+    ts.task_id,
+    s.id,
+    s.name,
+    s.color
+FROM task_services ts
+JOIN services s ON s.id = ts.service_id AND s.deleted_at IS NULL
+WHERE ts.task_id = ANY($1::uuid[])
+ORDER BY ts.task_id, s.name, s.id
+`
+
+type ListServicesOfTasksRow struct {
+	TaskID uuid.UUID `json:"task_id"`
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Color  string    `json:"color"`
+}
+
+// Services de plusieurs taches en une requete, comme pour les affectations.
+func (q *Queries) ListServicesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListServicesOfTasksRow, error) {
+	rows, err := q.db.Query(ctx, listServicesOfTasks, taskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServicesOfTasksRow{}
+	for rows.Next() {
+		var i ListServicesOfTasksRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.ID,
+			&i.Name,
+			&i.Color,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubtasks = `-- name: ListSubtasks :many
 SELECT id, task_id, label, done, position, created_at, updated_at FROM subtasks
 WHERE task_id = $1
@@ -668,9 +738,11 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTas
 }
 
 const listTasksOfProject = `-- name: ListTasksOfProject :many
-SELECT id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count FROM tasks
-WHERE project_id = $1 AND deleted_at IS NULL
-ORDER BY status, position, created_at
+SELECT
+    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
+FROM tasks t
+WHERE t.project_id = $1 AND t.deleted_at IS NULL
+ORDER BY t.status, t.position, t.created_at
 LIMIT $2
 `
 
