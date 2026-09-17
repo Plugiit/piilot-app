@@ -105,6 +105,7 @@ export interface CreateTaskValues {
   hours?: number | null
   note?: string
   assignee_ids?: string[]
+  service_ids?: string[]
 }
 
 /**
@@ -155,6 +156,8 @@ export interface UpdateTaskValues {
   starts_on?: string | null
   due_on?: string | null
   priority?: TaskPriority
+  /** Liste entiere des services ; absente pour ne rien changer. */
+  service_ids?: string[]
 }
 
 /**

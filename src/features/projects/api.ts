@@ -100,6 +100,7 @@ export interface CreateProjectValues {
   starts_on?: string | null
   due_on?: string | null
   team_ids?: string[]
+  service_ids?: string[]
 }
 
 /**
@@ -134,6 +135,8 @@ export interface UpdateProjectValues {
   figma_url?: string
   prod_url?: string
   preprod_url?: string
+  /** Liste entiere des services ; absente pour ne rien changer. */
+  service_ids?: string[]
 }
 
 /** Modification d'un projet. */
