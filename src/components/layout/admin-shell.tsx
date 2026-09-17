@@ -8,10 +8,6 @@ import { LogOut, Settings } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import accountMarkUrl from '@/assets/sidebar/rail-bottom.png'
-import coolifyUrl from '@/assets/sidebar/app-coolify.svg'
-import googleDriveUrl from '@/assets/sidebar/app-google-drive.svg'
-import proxmoxUrl from '@/assets/sidebar/app-proxmox.svg'
-import uptimeKumaUrl from '@/assets/sidebar/app-uptime-kuma.svg'
 import logoUrl from '@/assets/sidebar/logo.svg'
 import {
   DropdownMenu,
@@ -28,6 +24,9 @@ import {
   useActiveModule,
   type MenuItem,
 } from '@/components/layout/modules'
+import { sidebarAppListQuery } from '@/features/sidebar-apps/api'
+import { AppMark } from '@/features/sidebar-apps/dialogs'
+import type { SidebarApp } from '@/types/api'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
@@ -44,6 +43,9 @@ import type { User } from '@/types/api'
 type RailMark =
   | { icon: IconSvgElement; label: string; to: string }
   | { src: string; alt: string; width: number; height: number; href?: string }
+  // Application tenue en base : son logo quand il y en a un, sa pastille
+  // sinon. Elle porte son adresse, comme les marques a `href`.
+  | { app: SidebarApp; alt: string; href: string }
 
 interface RailGroup {
   label: string
@@ -59,34 +61,28 @@ interface RailGroup {
    -------------------------------------------------------------------------- */
 
 /**
- * Outils externes joints depuis le rail.
+ * Groupes du rail.
  *
- * Les trois derniers sont auto-heberges : ces adresses sont des suppositions,
- * a remplacer par celles des instances de l'agence.
+ * Les modules sont ecrits dans le code — ils sont l'application — tandis que
+ * les apps jointes viennent de la base : ce sont les outils de l'agence, et en
+ * ajouter un ne doit pas demander de redeployer. Le groupe disparait tant qu'il
+ * n'y en a aucune, plutot que de laisser un intitule sur du vide.
  */
-const TOOLS = {
-  drive: 'https://drive.google.com',
-  coolify: 'https://cool.plugiit.com',
-  uptimeKuma: 'https://uptime.plugiit.com',
-  proxmox: 'https://prox.plugiit.com',
-} as const
+function useRail(): RailGroup[] {
+  const { data } = useQuery(sidebarAppListQuery())
+  const apps = data?.items ?? []
 
-const RAIL: RailGroup[] = [
-  {
-    label: 'Menu',
-    navigable: true,
-    marks: [...MODULES],
-  },
-  {
-    label: 'App',
-    marks: [
-      { src: googleDriveUrl, alt: 'Google Drive', width: 18, height: 16.1, href: TOOLS.drive },
-      { src: coolifyUrl, alt: 'Coolify', width: 18, height: 18, href: TOOLS.coolify },
-      { src: uptimeKumaUrl, alt: 'Uptime Kuma', width: 18, height: 15.9, href: TOOLS.uptimeKuma },
-      { src: proxmoxUrl, alt: 'Proxmox', width: 18, height: 15.6, href: TOOLS.proxmox },
-    ],
-  },
-]
+  const groups: RailGroup[] = [{ label: 'Menu', navigable: true, marks: [...MODULES] }]
+
+  if (apps.length > 0) {
+    groups.push({
+      label: 'App',
+      marks: apps.map((app) => ({ app, alt: app.name, href: app.url })),
+    })
+  }
+
+  return groups
+}
 
 /** Intitule de section : DM Sans, casse haute, meme discretion dans les deux colonnes. */
 function GroupLabel({ className, children }: { className?: string; children: ReactNode }) {
@@ -100,6 +96,16 @@ function GroupLabel({ className, children }: { className?: string; children: Rea
 function RailMarkView({ mark, className }: { mark: RailMark; className?: string }) {
   if ('icon' in mark) {
     return <HugeiconsIcon icon={mark.icon} size={18} strokeWidth={1.6} className={className} />
+  }
+
+  // 24px et non 18 comme les icones de module : celles-ci sont dessinees au
+  // trait et remplissent leur boite, un logo garde ses marges propres et se
+  // retrouve optiquement plus petit a taille egale. La case du rail en fait 40,
+  // moins les 2px de retrait de la pastille active — il reste la place.
+  //
+  // Sans logo, la pastille a l'initiale tient le meme encombrement.
+  if ('app' in mark) {
+    return <AppMark app={mark.app} size={24} />
   }
 
   // Chaque marque est detourée dans son fichier — son `viewBox` epouse le
@@ -125,6 +131,8 @@ function RailMarkView({ mark, className }: { mark: RailMark; className?: string 
  * d'accent.
  */
 function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
+  const rail = useRail()
+
   // L'element actif se lit dans l'URL, pas dans un etat local : un rechargement
   // ou un lien colle designent le bon module sans que rien n'ait a le retenir.
   const activeModule = useActiveModule()
@@ -146,13 +154,13 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
         <img src={logoUrl} alt="Plugiit" width={40} height={40} className="size-10" />
 
         <div className="flex flex-col items-center">
-          {RAIL.map((group, index) => (
+          {rail.map((group, index) => (
             <div
               key={group.label}
               className={cn(
                 'flex flex-col items-center justify-center gap-2 pb-4',
                 // Le dernier groupe ne porte pas de filet : rien ne le suit.
-                index < RAIL.length - 1 && 'mb-4 border-b border-[#d8d8d8]',
+                index < rail.length - 1 && 'mb-4 border-b border-[#d8d8d8]',
               )}
             >
               <GroupLabel className="text-[10px] leading-[1.5] tracking-[0.4px]">

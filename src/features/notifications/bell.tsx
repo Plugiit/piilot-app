@@ -185,9 +185,9 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
 
   return (
     <Link
-      to="/pm/projets/$id/kanban"
+      to="/pm/projets/$id/taches"
       params={{ id: item.project_id }}
-      search={item.task_id === null ? {} : { tache: item.task_id }}
+      search={{ vue: 'kanban', tache: item.task_id ?? undefined }}
       onClick={onOpen}
       className={className}
     >
