@@ -16,6 +16,8 @@ type Querier interface {
 	// peut recliquer, pas une creation.
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
+	AddProjectService(ctx context.Context, arg AddProjectServiceParams) error
+	AddTaskService(ctx context.Context, arg AddTaskServiceParams) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
 	// Rattache un contact libre a un client.
 	//
@@ -34,16 +36,22 @@ type Querier interface {
 	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
 	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
 	ClearPrimaryContactOf(ctx context.Context, primaryContactID *uuid.UUID) error
+	ClearTaskServices(ctx context.Context, taskID uuid.UUID) error
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
+	// Total pour la pagination, aux memes conditions que la liste.
+	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	// Tous statuts confondus, livres compris : c'est ce qui decide si un client
 	// peut disparaitre. Un projet livre garde la trace de qui l'a commande.
 	CountProjectsOfClient(ctx context.Context, clientID uuid.UUID) (int64, error)
+	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAssignedToParams) (int64, error)
+	// Total pour la pagination, aux memes conditions que la liste.
+	CountTicketsByProject(ctx context.Context, arg CountTicketsByProjectParams) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
@@ -52,12 +60,19 @@ type Querier interface {
 	// `client_id` peut etre nul : le contact est alors libre, en attente d'une
 	// entreprise.
 	CreateContact(ctx context.Context, arg CreateContactParams) (Contact, error)
+	// Le livrable nait sans version : c'est la soumission qui lui en donne une.
+	CreateDeliverable(ctx context.Context, arg CreateDeliverableParams) (uuid.UUID, error)
+	CreateDeliverableVersion(ctx context.Context, arg CreateDeliverableVersionParams) (uuid.UUID, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateService(ctx context.Context, arg CreateServiceParams) (CreateServiceRow, error)
+	// Le rang par defaut place la nouvelle app en queue : on ajoute au bout, on
+	// reordonne ensuite si besoin.
+	CreateSidebarApp(ctx context.Context, arg CreateSidebarAppParams) (CreateSidebarAppRow, error)
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (Subtask, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
@@ -74,7 +89,14 @@ type Querier interface {
 	CreateTicketEvent(ctx context.Context, arg CreateTicketEventParams) (CreateTicketEventRow, error)
 	// Inscrit un message au registre.
 	CreateTicketMessage(ctx context.Context, arg CreateTicketMessageParams) (CreateTicketMessageRow, error)
+	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Enregistre la reponse du client sur une version precise.
+	//
+	// La clause sur `decision` rend la requete rejouable sans degat : une decision
+	// deja prise ne se reecrit pas, et l'appelant lit zero ligne touchee plutot que
+	// d'ecraser la date et l'auteur d'origine.
+	DecideDeliverableVersion(ctx context.Context, arg DecideDeliverableVersionParams) error
 	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
 	// effacer le fichier du disque dans la foulee.
 	DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
@@ -82,9 +104,16 @@ type Querier interface {
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
 	DeleteExpiredRefreshTokens(ctx context.Context, retention pgtype.Interval) error
+	// Suppression douce, comme partout : un service retire d'un referentiel a pu
+	// etre porte par des donnees passees.
+	DeleteService(ctx context.Context, id uuid.UUID) (int64, error)
+	// Suppression douce, comme partout. Rend la cle du logo pour que l'appelant
+	// decide du sort du fichier.
+	DeleteSidebarApp(ctx context.Context, id uuid.UUID) (*string, error)
 	// Suppression reelle : une sous-tache n'a pas d'histoire propre, et le
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
+	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	// Une piece jointe se lit par son seul identifiant, quel que soit son
 	// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
 	// de servir celles des projets comme celles des taches.
@@ -109,6 +138,9 @@ type Querier interface {
 	// les index partiels `deleted_at IS NULL`. Le jour ou ces tables grossissent,
 	// c'est un instantane quotidien qu'il faudra stocker, pas un index de plus.
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	// Un livrable et sa version courante, aux memes colonnes que la liste : le
+	// depot et la decision rendent la ligne telle que l'ecran la reaffiche.
+	GetDeliverable(ctx context.Context, id uuid.UUID) (GetDeliverableRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -119,6 +151,7 @@ type Querier interface {
 	// doit declencher la revocation de toute la famille.
 	GetRefreshTokenWithUser(ctx context.Context, tokenHash []byte) (GetRefreshTokenWithUserRow, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
+	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
 	GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
 	// Tache et son contexte de projet : le tiroir affiche le nom du projet, et
 	// l'aller chercher a part ferait une requete de plus pour un seul mot.
@@ -143,6 +176,7 @@ type Querier interface {
 	// ramener par jointure multiplierait l'en-tete par le nombre de lignes du
 	// registre.
 	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
+	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (GetTimeEntryRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
@@ -193,6 +227,22 @@ type Querier interface {
 	// que le scan Go refuserait dans un booleen. Le cast explicite est la pour
 	// sqlc, qui sans lui rend un `interface{}`.
 	ListCrmContacts(ctx context.Context, arg ListCrmContactsParams) ([]ListCrmContactsRow, error)
+	// Le fil complet d'un livrable, de la premiere version a la derniere : c'est
+	// la trace que le module existe pour garder.
+	ListDeliverableVersions(ctx context.Context, deliverableID uuid.UUID) ([]ListDeliverableVersionsRow, error)
+	// Livrables.
+	//
+	// L'etat d'un livrable n'est pas une colonne : c'est la decision de sa version
+	// courante, et l'absence de version vaut brouillon. Toutes les requetes qui
+	// l'affichent joignent donc `deliverable_versions` sur `current_version_id` —
+	// une jointure sur cle primaire, pas un LATERAL par ligne.
+	// L'ecran « Livrables » du module, qui traverse les projets.
+	//
+	// Trie du plus recemment soumis au plus ancien, les brouillons en queue : c'est
+	// l'ordre dans lequel on reprend un dossier. L'anciennete d'une attente se lit
+	// sur `submitted_at`, que l'ecran compare a maintenant — une duree renvoyee ici
+	// serait fausse des la seconde suivante.
+	ListDeliverables(ctx context.Context, arg ListDeliverablesParams) ([]ListDeliverablesRow, error)
 	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
 	//
 	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
@@ -247,6 +297,32 @@ type Querier interface {
 	// qui se lit d'un coup d'oeil, pas tout l'historique d'un gros compte.
 	ListProjectsOfClient(ctx context.Context, arg ListProjectsOfClientParams) ([]ListProjectsOfClientRow, error)
 	ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, error)
+	// Services : referentiel des prestations de l'agence.
+	// Page du tableau, par ordre alphabetique.
+	ListServices(ctx context.Context, arg ListServicesParams) ([]ListServicesRow, error)
+	// Services de plusieurs projets en une requete.
+	//
+	// Meme parade au N+1 que pour les equipes : une collection ne se joint pas a la
+	// liste — elle multiplierait les lignes — elle se charge d'un coup pour la page
+	// entiere, et le service la repartit ensuite.
+	ListServicesOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListServicesOfProjectsRow, error)
+	// Services de plusieurs taches en une requete, comme pour les affectations.
+	ListServicesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListServicesOfTasksRow, error)
+	// Applications jointes depuis le rail.
+	// Toutes les apps, dans l'ordre du rail.
+	//
+	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
+	// tiennent dans un rail, au-dela ce n'est plus un rail. La regle du projet veut
+	// un LIMIT partout — ici il n'a pas de page suivante, il a une fin.
+	ListSidebarApps(ctx context.Context) ([]ListSidebarAppsRow, error)
+	// Apps dont le logo reste a chercher.
+	//
+	// Celles qui n'ont pas de logo et qu'on n'a jamais tentees, ou tentees avant la
+	// borne passee en parametre. Un echec n'est donc pas rejoue en boucle : il
+	// attend son tour de reessai.
+	//
+	// Bornee : un passage traite une poignee d'apps, le suivant prendra la suite.
+	ListSidebarAppsNeedingFavicon(ctx context.Context, arg ListSidebarAppsNeedingFaviconParams) ([]ListSidebarAppsNeedingFaviconRow, error)
 	ListSubtasks(ctx context.Context, taskID uuid.UUID) ([]Subtask, error)
 	ListTaskActivity(ctx context.Context, arg ListTaskActivityParams) ([]ListTaskActivityRow, error)
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
@@ -301,8 +377,41 @@ type Querier interface {
 	// la colonne qui porte le classement, et l'ordre a l'interieur doit rester
 	// stable d'un affichage a l'autre.
 	ListTicketsBoardAssignedTo(ctx context.Context, arg ListTicketsBoardAssignedToParams) ([]ListTicketsBoardAssignedToRow, error)
+	// Toutes les cartes du kanban d'un projet.
+	//
+	// Bornee et non paginee comme le kanban personnel, et triee par numero
+	// decroissant pour la meme raison : dans un tableau, c'est la colonne qui porte
+	// le classement, et l'ordre a l'interieur doit rester stable.
+	//
+	// Un seul regroupement ici, par statut : repartir par projet les tickets d'un
+	// projet donnerait une colonne unique.
+	ListTicketsBoardByProject(ctx context.Context, arg ListTicketsBoardByProjectParams) ([]ListTicketsBoardByProjectRow, error)
+	// Les tickets d'un projet, pour l'onglet « Tickets » de sa fiche.
+	//
+	// `project_id` y est la clause que `assignee_id` est au tableau personnel : on
+	// lit la fiche d'un projet, pas une liste qu'on filtrerait ensuite. L'assigne
+	// n'est donc plus une clause mais une colonne — la question qu'on se pose
+	// devant un projet est « qui a quoi », quand devant son propre tableau elle ne
+	// se pose pas.
+	// Page de l'onglet, du plus recemment mis a jour au plus ancien, comme le
+	// tableau personnel. tickets_project_idx porte les deux colonnes dans cet
+	// ordre : la premiere page se lit sans tri.
+	ListTicketsByProject(ctx context.Context, arg ListTicketsByProjectParams) ([]ListTicketsByProjectRow, error)
+	// Temps passe.
+	//
+	// Chaque requete porte `user_id` en clause et non en filtre : on saisit et on
+	// relit son propre temps, et l'identifiant vient de la session. Un ecran qui
+	// accepterait un parametre laisserait lire le pointage de n'importe qui.
+	// Saisies d'une personne sur une plage de jours.
+	//
+	// L'ecran montre une journee ou une semaine : les deux bornes disent laquelle,
+	// et la meme requete sert les deux.
+	ListTimeEntries(ctx context.Context, arg ListTimeEntriesParams) ([]ListTimeEntriesRow, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
+	// simultanees prendraient sinon le meme numero.
+	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
 	// Prend le verrou d'ecriture sur un ticket, le temps de la transaction.
 	//
 	// Sans lui, deux ecritures concurrentes lisent toutes deux l'etat d'avant et
@@ -315,6 +424,8 @@ type Querier interface {
 	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
 	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
+	// Inscrit la tentative, qu'elle ait abouti ou non.
+	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
 	// Deplacement d'une carte du kanban. Distincte de UpdateClient : glisser une
 	// carte ne doit pas reecrire les coordonnees de l'entreprise avec ce que
 	// l'ecran avait en memoire.
@@ -323,8 +434,19 @@ type Querier interface {
 	// Separe de UpdateTask parce que c'est le seul mouvement qui journalise un
 	// changement de statut, et que le tableau l'appelle a chaque glissement.
 	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
+	// Le numero suivant, sous le verrou pose juste avant.
+	NextDeliverableVersionNumero(ctx context.Context, deliverableID uuid.UUID) (int32, error)
 	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
+	// Repasse le logo en automatique.
+	//
+	// Efface le logo courant et rouvre la recuperation : le job exige un logo nul,
+	// et ne retente qu'au bout de plusieurs heures. Remettre la date a zero le fait
+	// reprendre l'app a son prochain passage, donc dans la minute.
+	//
+	// La recuperation elle-meme n'a pas sa place ici : elle sort vers un serveur
+	// tiers, et aucune requete HTTP de l'application ne doit attendre cela.
+	ResetSidebarAppFavicon(ctx context.Context, id uuid.UUID) (ResetSidebarAppFaviconRow, error)
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
@@ -335,12 +457,31 @@ type Querier interface {
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
 	RoleHasPermission(ctx context.Context, arg RoleHasPermissionParams) (bool, error)
+	// La version qui vient d'etre soumise devient celle que l'ecran montre.
+	SetDeliverableCurrentVersion(ctx context.Context, arg SetDeliverableCurrentVersionParams) error
 	// Designe le contact principal. `NULL` le retire.
 	//
 	// La condition sur `client_id` est une ceinture : la cle etrangere composite
 	// refuse deja le contact d'un autre client, mais elle rendrait une erreur de
 	// contrainte la ou un zero ligne touchee se traduit en « introuvable ».
 	SetPrimaryContact(ctx context.Context, arg SetPrimaryContactParams) error
+	// Remplace les services d'un projet par la liste fournie.
+	//
+	// Effacer puis reinserer plutot que calculer une difference : la liste est
+	// courte, et le formulaire envoie toujours l'etat complet qu'il veut voir.
+	SetProjectServices(ctx context.Context, projectID uuid.UUID) error
+	// Range le favicon recupere.
+	//
+	// La clause sur `logo_key` protege un depot manuel : si quelqu'un a pose un
+	// logo entre la lecture et l'ecriture, la recuperation ne l'ecrase pas.
+	SetSidebarAppFavicon(ctx context.Context, arg SetSidebarAppFaviconParams) error
+	// L'appelant lit l'app avant d'appeler : c'est lui qui connait l'ancienne cle
+	// et qui efface le fichier qu'elle designait, sans quoi le magasin garderait
+	// tous les logos jamais deposes.
+	SetSidebarAppLogo(ctx context.Context, arg SetSidebarAppLogoParams) (SetSidebarAppLogoRow, error)
+	// Vrai quand la cle designe encore le logo d'une app vivante : c'est ce qui
+	// autorise a servir le fichier.
+	SidebarAppLogoKeyInUse(ctx context.Context, logoKey *string) (bool, error)
 	// Suppression logique, comme partout ailleurs : un client efface par erreur
 	// doit pouvoir revenir. La designation du contact principal est retiree par la
 	// meme occasion, sans quoi elle pointerait depuis une ligne morte.
@@ -353,6 +494,12 @@ type Querier interface {
 	SoftDeleteProject(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTask(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTaskComment(ctx context.Context, arg SoftDeleteTaskCommentParams) error
+	// Total de la plage, en minutes. Calcule par la base plutot qu'en additionnant
+	// les lignes rendues : la liste est bornee, le total ne doit pas l'etre.
+	SumTimeEntries(ctx context.Context, arg SumTimeEntriesParams) (int64, error)
+	// Total par jour de la plage, pour la barre de la semaine.
+	SumTimeEntriesByDay(ctx context.Context, arg SumTimeEntriesByDayParams) ([]SumTimeEntriesByDayRow, error)
+	TouchDeliverable(ctx context.Context, id uuid.UUID) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
 	// Modification de la fiche. Les compteurs n'y sont pas — ils sont tenus par
@@ -367,6 +514,10 @@ type Querier interface {
 	// COALESCE sur un parametre nullable dit exactement cela, et evite d'ecrire
 	// une requete par champ modifiable.
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	// Les trois champs partent ensemble : le formulaire les montre tous, et une
+	// mise a jour partielle demanderait de distinguer « vide » de « inchange ».
+	UpdateService(ctx context.Context, arg UpdateServiceParams) (UpdateServiceRow, error)
+	UpdateSidebarApp(ctx context.Context, arg UpdateSidebarAppParams) (UpdateSidebarAppRow, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (Subtask, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	// Applique les changements qu'une entree du registre porte.
@@ -383,6 +534,9 @@ type Querier interface {
 	UpdateTicketFields(ctx context.Context, arg UpdateTicketFieldsParams) error
 	// Renomme un ticket. Le numero, lui, ne bouge jamais.
 	UpdateTicketSubject(ctx context.Context, arg UpdateTicketSubjectParams) error
+	// La clause sur `user_id` fait le controle d'acces : une saisie qui n'est pas
+	// la sienne ne correspond a aucune ligne, et l'appelant lit un 404.
+	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (uuid.UUID, error)
 	// La photo se retire en passant NULL, d'ou un parametre nullable plutot qu'un
 	// COALESCE : « absent » et « efface » doivent se distinguer.
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)

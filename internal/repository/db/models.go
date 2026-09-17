@@ -58,6 +58,32 @@ type Contact struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
+type Deliverable struct {
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	Title            string     `json:"title"`
+	Description      string     `json:"description"`
+	CurrentVersionID *uuid.UUID `json:"current_version_id"`
+	CreatedAt        time.Time  `json:"created_at"`
+	CreatedBy        *uuid.UUID `json:"created_by"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+}
+
+type DeliverableVersion struct {
+	ID            uuid.UUID  `json:"id"`
+	DeliverableID uuid.UUID  `json:"deliverable_id"`
+	Numero        int32      `json:"numero"`
+	AttachmentID  *uuid.UUID `json:"attachment_id"`
+	Url           string     `json:"url"`
+	SubmittedAt   time.Time  `json:"submitted_at"`
+	SubmittedBy   *uuid.UUID `json:"submitted_by"`
+	Decision      string     `json:"decision"`
+	DecidedAt     *time.Time `json:"decided_at"`
+	DecidedBy     *uuid.UUID `json:"decided_by"`
+	Feedback      string     `json:"feedback"`
+}
+
 type Notification struct {
 	ID        uuid.UUID  `json:"id"`
 	UserID    uuid.UUID  `json:"user_id"`
@@ -78,26 +104,27 @@ type Permission struct {
 }
 
 type Project struct {
-	ID          uuid.UUID  `json:"id"`
-	ClientID    uuid.UUID  `json:"client_id"`
-	Name        string     `json:"name"`
-	Status      string     `json:"status"`
-	Progress    int16      `json:"progress"`
-	HoursSold   float64    `json:"hours_sold"`
-	HoursSpent  float64    `json:"hours_spent"`
-	StartsOn    *time.Time `json:"starts_on"`
-	DueOn       *time.Time `json:"due_on"`
-	TasksTotal  int32      `json:"tasks_total"`
-	TasksDone   int32      `json:"tasks_done"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at"`
-	Description string     `json:"description"`
-	Priority    string     `json:"priority"`
-	FigmaUrl    string     `json:"figma_url"`
-	ProdUrl     string     `json:"prod_url"`
-	PreprodUrl  string     `json:"preprod_url"`
+	ID                  uuid.UUID  `json:"id"`
+	ClientID            uuid.UUID  `json:"client_id"`
+	Name                string     `json:"name"`
+	Status              string     `json:"status"`
+	Progress            int16      `json:"progress"`
+	HoursSold           float64    `json:"hours_sold"`
+	HoursSpent          float64    `json:"hours_spent"`
+	StartsOn            *time.Time `json:"starts_on"`
+	DueOn               *time.Time `json:"due_on"`
+	TasksTotal          int32      `json:"tasks_total"`
+	TasksDone           int32      `json:"tasks_done"`
+	CreatedBy           *uuid.UUID `json:"created_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
+	Description         string     `json:"description"`
+	Priority            string     `json:"priority"`
+	FigmaUrl            string     `json:"figma_url"`
+	ProdUrl             string     `json:"prod_url"`
+	PreprodUrl          string     `json:"preprod_url"`
+	DeliverablesPending int32      `json:"deliverables_pending"`
 }
 
 type ProjectFavorite struct {
@@ -110,6 +137,11 @@ type ProjectMember struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	UserID    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectService struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	ServiceID uuid.UUID `json:"service_id"`
 }
 
 type RefreshToken struct {
@@ -136,6 +168,30 @@ type RolePermission struct {
 	RoleID       uuid.UUID `json:"role_id"`
 	PermissionID uuid.UUID `json:"permission_id"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Service struct {
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Color       string     `json:"color"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+}
+
+type SidebarApp struct {
+	ID                 uuid.UUID  `json:"id"`
+	Name               string     `json:"name"`
+	Url                string     `json:"url"`
+	LogoKey            *string    `json:"logo_key"`
+	Color              string     `json:"color"`
+	Position           int32      `json:"position"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	DeletedAt          *time.Time `json:"deleted_at"`
+	LogoIsFavicon      bool       `json:"logo_is_favicon"`
+	FaviconAttemptedAt *time.Time `json:"favicon_attempted_at"`
 }
 
 type Subtask struct {
@@ -197,6 +253,11 @@ type TaskComment struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
+type TaskService struct {
+	TaskID    uuid.UUID `json:"task_id"`
+	ServiceID uuid.UUID `json:"service_id"`
+}
+
 type Ticket struct {
 	ID          uuid.UUID  `json:"id"`
 	Numero      int64      `json:"numero"`
@@ -231,6 +292,20 @@ type TicketMessage struct {
 	IsInternal bool       `json:"is_internal"`
 	CreatedAt  time.Time  `json:"created_at"`
 	DeletedAt  *time.Time `json:"deleted_at"`
+}
+
+type TimeEntry struct {
+	ID        uuid.UUID  `json:"id"`
+	UserID    uuid.UUID  `json:"user_id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	TaskID    *uuid.UUID `json:"task_id"`
+	ServiceID *uuid.UUID `json:"service_id"`
+	SpentOn   time.Time  `json:"spent_on"`
+	Minutes   int32      `json:"minutes"`
+	Note      string     `json:"note"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type User struct {
