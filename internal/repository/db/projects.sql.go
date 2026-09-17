@@ -46,6 +46,22 @@ func (q *Queries) AddProjectMember(ctx context.Context, arg AddProjectMemberPara
 	return err
 }
 
+const addProjectService = `-- name: AddProjectService :exec
+INSERT INTO project_services (project_id, service_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddProjectServiceParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	ServiceID uuid.UUID `json:"service_id"`
+}
+
+func (q *Queries) AddProjectService(ctx context.Context, arg AddProjectServiceParams) error {
+	_, err := q.db.Exec(ctx, addProjectService, arg.ProjectID, arg.ServiceID)
+	return err
+}
+
 const countProjects = `-- name: CountProjects :one
 SELECT count(*) FROM projects p
 WHERE p.deleted_at IS NULL
@@ -70,7 +86,7 @@ func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (i
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending
 `
 
 type CreateProjectParams struct {
@@ -127,6 +143,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.FigmaUrl,
 		&i.ProdUrl,
 		&i.PreprodUrl,
+		&i.DeliverablesPending,
 	)
 	return i, err
 }
@@ -325,7 +342,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 
 const getProject = `-- name: GetProject :one
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending,
     c.name AS client_name,
     -- L'interlocuteur du projet est le contact principal de son client. Joint
     -- a gauche : un client sans contact ne doit pas faire disparaitre le
@@ -349,31 +366,32 @@ type GetProjectParams struct {
 }
 
 type GetProjectRow struct {
-	ID                 uuid.UUID  `json:"id"`
-	ClientID           uuid.UUID  `json:"client_id"`
-	Name               string     `json:"name"`
-	Status             string     `json:"status"`
-	Progress           int16      `json:"progress"`
-	HoursSold          float64    `json:"hours_sold"`
-	HoursSpent         float64    `json:"hours_spent"`
-	StartsOn           *time.Time `json:"starts_on"`
-	DueOn              *time.Time `json:"due_on"`
-	TasksTotal         int32      `json:"tasks_total"`
-	TasksDone          int32      `json:"tasks_done"`
-	CreatedBy          *uuid.UUID `json:"created_by"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	DeletedAt          *time.Time `json:"deleted_at"`
-	Description        string     `json:"description"`
-	Priority           string     `json:"priority"`
-	FigmaUrl           string     `json:"figma_url"`
-	ProdUrl            string     `json:"prod_url"`
-	PreprodUrl         string     `json:"preprod_url"`
-	ClientName         string     `json:"client_name"`
-	ClientContactName  string     `json:"client_contact_name"`
-	ClientContactRole  string     `json:"client_contact_role"`
-	ClientContactEmail *string    `json:"client_contact_email"`
-	IsFavorite         bool       `json:"is_favorite"`
+	ID                  uuid.UUID  `json:"id"`
+	ClientID            uuid.UUID  `json:"client_id"`
+	Name                string     `json:"name"`
+	Status              string     `json:"status"`
+	Progress            int16      `json:"progress"`
+	HoursSold           float64    `json:"hours_sold"`
+	HoursSpent          float64    `json:"hours_spent"`
+	StartsOn            *time.Time `json:"starts_on"`
+	DueOn               *time.Time `json:"due_on"`
+	TasksTotal          int32      `json:"tasks_total"`
+	TasksDone           int32      `json:"tasks_done"`
+	CreatedBy           *uuid.UUID `json:"created_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
+	Description         string     `json:"description"`
+	Priority            string     `json:"priority"`
+	FigmaUrl            string     `json:"figma_url"`
+	ProdUrl             string     `json:"prod_url"`
+	PreprodUrl          string     `json:"preprod_url"`
+	DeliverablesPending int32      `json:"deliverables_pending"`
+	ClientName          string     `json:"client_name"`
+	ClientContactName   string     `json:"client_contact_name"`
+	ClientContactRole   string     `json:"client_contact_role"`
+	ClientContactEmail  *string    `json:"client_contact_email"`
+	IsFavorite          bool       `json:"is_favorite"`
 }
 
 func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error) {
@@ -400,6 +418,7 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProj
 		&i.FigmaUrl,
 		&i.ProdUrl,
 		&i.PreprodUrl,
+		&i.DeliverablesPending,
 		&i.ClientName,
 		&i.ClientContactName,
 		&i.ClientContactRole,
@@ -543,7 +562,7 @@ func (q *Queries) ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([
 
 const listProjects = `-- name: ListProjects :many
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending,
     c.name AS client_name,
     -- L'etoile est personnelle : elle se lit pour l'appelant, pas dans l'absolu.
     EXISTS (
@@ -590,28 +609,29 @@ type ListProjectsParams struct {
 }
 
 type ListProjectsRow struct {
-	ID          uuid.UUID  `json:"id"`
-	ClientID    uuid.UUID  `json:"client_id"`
-	Name        string     `json:"name"`
-	Status      string     `json:"status"`
-	Progress    int16      `json:"progress"`
-	HoursSold   float64    `json:"hours_sold"`
-	HoursSpent  float64    `json:"hours_spent"`
-	StartsOn    *time.Time `json:"starts_on"`
-	DueOn       *time.Time `json:"due_on"`
-	TasksTotal  int32      `json:"tasks_total"`
-	TasksDone   int32      `json:"tasks_done"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at"`
-	Description string     `json:"description"`
-	Priority    string     `json:"priority"`
-	FigmaUrl    string     `json:"figma_url"`
-	ProdUrl     string     `json:"prod_url"`
-	PreprodUrl  string     `json:"preprod_url"`
-	ClientName  string     `json:"client_name"`
-	IsFavorite  bool       `json:"is_favorite"`
+	ID                  uuid.UUID  `json:"id"`
+	ClientID            uuid.UUID  `json:"client_id"`
+	Name                string     `json:"name"`
+	Status              string     `json:"status"`
+	Progress            int16      `json:"progress"`
+	HoursSold           float64    `json:"hours_sold"`
+	HoursSpent          float64    `json:"hours_spent"`
+	StartsOn            *time.Time `json:"starts_on"`
+	DueOn               *time.Time `json:"due_on"`
+	TasksTotal          int32      `json:"tasks_total"`
+	TasksDone           int32      `json:"tasks_done"`
+	CreatedBy           *uuid.UUID `json:"created_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
+	Description         string     `json:"description"`
+	Priority            string     `json:"priority"`
+	FigmaUrl            string     `json:"figma_url"`
+	ProdUrl             string     `json:"prod_url"`
+	PreprodUrl          string     `json:"preprod_url"`
+	DeliverablesPending int32      `json:"deliverables_pending"`
+	ClientName          string     `json:"client_name"`
+	IsFavorite          bool       `json:"is_favorite"`
 }
 
 // Liste paginee du back-office.
@@ -662,8 +682,58 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.FigmaUrl,
 			&i.ProdUrl,
 			&i.PreprodUrl,
+			&i.DeliverablesPending,
 			&i.ClientName,
 			&i.IsFavorite,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServicesOfProjects = `-- name: ListServicesOfProjects :many
+SELECT
+    ps.project_id,
+    s.id,
+    s.name,
+    s.color
+FROM project_services ps
+JOIN services s ON s.id = ps.service_id AND s.deleted_at IS NULL
+WHERE ps.project_id = ANY($1::uuid[])
+ORDER BY ps.project_id, s.name, s.id
+`
+
+type ListServicesOfProjectsRow struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color"`
+}
+
+// Services de plusieurs projets en une requete.
+//
+// Meme parade au N+1 que pour les equipes : une collection ne se joint pas a la
+// liste — elle multiplierait les lignes — elle se charge d'un coup pour la page
+// entiere, et le service la repartit ensuite.
+func (q *Queries) ListServicesOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListServicesOfProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listServicesOfProjects, projectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServicesOfProjectsRow{}
+	for rows.Next() {
+		var i ListServicesOfProjectsRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ID,
+			&i.Name,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -740,6 +810,19 @@ func (q *Queries) RemoveProjectMember(ctx context.Context, arg RemoveProjectMemb
 	return err
 }
 
+const setProjectServices = `-- name: SetProjectServices :exec
+DELETE FROM project_services WHERE project_id = $1
+`
+
+// Remplace les services d'un projet par la liste fournie.
+//
+// Effacer puis reinserer plutot que calculer une difference : la liste est
+// courte, et le formulaire envoie toujours l'etat complet qu'il veut voir.
+func (q *Queries) SetProjectServices(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setProjectServices, projectID)
+	return err
+}
+
 const softDeleteProject = `-- name: SoftDeleteProject :exec
 UPDATE projects SET deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
@@ -771,7 +854,7 @@ UPDATE projects SET
                        ELSE COALESCE($14::date, due_on) END,
     updated_at  = now()
 WHERE id = $15 AND deleted_at IS NULL
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending
 `
 
 type UpdateProjectParams struct {
@@ -835,6 +918,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.FigmaUrl,
 		&i.ProdUrl,
 		&i.PreprodUrl,
+		&i.DeliverablesPending,
 	)
 	return i, err
 }
