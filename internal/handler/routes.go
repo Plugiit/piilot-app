@@ -17,6 +17,10 @@ type Deps struct {
 
 	Notifications *Notifications
 	Tickets       *Tickets
+	Deliverables  *Deliverables
+	Services      *Services
+	SidebarApps   *SidebarApps
+	TimeEntries   *TimeEntries
 
 	Guard *middleware.Guard
 }
@@ -156,6 +160,13 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Get("/:id/tasks", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Board)
 	projects.Post("/:id/tasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Create)
 
+	// Les tickets d'un projet vivent sous le projet pour la meme raison que
+	// ses taches : c'est sa fiche qui les porte a l'ecran. La permission est
+	// celle des tickets et non celle des projets — c'est la donnee lue qui la
+	// commande.
+	projects.Get("/:id/tickets", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.ProjectList)
+	projects.Get("/:id/tickets/board", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.ProjectBoard)
+
 	// Une fois ouverte, une tache se manipule par son seul identifiant : le
 	// panneau lateral se partage par lien, sans le projet dans l'adresse.
 	tasks := r.Group("/tasks")
@@ -185,6 +196,66 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	tickets.Get("/:id", deps.Guard.RequirePermission("tickets.read"), deps.Tickets.Get)
 	tickets.Post("/:id/messages", deps.Guard.RequirePermission("tickets.write"), deps.Tickets.PostMessage)
 	tickets.Patch("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Tickets.Rename)
+
+	// Livrables.
+	//
+	// Le depot vit sous le projet — c'est lui qui porte le livrable a l'ecran —
+	// tandis que la file d'attente traverse les projets : elle a son groupe.
+	projects.Post("/:id/deliverables", deps.Guard.RequirePermission("deliverables.write"), deps.Deliverables.Create)
+
+	deliverables := r.Group("/deliverables")
+	deliverables.Get("", deps.Guard.RequirePermission("deliverables.read"), deps.Deliverables.List)
+	deliverables.Get("/:id/versions", deps.Guard.RequirePermission("deliverables.read"), deps.Deliverables.Versions)
+	deliverables.Post("/:id/versions", deps.Guard.RequirePermission("deliverables.write"), deps.Deliverables.Submit)
+
+	// Trancher demande un droit a part, que le role client porte aussi : c'est
+	// le seul geste d'ecriture que le portail lui accorde.
+	deliverables.Post("/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Deliverables.Decide)
+
+	// Referentiel des prestations de l'agence.
+	//
+	// Il n'a pas de vue a lui seul : c'est une nomenclature qu'on tient a jour,
+	// et les quatre verbes suffisent. Sous les droits des projets — c'est le
+	// module qui la porte, et elle n'a pas de permission propre.
+	services := r.Group("/services")
+	services.Get("", deps.Guard.RequirePermission("projects.read"), deps.Services.List)
+	services.Post("", deps.Guard.RequirePermission("projects.write"), deps.Services.Create)
+	services.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Services.Update)
+	services.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Services.Delete)
+
+	// Temps passe.
+	//
+	// Pas de parametre de compte : chacun saisit et relit le sien, et
+	// l'identifiant vient de la session. Sous les droits des projets — pointer
+	// des heures est un geste du module, pas une permission a part.
+	temps := r.Group("/time-entries")
+	temps.Get("", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Sheet)
+	temps.Post("", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Create)
+	temps.Patch("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Update)
+	temps.Delete("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Delete)
+
+	// Applications jointes depuis le rail.
+	//
+	// La lecture est ouverte a tout compte connecte : le rail s'affiche sur
+	// chaque page, et exiger un droit d'administration le viderait pour la
+	// moitie de l'equipe. Les modifier reste reserve.
+	apps := r.Group("/sidebar-apps")
+	apps.Get("", deps.Guard.Authenticated, deps.SidebarApps.List)
+
+	// Les logos precedent « /:id » : montes apres, « logos » serait lu comme un
+	// identifiant et rejete par l'analyse de l'UUID.
+	apps.Get("/logos/:key", deps.Guard.Authenticated, deps.SidebarApps.Logo)
+
+	apps.Post("", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.Create)
+	apps.Patch("/:id", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.Update)
+	apps.Delete("/:id", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.Delete)
+	apps.Post("/:id/logo", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.UploadLogo)
+	apps.Delete("/:id/logo", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.DeleteLogo)
+
+	// Repasse le logo en automatique : la demande est enregistree, le job la
+	// sert. Monte avant « /:id/logo » ne changerait rien, les chemins ne se
+	// confondant pas.
+	apps.Post("/:id/logo/auto", deps.Guard.RequirePermission("users.write"), deps.SidebarApps.RefetchLogo)
 
 	// Notifications du compte appelant. Aucune permission a verifier au-dela de
 	// l'authentification : chacun ne voit que les siennes, la clause est dans
