@@ -1,0 +1,60 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: queries
+    gen:
+      go:
+        package: db
+        out: internal/repository/db
+        sql_package: pgx/v5
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_interface: true
+        emit_empty_slices: true
+        # Les timestamptz arrivent en time.Time et les uuid en uuid.UUID plutot
+        # qu'en types pgtype : le code metier manipule des types standard.
+        overrides:
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              type: "time.Time"
+              pointer: true
+          # Les deux overrides uuid emploient la meme forme longue : melangee
+          # avec la forme courte, sqlc emet deux fois l'import du paquet.
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              package: "uuid"
+              type: "UUID"
+          # Forme longue obligatoire pour un pointeur sur un type importe :
+          # la forme courte « paquet.Type » n'est comprise qu'en valeur.
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              package: "uuid"
+              type: "UUID"
+              pointer: true
+          # Les dates sans heure (echeances, jalons) restent des time.Time :
+          # pgtype.Date obligerait chaque usecase a deballer un .Time et un
+          # .Valid pour lire une echeance.
+          - db_type: "date"
+            go_type: "time.Time"
+          - db_type: "date"
+            nullable: true
+            go_type:
+              type: "time.Time"
+              pointer: true
+          # Les heures vendues et consommees sont des numeric(7,2) : deux
+          # decimales, jamais de calcul monetaire. Un float64 les porte sans
+          # imposer pgtype.Numeric a tout le code metier.
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              type: "float64"
+              pointer: true

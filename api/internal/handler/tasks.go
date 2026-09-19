@@ -1,0 +1,492 @@
+package handler
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+
+	"github.com/plugiit/plugiit-api-go/internal/domain"
+	"github.com/plugiit/plugiit-api-go/internal/middleware"
+	"github.com/plugiit/plugiit-api-go/internal/usecase"
+)
+
+// TaskService est le contrat dont les endpoints de taches ont besoin.
+type TaskService interface {
+	AddFile(ctx context.Context, taskID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
+	Board(ctx context.Context, projectID uuid.UUID) (usecase.TaskBoard, error)
+	List(ctx context.Context, f usecase.TaskFilters) (usecase.TaskList, error)
+	Get(ctx context.Context, id uuid.UUID) (usecase.TaskDetail, error)
+	Create(ctx context.Context, in usecase.CreateTaskInput) (usecase.TaskDetail, error)
+	Update(ctx context.Context, id uuid.UUID, in usecase.UpdateTaskInput) (usecase.TaskDetail, error)
+	Move(ctx context.Context, id uuid.UUID, status string, position *int, actorID uuid.UUID) (usecase.TaskDetail, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	SetAssignees(ctx context.Context, id uuid.UUID, userIDs []uuid.UUID, actorID uuid.UUID) (usecase.TaskDetail, error)
+	AddSubtask(ctx context.Context, taskID uuid.UUID, label string) (usecase.Subtask, error)
+	UpdateSubtask(ctx context.Context, id uuid.UUID, label *string, done *bool, position *int, actorID uuid.UUID) (usecase.Subtask, error)
+	DeleteSubtask(ctx context.Context, id uuid.UUID) error
+	Comments(ctx context.Context, taskID uuid.UUID) ([]usecase.Comment, error)
+	AddComment(ctx context.Context, taskID, authorID uuid.UUID, body string) (usecase.Comment, error)
+}
+
+// Tasks porte les endpoints des taches.
+type Tasks struct {
+	svc TaskService
+}
+
+// NewTasks construit le handler.
+func NewTasks(svc TaskService) *Tasks {
+	return &Tasks{svc: svc}
+}
+
+type createTaskRequest struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	Tag         string   `json:"tag"`
+	Priority    string   `json:"priority"`
+	StartsOn    *string  `json:"starts_on"`
+	DueOn       *string  `json:"due_on"`
+	Hours       *float64 `json:"hours"`
+	Note        string   `json:"note"`
+	AssigneeIDs []string `json:"assignee_ids"`
+	ServiceIDs  []string `json:"service_ids"`
+}
+
+type updateTaskRequest struct {
+	Title       *string  `json:"title"`
+	Description *string  `json:"description"`
+	Tag         *string  `json:"tag"`
+	Priority    *string  `json:"priority"`
+	Note        *string  `json:"note"`
+	Hours       *float64 `json:"hours"`
+	StartsOn    *string  `json:"starts_on"`
+	DueOn       *string  `json:"due_on"`
+	ServiceIDs  []string `json:"service_ids"`
+}
+
+type moveTaskRequest struct {
+	Status   string `json:"status"`
+	Position *int   `json:"position"`
+}
+
+type assigneesRequest struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+type createSubtaskRequest struct {
+	Label string `json:"label"`
+}
+
+type updateSubtaskRequest struct {
+	Label    *string `json:"label"`
+	Done     *bool   `json:"done"`
+	Position *int    `json:"position"`
+}
+
+type createCommentRequest struct {
+	Body string `json:"body"`
+}
+
+// Board sert l'onglet « Tâches » d'un projet.
+func (h *Tasks) Board(c fiber.Ctx) error {
+	projectID, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	board, err := h.svc.Board(c.Context(), projectID)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(board)
+}
+
+// List sert l'ecran « Taches » du module, ses deux vues comprises.
+//
+// Les valeurs de statut et de priorite ne sont pas validees ici : une valeur
+// inconnue ne fait correspondre aucune ligne, ce qui est exactement ce qu'un
+// filtre doit faire. Refuser la requete obligerait a tenir la liste des
+// valeurs a deux endroits, dont un qui ne decide de rien.
+func (h *Tasks) List(c fiber.Ctx) error {
+	var filters usecase.TaskFilters
+
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		filters.Status = &status
+	}
+	if priority := strings.TrimSpace(c.Query("priority")); priority != "" {
+		filters.Priority = &priority
+	}
+	if search := strings.TrimSpace(c.Query("search")); search != "" {
+		filters.Search = &search
+	}
+	if raw := strings.TrimSpace(c.Query("project_id")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"project_id": "Identifiant invalide"})
+		}
+		filters.ProjectID = &id
+	}
+
+	list, err := h.svc.List(c.Context(), filters)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(list)
+}
+
+// Create ajoute une tache au projet.
+func (h *Tasks) Create(c fiber.Ctx) error {
+	projectID, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req createTaskRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	starts, err := parseDatePointer(req.StartsOn, "starts_on")
+	if err != nil {
+		return err
+	}
+	due, err := parseDatePointer(req.DueOn, "due_on")
+	if err != nil {
+		return err
+	}
+	assignees, err := parseUUIDs(req.AssigneeIDs, "assignee_ids")
+	if err != nil {
+		return err
+	}
+
+	services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+	if err != nil {
+		return err
+	}
+
+	task, err := h.svc.Create(c.Context(), usecase.CreateTaskInput{
+		ProjectID:   projectID,
+		Title:       req.Title,
+		Description: req.Description,
+		Status:      req.Status,
+		Tag:         req.Tag,
+		Priority:    req.Priority,
+		StartsOn:    starts,
+		DueOn:       due,
+		Hours:       req.Hours,
+		Note:        req.Note,
+		AssigneeIDs: assignees,
+		ActorID:     actor,
+		ServiceIDs:  services,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(task)
+}
+
+// Get sert le panneau de detail d'une tache.
+func (h *Tasks) Get(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	task, err := h.svc.Get(c.Context(), id)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(task)
+}
+
+// Update modifie les champs libres d'une tache.
+func (h *Tasks) Update(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req updateTaskRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	in := usecase.UpdateTaskInput{
+		Title:       req.Title,
+		Description: req.Description,
+		Tag:         req.Tag,
+		Priority:    req.Priority,
+		Note:        req.Note,
+		Hours:       req.Hours,
+		ActorID:     actor,
+	}
+
+	// Meme distinction que sur les projets : une cle a null efface, une cle
+	// absente laisse en place.
+	body := c.Body()
+	if hasJSONKey(body, "hours") && req.Hours == nil {
+		in.ClearHours = true
+	}
+	if hasJSONKey(body, "starts_on") {
+		if req.StartsOn == nil {
+			in.ClearStartsOn = true
+		} else if starts, err := parseDatePointer(req.StartsOn, "starts_on"); err != nil {
+			return err
+		} else {
+			in.StartsOn = starts
+		}
+	}
+	if hasJSONKey(body, "due_on") {
+		if req.DueOn == nil {
+			in.ClearDueOn = true
+		} else if due, err := parseDatePointer(req.DueOn, "due_on"); err != nil {
+			return err
+		} else {
+			in.DueOn = due
+		}
+	}
+	// La cle absente laisse les services en place ; presente, elle fixe la
+	// liste entiere — vide comprise.
+	if hasJSONKey(body, "service_ids") {
+		services, err := parseUUIDs(req.ServiceIDs, "service_ids")
+		if err != nil {
+			return err
+		}
+		in.ServiceIDs = &services
+	}
+
+	task, err := h.svc.Update(c.Context(), id, in)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(task)
+}
+
+// Move deplace une tache dans le tableau.
+func (h *Tasks) Move(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req moveTaskRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	task, err := h.svc.Move(c.Context(), id, req.Status, req.Position, actor)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(task)
+}
+
+// Delete efface une tache.
+func (h *Tasks) Delete(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	if err := h.svc.Delete(c.Context(), id); err != nil {
+		return err
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// SetAssignees remplace les personnes affectees a une tache.
+func (h *Tasks) SetAssignees(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req assigneesRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	ids, err := parseUUIDs(req.UserIDs, "user_ids")
+	if err != nil {
+		return err
+	}
+
+	task, err := h.svc.SetAssignees(c.Context(), id, ids, actor)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(task)
+}
+
+// AddSubtask ajoute une ligne a cocher.
+func (h *Tasks) AddSubtask(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req createSubtaskRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	subtask, err := h.svc.AddSubtask(c.Context(), id, req.Label)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(subtask)
+}
+
+// UpdateSubtask renomme, coche ou deplace une sous-tache.
+func (h *Tasks) UpdateSubtask(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req updateSubtaskRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	subtask, err := h.svc.UpdateSubtask(c.Context(), id, req.Label, req.Done, req.Position, actor)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(subtask)
+}
+
+// DeleteSubtask retire une ligne a cocher.
+func (h *Tasks) DeleteSubtask(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	if err := h.svc.DeleteSubtask(c.Context(), id); err != nil {
+		return err
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// Comments sert l'onglet « Commentaires ».
+func (h *Tasks) Comments(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	comments, err := h.svc.Comments(c.Context(), id)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(fiber.Map{"items": comments})
+}
+
+// AddComment poste un message sur une tache.
+func (h *Tasks) AddComment(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var req createCommentRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	comment, err := h.svc.AddComment(c.Context(), id, actor, req.Body)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(comment)
+}
+
+// UploadFile attache un fichier a une tache.
+//
+// Le telechargement et la suppression n'ont pas leur pendant ici : ils passent
+// par /files/{id}, qui sert indifferemment les pieces jointes des projets et
+// celles des taches.
+func (h *Tasks) UploadFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Aucun fichier reçu sous le champ « file »",
+		})
+	}
+
+	content, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("lecture du fichier envoye : %w", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	file, err := h.svc.AddFile(
+		c.Context(), id, actor,
+		header.Filename,
+		header.Header.Get("Content-Type"),
+		content,
+	)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(file)
+}
