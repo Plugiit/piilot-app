@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.3.0] — Back-office PM et CRM
+## [0.3.0] — Back-office PM et CRM · 2026-09-19
 
 Première version publiée de Piilot. Elle regroupe les jalons internes 0.1 (socle) et 0.2 (gestion de projet), et livre le back-office de l'agence : gestion de projet (PM) et relation client (CRM). L'espace Admin couvre les projets, les tâches, les tickets, les livrables et la saisie du temps, ainsi que le suivi des clients et des contacts. Tous les comptes disposent de la connexion sécurisée et de leur page de compte.
 
@@ -99,3 +99,4 @@ Première version publiée de Piilot. Elle regroupe les jalons internes 0.1 (soc
 - Le répertoire `FILES_DIR` contient les fichiers déposés : il doit être conservé d'un déploiement à l'autre.
 - Hors Coolify, copier `.env.example` en `.env`, remplacer les valeurs `A_GENERER`, puis utiliser `docker-compose.selfhost.yml`.
 - Action manuelle : créer le premier compte administrateur avec la commande `seed`.
+
