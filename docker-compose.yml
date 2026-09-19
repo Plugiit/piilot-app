@@ -13,7 +13,8 @@
 # survivent a un changement de ce fichier.
 #
 # Le domaine se regle dans Coolify, sur le service « app » : Configuration >
-# General > Domains. Le suffixe _8080 indique a Traefik le port interne.
+# General > Domains, sous la forme https://piilot.example.fr:8080 — le :8080
+# designe le port interne vers lequel Traefik route, pas le port public.
 
 services:
   app:
@@ -23,8 +24,11 @@ services:
     restart: unless-stopped
     environment:
       # --- Exposition -------------------------------------------------------
-      # URL publique de l'application, domaine attribue par Coolify.
-      PUBLIC_BASE_URL: ${SERVICE_URL_APP_8080}
+      # Declare a Coolify que le service ecoute sur 8080 : Traefik y route le
+      # domaine attribue. L'API ne lit pas cette variable.
+      SERVICE_URL_APP_8080: ${SERVICE_URL_APP_8080}
+      # URL publique de l'application, sans le port interne.
+      PUBLIC_BASE_URL: ${SERVICE_URL_APP}
       # Origines CORS. Le front etant servi par la meme image, CORS ne
       # s'applique pas : l'origine de l'app suffit.
       ADMIN_ORIGINS: ${SERVICE_URL_APP}
