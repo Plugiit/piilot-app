@@ -3,6 +3,10 @@ name: Release
 # Declenche par le tag que pose scripts/release.sh. La release GitHub n'est
 # publiee que si l'image se construit : la construction rejoue lint, typage et
 # tests des deux cotes. Une version rouge reste un tag sans release.
+#
+# Le corps de la release est la section du CHANGELOG, relue avant le tag,
+# completee d'un pied de page : lien de comparaison, liste des commits et
+# informations de deploiement.
 on:
   push:
     tags: ["v[0-9]*"]
@@ -16,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historique complet : le tag precedent sert au lien de comparaison
+          # et a la liste des commits.
+          fetch-depth: 0
 
       - name: Verifie que le tag correspond au fichier VERSION
         run: |
@@ -38,24 +46,52 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Extrait les notes du CHANGELOG
+      - name: Prepare le titre et les notes
+        id: notes
         run: |
           version="${GITHUB_REF_NAME#v}"
+          repo_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+
+          # Titre : « Piilot v0.4.0 — En production », repris de la section.
+          heading="$(grep -m1 "^## \[$version\]" CHANGELOG.md || true)"
+          test -n "$heading" || { echo "Aucune section [$version] dans CHANGELOG.md"; exit 1; }
+          name="$(printf '%s' "$heading" | sed -E 's/^## \[[^]]*\]( — )?//; s/ · [0-9-]+$//')"
+          echo "title=Piilot $GITHUB_REF_NAME${name:+ — $name}" >> "$GITHUB_OUTPUT"
+
+          # Corps de la section, sans son titre.
           awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { on = 1; next }
             on && /^## \[/ { exit }
             on { print }
           ' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "Aucune section [$version] dans CHANGELOG.md"; exit 1; }
+
+          previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_REF_NAME^" 2>/dev/null || true)"
+          range="${previous:+$previous..}$GITHUB_REF_NAME"
+          git log --no-merges --format="- [\`%h\`]($repo_url/commit/%H) %s" "$range" \
+            | grep -v 'chore(release)' > commits.md || true
+          count="$(wc -l < commits.md | tr -d ' ')"
+
+          {
+            printf '\n---\n\n'
+            if [ -n "$previous" ]; then
+              printf '**Comparer avec la version précédente** : [%s…%s](%s/compare/%s...%s)\n\n' \
+                "$previous" "$GITHUB_REF_NAME" "$repo_url" "$previous" "$GITHUB_REF_NAME"
+            fi
+            printf '**Vérifications** : image construite pour ce tag, lint, typage et tests passés.\n\n'
+            printf '<details>\n<summary>%s commits dans cette version</summary>\n\n' "$count"
+            head -n 300 commits.md
+            printf '\n</details>\n'
+          } >> notes.md
 
       - name: Publie la release GitHub
         env:
           GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.notes.outputs.title }}
         run: |
           flags=""
           # Une pre-version (1.0.0-rc.1) n'est pas proposee comme « Latest ».
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" \
-            --title "Piilot $GITHUB_REF_NAME" \
+            --title "$TITLE" \
             --notes-file notes.md \
             --verify-tag $flags

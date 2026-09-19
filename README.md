@@ -197,22 +197,47 @@ make release V=minor                  # publie
 
 1. vérifie qu'on est sur `master`, que l'arbre est propre, à jour avec
    `origin`, et que le tag n'existe pas ;
-2. prépare les notes de version ;
-3. demande confirmation, puis lance `make check` ;
+2. prépare les notes de version, puis te les soumet : publier, éditer,
+   régénérer ou abandonner ;
+3. lance `make check` ;
 4. met à jour `VERSION`, `CHANGELOG.md` et le statut des releases dans la
    [roadmap](#roadmap), committe `chore(release): vX.Y.Z` et pose le tag
    annoté ;
 5. pousse `master` et le tag ensemble.
 
-Les notes viennent de `CHANGELOG.md` si une section `## [X.Y.Z]` y est déjà
-rédigée à la main. Sinon, elles sont générées depuis les commits depuis le
-dernier tag, groupés par type ([Conventional Commits](https://www.conventionalcommits.org/fr/) :
-`feat`, `fix`, `perf`, `type!` pour une rupture). `ARGS=--edit` ouvre les
-notes générées dans `$EDITOR` avant publication.
+### Notes de version
+
+Elles viennent, par ordre de priorité :
+
+1. d'une section `## [X.Y.Z]` déjà rédigée dans `CHANGELOG.md`, reprise
+   telle quelle ;
+2. sinon, d'un **brouillon rédigé par Claude Code** (`claude -p`), en
+   français. Claude reçoit les commits depuis la dernière version, les
+   fichiers modifiés, les migrations ajoutées, les routes d'API ajoutées ou
+   retirées, les changements de configuration et l'objectif de la version
+   dans la roadmap. Il n'a accès à aucun outil : il rédige à partir de ce
+   contexte, sans lire ni modifier le dépôt. La consigne de rédaction est
+   dans [`scripts/release-notes.md`](scripts/release-notes.md) ;
+3. sans Claude Code, ou avec `ARGS=--no-ai`, d'une liste des commits groupée
+   par type.
+
+Le brouillon suit toujours la même structure : introduction, points forts,
+nouveautés par espace (Admin, Team, Client), améliorations, corrections,
+technique, et ce qu'il faut savoir pour le déploiement. **Il se relit avant
+publication** : Claude peut se tromper, et le texte validé devient
+définitif, dans le `CHANGELOG` comme sur GitHub. `CLAUDE_MODEL=opus make
+release V=minor` change le modèle utilisé.
+
+### Sur GitHub
 
 Le tag déclenche `.github/workflows/release.yml`. Le workflow vérifie que le
-tag correspond à `VERSION`, reconstruit l'image (donc rejoue toutes les
-vérifications), puis publie la release GitHub avec les notes du CHANGELOG.
+tag correspond à `VERSION` et reconstruit l'image, ce qui rejoue toutes les
+vérifications. Il publie ensuite la release GitHub :
+
+- **titre** : `Piilot v0.4.0 — En production`, repris de la roadmap ;
+- **corps** : la section du `CHANGELOG`, suivie d'un lien de comparaison
+  avec la version précédente et de la liste repliable des commits.
+
 **Une version dont l'image ne se construit pas n'a pas de release.** Une
 pré-version (`-rc.N`) est marquée comme telle.
 
