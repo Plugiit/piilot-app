@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Genere par le plugin TanStack Router (npm run routes:gen)
+src/routeTree.gen.ts
+
+# Outillage
+.DS_Store
+.idea/
+.vscode/
+*.tsbuildinfo
+
+# Cache du plugin TanStack Router
+.tanstack/

@@ -1,0 +1,226 @@
+import {
+  Building03Icon,
+  Calendar03Icon,
+  CheckmarkSquare02Icon,
+  Clock01Icon,
+  Contact01Icon,
+  DeliveryBox01Icon,
+  Folder01Icon,
+  Home03Icon,
+  LayoutTable01Icon,
+  LockKeyIcon,
+  Message01Icon,
+  Notification01Icon,
+  PlugSocketIcon,
+  Settings02Icon,
+  Tag01Icon,
+  Ticket02Icon,
+  UserCircleIcon,
+  UserMultipleIcon,
+} from '@hugeicons/core-free-icons'
+import type { IconSvgElement } from '@hugeicons/react'
+import { useRouterState } from '@tanstack/react-router'
+
+/** Feuille d'un menu deroulant : toujours une destination. */
+export interface MenuLeaf {
+  label: string
+  to: string
+}
+
+/**
+ * Entree de menu : soit elle mene quelque part (`to`), soit elle deplie des
+ * sous-entrees (`children`). Jamais les deux — un parent cliquable qui deplie
+ * aussi laisse l'utilisateur sans moyen de faire l'un sans l'autre.
+ */
+export type MenuItem = { icon: IconSvgElement; label: string } & (
+  { to: string; children?: never } | { to?: never; children: MenuLeaf[] }
+)
+
+export interface MenuGroup {
+  label: string
+  items: MenuItem[]
+}
+
+export interface AppModule {
+  icon: IconSvgElement
+  /** Nom court, celui du rail et de la racine du fil d'Ariane. */
+  label: string
+  to: string
+  /** Navigation du panneau, propre au module. */
+  menu: MenuGroup[]
+}
+
+/**
+ * Modules de l'application et leur navigation.
+ *
+ * Une seule liste, lue par le rail (ses marques), le panneau (son titre et son
+ * menu) et le fil d'Ariane (sa racine) : les trois ne peuvent pas diverger.
+ *
+ * Les ecrans marques « 2e lot » ont leur entree mais pas encore leur contenu :
+ * un modele de projet ne vaut que quand on sait a quoi ressemble un projet, et
+ * le catalogue de services attend d'etre cadre — il reste volontairement a
+ * l'ecart de tout montant, la facturation n'est pas de ce projet.
+ */
+export const MODULES: AppModule[] = [
+  {
+    icon: Folder01Icon,
+    label: 'Gestion de projet',
+    to: '/pm',
+    menu: [
+      {
+        label: 'Pilotage',
+        items: [
+          { icon: Home03Icon, label: 'Tableau de bord', to: '/pm' },
+          { icon: Folder01Icon, label: 'Projets', to: '/pm/projets' },
+          { icon: Calendar03Icon, label: 'Planning', to: '/pm/planning' },
+        ],
+      },
+      {
+        label: 'Production',
+        items: [
+          { icon: CheckmarkSquare02Icon, label: 'Tâches', to: '/pm/taches' },
+          {
+            icon: Clock01Icon,
+            label: 'Suivi du temps',
+            // Saisir son temps et l'analyser sont deux ecrans distincts : un
+            // formulaire, puis un tableau d'agregats.
+            children: [
+              { label: 'Saisie', to: '/pm/temps/saisie' },
+              { label: 'Rapports', to: '/pm/temps/rapports' },
+            ],
+          },
+          { icon: DeliveryBox01Icon, label: 'Livrables', to: '/pm/livrables' },
+          { icon: Ticket02Icon, label: 'Tickets', to: '/pm/tickets' },
+        ],
+      },
+    ],
+  },
+  {
+    icon: UserMultipleIcon,
+    label: 'CRM',
+    to: '/crm',
+    menu: [
+      {
+        label: 'Général',
+        items: [
+          { icon: Building03Icon, label: 'Clients', to: '/crm/clients' },
+          { icon: Contact01Icon, label: 'Contacts', to: '/crm/contacts' },
+          { icon: Message01Icon, label: 'Interactions', to: '/crm/interactions' },
+        ],
+      },
+    ],
+  },
+  {
+    icon: Settings02Icon,
+    label: 'Paramètres',
+    to: '/parametres',
+    menu: [
+      {
+        // Les referentiels valent pour toute l'agence, pas pour le seul module
+        // PM ou ils vivaient : un service etiquette aussi bien un projet qu'une
+        // tache, et rien n'interdit qu'il serve ailleurs demain.
+        label: 'Référentiels',
+        items: [
+          { icon: Tag01Icon, label: 'Services', to: '/parametres/services' },
+          { icon: LayoutTable01Icon, label: 'Modèles de projet', to: '/parametres/modeles' },
+        ],
+      },
+      {
+        label: 'Accès',
+        items: [
+          { icon: UserMultipleIcon, label: 'Comptes et rôles', to: '/parametres/comptes' },
+        ],
+      },
+      {
+        label: 'Apparence',
+        items: [{ icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps' }],
+      },
+    ],
+  },
+]
+
+/**
+ * Module ouvert, deduit de l'URL.
+ *
+ * Les sous-routes gardent leur module actif : /pm/xyz reste Project Management.
+ */
+/**
+ * Reglages du compte connecte.
+ *
+ * « Mon compte » et non « Parametres » : ce dernier nomme desormais les
+ * reglages de l'application, qui ont leur place dans le rail. Le groupe de menu
+ * ci-dessous portait deja ce titre — le module prend le nom de ce qu'il
+ * contient.
+ *
+ * A l'ecart de `MODULES` : le rail montre les modules metier, et le compte ne
+ * s'y range pas — on y entre par son portrait, en bas de la barre. Il a en
+ * revanche besoin d'une navigation de panneau comme les autres, d'ou un module
+ * a part entiere plutot qu'un cas special dans le panneau.
+ */
+export const ACCOUNT_MODULE: AppModule = {
+  icon: UserCircleIcon,
+  label: 'Mon compte',
+  to: '/compte',
+  menu: [
+    {
+      label: 'Mon compte',
+      items: [
+        { icon: UserCircleIcon, label: 'Informations personnelles', to: '/compte' },
+        { icon: LockKeyIcon, label: 'Sécurité', to: '/compte/securite' },
+        { icon: Notification01Icon, label: 'Notifications', to: '/compte/notifications' },
+        { icon: PlugSocketIcon, label: 'Intégrations', to: '/compte/integrations' },
+      ],
+    },
+  ],
+}
+
+export function useActiveModule(): AppModule | undefined {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  return [...MODULES, ACCOUNT_MODULE].find(
+    (module) => pathname === module.to || pathname.startsWith(`${module.to}/`),
+  )
+}
+
+/** Destinations d'une entree : la sienne, ou celles de ses sous-entrees. */
+export function destinationsOf(item: MenuItem): string[] {
+  return item.children ? item.children.map((leaf) => leaf.to) : [item.to]
+}
+
+/** Vrai quand `to` designe cette adresse ou l'une de ses sous-pages. */
+function covers(to: string, pathname: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+/**
+ * Destination du menu a laquelle appartient l'adresse courante.
+ *
+ * Une entree reste allumee sur ses sous-pages : la fiche d'un projet est
+ * encore « Projets ». Mais plusieurs entrees peuvent prefixer la meme adresse
+ * — /pm/projets/42 est couvert par « Tableau de bord » (/pm) autant que par
+ * « Projets » (/pm/projets). C'est la plus longue qui gagne, sans quoi le
+ * tableau de bord resterait actif partout dans son module.
+ *
+ * Rendre la destination plutot qu'un booleen par entree laisse un seul
+ * vainqueur : deux entrees ne peuvent pas s'allumer ensemble.
+ */
+export function activeDestination(
+  module: AppModule | undefined,
+  pathname: string,
+): string | undefined {
+  if (module === undefined) return undefined
+
+  let best: string | undefined
+
+  for (const group of module.menu) {
+    for (const item of group.items) {
+      for (const to of destinationsOf(item)) {
+        if (covers(to, pathname) && (best === undefined || to.length > best.length)) {
+          best = to
+        }
+      }
+    }
+  }
+
+  return best
+}

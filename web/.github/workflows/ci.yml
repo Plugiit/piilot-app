@@ -1,0 +1,38 @@
+name: CI
+
+# Le Dockerfile est le garant : son stage de build execute la generation des
+# routes, le lint, le typage, les tests et la compilation Vite. Une image n'est
+# produite que si tout passe. Construire l'image suffit donc a tout verifier —
+# la CI ne redefinit pas la verification, elle la declenche dans les memes
+# conditions que le deploiement Coolify.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Image Docker (lint + types + tests + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construit l'image de production
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          # VITE_API_URL est inlinee dans le bundle a la compilation. En CI on
+          # ne verifie que la construction, jamais deployee : la laisser vide
+          # evite de figer une URL d'environnement dans une image de test.
+          build-args: |
+            VITE_API_URL=
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
