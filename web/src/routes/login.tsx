@@ -11,7 +11,7 @@ import { z } from 'zod'
 import dashboardUrl from '@/assets/login/dashboard.png'
 import eyeLineUrl from '@/assets/login/eye-line.svg'
 import glowUrl from '@/assets/login/glow.svg'
-import logoUrl from '@/assets/login/logo-badge.svg'
+import logoUrl from '@/assets/sidebar/logo.svg'
 import starUrl from '@/assets/login/star.svg'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -196,9 +196,8 @@ function LoginPage() {
       <main className="flex items-center justify-center bg-white px-6 py-10">
         <div className="flex w-full max-w-[476px] flex-col gap-[44px]">
           <header className="flex flex-col items-center gap-5">
-            <div className="flex items-center rounded-[20px] border border-[#ffd3b9] bg-[#fff5f0] p-3">
-              <img src={logoUrl} alt="Plugiit" className="block size-10 max-w-none" />
-            </div>
+            {/* Le logo porte deja son cadre arrondi : pas de pastille autour. */}
+            <img src={logoUrl} alt="Plugiit" className="block size-14 max-w-none" />
 
             <div className="flex w-full flex-col gap-1 text-center">
               <h1 className="font-heading text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
