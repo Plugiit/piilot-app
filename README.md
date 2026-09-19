@@ -13,6 +13,7 @@ l'application réelle, sur une instance remplie de données fictives.</sub>
 
 - [Ce que fait Piilot](#ce-que-fait-piilot)
 - [État d'avancement](#état-davancement)
+- [Roadmap](#roadmap)
 - [Publier une version](#publier-une-version)
 - [Architecture](#architecture)
 - [Installation avec Coolify](#installation-avec-coolify)
@@ -156,9 +157,30 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
 
-Version actuelle et étapes jusqu'à la V1, release par release :
-**[ROADMAP.md](ROADMAP.md)**. Historique des versions :
-**[CHANGELOG.md](CHANGELOG.md)**.
+## Roadmap
+
+Étapes jusqu'à la V1, release par release. Ce tableau est recalculé depuis le
+fichier `VERSION` à chaque release : il indique toujours la version en cours.
+Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
+
+<!-- roadmap:readme -->
+**Version actuelle : `0.2.0`** — détail de chaque release dans [ROADMAP.md](ROADMAP.md).
+
+| Statut | Version | Nom | Espace | Objectif |
+|---|---|---|---|---|
+| ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
+| 📍 Actuelle | **0.2.0** | Gestion de projet | Admin | Projets, tâches, notifications, compte |
+| ⏳ À venir | 0.3.0 | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
+| ⏳ À venir | 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
+| ⏳ À venir | 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
+| ⏳ À venir | 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
+| ⏳ À venir | 0.7.0 | Pilotage | Admin | Rapports, budgets, jalons : ne plus dépendre de l'ancienne plateforme |
+| ⏳ À venir | 0.8.0 | Portail : suivi et validation | Client | Un client suit son projet et valide un livrable dans Piilot |
+| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Le support client passe par Piilot |
+| ⏳ À venir | 0.10.0 | Conformité et durcissement | Tous | RGPD, audit, sécurité du portail, tests de bout en bout |
+| ⏳ À venir | 1.0.0-rc.N | Recette | Tous | Clients pilotes, corrections |
+| ⏳ À venir | 1.0.0 | V1 | Tous | Critères de sortie remplis |
+<!-- /roadmap:readme -->
 
 ## Publier une version
 
@@ -177,8 +199,9 @@ make release V=minor                  # publie
    `origin`, et que le tag n'existe pas ;
 2. prépare les notes de version ;
 3. demande confirmation, puis lance `make check` ;
-4. met à jour `VERSION` et `CHANGELOG.md`, committe
-   `chore(release): vX.Y.Z` et pose le tag annoté ;
+4. met à jour `VERSION`, `CHANGELOG.md` et le statut des releases dans la
+   [roadmap](#roadmap), committe `chore(release): vX.Y.Z` et pose le tag
+   annoté ;
 5. pousse `master` et le tag ensemble.
 
 Les notes viennent de `CHANGELOG.md` si une section `## [X.Y.Z]` y est déjà
@@ -536,6 +559,7 @@ web/                        front React
 ├── src/features/           logique par module
 └── src/components/         composants partagés (shadcn/ui)
 scripts/release.sh          publication d'une version
+scripts/roadmap.sh          statut des releases, recalculé depuis VERSION
 docs/images/                captures du README
 Dockerfile                  image unique : front + API
 docker-compose.yml          déploiement : app + Postgres + Redis (Coolify)

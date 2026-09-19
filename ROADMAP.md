@@ -13,9 +13,7 @@ La **V1** est atteinte quand chacun des trois espaces couvre son usage
 quotidien sans écran factice ni recours à l'ancienne plateforme pour la
 gestion de projet et le CRM.
 
-## Où on en est
-
-**Version actuelle : `0.3.0`**, prête à être taguée. Rien n'est déployé.
+## État des lieux à la 0.3.0
 
 | Espace | État |
 |---|---|
@@ -40,18 +38,27 @@ Dettes visibles, à solder avant la V1 :
 
 ## Vue d'ensemble
 
-| Version | Nom | Espace servi | Objectif |
-|---|---|---|---|
-| **0.3.0** | Back-office PM et CRM | Admin | ✅ État actuel |
-| 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
-| 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
-| 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
-| 0.7.0 | Pilotage | Admin | Rapports, budgets, jalons : ne plus dépendre de l'ancienne plateforme |
-| 0.8.0 | Portail : suivi et validation | Client | Un client suit son projet et valide un livrable dans Piilot |
-| 0.9.0 | Portail : tickets | Client | Le support client passe par Piilot |
-| 0.10.0 | Conformité et durcissement | Tous | RGPD, audit, sécurité du portail, tests de bout en bout |
-| 1.0.0-rc.N | Recette | Tous | Clients pilotes, corrections |
-| **1.0.0** | **V1** | Tous | Critères de sortie remplis |
+Le statut de chaque release et la version actuelle sont calculés depuis le
+fichier `VERSION` par `scripts/roadmap.sh`, lancé à chaque release. Le même
+tableau est repris dans le README. Pour modifier la roadmap, éditer les
+colonnes *Version* à *Objectif* ci-dessous puis lancer `make roadmap`.
+
+<!-- roadmap:table -->
+| Statut | Version | Nom | Espace | Objectif |
+|---|---|---|---|---|
+| ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
+| 📍 Actuelle | **0.2.0** | Gestion de projet | Admin | Projets, tâches, notifications, compte |
+| ⏳ À venir | 0.3.0 | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
+| ⏳ À venir | 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
+| ⏳ À venir | 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
+| ⏳ À venir | 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
+| ⏳ À venir | 0.7.0 | Pilotage | Admin | Rapports, budgets, jalons : ne plus dépendre de l'ancienne plateforme |
+| ⏳ À venir | 0.8.0 | Portail : suivi et validation | Client | Un client suit son projet et valide un livrable dans Piilot |
+| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Le support client passe par Piilot |
+| ⏳ À venir | 0.10.0 | Conformité et durcissement | Tous | RGPD, audit, sécurité du portail, tests de bout en bout |
+| ⏳ À venir | 1.0.0-rc.N | Recette | Tous | Clients pilotes, corrections |
+| ⏳ À venir | 1.0.0 | V1 | Tous | Critères de sortie remplis |
+<!-- /roadmap:table -->
 
 L'ordre suit les dépendances :
 

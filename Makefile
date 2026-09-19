@@ -25,6 +25,7 @@ dev-web: ## Front sur :5173, proxy /api vers :8080
 
 .PHONY: check
 check: ## Verification complete des deux cotes
+	scripts/roadmap.sh --check
 	$(MAKE) -C api check
 	cd web && npm run check
 
@@ -36,3 +37,7 @@ docker-build: ## Construit l'image de production (tests inclus)
 release: ## Publie une version : make release V=patch|minor|major|X.Y.Z [ARGS=--dry-run]
 	@test -n "$(V)" || (echo "usage: make release V=patch|minor|major|X.Y.Z [ARGS=--dry-run]" && exit 1)
 	scripts/release.sh $(V) $(ARGS)
+
+.PHONY: roadmap
+roadmap: ## Recalcule le statut des releases (ROADMAP.md et README) depuis VERSION
+	scripts/roadmap.sh
