@@ -1,0 +1,97 @@
+name: CI
+
+# Le Dockerfile est le garant : son stage `test` execute gofmt, go vet et les
+# tests unitaires, et le stage de production ne peut pas s'assembler sans le
+# marqueur qu'il produit. Construire l'image suffit donc a tout verifier — la
+# CI ne redefinit pas la verification, elle la declenche dans les memes
+# conditions que le deploiement Coolify.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Un push qui suit un autre annule la construction precedente : seul l'etat le
+# plus recent de la branche merite des minutes de CI.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Image Docker (fmt + vet + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construit l'image de production
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+          # Le cache GitHub evite de retelecharger les modules Go a chaque
+          # execution : sans lui, chaque build repart de zero.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  integration:
+    name: Tests d'integration
+    runs-on: ubuntu-latest
+
+    # Ces tests exigent une vraie base : ils sont derriere le tag `integration`
+    # et ne tournent donc ni dans `go test ./...` ni dans le Dockerfile. Sans ce
+    # job, ils ne s'executeraient nulle part.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: plugiit
+          POSTGRES_PASSWORD: plugiit
+          POSTGRES_DB: plugiit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U plugiit"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://plugiit:plugiit@localhost:5432/plugiit?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # Suit go.mod : la version de Go ne vit qu'a un seul endroit.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Applique les migrations
+        # Meme image que `make migrate-up` : la version de l'outil est la meme
+        # en local et en CI.
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/migrations:/migrations" \
+            migrate/migrate:latest \
+            -path /migrations -database "$DATABASE_URL" up
+
+      - name: Tests d'integration
+        run: make test-integration

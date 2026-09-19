@@ -1,0 +1,20 @@
+# Binaires
+/bin/
+/api
+/tmp/
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Outillage
+.DS_Store
+.idea/
+.vscode/
+*.test
+*.out
+coverage.*
+
+# Pieces jointes des projets (FILES_DIR). Contenu televerse : jamais dans le depot.
+data/
