@@ -30,7 +30,6 @@ jobs:
           target: production
           push: false
           build-args: |
-            VERSION=${{ github.ref_name }}
             SOURCE_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

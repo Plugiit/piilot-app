@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION := $(shell cat VERSION)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 
 .PHONY: help
@@ -30,4 +30,9 @@ check: ## Verification complete des deux cotes
 
 .PHONY: docker-build
 docker-build: ## Construit l'image de production (tests inclus)
-	docker build --build-arg VERSION=$(VERSION) --build-arg SOURCE_COMMIT=$(COMMIT) -t piilot-app:$(VERSION) .
+	docker build --build-arg SOURCE_COMMIT=$(COMMIT) -t piilot-app:$(VERSION) .
+
+.PHONY: release
+release: ## Publie une version : make release V=patch|minor|major|X.Y.Z [ARGS=--dry-run]
+	@test -n "$(V)" || (echo "usage: make release V=patch|minor|major|X.Y.Z [ARGS=--dry-run]" && exit 1)
+	scripts/release.sh $(V) $(ARGS)
