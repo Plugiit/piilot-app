@@ -109,6 +109,7 @@ UPDATE projects SET
     preprod_url = COALESCE(sqlc.narg('preprod_url')::text, preprod_url),
     progress    = COALESCE(sqlc.narg('progress')::smallint, progress),
     hours_sold  = COALESCE(sqlc.narg('hours_sold')::numeric, hours_sold),
+    is_internal = COALESCE(sqlc.narg('is_internal')::boolean, is_internal),
     client_id   = COALESCE(sqlc.narg('client_id')::uuid, client_id),
     starts_on   = CASE WHEN sqlc.arg('clear_starts_on')::boolean THEN NULL
                        ELSE COALESCE(sqlc.narg('starts_on')::date, starts_on) END,
@@ -165,7 +166,18 @@ SELECT
     (SELECT coalesce(sum(hours_sold), 0)::numeric FROM projects
      WHERE deleted_at IS NULL
        AND created_at >= now() - interval '60 days'
-       AND created_at <  now() - interval '30 days')                               AS hours_previous;
+       AND created_at <  now() - interval '30 days')                               AS hours_previous,
+
+    -- Temps facturable : lu sur `hours_spent`, que le declencheur des saisies
+    -- tient a jour. Aucune somme sur time_entries au rendu. Une heure est
+    -- facturable si son projet n'est pas interne ; le budget est ce qui a ete
+    -- vendu sur les projets clients.
+    (SELECT coalesce(sum(hours_sold), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_budget,
+    (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_billable,
+    (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable;
 
 -- name: ListProjectFiles :many
 -- Pieces jointes d'un projet, la derniere deposee en premier.

@@ -125,6 +125,7 @@ type Project struct {
 	ProdUrl             string     `json:"prod_url"`
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
+	IsInternal          bool       `json:"is_internal"`
 }
 
 type ProjectFavorite struct {

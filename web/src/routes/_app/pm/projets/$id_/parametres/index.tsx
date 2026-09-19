@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   projectDetailQuery,
@@ -46,6 +47,7 @@ const schema = z.object({
   // Le formulaire envoie toujours la liste entiere, que l'API applique telle
   // quelle.
   service_ids: z.array(z.string()),
+  is_internal: z.boolean(),
   figma_url: lien,
   prod_url: lien,
   preprod_url: lien,
@@ -206,6 +208,7 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
       description: project.description,
       priority: project.priority,
       service_ids: project.services.map((service) => service.id),
+      is_internal: project.is_internal,
       figma_url: project.figma_url,
       prod_url: project.prod_url,
       preprod_url: project.preprod_url,
@@ -253,6 +256,26 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
             value={form.watch('service_ids')}
             onChange={(value) => form.setValue('service_ids', value, { shouldDirty: true })}
           />
+        </Field>
+
+        <Field label="Facturation">
+          <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[#e8e8e9] px-3 py-3">
+            <Checkbox
+              checked={form.watch('is_internal')}
+              onCheckedChange={(checked) =>
+                form.setValue('is_internal', checked === true, { shouldDirty: true })
+              }
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-[14px] leading-[1.5] font-medium text-[#1b1b1b]">
+                Projet interne
+              </span>
+              <span className="text-[14px] leading-[1.5] text-[#73757c]">
+                Le temps saisi sur ce projet est non facturable, y compris celui déjà saisi.
+              </span>
+            </span>
+          </label>
         </Field>
       </Card>
 

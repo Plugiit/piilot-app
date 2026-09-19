@@ -86,7 +86,7 @@ func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (i
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal
 `
 
 type CreateProjectParams struct {
@@ -144,6 +144,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.ProdUrl,
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
+		&i.IsInternal,
 	)
 	return i, err
 }
@@ -297,7 +298,18 @@ SELECT
     (SELECT coalesce(sum(hours_sold), 0)::numeric FROM projects
      WHERE deleted_at IS NULL
        AND created_at >= now() - interval '60 days'
-       AND created_at <  now() - interval '30 days')                               AS hours_previous
+       AND created_at <  now() - interval '30 days')                               AS hours_previous,
+
+    -- Temps facturable : lu sur ` + "`" + `hours_spent` + "`" + `, que le declencheur des saisies
+    -- tient a jour. Aucune somme sur time_entries au rendu. Une heure est
+    -- facturable si son projet n'est pas interne ; le budget est ce qui a ete
+    -- vendu sur les projets clients.
+    (SELECT coalesce(sum(hours_sold), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_budget,
+    (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_billable,
+    (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
+     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable
 `
 
 type GetDashboardStatsRow struct {
@@ -310,6 +322,9 @@ type GetDashboardStatsRow struct {
 	HoursTotal       float64 `json:"hours_total"`
 	HoursRecent      float64 `json:"hours_recent"`
 	HoursPrevious    float64 `json:"hours_previous"`
+	TimeBudget       float64 `json:"time_budget"`
+	TimeBillable     float64 `json:"time_billable"`
+	TimeNonBillable  float64 `json:"time_non_billable"`
 }
 
 // Chiffres d'en-tete du tableau de bord.
@@ -336,13 +351,16 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 		&i.HoursTotal,
 		&i.HoursRecent,
 		&i.HoursPrevious,
+		&i.TimeBudget,
+		&i.TimeBillable,
+		&i.TimeNonBillable,
 	)
 	return i, err
 }
 
 const getProject = `-- name: GetProject :one
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal,
     c.name AS client_name,
     -- L'interlocuteur du projet est le contact principal de son client. Joint
     -- a gauche : un client sans contact ne doit pas faire disparaitre le
@@ -387,6 +405,7 @@ type GetProjectRow struct {
 	ProdUrl             string     `json:"prod_url"`
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
+	IsInternal          bool       `json:"is_internal"`
 	ClientName          string     `json:"client_name"`
 	ClientContactName   string     `json:"client_contact_name"`
 	ClientContactRole   string     `json:"client_contact_role"`
@@ -419,6 +438,7 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProj
 		&i.ProdUrl,
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
+		&i.IsInternal,
 		&i.ClientName,
 		&i.ClientContactName,
 		&i.ClientContactRole,
@@ -562,7 +582,7 @@ func (q *Queries) ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([
 
 const listProjects = `-- name: ListProjects :many
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal,
     c.name AS client_name,
     -- L'etoile est personnelle : elle se lit pour l'appelant, pas dans l'absolu.
     EXISTS (
@@ -630,6 +650,7 @@ type ListProjectsRow struct {
 	ProdUrl             string     `json:"prod_url"`
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
+	IsInternal          bool       `json:"is_internal"`
 	ClientName          string     `json:"client_name"`
 	IsFavorite          bool       `json:"is_favorite"`
 }
@@ -683,6 +704,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.ProdUrl,
 			&i.PreprodUrl,
 			&i.DeliverablesPending,
+			&i.IsInternal,
 			&i.ClientName,
 			&i.IsFavorite,
 		); err != nil {
@@ -847,14 +869,15 @@ UPDATE projects SET
     preprod_url = COALESCE($7::text, preprod_url),
     progress    = COALESCE($8::smallint, progress),
     hours_sold  = COALESCE($9::numeric, hours_sold),
-    client_id   = COALESCE($10::uuid, client_id),
-    starts_on   = CASE WHEN $11::boolean THEN NULL
-                       ELSE COALESCE($12::date, starts_on) END,
-    due_on      = CASE WHEN $13::boolean THEN NULL
-                       ELSE COALESCE($14::date, due_on) END,
+    is_internal = COALESCE($10::boolean, is_internal),
+    client_id   = COALESCE($11::uuid, client_id),
+    starts_on   = CASE WHEN $12::boolean THEN NULL
+                       ELSE COALESCE($13::date, starts_on) END,
+    due_on      = CASE WHEN $14::boolean THEN NULL
+                       ELSE COALESCE($15::date, due_on) END,
     updated_at  = now()
-WHERE id = $15 AND deleted_at IS NULL
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending
+WHERE id = $16 AND deleted_at IS NULL
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal
 `
 
 type UpdateProjectParams struct {
@@ -867,6 +890,7 @@ type UpdateProjectParams struct {
 	PreprodUrl    *string    `json:"preprod_url"`
 	Progress      *int16     `json:"progress"`
 	HoursSold     *float64   `json:"hours_sold"`
+	IsInternal    *bool      `json:"is_internal"`
 	ClientID      *uuid.UUID `json:"client_id"`
 	ClearStartsOn bool       `json:"clear_starts_on"`
 	StartsOn      *time.Time `json:"starts_on"`
@@ -889,6 +913,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.PreprodUrl,
 		arg.Progress,
 		arg.HoursSold,
+		arg.IsInternal,
 		arg.ClientID,
 		arg.ClearStartsOn,
 		arg.StartsOn,
@@ -919,6 +944,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.ProdUrl,
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
+		&i.IsInternal,
 	)
 	return i, err
 }

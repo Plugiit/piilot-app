@@ -130,6 +130,8 @@ export interface UpdateProjectValues {
   status?: ProjectStatus
   progress?: number
   hours_sold?: number
+  /** Projet interne : son temps est non facturable. */
+  is_internal?: boolean
   starts_on?: string | null
   due_on?: string | null
   figma_url?: string
@@ -154,6 +156,9 @@ export function useUpdateProject(id: string) {
     onSuccess: (project) => {
       queryClient.setQueryData(projectKeys.detail(id), project)
       void queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+      // Passer un projet en interne reclasse son temps entre facturable et non
+      // facturable.
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }

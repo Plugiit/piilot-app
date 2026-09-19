@@ -1498,6 +1498,7 @@ export interface components {
             hours_sold: components["schemas"]["Metric"];
             /** @description Avancement des taches par nature, cinq lignes au plus, les natures les plus portees devant. Vide tant qu'aucune tache n'existe. */
             task_progress: components["schemas"]["TaskProgress"][];
+            time: components["schemas"]["TimeSummary"];
         };
         HealthLive: {
             /** @example ok */
@@ -1583,6 +1584,8 @@ export interface components {
             client_contact_email?: string | null;
             /** @description Prestations dont releve l'entite. Vide quand aucune. */
             services: components["schemas"]["ServiceTag"][];
+            /** @description Projet de l'agence pour elle-meme : le temps qui y est saisi n'est pas facturable. */
+            is_internal: boolean;
         };
         /** @description Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus. */
         ProjectShortcut: {
@@ -1858,6 +1861,8 @@ export interface components {
             due_on?: string | null;
             /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
             service_ids?: string[];
+            /** @description Bascule le projet en interne ou en projet client. Reclasse tout son temps, passe compris. */
+            is_internal?: boolean;
         };
         /** @description Remplace l'ensemble : les identifiants absents sont retires. */
         MembersRequest: {
@@ -2462,6 +2467,17 @@ export interface components {
             total_minutes: number;
             /** @description Un poste par jour ayant recu du temps. Les jours vides n'y figurent pas. */
             days: components["schemas"]["TimeDay"][];
+        };
+        /** @description Temps saisi reparti entre facturable (projets clients) et non facturable (projets internes). Lu sur les heures consommees precalculees des projets. */
+        TimeSummary: {
+            /** @description Heures vendues sur les projets clients. */
+            budget_hours: number;
+            /** @description Heures saisies sur les projets clients. */
+            billable_hours: number;
+            /** @description Heures saisies sur les projets internes. */
+            non_billable_hours: number;
+            /** @description Budget moins heures facturables, jamais negatif. */
+            remaining_hours: number;
         };
     };
     responses: {

@@ -87,6 +87,7 @@ type updateProjectRequest struct {
 	PreprodURL  *string  `json:"preprod_url"`
 	Progress    *int     `json:"progress"`
 	HoursSold   *float64 `json:"hours_sold"`
+	IsInternal  *bool    `json:"is_internal"`
 	StartsOn    *string  `json:"starts_on"`
 	DueOn       *string  `json:"due_on"`
 	ServiceIDs  []string `json:"service_ids"`
@@ -259,6 +260,7 @@ func (h *Projects) Update(c fiber.Ctx) error {
 		PreprodURL:  req.PreprodURL,
 		Progress:    req.Progress,
 		HoursSold:   req.HoursSold,
+		IsInternal:  req.IsInternal,
 	}
 
 	if req.ClientID != nil {

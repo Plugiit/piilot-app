@@ -88,30 +88,32 @@ type ProjectPage struct {
 // ProjectDetail est l'en-tete d'un projet : ce que le chassis affiche, quel que
 // soit l'onglet ouvert.
 type ProjectDetail struct {
-	ID                 uuid.UUID    `json:"id"`
-	Name               string       `json:"name"`
-	Description        string       `json:"description"`
-	Priority           string       `json:"priority"`
-	ClientID           uuid.UUID    `json:"client_id"`
-	ClientName         string       `json:"client_name"`
-	ClientContactName  string       `json:"client_contact_name"`
-	ClientContactRole  string       `json:"client_contact_role"`
-	ClientContactEmail *string      `json:"client_contact_email"`
-	Status             string       `json:"status"`
-	Progress           int          `json:"progress"`
-	HoursSold          float64      `json:"hours_sold"`
-	HoursSpent         float64      `json:"hours_spent"`
-	StartsOn           *string      `json:"starts_on"`
-	DueOn              *string      `json:"due_on"`
-	TasksTotal         int          `json:"tasks_total"`
-	TasksDone          int          `json:"tasks_done"`
-	Team               []Person     `json:"team"`
-	FigmaURL           string       `json:"figma_url"`
-	ProdURL            string       `json:"prod_url"`
-	PreprodURL         string       `json:"preprod_url"`
-	IsFavorite         bool         `json:"is_favorite"`
-	Files              []Attachment `json:"files"`
-	Services           []ServiceTag `json:"services"`
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description"`
+	Priority           string    `json:"priority"`
+	ClientID           uuid.UUID `json:"client_id"`
+	ClientName         string    `json:"client_name"`
+	ClientContactName  string    `json:"client_contact_name"`
+	ClientContactRole  string    `json:"client_contact_role"`
+	ClientContactEmail *string   `json:"client_contact_email"`
+	Status             string    `json:"status"`
+	Progress           int       `json:"progress"`
+	HoursSold          float64   `json:"hours_sold"`
+	HoursSpent         float64   `json:"hours_spent"`
+	StartsOn           *string   `json:"starts_on"`
+	DueOn              *string   `json:"due_on"`
+	TasksTotal         int       `json:"tasks_total"`
+	TasksDone          int       `json:"tasks_done"`
+	Team               []Person  `json:"team"`
+	FigmaURL           string    `json:"figma_url"`
+	ProdURL            string    `json:"prod_url"`
+	PreprodURL         string    `json:"preprod_url"`
+	IsFavorite         bool      `json:"is_favorite"`
+	// Projet de l'agence pour elle-meme : son temps n'est pas facturable.
+	IsInternal bool         `json:"is_internal"`
+	Files      []Attachment `json:"files"`
+	Services   []ServiceTag `json:"services"`
 }
 
 // Attachment est une piece jointe, d'un projet ou d'une tache.
@@ -185,6 +187,7 @@ type UpdateProjectInput struct {
 	PreprodURL    *string
 	Progress      *int
 	HoursSold     *float64
+	IsInternal    *bool
 	StartsOn      *time.Time
 	ClearStartsOn bool
 	DueOn         *time.Time
@@ -407,6 +410,7 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 		ProdURL:            row.ProdUrl,
 		PreprodURL:         row.PreprodUrl,
 		IsFavorite:         row.IsFavorite,
+		IsInternal:         row.IsInternal,
 		Files:              files,
 		ClientID:           row.ClientID,
 		ClientName:         row.ClientName,
@@ -661,6 +665,7 @@ func (s *ProjectService) Update(ctx context.Context, id, viewer uuid.UUID, in Up
 		PreprodUrl:    in.PreprodURL,
 		Progress:      progress,
 		HoursSold:     in.HoursSold,
+		IsInternal:    in.IsInternal,
 		ClientID:      in.ClientID,
 		StartsOn:      in.StartsOn,
 		ClearStartsOn: in.ClearStartsOn,
@@ -883,12 +888,28 @@ type Metric struct {
 // Pas de chiffre d'affaires : la facturation ne fait pas partie de ce projet.
 // Les heures vendues sont la donnee la plus proche qui lui appartienne.
 type DashboardSummary struct {
-	Projects  Metric `json:"projects"`
-	Clients   Metric `json:"clients"`
-	HoursSold Metric `json:"hours_sold"`
+	Projects  Metric      `json:"projects"`
+	Clients   Metric      `json:"clients"`
+	HoursSold Metric      `json:"hours_sold"`
+	Time      TimeSummary `json:"time"`
 	// Avancement des taches par nature. Vide tant qu'aucune tache n'existe :
 	// l'ecran montre alors un panneau vide plutot que des chiffres inventes.
 	TaskProgress []TaskProgress `json:"task_progress"`
+}
+
+// TimeSummary repartit le temps saisi entre facturable et non facturable.
+//
+// Une heure est facturable quand son projet n'est pas interne. Le budget est
+// ce qui a ete vendu sur les projets clients ; le restant est ce qui reste a
+// consommer de ce budget, jamais negatif : un depassement se lit dans l'ecart
+// entre facturable et budget, pas dans un restant sous zero.
+//
+// Pas de montant en euros : l'agence n'a pas de taux horaire dans Piilot.
+type TimeSummary struct {
+	BudgetHours      float64 `json:"budget_hours"`
+	BillableHours    float64 `json:"billable_hours"`
+	NonBillableHours float64 `json:"non_billable_hours"`
+	RemainingHours   float64 `json:"remaining_hours"`
 }
 
 // TaskProgress est une ligne du graphique « Avancement des taches » : une
@@ -926,9 +947,15 @@ func (s *ProjectService) Dashboard(ctx context.Context) (DashboardSummary, error
 	}
 
 	return DashboardSummary{
-		Projects:     metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
-		Clients:      metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
-		HoursSold:    metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		Projects:  metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
+		Clients:   metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
+		HoursSold: metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		Time: TimeSummary{
+			BudgetHours:      row.TimeBudget,
+			BillableHours:    row.TimeBillable,
+			NonBillableHours: row.TimeNonBillable,
+			RemainingHours:   max(row.TimeBudget-row.TimeBillable, 0),
+		},
 		TaskProgress: progress,
 	}, nil
 }

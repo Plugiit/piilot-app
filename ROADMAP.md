@@ -131,8 +131,9 @@ deviennent des critères de sortie de la V1.
 **Reste incomplet dans cette version**, à solder dans les versions
 suivantes :
 
-- Tableau de bord : carte d'activité, temps facturable et agenda encore
-  factices → 0.4.
+- Tableau de bord : carte d'activité, charge de travail, activité de
+  l'équipe et agenda encore factices → 0.4. Le temps facturable est réel
+  (projets internes non facturables).
 - Écrans réservés : rapports de temps (0.4), comptes (0.5), modèles de
   projet et interactions CRM (0.7).
 - Le rôle `team` voit le même back-office qu'`admin` → 0.6.
