@@ -31,7 +31,7 @@ for arg in "$@"; do
     --no-push) push=0 ;;
     -h|--help) usage ;;
     -*) die "option inconnue : $arg" ;;
-    *) [ -z "$bump" ] || die "une seule version a la fois"; bump="$arg" ;;
+    *) [ -z "$bump" ] || die "une seule version à la fois"; bump="$arg" ;;
   esac
 done
 [ -n "$bump" ] || usage 1
@@ -53,17 +53,17 @@ tag="v$next"
 
 # --- Garde-fous --------------------------------------------------------------
 branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
-[ "$branch" = "master" ] || die "une release part de master (branche actuelle : ${branch:-HEAD detache})"
-[ -z "$(git status --porcelain)" ] || die "l'arbre de travail n'est pas propre"
-! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "le tag $tag existe deja"
+[ "$branch" = "master" ] || die "une release part de master (branche actuelle : ${branch:-HEAD détaché})"
+[ -z "$(git status --porcelain)" ] || die "l'arbre de travail n'est pas propre : committer ou remiser d'abord"
+! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "le tag $tag existe déjà"
 
 has_origin=0
 if git remote get-url origin >/dev/null 2>&1; then
   has_origin=1
   git fetch --quiet origin master --tags
   git merge-base --is-ancestor origin/master HEAD \
-    || die "master est en retard sur origin/master : git pull d'abord"
-  ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "le tag $tag existe deja sur origin"
+    || die "master est en retard sur origin/master : faire un git pull d'abord"
+  ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "le tag $tag existe déjà sur origin"
 fi
 
 # --- Notes de version --------------------------------------------------------
@@ -111,13 +111,18 @@ else
   ' > "$notes"
 fi
 
-[ -s "$notes" ] || die "aucun changement depuis ${last_tag:-le debut du depot}"
+# Lignes vides en tete et en fin retirees : elles finiraient dans le tag et
+# dans la release.
+awk 'NF { last = NR } { line[NR] = $0 } END { for (i = 1; i <= last; i++) if (started || line[i] ~ /[^[:space:]]/) { started = 1; print line[i] } }' \
+  "$notes" > "$notes.trim" && mv "$notes.trim" "$notes"
+
+[ -s "$notes" ] || die "aucun changement depuis ${last_tag:-le début du dépôt}"
 
 if [ "$edit" = 1 ]; then
   "${EDITOR:-vi}" "$notes"
 fi
 
-printf '\n=== %s -> %s (%s) ===\n\n' "$current" "$next" "${last_tag:-premiere release}"
+printf '\n=== %s -> %s (%s) ===\n\n' "$current" "$next" "${last_tag:-première release}"
 cat "$notes"
 
 if [ "$dry_run" = 1 ]; then
@@ -127,7 +132,7 @@ fi
 
 printf '\nPublier %s ? [o/N] ' "$tag"
 read -r answer
-[[ "$answer" =~ ^[oOyY]$ ]] || die "abandon"
+[[ "$answer" =~ ^[oOyY]$ ]] || die "abandon, rien n'a été modifié"
 
 # --- Verification ------------------------------------------------------------
 if [ "$skip_checks" = 0 ]; then

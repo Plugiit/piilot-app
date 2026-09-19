@@ -13,6 +13,7 @@ l'application réelle, sur une instance remplie de données fictives.</sub>
 
 - [Ce que fait Piilot](#ce-que-fait-piilot)
 - [État d'avancement](#état-davancement)
+- [Publier une version](#publier-une-version)
 - [Architecture](#architecture)
 - [Installation avec Coolify](#installation-avec-coolify)
 - [Installation sans Coolify](#installation-sans-coolify)
@@ -42,9 +43,13 @@ Une seule application, trois espaces :
 
 ### Tableau de bord
 
-Les chiffres clés de l'agence, l'activité jour par jour, le temps facturable
-et l'avancement des tâches par service. Un agenda à droite, et des raccourcis
-vers les projets favoris dans la barre latérale.
+Les chiffres clés de l'agence (projets, clients, heures vendues) et
+l'avancement des tâches par service. La barre latérale donne des raccourcis
+vers les projets favoris.
+
+> La carte d'activité, le temps facturable et l'agenda de cet écran sont
+> encore des emplacements factices. Ils seront retirés en 0.4, puis branchés
+> sur des données réelles en 0.7 (voir la [roadmap](ROADMAP.md)).
 
 ![Tableau de bord](docs/images/dashboard.jpg)
 
@@ -150,6 +155,46 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
+
+Version actuelle et étapes jusqu'à la V1, release par release :
+**[ROADMAP.md](ROADMAP.md)**. Historique des versions :
+**[CHANGELOG.md](CHANGELOG.md)**.
+
+## Publier une version
+
+La version courante est dans le fichier `VERSION`. Le binaire l'embarque à la
+compilation et `/health/live` l'affiche.
+
+```bash
+make release V=minor ARGS=--dry-run   # aperçu : version visée et notes, rien n'est modifié
+make release V=minor                  # publie
+```
+
+`V` vaut `patch`, `minor`, `major` ou une version explicite (`0.4.0`,
+`1.0.0-rc.1`). Le script :
+
+1. vérifie qu'on est sur `master`, que l'arbre est propre, à jour avec
+   `origin`, et que le tag n'existe pas ;
+2. prépare les notes de version ;
+3. demande confirmation, puis lance `make check` ;
+4. met à jour `VERSION` et `CHANGELOG.md`, committe
+   `chore(release): vX.Y.Z` et pose le tag annoté ;
+5. pousse `master` et le tag ensemble.
+
+Les notes viennent de `CHANGELOG.md` si une section `## [X.Y.Z]` y est déjà
+rédigée à la main. Sinon, elles sont générées depuis les commits depuis le
+dernier tag, groupés par type ([Conventional Commits](https://www.conventionalcommits.org/fr/) :
+`feat`, `fix`, `perf`, `type!` pour une rupture). `ARGS=--edit` ouvre les
+notes générées dans `$EDITOR` avant publication.
+
+Le tag déclenche `.github/workflows/release.yml`. Le workflow vérifie que le
+tag correspond à `VERSION`, reconstruit l'image (donc rejoue toutes les
+vérifications), puis publie la release GitHub avec les notes du CHANGELOG.
+**Une version dont l'image ne se construit pas n'a pas de release.** Une
+pré-version (`-rc.N`) est marquée comme telle.
+
+Autres options : `--skip-checks` (ne relance pas `make check`), `--no-push`
+(tag local seulement).
 
 ## Architecture
 
@@ -490,10 +535,14 @@ web/                        front React
 ├── src/routes/             écrans (routage par fichiers)
 ├── src/features/           logique par module
 └── src/components/         composants partagés (shadcn/ui)
+scripts/release.sh          publication d'une version
 docs/images/                captures du README
 Dockerfile                  image unique : front + API
 docker-compose.yml          déploiement : app + Postgres + Redis (Coolify)
 docker-compose.selfhost.yml publication du port hors Coolify
 docker-compose.dev.yml      Postgres + Redis pour le développement
 .env.example                variables pour une installation hors Coolify
+VERSION                     version courante, tenue par le script de release
+CHANGELOG.md                historique des versions
+ROADMAP.md                  étapes jusqu'à la V1
 ```
