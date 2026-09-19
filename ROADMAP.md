@@ -47,8 +47,8 @@ colonnes *Version* à *Objectif* ci-dessous puis lancer `make roadmap`.
 | Statut | Version | Nom | Espace | Objectif |
 |---|---|---|---|---|
 | ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
-| 📍 Actuelle | **0.2.0** | Gestion de projet | Admin | Projets, tâches, notifications, compte |
-| ⏳ À venir | 0.3.0 | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
+| ✅ Livrée | 0.2.0 | Gestion de projet | Admin | Projets, tâches, notifications, compte |
+| 📍 Actuelle | **0.3.0** | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
 | ⏳ À venir | 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
 | ⏳ À venir | 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
 | ⏳ À venir | 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
