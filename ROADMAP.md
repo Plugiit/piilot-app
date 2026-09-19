@@ -36,7 +36,7 @@ deviennent des critères de sortie de la V1.
 |---|---|---|---|---|
 | ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
 | ✅ Livrée | 0.2.0 | Gestion de projet | Admin | Projets, tâches, notifications, compte |
-| 📍 Actuelle | **0.3.0** | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
+| 📍 Actuelle (`0.3.1`) | **0.3.0** | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
 | ⏳ À venir | 0.4.0 | Temps et budgets | Admin | Rapports, budgets consommés, tableau de bord réel |
 | ⏳ À venir | 0.5.0 | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
 | ⏳ À venir | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |

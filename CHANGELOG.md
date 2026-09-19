@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.3.1] — Temps facturable
+## [0.3.1] — Temps facturable · 2026-09-19
 
 Cette version distingue le temps facturable du temps interne, et le tableau de bord affiche désormais la répartition réelle des heures. Elle corrige aussi le logo de la page de connexion et simplifie la création du premier compte.
 
