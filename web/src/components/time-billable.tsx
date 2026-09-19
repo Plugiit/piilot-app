@@ -143,7 +143,9 @@ export function TimeBillable() {
                   </div>
                 </TooltipTrigger>
 
-                <TooltipContent className={cn(LIGHT_TOOLTIP, 'flex-col items-start gap-1 px-3 py-2')}>
+                <TooltipContent
+                  className={cn(LIGHT_TOOLTIP, 'flex-col items-start gap-1 px-3 py-2')}
+                >
                   <p className="text-[11px] leading-none text-[#777]">
                     {formatHours(time?.budget_hours ?? 0)} vendues sur les projets clients
                   </p>

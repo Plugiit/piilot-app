@@ -1369,6 +1369,66 @@ export interface paths {
         patch: operations["updateTimeEntry"];
         trace?: never;
     };
+    "/api/v1/admin/time-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rapport de temps
+         * @description Sert l'ecran PM > Temps > Rapports : totaux, evolution et tableau regroupe du temps de toute l'equipe sur une periode. Une heure est facturable quand son projet n'est pas interne. Exige time.read.
+         */
+        get: operations["getTimeReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-reports/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detail des saisies d'un rapport
+         * @description Saisies de la periode filtree, la plus recente en tete, paginees. Memes filtres que le rapport. Exige time.read.
+         */
+        get: operations["getTimeReportEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export CSV d'un rapport
+         * @description Toutes les saisies filtrees (50 000 au plus) en CSV : separateur point-virgule, BOM UTF-8, durees en heures a la virgule. Les cellules qui commencent par = + - @ sont prefixees d'une apostrophe. Exige time.read.
+         */
+        get: operations["exportTimeReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2478,6 +2538,134 @@ export interface components {
             non_billable_hours: number;
             /** @description Budget moins heures facturables, jamais negatif. */
             remaining_hours: number;
+        };
+        ReportTotals: {
+            /**
+             * Format: int64
+             * @description Temps total de la periode, en minutes.
+             */
+            minutes: number;
+            /**
+             * Format: int64
+             * @description Temps saisi sur des projets clients.
+             */
+            billable_minutes: number;
+            /**
+             * Format: int64
+             * @description Temps saisi sur des projets internes.
+             */
+            non_billable_minutes: number;
+            /**
+             * Format: int64
+             * @description Nombre de saisies.
+             */
+            entries: number;
+            /**
+             * Format: int64
+             * @description Nombre de personnes ayant pointe.
+             */
+            people: number;
+            /**
+             * Format: int64
+             * @description Nombre de projets touches.
+             */
+            projects: number;
+        };
+        ReportBucket: {
+            /**
+             * Format: date
+             * @description Premier jour de la tranche.
+             */
+            start: string;
+            /**
+             * Format: int64
+             * @description Temps facturable de la tranche.
+             */
+            billable_minutes: number;
+            /**
+             * Format: int64
+             * @description Temps non facturable de la tranche.
+             */
+            non_billable_minutes: number;
+        };
+        ReportGroup: {
+            /** @description Identifiant du projet, de la personne, du service ou du client. Vide pour le temps sans service. */
+            key: string;
+            label: string;
+            /** @description Complement du libelle : le client d'un projet. Vide sinon. */
+            detail: string;
+            /** @description Couleur du service. Vide sinon. */
+            color: string;
+            /**
+             * Format: int64
+             * @description Temps total du poste.
+             */
+            minutes: number;
+            /**
+             * Format: int64
+             * @description Part facturable.
+             */
+            billable_minutes: number;
+            /**
+             * Format: int64
+             * @description Part non facturable.
+             */
+            non_billable_minutes: number;
+        };
+        ReportGroupPage: {
+            /** @enum {string} */
+            by: "project" | "user" | "service" | "client";
+            items: components["schemas"]["ReportGroup"][];
+            /**
+             * Format: int64
+             * @description Nombre de postes au total.
+             */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        /** @description En-tete de l'ecran des rapports : totaux, evolution et tableau regroupe. */
+        TimeReport: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /**
+             * @description Taille des tranches de la serie, choisie selon la longueur de la periode.
+             * @enum {string}
+             */
+            bucket: "day" | "week" | "month";
+            totals: components["schemas"]["ReportTotals"];
+            /** @description Une tranche par jour, semaine ou mois de la periode, vides comprises. */
+            series: components["schemas"]["ReportBucket"][];
+            groups: components["schemas"]["ReportGroupPage"];
+        };
+        ReportEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            spent_on: string;
+            minutes: number;
+            note: string;
+            /** Format: uuid */
+            user_id: string;
+            user_name: string;
+            /** Format: uuid */
+            project_id: string;
+            project_name: string;
+            client_name: string;
+            /** @description Vrai quand le projet n'est pas interne. */
+            billable: boolean;
+            task_title: string | null;
+            service_name: string | null;
+            service_color: string | null;
+        };
+        ReportEntryPage: {
+            items: components["schemas"]["ReportEntry"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
         };
     };
     responses: {
@@ -5060,6 +5248,130 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getTimeReport: {
+        parameters: {
+            query?: {
+                /** @description Premier jour de la periode (AAAA-MM-JJ). Premier jour du mois en cours par defaut. */
+                from?: string;
+                /** @description Dernier jour de la periode, inclus. Dernier jour du mois en cours par defaut. Une periode ne depasse pas 366 jours. */
+                to?: string;
+                /** @description Restreint a un projet. */
+                project_id?: string;
+                /** @description Restreint aux saisies d'une personne. */
+                user_id?: string;
+                /** @description Restreint a un service. */
+                service_id?: string;
+                /** @description Restreint aux projets d'un client. */
+                client_id?: string;
+                /** @description true : projets clients seulement ; false : projets internes seulement. Absent : tout. */
+                billable?: boolean;
+                /** @description Axe du tableau regroupe. */
+                group_by?: "project" | "user" | "service" | "client";
+                /** @description Page, a partir de 1. */
+                page?: number;
+                /** @description Taille de page, 100 au plus. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rapport */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeReport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getTimeReportEntries: {
+        parameters: {
+            query?: {
+                /** @description Premier jour de la periode (AAAA-MM-JJ). Premier jour du mois en cours par defaut. */
+                from?: string;
+                /** @description Dernier jour de la periode, inclus. Dernier jour du mois en cours par defaut. Une periode ne depasse pas 366 jours. */
+                to?: string;
+                /** @description Restreint a un projet. */
+                project_id?: string;
+                /** @description Restreint aux saisies d'une personne. */
+                user_id?: string;
+                /** @description Restreint a un service. */
+                service_id?: string;
+                /** @description Restreint aux projets d'un client. */
+                client_id?: string;
+                /** @description true : projets clients seulement ; false : projets internes seulement. Absent : tout. */
+                billable?: boolean;
+                /** @description Page, a partir de 1. */
+                page?: number;
+                /** @description Taille de page, 100 au plus. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page de saisies */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportEntryPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    exportTimeReport: {
+        parameters: {
+            query?: {
+                /** @description Premier jour de la periode (AAAA-MM-JJ). Premier jour du mois en cours par defaut. */
+                from?: string;
+                /** @description Dernier jour de la periode, inclus. Dernier jour du mois en cours par defaut. Une periode ne depasse pas 366 jours. */
+                to?: string;
+                /** @description Restreint a un projet. */
+                project_id?: string;
+                /** @description Restreint aux saisies d'une personne. */
+                user_id?: string;
+                /** @description Restreint a un service. */
+                service_id?: string;
+                /** @description Restreint aux projets d'un client. */
+                client_id?: string;
+                /** @description true : projets clients seulement ; false : projets internes seulement. Absent : tout. */
+                billable?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
         };
     };

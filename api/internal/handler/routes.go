@@ -21,6 +21,7 @@ type Deps struct {
 	Services      *Services
 	SidebarApps   *SidebarApps
 	TimeEntries   *TimeEntries
+	TimeReports   *TimeReports
 
 	Guard *middleware.Guard
 }
@@ -233,6 +234,13 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	temps.Post("", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Create)
 	temps.Patch("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Update)
 	temps.Delete("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Delete)
+
+	// Rapports de temps : le temps de toute l'equipe, d'ou une permission a
+	// part. Lire les heures des autres n'est pas le geste de pointer les siennes.
+	rapports := r.Group("/time-reports")
+	rapports.Get("", deps.Guard.RequirePermission("time.read"), deps.TimeReports.Report)
+	rapports.Get("/entries", deps.Guard.RequirePermission("time.read"), deps.TimeReports.Entries)
+	rapports.Get("/export", deps.Guard.RequirePermission("time.read"), deps.TimeReports.Export)
 
 	// Applications jointes depuis le rail.
 	//

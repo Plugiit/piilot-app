@@ -57,6 +57,10 @@ export type TicketPriority = Ticket['priority']
 /** Agregats du tableau de bord. */
 export type DashboardSummary = components['schemas']['DashboardSummary']
 
+/** Rapports de temps : en-tete (totaux, evolution, regroupement) et detail. */
+export type TimeReport = components['schemas']['TimeReport']
+export type ReportEntryPage = components['schemas']['ReportEntryPage']
+
 /** Une nature de tache et ce qu'elle porte par etat, pour le graphique
  *  « Avancement des taches ». */
 export type TaskProgress = components['schemas']['TaskProgress']
