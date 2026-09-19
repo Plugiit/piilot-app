@@ -11,6 +11,31 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.3.1] — Temps facturable
+
+Cette version distingue le temps facturable du temps interne, et le tableau de bord affiche désormais la répartition réelle des heures. Elle corrige aussi le logo de la page de connexion et simplifie la création du premier compte.
+
+### Nouveautés
+
+#### Admin
+
+- **Projet interne** : une case dans les paramètres d'un projet le marque comme interne (site de l'agence, outils, formation). Le temps saisi dessus est non facturable, y compris celui déjà saisi : changer le statut d'un projet reclasse tout son temps.
+- **Temps facturable** : le bloc du tableau de bord affiche les heures facturables (projets clients), non facturables (projets internes) et restantes sur les heures vendues. Il se met à jour après chaque saisie de temps et chaque changement de statut d'un projet. Le montant en euros, jusqu'ici fictif, est retiré : Piilot ne connaît pas encore de taux horaire.
+
+### Corrections
+
+- La page de connexion affichait un logo générique au-dessus du formulaire, et l'onglet du navigateur un « P » qui n'était pas celui de l'agence. Les deux reprennent le logo Plugiit.
+
+### Technique
+
+- Commande `create-admin` dans l'image : crée un compte administrateur en posant les questions, mot de passe masqué et confirmé. La commande `seed` reste disponible pour les scripts et les autres rôles.
+- Roadmap réorganisée par fonctionnalités, avec le détail des versions déjà livrées.
+
+### À savoir pour le déploiement
+
+- La migration `000027_project_internal` s'applique au démarrage : elle ajoute l'indicateur « projet interne », désactivé pour tous les projets existants. Tout le temps déjà saisi reste donc facturable jusqu'à ce qu'un projet soit coché.
+- Premier compte : `create-admin` depuis le terminal du conteneur `app` (voir le README).
+
 ## [0.3.0] — Back-office PM et CRM · 2026-09-19
 
 Première version publiée de Piilot. Elle regroupe les jalons internes 0.1 (socle) et 0.2 (gestion de projet), et livre le back-office de l'agence : gestion de projet (PM) et relation client (CRM). L'espace Admin couvre les projets, les tâches, les tickets, les livrables et la saisie du temps, ainsi que le suivi des clients et des contacts. Tous les comptes disposent de la connexion sécurisée et de leur page de compte.
