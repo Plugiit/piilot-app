@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/plugiit/plugiit-api-go/openapi"
+	"github.com/plugiit/piilot-app/api/openapi"
 )
 
 // C'est ce test qui empeche la spec de deriver.

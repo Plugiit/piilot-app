@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/internal/middleware"
-	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/security"
 )
 
 // testApp monte le routeur complet sans dependance externe : le handler de

@@ -22,11 +22,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/plugiit/plugiit-api-go/internal/domain"
-	"github.com/plugiit/plugiit-api-go/internal/repository"
-	"github.com/plugiit/plugiit-api-go/internal/security"
-	"github.com/plugiit/plugiit-api-go/internal/storage"
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/domain"
+	"github.com/plugiit/piilot-app/api/internal/repository"
+	"github.com/plugiit/piilot-app/api/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/storage"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 const (

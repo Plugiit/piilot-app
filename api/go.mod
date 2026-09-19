@@ -1,4 +1,4 @@
-module github.com/plugiit/plugiit-api-go
+module github.com/plugiit/piilot-app/api
 
 go 1.26.5
 

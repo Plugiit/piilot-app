@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 // testSecret sert a signer les jetons des tests. Assez long pour satisfaire le

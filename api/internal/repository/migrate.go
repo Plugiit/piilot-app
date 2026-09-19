@@ -9,7 +9,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
-	"github.com/plugiit/plugiit-api-go/migrations"
+	"github.com/plugiit/piilot-app/api/migrations"
 )
 
 // Migrate applique les migrations en attente au demarrage.

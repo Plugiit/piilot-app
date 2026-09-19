@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/internal/middleware"
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 // RefreshCookieName porte le jeton de rafraichissement, separe du jeton

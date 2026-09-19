@@ -3,7 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/middleware"
 )
 
 // Deps regroupe les handlers a monter sur le routeur.

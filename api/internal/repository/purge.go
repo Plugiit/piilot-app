@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/plugiit/plugiit-api-go/internal/repository/db"
+	"github.com/plugiit/piilot-app/api/internal/repository/db"
 )
 
 // Reglages par defaut de la purge des jetons de rafraichissement.

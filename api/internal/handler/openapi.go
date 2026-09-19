@@ -3,7 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/openapi"
+	"github.com/plugiit/piilot-app/api/openapi"
 )
 
 // openapiSpec sert le contrat HTTP de l'API.

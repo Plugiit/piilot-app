@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/plugiit/plugiit-api-go/internal/domain"
-	"github.com/plugiit/plugiit-api-go/internal/repository/db"
-	"github.com/plugiit/plugiit-api-go/internal/storage"
+	"github.com/plugiit/piilot-app/api/internal/domain"
+	"github.com/plugiit/piilot-app/api/internal/repository/db"
+	"github.com/plugiit/piilot-app/api/internal/storage"
 )
 
 // SidebarApp est une application jointe depuis le rail.

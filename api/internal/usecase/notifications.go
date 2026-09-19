@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/plugiit/plugiit-api-go/internal/repository/db"
+	"github.com/plugiit/piilot-app/api/internal/repository/db"
 )
 
 // Bus porte les notifications jusqu'aux flux ouverts.
