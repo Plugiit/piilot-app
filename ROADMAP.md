@@ -34,7 +34,7 @@ Dettes visibles, à solder avant la V1 :
 - **Écrans réservés** : rapports de temps, interactions CRM, modèles de
   projet, gestion des comptes.
 - **Aucun e-mail** : pas d'invitation ni de réinitialisation de mot de passe.
-  Un compte se crée aujourd'hui en shell, avec `/app/seed`.
+  Un compte se crée aujourd'hui en shell, avec `create-admin` ou `seed`.
 
 ## Vue d'ensemble
 
@@ -80,7 +80,7 @@ Chaque version est déployable et utilisable seule.
 **Infrastructure**
 
 - Trancher le domaine ([D2](#décisions-à-trancher)) et déployer sur Coolify.
-- Comptes de l'équipe créés avec `/app/seed`, en attendant les invitations
+- Comptes de l'équipe créés avec `seed -role=team`, en attendant les invitations
   de la 0.5.
 - Sauvegarde quotidienne de la base et des pièces jointes, envoyée hors du
   serveur (stockage S3 européen). Rétention : 7 jours, plus 4 semaines en
