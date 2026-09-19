@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.3.2] — Rapports de temps
+## [0.3.2] — Rapports de temps · 2026-09-19
 
 Cette version ouvre l'écran des rapports de temps : le temps de toute l'équipe sur une période, réparti entre facturable et non facturable, filtrable et exportable. Elle s'adresse aux administrateurs qui bouclent le mois ou suivent la charge d'un projet.
 
