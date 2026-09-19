@@ -236,7 +236,12 @@ trim_notes
 [ -s "$notes" ] || die "notes de version vides"
 
 # Titre de la section : « ## [0.4.0] — En production · 2026-10-02 ».
-title="$(roadmap_name "$next")"
+# Une section redigee a la main garde son titre ; sinon celui de la roadmap.
+title=""
+if [ "$section_exists" = 1 ]; then
+  title="$(grep -m1 "^## \[$next\]" CHANGELOG.md | sed -E 's/^## \[[^]]*\]( — )?//; s/ · [0-9-]+$//')"
+fi
+[ -n "$title" ] || title="$(roadmap_name "$next")"
 if [ -z "$title" ] && [ "$bump" = patch ]; then title="Correctifs"; fi
 heading="## [$next]${title:+ — $title} · $(date +%F)"
 
