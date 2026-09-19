@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publie une version de Piilot : CHANGELOG, VERSION, commit, tag annote, push.
+# Publie une version de Piilot : CHANGELOG, VERSION, roadmap, commit, tag annote, push.
 #
 #   scripts/release.sh patch|minor|major|X.Y.Z[-rc.N] [--dry-run] [--edit] [--skip-checks] [--no-push]
 #
@@ -151,8 +151,10 @@ if [ "$section_exists" = 0 ]; then
   rm -f "$entry"
 fi
 printf '%s\n' "$next" > VERSION
+# Statut des releases et version actuelle, dans ROADMAP.md et le README.
+scripts/roadmap.sh
 
-git add VERSION CHANGELOG.md
+git add VERSION CHANGELOG.md ROADMAP.md README.md
 git commit --quiet -m "chore(release): $tag"
 git tag -a "$tag" -F "$notes"
 printf '\nTag %s créé sur %s.\n' "$tag" "$(git rev-parse --short HEAD)"
