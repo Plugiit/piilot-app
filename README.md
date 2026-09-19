@@ -197,9 +197,10 @@ make release V=minor                  # publie
 
 1. vérifie qu'on est sur `master`, que l'arbre est propre, à jour avec
    `origin`, et que le tag n'existe pas ;
-2. prépare les notes de version, puis te les soumet : publier, éditer,
+2. lance `make check`, qui exige les dépendances du front
+   (`cd web && npm ci` une fois) ;
+3. prépare les notes de version, puis te les soumet : publier, éditer,
    régénérer ou abandonner ;
-3. lance `make check` ;
 4. met à jour `VERSION`, `CHANGELOG.md` et le statut des releases dans la
    [roadmap](#roadmap), committe `chore(release): vX.Y.Z` et pose le tag
    annoté ;

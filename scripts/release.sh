@@ -13,8 +13,8 @@
 #      fichiers modifies, les migrations et la roadmap — consigne dans
 #      scripts/release-notes.md ;
 #   3. a defaut (--no-ai, ou claude absent), une liste groupee des commits.
-# Les notes sont toujours relues avant publication : publier, editer,
-# regenerer ou abandonner.
+# Les verifications (make check) passent d'abord ; les notes sont ensuite
+# toujours relues avant publication : publier, editer, regenerer ou abandonner.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -68,6 +68,15 @@ if git remote get-url origin >/dev/null 2>&1; then
   git merge-base --is-ancestor origin/master HEAD \
     || die "master est en retard sur origin/master : faire un git pull d'abord"
   ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "le tag $tag existe déjà sur origin"
+fi
+
+# --- Verification ------------------------------------------------------------
+# Avant les notes : inutile de faire rediger puis relire des notes pour une
+# version qui ne passe pas ses propres verifications.
+if [ "$skip_checks" = 0 ]; then
+  [ -d web/node_modules ] \
+    || die "dépendances du front absentes : lancer « cd web && npm ci », ou passer --skip-checks (la CI revérifie tout)"
+  make check
 fi
 
 # --- Contexte ----------------------------------------------------------------
@@ -257,11 +266,6 @@ while :; do
     *) die "abandon, rien n'a été modifié" ;;
   esac
 done
-
-# --- Verification ------------------------------------------------------------
-if [ "$skip_checks" = 0 ]; then
-  make check
-fi
 
 # --- Ecriture ----------------------------------------------------------------
 { printf '%s\n\n' "$heading"; cat "$notes"; } > "$entry"
