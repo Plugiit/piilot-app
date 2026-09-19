@@ -1,9 +1,9 @@
-# Dependances de developpement local. L'API tourne hors conteneur (make dev)
+# Dependances de developpement local. L'API tourne hors conteneur (make dev-api / make dev-web)
 # pour garder le rechargement a chaud.
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: plugiit-postgres
+    container_name: piilot-postgres
     environment:
       POSTGRES_USER: plugiit
       POSTGRES_PASSWORD: plugiit
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: plugiit-redis
+    container_name: piilot-redis
     ports:
       - "6379:6379"
     volumes:

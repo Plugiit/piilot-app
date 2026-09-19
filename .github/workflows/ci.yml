@@ -1,24 +1,22 @@
 name: CI
 
-# Le Dockerfile est le garant : son stage `test` execute gofmt, go vet et les
-# tests unitaires, et le stage de production ne peut pas s'assembler sans le
-# marqueur qu'il produit. Construire l'image suffit donc a tout verifier — la
-# CI ne redefinit pas la verification, elle la declenche dans les memes
+# Le Dockerfile est le garant : il execute lint, typage et tests du front,
+# gofmt, go vet et tests de l'API, et le stage de production ne peut pas
+# s'assembler sans eux. Construire l'image suffit donc a tout verifier — la CI
+# ne redefinit pas la verification, elle la declenche dans les memes
 # conditions que le deploiement Coolify.
 on:
   push:
     branches: [master]
   pull_request:
 
-# Un push qui suit un autre annule la construction precedente : seul l'etat le
-# plus recent de la branche merite des minutes de CI.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   image:
-    name: Image Docker (fmt + vet + tests)
+    name: Image Docker (front + API, verifications incluses)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,14 +31,12 @@ jobs:
           push: false
           build-args: |
             VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-          # Le cache GitHub evite de retelecharger les modules Go a chaque
-          # execution : sans lui, chaque build repart de zero.
+            SOURCE_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   integration:
-    name: Tests d'integration
+    name: Tests d'integration de l'API
     runs-on: ubuntu-latest
 
     # Ces tests exigent une vraie base : ils sont derriere le tag `integration`
@@ -75,21 +71,22 @@ jobs:
       DATABASE_URL: postgres://plugiit:plugiit@localhost:5432/plugiit?sslmode=disable
       REDIS_URL: redis://localhost:6379/0
 
+    defaults:
+      run:
+        working-directory: api
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          # Suit go.mod : la version de Go ne vit qu'a un seul endroit.
-          go-version-file: go.mod
-          cache: true
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
 
       - name: Applique les migrations
-        # Meme image que `make migrate-up` : la version de l'outil est la meme
-        # en local et en CI.
         run: |
           docker run --rm --network host \
-            -v "${{ github.workspace }}/migrations:/migrations" \
+            -v "${{ github.workspace }}/api/migrations:/migrations" \
             migrate/migrate:latest \
             -path /migrations -database "$DATABASE_URL" up
 

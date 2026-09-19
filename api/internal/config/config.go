@@ -53,6 +53,12 @@ type Config struct {
 	// plusieurs derriere un repartiteur.
 	FilesDir     string
 	MaxUploadMiB int64
+
+	// Repertoire du build de la SPA (web/dist). Renseigne, l'API sert aussi le
+	// front sur la meme origine : une seule image, un seul domaine, ni CORS ni
+	// URL d'API figee dans le bundle. Vide en developpement, ou Vite sert le
+	// front et relaie /api vers l'API.
+	StaticDir string
 }
 
 // Load lit la configuration depuis l'environnement et echoue si une valeur
@@ -76,6 +82,7 @@ func Load() (Config, error) {
 		RunMigrations:   envBool("RUN_MIGRATIONS", true),
 		FilesDir:        env("FILES_DIR", "./data/files"),
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
+		StaticDir:       os.Getenv("STATIC_DIR"),
 	}
 
 	if cfg.DatabaseURL == "" {

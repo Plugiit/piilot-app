@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/plugiit/plugiit-api-go/internal/domain"
+	"github.com/plugiit/piilot-app/api/internal/domain"
 )
 
 // errorResponse est la forme unique des erreurs de l'API. Le front s'appuie

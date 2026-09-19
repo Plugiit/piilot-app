@@ -17,11 +17,11 @@ help: ## Affiche cette aide
 
 .PHONY: up
 up: ## Demarre Postgres + Redis
-	docker compose up -d
+	docker compose -f ../docker-compose.dev.yml up -d
 
 .PHONY: down
 down: ## Arrete Postgres + Redis
-	docker compose down
+	docker compose -f ../docker-compose.dev.yml down
 
 .PHONY: dev
 dev: ## Lance l'API avec rechargement a chaud (air)
@@ -75,7 +75,3 @@ migrate-up: ## Applique les migrations en attente
 .PHONY: migrate-down
 migrate-down: ## Annule la derniere migration
 	$(MIGRATE) -path /migrations -database "$(DATABASE_URL)" down 1
-
-.PHONY: docker-build
-docker-build: ## Construit l'image de production (tests inclus)
-	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) -t plugiit-api:$(VERSION) .

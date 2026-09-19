@@ -7,8 +7,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
-	"github.com/plugiit/plugiit-api-go/internal/domain"
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/domain"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 // CrmContactService est le contrat dont l'ecran « Contacts » a besoin.

@@ -1,0 +1,106 @@
+# Deploiement Coolify — ressource de type « Docker Compose ».
+#
+# Coolify lit ce fichier et transforme chaque ${VARIABLE} en variable
+# modifiable dans l'onglet « Environment Variables » de la ressource :
+#
+#   ${VAR:?}          obligatoire — Coolify bloque le deploiement tant qu'elle est vide
+#   ${VAR:-defaut}    pre-remplie avec la valeur par defaut, modifiable
+#   SERVICE_*         generee par Coolify au premier deploiement, puis conservee
+#                     (SERVICE_URL_* : domaine ; SERVICE_PASSWORD_* : secret ;
+#                      SERVICE_USER_* : identifiant)
+#
+# Aucune valeur secrete n'est ecrite ici. Les valeurs saisies dans l'interface
+# survivent a un changement de ce fichier.
+#
+# Le domaine se regle dans Coolify, sur le service « app » : Configuration >
+# General > Domains. Le suffixe _8080 indique a Traefik le port interne.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # --- Exposition -------------------------------------------------------
+      # URL publique de l'application, domaine attribue par Coolify.
+      PUBLIC_BASE_URL: ${SERVICE_URL_APP_8080}
+      # Origines CORS. Le front etant servi par la meme image, CORS ne
+      # s'applique pas : l'origine de l'app suffit.
+      ADMIN_ORIGINS: ${SERVICE_URL_APP}
+      # Vide = cookie lie au seul domaine de l'app, le reglage le plus etroit.
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+
+      # --- Application ------------------------------------------------------
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      MAX_UPLOAD_MIB: ${MAX_UPLOAD_MIB:-25}
+
+      # --- Authentification -------------------------------------------------
+      # 64 caracteres generes par Coolify ; l'API refuse de demarrer sous 32.
+      JWT_SECRET: ${SERVICE_PASSWORD_64_JWT}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-720h}
+
+      # --- HTTP -------------------------------------------------------------
+      READ_TIMEOUT: ${READ_TIMEOUT:-30s}
+      WRITE_TIMEOUT: ${WRITE_TIMEOUT:-30s}
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-15s}
+
+      # --- Dependances ------------------------------------------------------
+      # Construites a partir des identifiants que Coolify genere pour les
+      # services ci-dessous : rien a saisir. Les identifiants sont alphanumeriques,
+      # donc surs dans une URL sans encodage.
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-piilot}?sslmode=disable
+      REDIS_URL: redis://:${SERVICE_PASSWORD_REDIS}@redis:6379/0
+    volumes:
+      # Pieces jointes des projets : sans volume, perdues a chaque deploiement.
+      - piilot-files:/app/data/files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/live"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SERVICE_USER_POSTGRES}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: ${POSTGRES_DB:-piilot}
+    volumes:
+      - piilot-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # Mot de passe meme sur le reseau interne : un autre conteneur du serveur
+    # ne doit pas pouvoir lire les compteurs de connexion ni le bus.
+    command: ["redis-server", "--requirepass", "${SERVICE_PASSWORD_REDIS}", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${SERVICE_PASSWORD_REDIS}
+    volumes:
+      - piilot-redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  piilot-files:
+  piilot-postgres:
+  piilot-redis:

@@ -18,13 +18,13 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/joho/godotenv"
 
-	"github.com/plugiit/plugiit-api-go/internal/config"
-	"github.com/plugiit/plugiit-api-go/internal/handler"
-	"github.com/plugiit/plugiit-api-go/internal/middleware"
-	"github.com/plugiit/plugiit-api-go/internal/repository"
-	"github.com/plugiit/plugiit-api-go/internal/security"
-	"github.com/plugiit/plugiit-api-go/internal/storage"
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/config"
+	"github.com/plugiit/piilot-app/api/internal/handler"
+	"github.com/plugiit/piilot-app/api/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/repository"
+	"github.com/plugiit/piilot-app/api/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/storage"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 // Injectes au build via -ldflags (voir Dockerfile et Makefile).
@@ -126,6 +126,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 
+	// Le front, en dernier : il ne recoit que ce qu'aucune route d'API n'a pris.
+	if cfg.StaticDir != "" {
+		if err := handler.RegisterSPA(app, cfg.StaticDir); err != nil {
+			return err
+		}
+	}
+
 	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,
 	// donc au premier signal d'arret.
 	repository.StartRefreshTokenPurge(ctx, pool, log)
@@ -186,10 +193,11 @@ func newApp(cfg config.Config, log *slog.Logger) *fiber.App {
 		app.Use(logger.New())
 	}
 
-	// L'admin est servi depuis un autre origine (Cloudflare Pages) et
-	// s'authentifie par cookie httpOnly : CORS avec credentials, et une liste
-	// d'origines explicite — un wildcard est refuse par les navigateurs des
-	// que AllowCredentials est actif.
+	// En production le front est servi par ce meme binaire, donc same-origin :
+	// CORS ne s'applique pas. Il ne sert que si le front vit sur une autre
+	// origine, et s'authentifie alors par cookie httpOnly : CORS avec
+	// credentials, et une liste d'origines explicite — un wildcard est refuse
+	// par les navigateurs des que AllowCredentials est actif.
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.AdminOrigins,
 		AllowMethods:     middleware.AllowedMethods,

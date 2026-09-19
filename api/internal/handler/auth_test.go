@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/plugiit/plugiit-api-go/internal/middleware"
-	"github.com/plugiit/plugiit-api-go/internal/security"
-	"github.com/plugiit/plugiit-api-go/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
 // Non-regression : la garde doit s'executer AVANT le handler.

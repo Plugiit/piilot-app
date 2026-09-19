@@ -22,9 +22,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 
-	"github.com/plugiit/plugiit-api-go/internal/repository"
-	"github.com/plugiit/plugiit-api-go/internal/repository/db"
-	"github.com/plugiit/plugiit-api-go/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/repository"
+	"github.com/plugiit/piilot-app/api/internal/repository/db"
+	"github.com/plugiit/piilot-app/api/internal/security"
 )
 
 func main() {
