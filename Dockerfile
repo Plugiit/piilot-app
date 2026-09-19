@@ -103,6 +103,12 @@ COPY --from=api /out/seed /app/seed
 # version compressee de chaque asset au premier acces.
 COPY --from=web --chown=app:app /src/web/dist /app/public
 
+# Commandes d'amorcage dans le PATH : « create-admin » depuis le terminal du
+# conteneur, sans chemin a retenir. Le meme binaire change de comportement
+# selon le nom sous lequel il est appele.
+RUN ln -s /app/seed /usr/local/bin/create-admin \
+    && ln -s /app/seed /usr/local/bin/seed
+
 # Pieces jointes : a monter sur un volume persistant, sinon elles
 # disparaissent au prochain deploiement. Le repertoire est cree ici avec le
 # bon proprietaire pour qu'un volume neuf en herite.

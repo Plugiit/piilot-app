@@ -430,27 +430,59 @@ docker run -d --name piilot --restart unless-stopped \
 
 ## Premier compte
 
-Une installation neuve a une table `users` vide. La commande d'amorçage est
-livrée dans l'image. Depuis un terminal ouvert sur le conteneur `app` (dans
-Coolify : *Terminal* → conteneur `app`) :
+Une installation neuve n'a aucun compte. La commande `create-admin`, livrée
+dans l'image, crée un administrateur en posant les questions. Le mot de
+passe est masqué pendant la saisie et demandé deux fois.
+
+**Sous Coolify** : ouvrir la ressource, onglet *Terminal*, choisir le
+conteneur `app`, puis taper :
 
 ```sh
-SEED_PASSWORD='un-mot-de-passe-solide' /app/seed \
-    -email=moi@exemple.fr -firstname=Prénom -lastname=Nom -role=admin
+create-admin
 ```
 
-Hors Coolify :
+```
+Création d'un compte admin
+
+Adresse e-mail : moi@plugiit.com
+Prénom : Maxence
+Nom : Mahieux
+Mot de passe (12 caractères minimum) :
+Confirmation :
+
+Compte créé
+  id    558da275-9cc5-4cc7-995f-f152e7ec61bf
+  email moi@plugiit.com
+  rôle  admin
+```
+
+**Hors Coolify** :
 
 ```bash
-docker compose exec -e SEED_PASSWORD='un-mot-de-passe-solide' app \
-    /app/seed -email=moi@exemple.fr -firstname=Prénom -lastname=Nom -role=admin
+docker compose exec app create-admin
 ```
 
-- Le mot de passe passe par `SEED_PASSWORD` et non par un drapeau, pour ne pas
-  apparaître dans `ps`. Sans lui, un mot de passe aléatoire est généré et
-  affiché **une seule fois**.
-- La commande refuse d'écraser un compte existant.
-- Rôles possibles : `admin` (toutes les permissions), `team`, `client`.
+**En développement**, contre la base locale : `make create-admin`.
+
+Chaque réponse invalide est redemandée : adresse mal formée ou déjà utilisée,
+mot de passe trop court (moins de 12 caractères) ou trop long (plus de
+72 octets), confirmation différente. La commande n'écrase jamais un compte
+existant.
+
+### Sans question, pour un script
+
+La même commande, sous le nom `seed`, accepte tout en paramètres et peut créer
+n'importe quel rôle :
+
+```sh
+SEED_PASSWORD='un-mot-de-passe-solide' seed \
+    -email=lea@plugiit.com -firstname=Léa -lastname=Bernard -role=team
+```
+
+Le mot de passe passe par `SEED_PASSWORD`, jamais par un paramètre, pour ne
+pas apparaître dans `ps` ni dans l'historique du shell. Sans lui, un mot de
+passe aléatoire est généré et affiché **une seule fois**. Rôles possibles :
+`admin`, `team`, `client`.
 
 ## Configuration
 
@@ -550,6 +582,7 @@ le front (`STATIC_DIR` reste vide).
 
 | Commande | Effet |
 |---|---|
+| `make create-admin` | Crée un compte admin dans la base locale, en interactif |
 | `make check` | Vérification complète : gofmt, vet, tests Go, routes, lint, types, tests front |
 | `make docker-build` | Construit l'image de production, vérifications incluses |
 | `make -C api sqlc` | Régénère le code Go des requêtes SQL |
@@ -575,7 +608,7 @@ Principes à respecter en contribuant :
 ```
 api/                        API Go
 ├── cmd/api/                point d'entrée
-├── cmd/seed/               création du premier compte
+├── cmd/seed/               création de comptes (create-admin, seed)
 ├── internal/               config, domaine, handlers, usecases, repository…
 ├── migrations/             SQL versionné, embarqué dans le binaire
 ├── queries/                requêtes SQL (source de sqlc)

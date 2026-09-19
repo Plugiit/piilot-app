@@ -32,8 +32,12 @@ dev: ## Lance l'API avec rechargement a chaud (air)
 run: ## Lance l'API une fois
 	go run ./cmd/api
 
+.PHONY: create-admin
+create-admin: ## Cree un compte admin en interactif (questions, mot de passe masque)
+	go run ./cmd/seed
+
 .PHONY: seed
-seed: ## Cree le premier compte : make seed EMAIL=moi@plugiit.com [ROLE=admin]
+seed: ## Cree un compte sans question : make seed EMAIL=moi@plugiit.com [ROLE=admin]
 	@test -n "$(EMAIL)" || (echo "usage: make seed EMAIL=... [ROLE=admin]" && exit 1)
 	go run ./cmd/seed -email=$(EMAIL) $(if $(ROLE),-role=$(ROLE),)
 

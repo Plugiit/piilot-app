@@ -23,6 +23,10 @@ dev-api: ## API sur :8080, rechargement a chaud
 dev-web: ## Front sur :5173, proxy /api vers :8080
 	cd web && npm run dev
 
+.PHONY: create-admin
+create-admin: ## Cree un compte admin en local, en interactif
+	$(MAKE) -C api create-admin
+
 .PHONY: check
 check: ## Verification complete des deux cotes
 	scripts/roadmap.sh --check
