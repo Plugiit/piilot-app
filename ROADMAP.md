@@ -134,8 +134,8 @@ suivantes :
 - Tableau de bord : carte d'activité, charge de travail, activité de
   l'équipe et agenda encore factices → 0.4. Le temps facturable est réel
   (projets internes non facturables).
-- Écrans réservés : rapports de temps (0.4), comptes (0.5), modèles de
-  projet et interactions CRM (0.7).
+- Écrans réservés : comptes (0.5), modèles de projet et interactions CRM
+  (0.7). Les rapports de temps sont livrés.
 - Le rôle `team` voit le même back-office qu'`admin` → 0.6.
 - Le portail client n'a aucun écran fonctionnel → 0.8 et 0.9.
 
@@ -146,7 +146,8 @@ suivantes :
 
 **Nouveautés**
 
-- **Rapports de temps** : par projet, personne, service, période ; export CSV.
+- **Rapports de temps** ✅ : par projet, personne, service, client et période ;
+  facturable et non facturable ; export CSV.
 - **Budgets réels** : heures vendues, consommées (depuis la saisie du temps),
   restantes. Alerte de dépassement.
 - **Tableau de bord** : compteurs réels (projets, clients, heures, services),

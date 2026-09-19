@@ -123,6 +123,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
+		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 

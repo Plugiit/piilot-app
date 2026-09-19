@@ -499,6 +499,40 @@ type Querier interface {
 	SumTimeEntries(ctx context.Context, arg SumTimeEntriesParams) (int64, error)
 	// Total par jour de la plage, pour la barre de la semaine.
 	SumTimeEntriesByDay(ctx context.Context, arg SumTimeEntriesByDayParams) ([]SumTimeEntriesByDayRow, error)
+	// Detail des saisies, la plus recente en tete. Sert la liste paginee et
+	// l'export, qui la parcourt avec une borne haute.
+	TimeReportEntries(ctx context.Context, arg TimeReportEntriesParams) ([]TimeReportEntriesRow, error)
+	// Temps regroupe par projet, personne, service ou client, le plus gros poste
+	// en tete. Une seule requete pour les quatre axes : la cle et le libelle se
+	// choisissent par CASE, le reste est commun.
+	//
+	// La cle est du texte et non un uuid : le temps sans service se regroupe sous
+	// une cle vide, qu'un uuid ne saurait pas porter.
+	// Sans filtre de suppression : le temps d'un compte parti reste du temps passe.
+	TimeReportGroups(ctx context.Context, arg TimeReportGroupsParams) ([]TimeReportGroupsRow, error)
+	// Temps par tranche (jour, semaine ou mois), pour le graphique d'evolution.
+	// Les tranches vides n'y figurent pas : c'est le service qui connait la
+	// periode et les complete.
+	TimeReportSeries(ctx context.Context, arg TimeReportSeriesParams) ([]TimeReportSeriesRow, error)
+	// Rapports de temps.
+	//
+	// Contrairement a l'ecran « Saisie », ces requetes lisent le temps de toute
+	// l'equipe : c'est la permission `time.read` qui en decide, pas la session.
+	//
+	// Les sommes se font au rendu, en exception assumee a la regle des agregats
+	// precalcules : un rapport porte sur une periode et des filtres choisis a la
+	// volee, qu'aucun cumul stocke ne peut anticiper. Elles restent bornees — la
+	// periode ne depasse pas un an, et l'index (spent_on) la parcourt seul. Un
+	// cumul quotidien ne ferait rien gagner : une saisie est deja une ligne par
+	// personne, projet et jour.
+	//
+	// Une heure est facturable quand son projet n'est pas interne. Le caractere
+	// se lit sur le projet a la lecture, jamais stocke sur la saisie.
+	//
+	// Chaque requete repete le meme bloc de filtres : sqlc n'a pas de fragment
+	// reutilisable, et un filtre oublie dans une seule d'entre elles ferait
+	// mentir le total ou le detail.
+	TimeReportTotals(ctx context.Context, arg TimeReportTotalsParams) (TimeReportTotalsRow, error)
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
