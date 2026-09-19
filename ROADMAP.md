@@ -14,7 +14,7 @@ quotidien, sans écran factice ni recours à l'ancienne plateforme.
 
 ## État actuel
 
-**Version : 0.3.0**, prête à être taguée.
+**Version : 0.3.0**, publiée le 2026-09-19.
 
 L'espace **Admin** porte le back-office complet : projets, tâches, tickets,
 livrables, saisie du temps, CRM avec pipeline et contacts. Le socle
@@ -49,6 +49,94 @@ deviennent des critères de sortie de la V1.
 ---
 
 ## Détail des versions
+
+### 0.1.0 — Socle ✅
+
+> Se connecter, avec le bon rôle et les bons droits.
+
+- **Connexion** : connexion, déconnexion, session prolongée automatiquement.
+  Jetons en cookie httpOnly, rotation avec détection de rejeu.
+- **Rôles et permissions en base** : `admin`, `team`, `client`,
+  17 permissions relues à chaque requête. Un droit retiré s'applique tout de
+  suite.
+- **Protection** : limitation des tentatives de connexion (30 par IP, 5 par
+  compte sur 15 minutes), mots de passe en bcrypt.
+- **Deux espaces** : back-office et portail client, chacun avec sa garde de
+  rôle et sa navigation.
+- **Contrat d'API** OpenAPI, sondes de santé, migrations appliquées au
+  démarrage.
+
+### 0.2.0 — Gestion de projet ✅
+
+> Suivre les projets et les tâches de l'agence.
+
+- **Projets** : liste avec filtres, tri et favoris ; fiche projet (vue
+  d'ensemble, équipe, pièces jointes, liens Figma, production et
+  préproduction) ; écrans de paramètres.
+- **Tâches** : kanban avec glisser-déposer, vue en liste, écran de toutes les
+  tâches ; panneau de détail avec sous-tâches, commentaires, pièces jointes
+  et affectations.
+- **Tableau de bord** : nombre de projets et de clients, heures vendues,
+  avancement des tâches par service.
+- **Notifications en temps réel** sur les tâches et les projets.
+- **Compte** : profil, photo, mot de passe.
+
+### 0.3.0 — Back-office PM et CRM 📍
+
+> Tout le travail de production et le suivi commercial dans le même outil.
+
+**Tickets**
+
+- Anomalies, évolutions et demandes d'assistance rattachées à un projet,
+  avec un numéro unique.
+- Cycle de vie du backlog au déploiement, priorité, affectation.
+- Fil de discussion avec notes internes, journal daté de chaque changement.
+- Vues : mes tickets en liste et en tableau, par projet, par statut.
+
+**Livrables**
+
+- Suivi par projet, versions successives sous forme de fichier ou de lien.
+- Décision par version (validé ou à reprendre) avec son commentaire. La
+  validation par le client lui-même arrive avec le portail (0.8).
+
+**Temps**
+
+- Saisie à la journée par projet, avec tâche, service et note facultatifs.
+- Heures consommées du projet mises à jour à chaque saisie.
+
+**CRM**
+
+- Clients : liste et fiche (coordonnées, SIRET, TVA, chargé de compte,
+  projets actifs, comptes du portail).
+- Pipeline commercial en kanban : lead, devis, actif, veille, perdu, avec
+  l'ancienneté dans chaque étape.
+- Contacts, rattachés ou non à un client, avec un contact principal par
+  client.
+
+**Paramètres**
+
+- Services : référentiel des prestations, rattachées aux projets et aux
+  tâches.
+- Applications de la barre latérale, avec récupération automatique des
+  logos.
+
+**Image unique**
+
+- Un seul conteneur sert l'API et l'interface, sur la même origine.
+- Déploiement Coolify (app, Postgres, Redis) configurable depuis
+  l'interface ; installation hors Coolify documentée.
+- Commande `create-admin` pour créer le premier compte.
+- Publication des versions avec changelog rédigé en français.
+
+**Reste incomplet dans cette version**, à solder dans les versions
+suivantes :
+
+- Tableau de bord : carte d'activité, temps facturable et agenda encore
+  factices → 0.4.
+- Écrans réservés : rapports de temps (0.4), comptes (0.5), modèles de
+  projet et interactions CRM (0.7).
+- Le rôle `team` voit le même back-office qu'`admin` → 0.6.
+- Le portail client n'a aucun écran fonctionnel → 0.8 et 0.9.
 
 ### 0.4.0 — Temps et budgets
 
