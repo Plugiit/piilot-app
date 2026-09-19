@@ -171,15 +171,13 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
 | ✅ Livrée | 0.2.0 | Gestion de projet | Admin | Projets, tâches, notifications, compte |
 | 📍 Actuelle | **0.3.0** | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
-| ⏳ À venir | 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
-| ⏳ À venir | 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
-| ⏳ À venir | 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
-| ⏳ À venir | 0.7.0 | Pilotage | Admin | Rapports, budgets, jalons : ne plus dépendre de l'ancienne plateforme |
-| ⏳ À venir | 0.8.0 | Portail : suivi et validation | Client | Un client suit son projet et valide un livrable dans Piilot |
-| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Le support client passe par Piilot |
-| ⏳ À venir | 0.10.0 | Conformité et durcissement | Tous | RGPD, audit, sécurité du portail, tests de bout en bout |
-| ⏳ À venir | 1.0.0-rc.N | Recette | Tous | Clients pilotes, corrections |
-| ⏳ À venir | 1.0.0 | V1 | Tous | Critères de sortie remplis |
+| ⏳ À venir | 0.4.0 | Temps et budgets | Admin | Rapports, budgets consommés, tableau de bord réel |
+| ⏳ À venir | 0.5.0 | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
+| ⏳ À venir | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |
+| ⏳ À venir | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
+| ⏳ À venir | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
+| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
+| ⏳ À venir | 1.0.0 | V1 | Tous | Recette et critères de sortie |
 <!-- /roadmap:readme -->
 
 ## Publier une version

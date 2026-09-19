@@ -10,38 +10,26 @@ un par population :
 | **Client** | `client` | Suivre ses projets, valider les livrables, déposer et suivre ses tickets |
 
 La **V1** est atteinte quand chacun des trois espaces couvre son usage
-quotidien sans écran factice ni recours à l'ancienne plateforme pour la
-gestion de projet et le CRM.
+quotidien, sans écran factice ni recours à l'ancienne plateforme.
 
-## État des lieux à la 0.3.0
+## État actuel
 
-| Espace | État |
-|---|---|
-| Admin | Largement en place : projets, tâches, tickets, livrables, temps, CRM, paramètres. Manquent la gestion des comptes, les rapports, les budgets consommés et un tableau de bord entièrement réel. |
-| Team | **N'existe pas en tant qu'espace.** Le rôle `team` voit le même back-office que `admin`, avec toutes les permissions sauf `users.write` et `roles.write`. |
-| Client | **Coquille vide.** Connexion et navigation en place, aucun endpoint côté API, deux écrans d'attente. |
+**Version : 0.3.0**, prête à être taguée.
 
-Dettes visibles, à solder avant la V1 :
+L'espace **Admin** porte le back-office complet : projets, tâches, tickets,
+livrables, saisie du temps, CRM avec pipeline et contacts. Le socle
+d'authentification et de rôles est en place. Les deux autres espaces sont des
+coquilles vides : **Team** voit les mêmes écrans qu'Admin avec des droits
+réduits, et **Client** a les routes de connexion mais aucun endpoint d'API.
 
-- **Widgets factices sur le tableau de bord** : la carte d'activité est tirée
-  au hasard, le « temps facturable » est codé en dur (1 020 €) et l'agenda est
-  vide.
-- **Page de connexion** : elle montre la maquette avec des chiffres fictifs et
-  cinq étoiles, et un lien « Mot de passe oublié » qui ne mène nulle part.
-- **Textes périmés** : la page budget d'un projet dit que le suivi du temps
-  « n'est pas encore écrit », et le portail attend « le module PM » alors que
-  les deux existent.
-- **Écrans réservés** : rapports de temps, interactions CRM, modèles de
-  projet, gestion des comptes.
-- **Aucun e-mail** : pas d'invitation ni de réinitialisation de mot de passe.
-  Un compte se crée aujourd'hui en shell, avec `create-admin` ou `seed`.
+---
 
-## Vue d'ensemble
+## Roadmap : 0.4 → V1
 
-Le statut de chaque release et la version actuelle sont calculés depuis le
-fichier `VERSION` par `scripts/roadmap.sh`, lancé à chaque release. Le même
-tableau est repris dans le README. Pour modifier la roadmap, éditer les
-colonnes *Version* à *Objectif* ci-dessous puis lancer `make roadmap`.
+Chaque version apporte des fonctionnalités visibles. Les chantiers purement
+techniques (tests E2E, revue de sécurité, RGPD) et l'exploitation
+(déploiement, sauvegardes) sortent en correctifs au fil de l'eau ou
+deviennent des critères de sortie de la V1.
 
 <!-- roadmap:table -->
 | Statut | Version | Nom | Espace | Objectif |
@@ -49,294 +37,193 @@ colonnes *Version* à *Objectif* ci-dessous puis lancer `make roadmap`.
 | ✅ Livrée | 0.1.0 | Socle | Tous | Connexion, sessions, rôles et permissions |
 | ✅ Livrée | 0.2.0 | Gestion de projet | Admin | Projets, tâches, notifications, compte |
 | 📍 Actuelle | **0.3.0** | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
-| ⏳ À venir | 0.4.0 | En production | Admin | Utiliser Piilot en interne, sur des données réelles et sauvegardées |
-| ⏳ À venir | 0.5.0 | Comptes et e-mails | Tous | Inviter, réinitialiser, gérer les comptes sans shell |
-| ⏳ À venir | 0.6.0 | Espace team | Team | Une journée de production sans passer par les écrans d'admin |
-| ⏳ À venir | 0.7.0 | Pilotage | Admin | Rapports, budgets, jalons : ne plus dépendre de l'ancienne plateforme |
-| ⏳ À venir | 0.8.0 | Portail : suivi et validation | Client | Un client suit son projet et valide un livrable dans Piilot |
-| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Le support client passe par Piilot |
-| ⏳ À venir | 0.10.0 | Conformité et durcissement | Tous | RGPD, audit, sécurité du portail, tests de bout en bout |
-| ⏳ À venir | 1.0.0-rc.N | Recette | Tous | Clients pilotes, corrections |
-| ⏳ À venir | 1.0.0 | V1 | Tous | Critères de sortie remplis |
+| ⏳ À venir | 0.4.0 | Temps et budgets | Admin | Rapports, budgets consommés, tableau de bord réel |
+| ⏳ À venir | 0.5.0 | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
+| ⏳ À venir | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |
+| ⏳ À venir | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
+| ⏳ À venir | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
+| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
+| ⏳ À venir | 1.0.0 | V1 | Tous | Recette et critères de sortie |
 <!-- /roadmap:table -->
-
-L'ordre suit les dépendances :
-
-- Rien ne sert tant que l'outil n'est pas en production (0.4).
-- Le portail et l'arrivée de l'équipe exigent les invitations par e-mail (0.5).
-- Le portail affiche des jalons et des livrables que l'agence doit d'abord
-  savoir produire (0.6, 0.7).
-- La conformité se vérifie sur un périmètre complet (0.10).
-
-Chaque version est déployable et utilisable seule.
 
 ---
 
-## 0.4.0 — En production
+## Détail des versions
 
-> Piilot sert l'agence au quotidien, sur des données réelles, sauvegardées
-> et surveillées.
+### 0.4.0 — Temps et budgets
 
-**Infrastructure**
+> Piloter l'agence depuis Piilot. Remplace les calculs manuels et les
+> feuilles de calcul par des données toujours à jour.
 
-- Trancher le domaine ([D2](#décisions-à-trancher)) et déployer sur Coolify.
-- Comptes de l'équipe créés avec `seed -role=team`, en attendant les invitations
-  de la 0.5.
-- Sauvegarde quotidienne de la base et des pièces jointes, envoyée hors du
-  serveur (stockage S3 européen). Rétention : 7 jours, plus 4 semaines en
-  hebdomadaire.
-- **Une restauration testée** sur une instance vierge, et sa procédure écrite.
-- Supervision : Uptime Kuma sur `/health/ready`, alertes par webhook.
+**Nouveautés**
 
-**Nettoyage**
+- **Rapports de temps** : par projet, personne, service, période ; export CSV.
+- **Budgets réels** : heures vendues, consommées (depuis la saisie du temps),
+  restantes. Alerte de dépassement.
+- **Tableau de bord** : compteurs réels (projets, clients, heures, services),
+  à la place des widgets factices. Activité du jour, charge par personne.
 
-- Tableau de bord : retirer la carte d'activité aléatoire, le temps facturable
-  codé en dur et l'agenda vide. Ils reviennent en 0.7, sur des données réelles.
-- Page de connexion : visuel sans chiffres ni avis fictifs. Masquer
-  « Mot de passe oublié » jusqu'à la 0.5.
-- Corriger les textes périmés (budget d'un projet, portail).
-- Nom affiché cohérent : Piilot pour le produit, Plugiit pour l'agence
-  ([D3](#décisions-à-trancher)).
-- Version affichée dans l'application (menu du compte), lue sur
-  `/health/live`.
+**Technique**
 
-**Terminé quand** les projets en cours de l'agence sont saisis dans Piilot et
-qu'une restauration a été faite avec succès.
+- Les cumuls de temps et budgets sont **précalculés** à chaque saisie, jamais
+  recalculés à l'affichage.
 
-## 0.5.0 — Comptes et e-mails
+**Terminé quand** : un mois se clôture (temps, budgets) sans ouvrir une
+feuille de calcul.
 
-> Plus aucun compte ne se crée en shell.
+### 0.5.0 — Gestion des comptes
 
-**E-mails transactionnels**
+> Plus aucun compte ne se crée en shell. L'admin gère les comptes et les
+> rôles depuis Piilot.
 
-- Fournisseur européen ([D4](#décisions-à-trancher)), SPF, DKIM et DMARC
-  configurés.
-- Envoi par une **file d'attente en base** (table d'envoi et tâche de fond).
-  Aucun appel au fournisseur pendant une requête HTTP. Nouvel essai en cas
-  d'échec, et trace de chaque envoi.
+**Nouveautés**
+
+- **Écran Comptes** : liste, création, changement de rôle, désactivation,
+  réactivation. Désactiver révoque les sessions.
+- **Invitations par e-mail** : lien à usage unique, qui expire. La personne
+  invitée choisit son mot de passe.
+- **Mot de passe oublié** : jeton à usage unique, courte durée, limitation de
+  débit. Réponse identique que l'adresse existe ou non.
+- **Écran Rôles** : consulter et modifier les permissions de chaque rôle.
+
+**Technique**
+
+- E-mails transactionnels : file d'attente en base, tâche de fond, nouvel
+  essai en cas d'échec.
 - Modèles en français, texte brut et HTML.
 
-**Comptes**
+**Terminé quand** : un nouveau membre rejoint Piilot par une invitation,
+sans aucune commande shell.
 
-- *Paramètres → Comptes* (aujourd'hui réservé) : liste, création, changement
-  de rôle, désactivation et réactivation. Désactiver un compte révoque ses
-  sessions.
-- **Invitations** : un lien à usage unique qui expire, envoyé par e-mail. La
-  personne invitée choisit elle-même son mot de passe.
-- **Mot de passe oublié** : jeton à usage unique et courte durée, limitation
-  de débit, même réponse que l'adresse existe ou non.
-- *Paramètres → Rôles* : consulter les permissions de chaque rôle et les
-  modifier (`roles.write` existe déjà côté API).
+### 0.6.0 — Espace team
 
-**Terminé quand** un nouveau membre de l'équipe rejoint Piilot par une
-invitation, sans aucune commande.
-
-## 0.6.0 — Espace team
-
-> Un membre de l'équipe fait sa journée dans Piilot sans voir ce qui ne le
+> Un chef de projet fait sa journée dans Piilot sans voir ce qui ne le
 > concerne pas.
 
-**Droits**
+**Nouveautés**
 
-- Appliquer [D1](#décisions-à-trancher) par une migration : nouvelles
-  permissions pour ce que `team` ne doit plus voir (pipeline commercial,
-  montants, budgets).
-- **Navigation selon les permissions** : le front lit les droits renvoyés par
-  `/auth/me` et n'affiche que les entrées accessibles. L'API reste la seule
-  garde.
-- Tests d'autorisation : pour chaque route du back-office, ce que `team`
-  obtient et ce qui lui est refusé.
+- **Page « Mon travail »** : tâches en retard, assignations, tickets,
+  livrables à déposer. Lien vers chaque projet où on intervient.
+- **Feuille de temps hebdomadaire** : pointage à la semaine, en plus de la
+  saisie par jour.
+- **Navigation selon les permissions** : le front lit les droits retournés
+  par `/auth/me` et n'affiche que les entrées accessibles. Pas de « Clients »,
+  pas de « Pipeline commercial », pas de budgets, pas de rapports.
+- **Notifications** : étendues aux tickets (assignation, réponse, changement
+  de statut) et aux livrables (validation, retours).
 
-**« Mon travail »**, page d'accueil du rôle `team` :
+**Technique**
 
-- Mes tâches : en retard, aujourd'hui, cette semaine.
-- Mes tickets assignés, les livrables à déposer.
-- Mon temps de la semaine.
+- Nouvelles permissions pour ce que `team` ne doit plus voir (pipeline
+  commercial, montants, budgets).
 
-**Temps**
+**Terminé quand** : un chef de projet passe une semaine complète dans son
+espace sans onglet d'admin.
 
-- Feuille de temps hebdomadaire, en plus de la saisie par jour.
-- Pointer directement depuis une tâche.
+### 0.7.0 — Projets et CRM avancés
 
-**Notifications**
+> Gérer les projets complets et le pipeline commercial sans passer par
+> l'ancienne plateforme.
 
-- Étendues aux tickets (assignation, réponse, changement de statut) et aux
-  livrables (validation, retours).
-- Préférences par type, dans l'application ou par e-mail. L'écran existe
-  déjà, vide.
+**Nouveautés**
 
-**Terminé quand** un membre de l'équipe passe une semaine complète dans son
-espace sans écran d'admin.
+- **Jalons** : étapes datées du projet, reliées aux livrables. Affichées dans
+  le portail client.
+- **Planning** : vue calendrier des jalons et des échéances, remplaçant le
+  lien vers l'agenda partagé.
+- **Modèles de projet** : créer un projet avec ses tâches, jalons et services
+  pré-remplis.
+- **Interactions CRM** : journal des notes et appels saisis à la main, et des
+  événements automatiques (projet créé, livrable validé, ticket ouvert).
 
-## 0.7.0 — Pilotage
+**Terminé quand** : tous les projets en cours ont leurs jalons et livrables,
+et le pipeline commercial se gère en kanban.
 
-> L'admin pilote l'agence depuis Piilot. L'ancienne plateforme n'est plus
-> ouverte pour la gestion de projet ni le CRM.
-
-**Temps et budgets**
-
-- *Rapports de temps* (aujourd'hui réservé) : par projet, personne, service
-  et période ; export CSV.
-- Budget d'un projet : heures vendues, consommées et restantes, avec une
-  alerte de dépassement.
-- Cumuls **précalculés** à chaque saisie, jamais recalculés à l'affichage.
-
-**Tableau de bord réel**
-
-- Activité réelle, charge par personne, projets à risque (échéance proche et
-  avancement en retard).
-- Remplace les widgets retirés en 0.4.
-
-**Projets**
-
-- **Jalons** : étapes datées d'un projet, reliées aux livrables. Le portail
-  s'appuiera dessus en 0.8.
-- **Planning** : vue calendrier des jalons et des échéances, en remplacement
-  du lien vers l'agenda partagé.
-- *Modèles de projet* (aujourd'hui réservé) : créer un projet avec ses
-  tâches, ses jalons et ses services pré-remplis.
-
-**CRM**
-
-- *Interactions* (aujourd'hui réservé) : journal par client, avec les notes et
-  appels saisis à la main et les événements automatiques (projet créé,
-  livrable validé, ticket ouvert).
-
-**Terminé quand** un mois se clôture (temps, budgets, suivi commercial) sans
-ouvrir l'ancienne plateforme pour la gestion de projet ni le CRM.
-
-## 0.8.0 — Portail client : suivi et validation
+### 0.8.0 — Portail client : suivi
 
 > Un client suit l'avancement de son projet et valide un livrable sans
 > e-mail ni appel.
 
-**Isolation, avant tout le reste**
+**Nouveautés**
 
-- API dédiée `/api/v1/client/*`, distincte du back-office. Chaque requête est
-  filtrée par le client de l'appelant, **côté SQL**.
-- Tests d'isolation systématiques et bloquants en CI : un compte client ne
-  lit, ne modifie et ne devine jamais une donnée d'un autre client, même en
-  forgeant un identifiant.
+- **Mes projets** : statut, avancement, prochains jalons, dernière activité.
+- **Projet** : jalons, livrables et fichiers explicitement partagés. Un
+  fichier est interne par défaut.
+- **Validation des livrables** : consulter, approuver ou demander des
+  retours. Notifications à l'équipe, au client à chaque version.
 
-**Accès**
+**Technique**
 
-- Invitation de comptes portail depuis la fiche client (réutilise la 0.5).
+- API dédiée `/api/v1/client/*`, isolée par le client de l'appelant, côté
+  SQL. Tests d'isolation bloquants en CI : un compte client ne lit, ne
+  modifie et ne devine jamais une donnée d'un autre client.
 
-**Écrans**
+**Qualité** : utilisable sur mobile.
 
-- Accueil : mes projets, avec statut, avancement, prochains jalons et
-  dernière activité.
-- Projet : jalons, livrables et fichiers **explicitement partagés**. Un
-  fichier est interne par défaut ([D6](#décisions-à-trancher)).
-- Livrables : consulter, valider, ou demander des retours avec un
-  commentaire. L'équipe est prévenue par e-mail, et le client à chaque
-  nouvelle version.
+**Terminé quand** : un client pilote a validé un livrable réel dans le
+portail.
 
-**Qualité** : utilisable sur mobile, identité visuelle de l'agence.
+### 0.9.0 — Portail client : tickets
 
-**Terminé quand** un client pilote a validé un livrable réel dans le portail.
+> Le support client passe par Piilot, pas par la boîte mail.
 
-## 0.9.0 — Portail client : tickets
+**Nouveautés**
 
-> Les demandes des clients passent par Piilot, pas par la boîte mail.
+- **Dépôt de ticket** : projet, type (anomalie, évolution, assistance),
+  description, pièces jointes. Priorité restreinte.
+- **Suivi** : fil de discussion avec les réponses. Les messages internes de
+  l'équipe ne sont jamais exposés.
+- **E-mails bidirectionnels** : nouveau ticket, réponse, changement de statut.
 
-- Le client dépose un ticket : projet, type (anomalie, évolution,
-  assistance), description, pièces jointes. Il n'a accès qu'à un jeu de
-  priorités restreint.
-- Suivi et réponse dans le fil de discussion. **Les messages internes ne sont
-  jamais exposés**, et un test le garantit.
-- E-mails dans les deux sens : nouveau ticket, réponse, changement de statut.
-- Côté équipe : la file des tickets clients, avec leur assignation.
+**Technique**
 
-**Terminé quand** le support des clients pilotes passe entièrement par le
-portail pendant deux semaines.
+- Isolation : les messages internes restent invisibles, test bloquant.
 
-## 0.10.0 — Conformité et durcissement
+**Terminé quand** : le support client passe entièrement par le portail pendant
+deux semaines.
 
-> Le portail est une surface exposée à l'extérieur : on le traite comme tel.
+### 1.0.0 — V1
 
-**RGPD**
-
-- Export des données d'un compte, d'un contact ou d'un client.
-- Suppression, ou anonymisation quand une obligation de conservation
-  s'applique.
-- Durées de conservation appliquées par tâche de fond, registre des
-  traitements, mentions légales et politique de confidentialité du portail.
-
-**Sécurité**
-
-- Journal d'audit des actions sensibles : droits, suppressions, validations,
-  exports.
-- Revue de sécurité de la surface portail, politique de sécurité du contenu
-  (CSP), limitation de débit sur les routes du portail, dépendances à jour.
-
-**Qualité**
-
-- Tests de bout en bout (Playwright) sur les parcours clés des trois espaces,
-  en CI.
-- Budget de performance vérifié par test : au plus 3 requêtes SQL par
-  endpoint, avec une taille de réponse bornée.
-
-**Données**
-
-- Stockage des fichiers tranché ([D6](#décisions-à-trancher)).
-- Reprise des données de l'ancienne plateforme, si [D5](#décisions-à-trancher)
-  le retient. Les modules concernés sont alors entièrement réécrits : c'est
-  la seule condition posée par le principe du projet.
-
-**Documentation** : un guide court par espace.
-
-## 1.0.0 — V1
-
-Passage par `1.0.0-rc.1`, `rc.2`… pendant une recette de deux à quatre
-semaines avec deux ou trois clients pilotes. Seules des corrections y entrent.
+**Recette** : deux à quatre semaines avec deux ou trois clients pilotes.
+Seules des corrections y entrent.
 
 **Critères de sortie**
 
-- [ ] Les trois espaces couvrent leur usage quotidien, chacun avec des
-      permissions testées.
-- [ ] Aucun écran réservé ni widget factice : chaque écran est livré ou
+- [ ] Admin, Team et Client couvrent leur usage quotidien, permissions
+      testées.
+- [ ] Aucun écran réservé, aucun widget factice : chaque écran est livré ou
       retiré.
 - [ ] Isolation du portail couverte par des tests bloquants.
 - [ ] Parcours clés couverts par des tests de bout en bout.
-- [ ] Sauvegarde quotidienne, restauration testée dans le mois.
+- [ ] Tests d'intégration : budget de performance (3 requêtes SQL max par
+      endpoint) vérifié.
+- [ ] Sauvegardes quotidiennes configurées, restauration testée.
 - [ ] Export et suppression RGPD opérationnels.
-- [ ] La gestion de projet et le CRM ne passent plus par l'ancienne
-      plateforme.
-- [ ] Documentation d'installation et guide utilisateur à jour.
+- [ ] Journal d'audit des actions sensibles.
+- [ ] Gestion de projet et CRM ne passent plus par l'ancienne plateforme.
+- [ ] Documentation et guide utilisateur à jour.
 
-## Après la V1
+---
 
-À réévaluer une fois la V1 en service, pas avant :
+## Exploitation et correctifs
 
-- Recherche globale (le champ existe dans la barre latérale).
-- Intégrations : GitHub (commits et déploiements d'un projet), Figma, agenda.
-- Tableau de bord client enrichi (temps consommé, si l'agence veut le
-  montrer).
+Sortent en correctifs (0.3.1, 0.3.2…), au fil de l'eau :
 
-Restent hors périmètre, par décision : facturation et comptabilité,
-monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
+- **Infrastructure** : déploiement en production, sauvegardes avec
+  restauration testée, supervision (Uptime Kuma), alertes.
+- **Sécurité** : revue de la surface portail, CSP, limitation de débit.
+- **Nettoyage** : correction des textes périmés, retrait des éléments
+  factices qui reviennent plus tard.
 
 ---
 
 ## Décisions à trancher
 
-| # | Question | Nécessaire pour | Recommandation |
-|---|---|---|---|
-| **D1** | Que voit le rôle `team` ? | 0.6 | Tous les projets **en lecture**, mais « Mon travail » par défaut. Pas de pipeline commercial, pas de montants ni de budgets. Une petite agence travaille en entraide ; ce sont les données commerciales et financières qu'il faut isoler, pas les projets. |
-| **D2** | Domaine de production | 0.4 | Un sous-domaine unique pour l'application, `COOKIE_DOMAIN` vide. Pas d'alias `admin.` : l'espace se déduit du rôle, pas de l'URL. |
-| **D3** | Nom affiché | 0.4 | « Piilot » pour le produit. « Plugiit » reste la marque de l'agence, visible dans le portail client. |
-| **D4** | Fournisseur d'e-mails | 0.5 | Un fournisseur hébergé dans l'UE avec API et webhooks de rebond (Brevo ou Scaleway TEM). Choix sur le prix au volume réel. |
-| **D5** | Données de l'ancienne plateforme | 0.4 et 0.10 | Saisie manuelle des projets en cours en 0.4. Import scripté seulement si le volume historique le justifie, et seulement vers des modules complets. |
-| **D6** | Stockage des fichiers | 0.8 et 0.10 | Disque local sauvegardé tant qu'il n'y a qu'une instance. Un stockage objet européen seulement si le volume ou une seconde instance l'exige. Visibilité par fichier : interne par défaut. |
-
-## Versionnement
-
-- **SemVer.** Avant la V1, chaque version de cette roadmap est une **mineure**
-  (`0.x.0`) ; les corrections entre deux sont des **patchs** (`0.x.y`).
-- Une version peut être découpée (`0.6.0`, `0.6.1`…) si elle est trop grosse
-  pour sortir d'un bloc. Elle n'est jamais publiée à moitié sous son nom.
-- Après la V1 : mineure pour une fonctionnalité, patch pour une correction,
-  majeure seulement pour un changement qui casse l'existant (migration de
-  données irréversible, API modifiée).
-- La publication se fait avec `make release` (voir le README).
+| # | Question | Recommandation |
+|---|---|---|
+| **D1** | Que voit le rôle `team` ? | Tous les projets en lecture. Pas de pipeline commercial, pas de montants. |
+| **D2** | Domaine de production | Un sous-domaine unique. `COOKIE_DOMAIN` vide. |
+| **D3** | Nom affiché | « Piilot » pour le produit, « Plugiit » pour l'agence. |
+| **D4** | Fournisseur d'e-mails | Brevo ou Scaleway TEM (hébergé UE). |
+| **D5** | Données de l'ancienne plateforme | Saisie manuelle des projets en cours. Import scripté seulement si le volume le justifie. |
+| **D6** | Stockage des fichiers | Disque local tant qu'une seule instance. Visibilité par fichier : interne par défaut. |
