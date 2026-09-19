@@ -5095,7 +5095,8 @@
           "projects",
           "clients",
           "hours_sold",
-          "task_progress"
+          "task_progress",
+          "time"
         ],
         "properties": {
           "projects": {
@@ -5113,6 +5114,9 @@
             "items": {
               "$ref": "#/components/schemas/TaskProgress"
             }
+          },
+          "time": {
+            "$ref": "#/components/schemas/TimeSummary"
           }
         }
       },
@@ -5223,7 +5227,8 @@
           "figma_url",
           "prod_url",
           "preprod_url",
-          "services"
+          "services",
+          "is_internal"
         ],
         "properties": {
           "id": {
@@ -5345,6 +5350,10 @@
               "$ref": "#/components/schemas/ServiceTag"
             },
             "description": "Prestations dont releve l'entite. Vide quand aucune."
+          },
+          "is_internal": {
+            "type": "boolean",
+            "description": "Projet de l'agence pour elle-meme : le temps qui y est saisi n'est pas facturable."
           }
         }
       },
@@ -6186,6 +6195,10 @@
               "format": "uuid"
             },
             "description": "Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout."
+          },
+          "is_internal": {
+            "type": "boolean",
+            "description": "Bascule le projet en interne ou en projet client. Reclasse tout son temps, passe compris."
           }
         }
       },
@@ -8086,6 +8099,34 @@
               "$ref": "#/components/schemas/TimeDay"
             },
             "description": "Un poste par jour ayant recu du temps. Les jours vides n'y figurent pas."
+          }
+        }
+      },
+      "TimeSummary": {
+        "type": "object",
+        "description": "Temps saisi reparti entre facturable (projets clients) et non facturable (projets internes). Lu sur les heures consommees precalculees des projets.",
+        "required": [
+          "budget_hours",
+          "billable_hours",
+          "non_billable_hours",
+          "remaining_hours"
+        ],
+        "properties": {
+          "budget_hours": {
+            "type": "number",
+            "description": "Heures vendues sur les projets clients."
+          },
+          "billable_hours": {
+            "type": "number",
+            "description": "Heures saisies sur les projets clients."
+          },
+          "non_billable_hours": {
+            "type": "number",
+            "description": "Heures saisies sur les projets internes."
+          },
+          "remaining_hours": {
+            "type": "number",
+            "description": "Budget moins heures facturables, jamais negatif."
           }
         }
       }

@@ -41,8 +41,9 @@ export function useCreateTimeEntry() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: timeKeys.all })
       // Les heures consommees d'un projet changent avec la saisie : les ecrans
-      // qui les affichent doivent les relire.
+      // qui les affichent, tableau de bord compris, doivent les relire.
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -61,6 +62,7 @@ export function useUpdateTimeEntry(id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: timeKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -74,6 +76,7 @@ export function useDeleteTimeEntry(id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: timeKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
