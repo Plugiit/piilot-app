@@ -11,6 +11,37 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.3.2] — Rapports de temps
+
+Cette version ouvre l'écran des rapports de temps : le temps de toute l'équipe sur une période, réparti entre facturable et non facturable, filtrable et exportable. Elle s'adresse aux administrateurs qui bouclent le mois ou suivent la charge d'un projet.
+
+### Points forts
+
+- Rapport sur une période au choix, avec des raccourcis (semaine, mois, trimestre, année, 12 derniers mois) ou une plage libre d'un an au plus.
+- Répartition du temps par projet, personne, service ou client ; un clic sur une ligne filtre tout l'écran.
+- Export CSV prêt pour Excel.
+
+### Nouveautés
+
+#### Admin
+
+- **Rapports de temps** (Suivi du temps → Rapports) : filtres par projet, personne, service, client et facturation, combinables. L'état de l'écran est conservé dans l'adresse : un rapport se partage par son lien.
+- **Chiffres clés** : temps saisi et nombre de saisies, temps facturable et non facturable avec leur part du total, nombre de personnes et de projets concernés.
+- **Évolution** : barres empilées facturable / non facturable, par jour, semaine ou mois selon la longueur de la période. Les jours sans saisie restent visibles.
+- **Répartition** : tableau par projet (avec son client), personne, service ou client, trié du plus gros poste au plus petit.
+- **Détail des saisies** : date, personne, projet et client, tâche, service, note et durée, avec la mention « Interne » pour les projets internes.
+- **Export CSV** des saisies filtrées : séparateur point-virgule, accents conservés, durées en heures décimales à la virgule.
+
+### Technique
+
+- Trois routes sous `/api/v1/admin/time-reports` (rapport, détail, export), protégées par la permission `time.read`. Le rôle `team` la possède également.
+- Les cellules du CSV qui commencent par `=`, `+`, `-` ou `@` sont écrites comme du texte, pour qu'un tableur ne les exécute pas comme des formules.
+- Les totaux du rapport sont calculés à la lecture, sur une période bornée à un an : des filtres choisis à la volée ne peuvent pas être précalculés.
+
+### À savoir pour le déploiement
+
+- Aucune migration, aucune nouvelle variable d'environnement.
+
 ## [0.3.1] — Temps facturable · 2026-09-19
 
 Cette version distingue le temps facturable du temps interne, et le tableau de bord affiche désormais la répartition réelle des heures. Elle corrige aussi le logo de la page de connexion et simplifie la création du premier compte.
