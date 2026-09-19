@@ -1,0 +1,61 @@
+name: Release
+
+# Declenche par le tag que pose scripts/release.sh. La release GitHub n'est
+# publiee que si l'image se construit : la construction rejoue lint, typage et
+# tests des deux cotes. Une version rouge reste un tag sans release.
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publie la release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verifie que le tag correspond au fichier VERSION
+        run: |
+          expected="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
+            echo "Le tag $GITHUB_REF_NAME ne correspond pas a VERSION ($expected)."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construit l'image (verifications incluses)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extrait les notes du CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "Aucune section [$version] dans CHANGELOG.md"; exit 1; }
+
+      - name: Publie la release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          # Une pre-version (1.0.0-rc.1) n'est pas proposee comme « Latest ».
+          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Piilot $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag $flags

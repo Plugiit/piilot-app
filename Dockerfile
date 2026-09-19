@@ -45,8 +45,10 @@ COPY api/go.mod api/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY api/ ./
+# Version publiee, tenue par scripts/release.sh : elle voyage avec le code, donc
+# un build Coolify la connait sans build arg a maintenir.
+COPY VERSION /src/VERSION
 
-ARG VERSION=dev
 # Fourni par Coolify (build arg SOURCE_COMMIT) quand « Include Source Commit
 # in Build » est coche ; sinon la version reste anonyme, rien ne casse.
 ARG SOURCE_COMMIT=none
@@ -55,7 +57,8 @@ ARG SOURCE_COMMIT=none
 # d'aucune libc. -w -s retirent la table des symboles et le DWARF.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    VERSION="$(cat /src/VERSION)" \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${SOURCE_COMMIT}" \
     -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" \
