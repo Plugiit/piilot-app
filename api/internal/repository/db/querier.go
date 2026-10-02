@@ -47,7 +47,9 @@ type Querier interface {
 	CountProjectsOfClient(ctx context.Context, clientID uuid.UUID) (int64, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
-	CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error)
+	// Total de chaque colonne du kanban, filtres compris.
+	CountTasksByStatus(ctx context.Context, arg CountTasksByStatusParams) ([]CountTasksByStatusRow, error)
+	CountTasksOfProjectByStatus(ctx context.Context, projectID uuid.UUID) ([]CountTasksOfProjectByStatusRow, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAssignedToParams) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
@@ -339,26 +341,34 @@ type Querier interface {
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	// Pieces jointes de plusieurs taches, pour le tiroir et le tableau.
 	ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Attachment, error)
-	// Taches de toute l'agence, pour l'ecran « Taches » du module.
+	// Vue liste de l'ecran « Taches » du module : une page de taches de toute
+	// l'agence.
 	//
 	// Le nom du projet est joint ici : une tache sortie de sa fiche ne dit plus
 	// d'ou elle vient, et l'aller chercher ensuite ferait une requete par ligne.
 	//
-	// Meme borne que le tableau d'un projet, et pour la meme raison : l'ecran a
-	// une vue kanban, et on ne tourne pas la page d'un kanban. Le total part a
-	// cote pour que la vue puisse dire qu'elle n'affiche pas tout.
+	// Dans l'ordre du flux (a faire, en cours, en revue, terminee) et non dans
+	// l'ordre alphabetique des statuts, qui mettait les terminees en tete.
 	//
 	// La jointure sur les projets vivants fait le reste du filtrage : les taches
 	// d'un projet supprime ne doivent pas reapparaitre dans une liste globale.
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTasksRow, error)
-	// Tableau des taches d'un projet.
+	// Vue kanban de l'ecran « Taches » : au plus `column_limit` cartes par
+	// colonne, memes filtres que la liste. Meme parti que le tableau d'un projet
+	// (voir ListTasksOfProject), pour la meme raison.
+	ListTasksBoard(ctx context.Context, arg ListTasksBoardParams) ([]ListTasksBoardRow, error)
+	// Tableau des taches d'un projet : au plus `column_limit` cartes par colonne.
 	//
-	// Bornee comme toutes les listes. Un tableau n'a pas de pagination visible —
-	// on ne tourne pas la page d'un kanban — mais la borne existe quand meme :
-	// c'est elle qui empeche un projet devenu fourre-tout de ramener dix mille
-	// lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
-	// qu'il n'affiche pas tout.
-	ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]Task, error)
+	// Le plafond est par colonne et non global. Un plafond global, applique a une
+	// liste triee par statut, remplissait toutes les places avec la premiere
+	// colonne venue — les taches terminees, qui ne font que s'accumuler — et
+	// vidait les colonnes actives. Par colonne, chacune garde ses cartes.
+	//
+	// Les terminees les plus recentes d'abord : ce sont celles qu'on vient de
+	// boucler et qu'on peut vouloir rouvrir. Les autres colonnes suivent l'ordre
+	// du tableau. Le total de chaque colonne part a cote (CountTasksOfProjectByStatus)
+	// pour que l'ecran dise ce qu'il n'affiche pas.
+	ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]ListTasksOfProjectRow, error)
 	// Carte « Equipe aujourd'hui » : ce que chaque membre a saisi aujourd'hui et
 	// depuis lundi, et sur quoi il a pointe en dernier.
 	//

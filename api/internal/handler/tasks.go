@@ -18,7 +18,8 @@ import (
 type TaskService interface {
 	AddFile(ctx context.Context, taskID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
 	Board(ctx context.Context, projectID uuid.UUID) (usecase.TaskBoard, error)
-	List(ctx context.Context, f usecase.TaskFilters) (usecase.TaskList, error)
+	List(ctx context.Context, f usecase.TaskFilters) (usecase.TaskPage, error)
+	GlobalBoard(ctx context.Context, f usecase.TaskFilters) (usecase.GlobalTaskBoard, error)
 	Get(ctx context.Context, id uuid.UUID) (usecase.TaskDetail, error)
 	Create(ctx context.Context, in usecase.CreateTaskInput) (usecase.TaskDetail, error)
 	Update(ctx context.Context, id uuid.UUID, in usecase.UpdateTaskInput) (usecase.TaskDetail, error)
@@ -106,14 +107,13 @@ func (h *Tasks) Board(c fiber.Ctx) error {
 	return c.JSON(board)
 }
 
-// List sert l'ecran « Taches » du module, ses deux vues comprises.
-//
-// Les valeurs de statut et de priorite ne sont pas validees ici : une valeur
-// inconnue ne fait correspondre aucune ligne, ce qui est exactement ce qu'un
-// filtre doit faire. Refuser la requete obligerait a tenir la liste des
-// valeurs a deux endroits, dont un qui ne decide de rien.
-func (h *Tasks) List(c fiber.Ctx) error {
-	var filters usecase.TaskFilters
+// taskFilters lit la barre d'outils de l'ecran « Taches », commune a ses
+// deux vues.
+func taskFilters(c fiber.Ctx) (usecase.TaskFilters, error) {
+	filters := usecase.TaskFilters{
+		Page:     queryInt(c, "page", 1),
+		PageSize: queryInt(c, "page_size", 50),
+	}
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
 		filters.Status = &status
@@ -127,17 +127,42 @@ func (h *Tasks) List(c fiber.Ctx) error {
 	if raw := strings.TrimSpace(c.Query("project_id")); raw != "" {
 		id, err := uuid.Parse(raw)
 		if err != nil {
-			return domain.ErrValidation.WithDetails(map[string]any{"project_id": "Identifiant invalide"})
+			return filters, domain.ErrValidation.WithDetails(map[string]any{"project_id": "Identifiant invalide"})
 		}
 		filters.ProjectID = &id
 	}
 
-	list, err := h.svc.List(c.Context(), filters)
+	return filters, nil
+}
+
+// List sert une page de la vue liste de l'ecran « Taches ».
+func (h *Tasks) List(c fiber.Ctx) error {
+	filters, err := taskFilters(c)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(list)
+	page, err := h.svc.List(c.Context(), filters)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(page)
+}
+
+// GlobalBoard sert la vue kanban de l'ecran « Taches ».
+func (h *Tasks) GlobalBoard(c fiber.Ctx) error {
+	filters, err := taskFilters(c)
+	if err != nil {
+		return err
+	}
+
+	board, err := h.svc.GlobalBoard(c.Context(), filters)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(board)
 }
 
 // Create ajoute une tache au projet.

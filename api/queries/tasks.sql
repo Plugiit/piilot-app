@@ -1,32 +1,52 @@
 -- name: ListTasksOfProject :many
--- Tableau des taches d'un projet.
+-- Tableau des taches d'un projet : au plus `column_limit` cartes par colonne.
 --
--- Bornee comme toutes les listes. Un tableau n'a pas de pagination visible —
--- on ne tourne pas la page d'un kanban — mais la borne existe quand meme :
--- c'est elle qui empeche un projet devenu fourre-tout de ramener dix mille
--- lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
--- qu'il n'affiche pas tout.
-SELECT
-    t.*
-FROM tasks t
-WHERE t.project_id = sqlc.arg('project_id') AND t.deleted_at IS NULL
-ORDER BY t.status, t.position, t.created_at
-LIMIT sqlc.arg('page_size');
+-- Le plafond est par colonne et non global. Un plafond global, applique a une
+-- liste triee par statut, remplissait toutes les places avec la premiere
+-- colonne venue — les taches terminees, qui ne font que s'accumuler — et
+-- vidait les colonnes actives. Par colonne, chacune garde ses cartes.
+--
+-- Les terminees les plus recentes d'abord : ce sont celles qu'on vient de
+-- boucler et qu'on peut vouloir rouvrir. Les autres colonnes suivent l'ordre
+-- du tableau. Le total de chaque colonne part a cote (CountTasksOfProjectByStatus)
+-- pour que l'ecran dise ce qu'il n'affiche pas.
+WITH ranked AS (
+    SELECT
+        t.id,
+        row_number() OVER (
+            PARTITION BY t.status
+            ORDER BY CASE WHEN t.status = 'done' THEN t.completed_at END DESC NULLS LAST,
+                     t.position, t.created_at, t.id
+        ) AS column_rank
+    FROM tasks t
+    WHERE t.project_id = sqlc.arg('project_id') AND t.deleted_at IS NULL
+)
+SELECT sqlc.embed(t)
+FROM ranked r
+JOIN tasks t ON t.id = r.id
+WHERE r.column_rank <= sqlc.arg('column_limit')::bigint
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status), r.column_rank;
+
+-- name: CountTasksOfProjectByStatus :many
+SELECT status, count(*) AS total
+FROM tasks
+WHERE project_id = $1 AND deleted_at IS NULL
+GROUP BY status;
 
 -- name: ListTasks :many
--- Taches de toute l'agence, pour l'ecran « Taches » du module.
+-- Vue liste de l'ecran « Taches » du module : une page de taches de toute
+-- l'agence.
 --
 -- Le nom du projet est joint ici : une tache sortie de sa fiche ne dit plus
 -- d'ou elle vient, et l'aller chercher ensuite ferait une requete par ligne.
 --
--- Meme borne que le tableau d'un projet, et pour la meme raison : l'ecran a
--- une vue kanban, et on ne tourne pas la page d'un kanban. Le total part a
--- cote pour que la vue puisse dire qu'elle n'affiche pas tout.
+-- Dans l'ordre du flux (a faire, en cours, en revue, terminee) et non dans
+-- l'ordre alphabetique des statuts, qui mettait les terminees en tete.
 --
 -- La jointure sur les projets vivants fait le reste du filtrage : les taches
 -- d'un projet supprime ne doivent pas reapparaitre dans une liste globale.
 SELECT
-    t.*,
+    sqlc.embed(t),
     p.name AS project_name
 FROM tasks t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
@@ -35,8 +55,9 @@ WHERE t.deleted_at IS NULL
   AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
   AND (sqlc.narg('project_id')::uuid IS NULL OR t.project_id = sqlc.narg('project_id')::uuid)
   AND (sqlc.narg('search')::text IS NULL OR t.title ILIKE '%' || sqlc.narg('search')::text || '%')
-ORDER BY t.status, t.position, t.created_at, t.id
-LIMIT sqlc.arg('page_size');
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status),
+         t.position, t.created_at, t.id
+LIMIT sqlc.arg('page_size') OFFSET sqlc.arg('page_offset');
 
 -- name: CountTasks :one
 SELECT count(*)
@@ -48,9 +69,44 @@ WHERE t.deleted_at IS NULL
   AND (sqlc.narg('project_id')::uuid IS NULL OR t.project_id = sqlc.narg('project_id')::uuid)
   AND (sqlc.narg('search')::text IS NULL OR t.title ILIKE '%' || sqlc.narg('search')::text || '%');
 
--- name: CountTasksOfProject :one
-SELECT count(*) FROM tasks
-WHERE project_id = $1 AND deleted_at IS NULL;
+-- name: ListTasksBoard :many
+-- Vue kanban de l'ecran « Taches » : au plus `column_limit` cartes par
+-- colonne, memes filtres que la liste. Meme parti que le tableau d'un projet
+-- (voir ListTasksOfProject), pour la meme raison.
+WITH ranked AS (
+    SELECT
+        t.id,
+        row_number() OVER (
+            PARTITION BY t.status
+            ORDER BY CASE WHEN t.status = 'done' THEN t.completed_at END DESC NULLS LAST,
+                     t.position, t.created_at, t.id
+        ) AS column_rank
+    FROM tasks t
+    JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+    WHERE t.deleted_at IS NULL
+    AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
+    AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
+    AND (sqlc.narg('project_id')::uuid IS NULL OR t.project_id = sqlc.narg('project_id')::uuid)
+    AND (sqlc.narg('search')::text IS NULL OR t.title ILIKE '%' || sqlc.narg('search')::text || '%')
+)
+SELECT sqlc.embed(t), p.name AS project_name
+FROM ranked r
+JOIN tasks t ON t.id = r.id
+JOIN projects p ON p.id = t.project_id
+WHERE r.column_rank <= sqlc.arg('column_limit')::bigint
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status), r.column_rank;
+
+-- name: CountTasksByStatus :many
+-- Total de chaque colonne du kanban, filtres compris.
+SELECT t.status, count(*) AS total
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND (sqlc.narg('status')::text IS NULL OR t.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('priority')::text IS NULL OR t.priority = sqlc.narg('priority')::text)
+  AND (sqlc.narg('project_id')::uuid IS NULL OR t.project_id = sqlc.narg('project_id')::uuid)
+  AND (sqlc.narg('search')::text IS NULL OR t.title ILIKE '%' || sqlc.narg('search')::text || '%')
+GROUP BY t.status;
 
 -- name: ListAssigneesOfTasks :many
 -- Affectations de plusieurs taches en une requete : meme parade au N+1 que

@@ -83,16 +83,86 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 	return count, err
 }
 
-const countTasksOfProject = `-- name: CountTasksOfProject :one
-SELECT count(*) FROM tasks
-WHERE project_id = $1 AND deleted_at IS NULL
+const countTasksByStatus = `-- name: CountTasksByStatus :many
+SELECT t.status, count(*) AS total
+FROM tasks t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.deleted_at IS NULL
+  AND ($1::text IS NULL OR t.status = $1::text)
+  AND ($2::text IS NULL OR t.priority = $2::text)
+  AND ($3::uuid IS NULL OR t.project_id = $3::uuid)
+  AND ($4::text IS NULL OR t.title ILIKE '%' || $4::text || '%')
+GROUP BY t.status
 `
 
-func (q *Queries) CountTasksOfProject(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countTasksOfProject, projectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type CountTasksByStatusParams struct {
+	Status    *string    `json:"status"`
+	Priority  *string    `json:"priority"`
+	ProjectID *uuid.UUID `json:"project_id"`
+	Search    *string    `json:"search"`
+}
+
+type CountTasksByStatusRow struct {
+	Status string `json:"status"`
+	Total  int64  `json:"total"`
+}
+
+// Total de chaque colonne du kanban, filtres compris.
+func (q *Queries) CountTasksByStatus(ctx context.Context, arg CountTasksByStatusParams) ([]CountTasksByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countTasksByStatus,
+		arg.Status,
+		arg.Priority,
+		arg.ProjectID,
+		arg.Search,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountTasksByStatusRow{}
+	for rows.Next() {
+		var i CountTasksByStatusRow
+		if err := rows.Scan(&i.Status, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countTasksOfProjectByStatus = `-- name: CountTasksOfProjectByStatus :many
+SELECT status, count(*) AS total
+FROM tasks
+WHERE project_id = $1 AND deleted_at IS NULL
+GROUP BY status
+`
+
+type CountTasksOfProjectByStatusRow struct {
+	Status string `json:"status"`
+	Total  int64  `json:"total"`
+}
+
+func (q *Queries) CountTasksOfProjectByStatus(ctx context.Context, projectID uuid.UUID) ([]CountTasksOfProjectByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countTasksOfProjectByStatus, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountTasksOfProjectByStatusRow{}
+	for rows.Next() {
+		var i CountTasksOfProjectByStatusRow
+		if err := rows.Scan(&i.Status, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createSubtask = `-- name: CreateSubtask :one
@@ -640,51 +710,33 @@ WHERE t.deleted_at IS NULL
   AND ($2::text IS NULL OR t.priority = $2::text)
   AND ($3::uuid IS NULL OR t.project_id = $3::uuid)
   AND ($4::text IS NULL OR t.title ILIKE '%' || $4::text || '%')
-ORDER BY t.status, t.position, t.created_at, t.id
-LIMIT $5
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status),
+         t.position, t.created_at, t.id
+LIMIT $6 OFFSET $5
 `
 
 type ListTasksParams struct {
-	Status    *string    `json:"status"`
-	Priority  *string    `json:"priority"`
-	ProjectID *uuid.UUID `json:"project_id"`
-	Search    *string    `json:"search"`
-	PageSize  int32      `json:"page_size"`
+	Status     *string    `json:"status"`
+	Priority   *string    `json:"priority"`
+	ProjectID  *uuid.UUID `json:"project_id"`
+	Search     *string    `json:"search"`
+	PageOffset int32      `json:"page_offset"`
+	PageSize   int32      `json:"page_size"`
 }
 
 type ListTasksRow struct {
-	ID               uuid.UUID  `json:"id"`
-	ProjectID        uuid.UUID  `json:"project_id"`
-	Title            string     `json:"title"`
-	Description      string     `json:"description"`
-	Status           string     `json:"status"`
-	Tag              string     `json:"tag"`
-	StartsOn         *time.Time `json:"starts_on"`
-	DueOn            *time.Time `json:"due_on"`
-	Hours            *float64   `json:"hours"`
-	Note             string     `json:"note"`
-	Position         int32      `json:"position"`
-	CompletedAt      *time.Time `json:"completed_at"`
-	CreatedBy        *uuid.UUID `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	Priority         string     `json:"priority"`
-	SubtasksTotal    int32      `json:"subtasks_total"`
-	SubtasksDone     int32      `json:"subtasks_done"`
-	CommentsCount    int32      `json:"comments_count"`
-	AttachmentsCount int32      `json:"attachments_count"`
-	ProjectName      string     `json:"project_name"`
+	Task        Task   `json:"task"`
+	ProjectName string `json:"project_name"`
 }
 
-// Taches de toute l'agence, pour l'ecran « Taches » du module.
+// Vue liste de l'ecran « Taches » du module : une page de taches de toute
+// l'agence.
 //
 // Le nom du projet est joint ici : une tache sortie de sa fiche ne dit plus
 // d'ou elle vient, et l'aller chercher ensuite ferait une requete par ligne.
 //
-// Meme borne que le tableau d'un projet, et pour la meme raison : l'ecran a
-// une vue kanban, et on ne tourne pas la page d'un kanban. Le total part a
-// cote pour que la vue puisse dire qu'elle n'affiche pas tout.
+// Dans l'ordre du flux (a faire, en cours, en revue, terminee) et non dans
+// l'ordre alphabetique des statuts, qui mettait les terminees en tete.
 //
 // La jointure sur les projets vivants fait le reste du filtrage : les taches
 // d'un projet supprime ne doivent pas reapparaitre dans une liste globale.
@@ -694,6 +746,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTas
 		arg.Priority,
 		arg.ProjectID,
 		arg.Search,
+		arg.PageOffset,
 		arg.PageSize,
 	)
 	if err != nil {
@@ -704,27 +757,117 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTas
 	for rows.Next() {
 		var i ListTasksRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Title,
-			&i.Description,
-			&i.Status,
-			&i.Tag,
-			&i.StartsOn,
-			&i.DueOn,
-			&i.Hours,
-			&i.Note,
-			&i.Position,
-			&i.CompletedAt,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Priority,
-			&i.SubtasksTotal,
-			&i.SubtasksDone,
-			&i.CommentsCount,
-			&i.AttachmentsCount,
+			&i.Task.ID,
+			&i.Task.ProjectID,
+			&i.Task.Title,
+			&i.Task.Description,
+			&i.Task.Status,
+			&i.Task.Tag,
+			&i.Task.StartsOn,
+			&i.Task.DueOn,
+			&i.Task.Hours,
+			&i.Task.Note,
+			&i.Task.Position,
+			&i.Task.CompletedAt,
+			&i.Task.CreatedBy,
+			&i.Task.CreatedAt,
+			&i.Task.UpdatedAt,
+			&i.Task.DeletedAt,
+			&i.Task.Priority,
+			&i.Task.SubtasksTotal,
+			&i.Task.SubtasksDone,
+			&i.Task.CommentsCount,
+			&i.Task.AttachmentsCount,
+			&i.ProjectName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksBoard = `-- name: ListTasksBoard :many
+WITH ranked AS (
+    SELECT
+        t.id,
+        row_number() OVER (
+            PARTITION BY t.status
+            ORDER BY CASE WHEN t.status = 'done' THEN t.completed_at END DESC NULLS LAST,
+                     t.position, t.created_at, t.id
+        ) AS column_rank
+    FROM tasks t
+    JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+    WHERE t.deleted_at IS NULL
+    AND ($2::text IS NULL OR t.status = $2::text)
+    AND ($3::text IS NULL OR t.priority = $3::text)
+    AND ($4::uuid IS NULL OR t.project_id = $4::uuid)
+    AND ($5::text IS NULL OR t.title ILIKE '%' || $5::text || '%')
+)
+SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, p.name AS project_name
+FROM ranked r
+JOIN tasks t ON t.id = r.id
+JOIN projects p ON p.id = t.project_id
+WHERE r.column_rank <= $1::bigint
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status), r.column_rank
+`
+
+type ListTasksBoardParams struct {
+	ColumnLimit int64      `json:"column_limit"`
+	Status      *string    `json:"status"`
+	Priority    *string    `json:"priority"`
+	ProjectID   *uuid.UUID `json:"project_id"`
+	Search      *string    `json:"search"`
+}
+
+type ListTasksBoardRow struct {
+	Task        Task   `json:"task"`
+	ProjectName string `json:"project_name"`
+}
+
+// Vue kanban de l'ecran « Taches » : au plus `column_limit` cartes par
+// colonne, memes filtres que la liste. Meme parti que le tableau d'un projet
+// (voir ListTasksOfProject), pour la meme raison.
+func (q *Queries) ListTasksBoard(ctx context.Context, arg ListTasksBoardParams) ([]ListTasksBoardRow, error) {
+	rows, err := q.db.Query(ctx, listTasksBoard,
+		arg.ColumnLimit,
+		arg.Status,
+		arg.Priority,
+		arg.ProjectID,
+		arg.Search,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTasksBoardRow{}
+	for rows.Next() {
+		var i ListTasksBoardRow
+		if err := rows.Scan(
+			&i.Task.ID,
+			&i.Task.ProjectID,
+			&i.Task.Title,
+			&i.Task.Description,
+			&i.Task.Status,
+			&i.Task.Tag,
+			&i.Task.StartsOn,
+			&i.Task.DueOn,
+			&i.Task.Hours,
+			&i.Task.Note,
+			&i.Task.Position,
+			&i.Task.CompletedAt,
+			&i.Task.CreatedBy,
+			&i.Task.CreatedAt,
+			&i.Task.UpdatedAt,
+			&i.Task.DeletedAt,
+			&i.Task.Priority,
+			&i.Task.SubtasksTotal,
+			&i.Task.SubtasksDone,
+			&i.Task.CommentsCount,
+			&i.Task.AttachmentsCount,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -738,57 +881,75 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTas
 }
 
 const listTasksOfProject = `-- name: ListTasksOfProject :many
-SELECT
-    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
-FROM tasks t
-WHERE t.project_id = $1 AND t.deleted_at IS NULL
-ORDER BY t.status, t.position, t.created_at
-LIMIT $2
+WITH ranked AS (
+    SELECT
+        t.id,
+        row_number() OVER (
+            PARTITION BY t.status
+            ORDER BY CASE WHEN t.status = 'done' THEN t.completed_at END DESC NULLS LAST,
+                     t.position, t.created_at, t.id
+        ) AS column_rank
+    FROM tasks t
+    WHERE t.project_id = $2 AND t.deleted_at IS NULL
+)
+SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
+FROM ranked r
+JOIN tasks t ON t.id = r.id
+WHERE r.column_rank <= $1::bigint
+ORDER BY array_position(ARRAY['todo', 'progress', 'review', 'done'], t.status), r.column_rank
 `
 
 type ListTasksOfProjectParams struct {
-	ProjectID uuid.UUID `json:"project_id"`
-	PageSize  int32     `json:"page_size"`
+	ColumnLimit int64     `json:"column_limit"`
+	ProjectID   uuid.UUID `json:"project_id"`
 }
 
-// Tableau des taches d'un projet.
+type ListTasksOfProjectRow struct {
+	Task Task `json:"task"`
+}
+
+// Tableau des taches d'un projet : au plus `column_limit` cartes par colonne.
 //
-// Bornee comme toutes les listes. Un tableau n'a pas de pagination visible —
-// on ne tourne pas la page d'un kanban — mais la borne existe quand meme :
-// c'est elle qui empeche un projet devenu fourre-tout de ramener dix mille
-// lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
-// qu'il n'affiche pas tout.
-func (q *Queries) ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasksOfProject, arg.ProjectID, arg.PageSize)
+// Le plafond est par colonne et non global. Un plafond global, applique a une
+// liste triee par statut, remplissait toutes les places avec la premiere
+// colonne venue — les taches terminees, qui ne font que s'accumuler — et
+// vidait les colonnes actives. Par colonne, chacune garde ses cartes.
+//
+// Les terminees les plus recentes d'abord : ce sont celles qu'on vient de
+// boucler et qu'on peut vouloir rouvrir. Les autres colonnes suivent l'ordre
+// du tableau. Le total de chaque colonne part a cote (CountTasksOfProjectByStatus)
+// pour que l'ecran dise ce qu'il n'affiche pas.
+func (q *Queries) ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]ListTasksOfProjectRow, error) {
+	rows, err := q.db.Query(ctx, listTasksOfProject, arg.ColumnLimit, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Task{}
+	items := []ListTasksOfProjectRow{}
 	for rows.Next() {
-		var i Task
+		var i ListTasksOfProjectRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Title,
-			&i.Description,
-			&i.Status,
-			&i.Tag,
-			&i.StartsOn,
-			&i.DueOn,
-			&i.Hours,
-			&i.Note,
-			&i.Position,
-			&i.CompletedAt,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Priority,
-			&i.SubtasksTotal,
-			&i.SubtasksDone,
-			&i.CommentsCount,
-			&i.AttachmentsCount,
+			&i.Task.ID,
+			&i.Task.ProjectID,
+			&i.Task.Title,
+			&i.Task.Description,
+			&i.Task.Status,
+			&i.Task.Tag,
+			&i.Task.StartsOn,
+			&i.Task.DueOn,
+			&i.Task.Hours,
+			&i.Task.Note,
+			&i.Task.Position,
+			&i.Task.CompletedAt,
+			&i.Task.CreatedBy,
+			&i.Task.CreatedAt,
+			&i.Task.UpdatedAt,
+			&i.Task.DeletedAt,
+			&i.Task.Priority,
+			&i.Task.SubtasksTotal,
+			&i.Task.SubtasksDone,
+			&i.Task.CommentsCount,
+			&i.Task.AttachmentsCount,
 		); err != nil {
 			return nil, err
 		}
