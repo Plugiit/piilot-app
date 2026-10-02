@@ -1,0 +1,39 @@
+name: Idée
+description: Proposer une fonctionnalité ou une amélioration.
+labels: ["idée"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Avant de proposer, vérifier la [roadmap](https://github.com/Plugiit/piilot-app/blob/master/ROADMAP.md) et le [périmètre](https://github.com/Plugiit/piilot-app/blob/master/CONTRIBUTING.md#périmètre) :
+        facturation, comptabilité, SEO, CMS, blog, RH, multi-agence et application mobile sont hors périmètre par choix.
+  - type: textarea
+    id: probleme
+    attributes:
+      label: Le besoin
+      description: Ce que vous cherchez à faire aujourd'hui, et ce qui vous en empêche. Le besoin d'abord, la solution ensuite.
+    validations:
+      required: true
+  - type: textarea
+    id: proposition
+    attributes:
+      label: La proposition
+      description: À quoi ressemblerait la solution. Quel écran, pour quel rôle.
+    validations:
+      required: true
+  - type: dropdown
+    id: espace
+    attributes:
+      label: Espace concerné
+      options:
+        - Admin
+        - Team
+        - Portail client
+        - Plusieurs
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Ce que vous faites en attendant
+      description: Contournement actuel, autre outil utilisé.
