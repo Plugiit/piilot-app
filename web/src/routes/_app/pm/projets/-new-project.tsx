@@ -28,13 +28,21 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { clientListQuery, peopleQuery, useCreateProject } from '@/features/projects/api'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, tintOf } from '@/features/projects/format'
 import { ServicesPicker } from '@/features/services/tag'
+import { templateListQuery } from '@/features/templates/api'
 import { HttpError } from '@/lib/api'
+import { can, sessionQuery } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { ProjectStatus } from '@/types/api'
-import { can, sessionQuery } from '@/lib/auth'
 
 /**
  * Ce que le formulaire exige, et rien de plus.
@@ -54,7 +62,11 @@ const schema = z.object({
   due_on: z.string().trim(),
   // Vide quand le projet ne releve d'aucune prestation.
   service_ids: z.array(z.string()),
+  template_id: z.string(),
 })
+
+/** Valeur du choix « aucun modele » : Radix refuse la chaine vide. */
+const SANS_MODELE = 'aucun'
 
 type Values = z.infer<typeof schema>
 
@@ -92,8 +104,10 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
       hours_sold: '',
       due_on: '',
       service_ids: [],
+      template_id: SANS_MODELE,
     },
   })
+  const { data: templates } = useQuery({ ...templateListQuery(), enabled: open })
 
   function submit(values: Values) {
     create.mutate(
@@ -105,6 +119,7 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
         due_on: values.due_on === '' ? null : values.due_on,
         service_ids: values.service_ids,
         team_ids: team,
+        template_id: values.template_id === SANS_MODELE ? null : values.template_id,
       },
       {
         onSuccess: (project) => {
@@ -175,6 +190,44 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
                 </FormItem>
               )}
             />
+
+            {(templates?.items.length ?? 0) > 0 && (
+              <FormField
+                control={form.control}
+                name="template_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Modèle</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={SANS_MODELE}>
+                          <span className="text-[#73757c]">Projet vierge</span>
+                        </SelectItem>
+                        {(templates?.items ?? []).map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                            <span className="text-[#a2a3a7]">
+                              {' '}
+                              · {template.milestones} jalons, {template.tasks} tâches
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Le projet reçoit ses jalons, ses tâches et ses services. Les échéances partent
+                      d’aujourd’hui.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
