@@ -10,11 +10,11 @@ import { projectDetailQuery, useUpdateProject } from '@/features/projects/api'
 import { BUDGET_STATE, budgetStateOf, formatHours } from '@/features/projects/format'
 import { Meter } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
+import { can } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/api'
 
 import { CHAMP, Card, Field, SaveBar } from '@/components/settings-ui'
-import { can } from '@/lib/auth'
 
 const schema = z.object({
   hours_sold: z.number().min(0, 'Un nombre positif est attendu'),
