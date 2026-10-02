@@ -1,9 +1,10 @@
 import { Clock01Icon, Contact01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 
+import { DropGap, useColumnTransition, useLanding } from '@/components/kanban-gap'
 import {
   CLIENT_AGE_TINT,
   CLIENT_STATUS,
@@ -31,18 +32,21 @@ function ClientCard({
   onRelease,
 }: {
   client: CrmClient
-  onGrab: () => void
+  /** Recoit la hauteur de la carte : c'est celle de l'emplacement a ouvrir. */
+  onGrab: (height: number) => void
   onCarry: (point: { x: number; y: number }) => void
   onRelease: (point: { x: number; y: number } | null) => void
 }) {
   // Un glisser se termine par un clic que le navigateur envoie quand meme : le
   // relachement au-dessus du nom declencherait sinon sa navigation.
   const carried = useRef(false)
+  const self = useRef<HTMLElement>(null)
 
   const age = clientAge(client.status_changed_at)
 
   return (
     <motion.article
+      ref={self}
       drag
       // La carte revient d'elle-meme si elle est laissee hors d'une colonne.
       dragSnapToOrigin
@@ -51,7 +55,9 @@ function ClientCard({
       whileDrag={{ scale: 1.03, boxShadow: '0 12px 28px -8px rgb(16 24 40 / 0.28)', zIndex: 40 }}
       onDragStart={() => {
         carried.current = true
-        onGrab()
+        // `offsetHeight` et non le rectangle : il ignore l'echelle de
+        // `whileDrag`, qui gonflerait l'emplacement de 3 %.
+        onGrab(self.current?.offsetHeight ?? 0)
       }}
       onDrag={(event) => {
         const point = pointerPosition(event)
@@ -137,8 +143,18 @@ export function ClientBoard({
   clients: CrmClient[]
   onMove: (client: CrmClient, status: ClientStatus) => void
 }) {
-  const [dragging, setDragging] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<{ id: string; status: ClientStatus; height: number } | null>(
+    null,
+  )
   const [over, setOver] = useState<ClientStatus | null>(null)
+
+  const transition = useColumnTransition()
+
+  // Le deplacement d'un client n'est pas optimiste : la carte n'arrive qu'au
+  // retour du serveur. L'emplacement qui l'attend reste ouvert jusque-la.
+  const { awaiting, landedIn, height: landingHeight, land, reset } = useLanding<ClientStatus>(({ id, column }) =>
+    clients.some((client) => client.id === id && client.status === column),
+  )
 
   const columnBoxes = useRef(new Map<ClientStatus, HTMLElement>())
 
@@ -168,6 +184,7 @@ export function ClientBoard({
     const target = columnAt(point)
     if (target === null || target === client.status) return
 
+    land(client.id, target, dragging?.height ?? 0)
     onMove(client, target)
   }
 
@@ -176,6 +193,12 @@ export function ClientBoard({
       {CLIENT_STATUS_ORDER.map((status) => {
         const column = clients.filter((client) => client.status === status)
         const tint = CLIENT_STATUS[status]!
+
+        // Meme regle que le tableau des taches : l'emplacement s'ouvre sous
+        // une carte venue d'une autre colonne, et attend qu'elle y arrive.
+        const hovered = dragging !== null && over === status && dragging.status !== status
+        const gapOpen = hovered || awaiting === status
+        const gapHeight = hovered ? dragging.height : landingHeight
 
         return (
           <section
@@ -189,7 +212,7 @@ export function ClientBoard({
               // La bordure reste presente mais transparente : la colorer au
               // survol ne doit pas decaler la colonne d'un pixel. Meme parti
               // que le tableau des taches.
-              over === status && dragging !== null ? 'border-brand' : 'border-transparent',
+              hovered ? 'border-brand' : 'border-transparent',
             )}
           >
             <header className="flex items-center gap-2 px-2 py-1.5">
@@ -199,19 +222,57 @@ export function ClientBoard({
             </header>
 
             <div className="flex flex-col gap-2">
-              {column.length === 0 ? (
-                <p className="px-2 py-6 text-center text-[13px] text-[#a2a3a7]">Aucun client</p>
-              ) : (
-                column.map((client) => (
-                  <ClientCard
+              {/* « Aucun client » se replie quand l'emplacement s'ouvre, au
+                  lieu de disparaitre d'un coup : la colonne vide grandit sans
+                  a-coup jusqu'a la hauteur de la carte. */}
+              <AnimatePresence initial={false}>
+                {column.length === 0 && !gapOpen && (
+                  <motion.p
+                    key="empty"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={transition}
+                    className="overflow-hidden px-2 text-center text-[13px] text-[#a2a3a7]"
+                  >
+                    <span className="block py-6">Aucun client</span>
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              {/* Voir le tableau des taches : les voisines glissent pour faire
+                  place, et la carte qui part laisse une place qui se referme
+                  au lieu de s'effacer en fondu. */}
+              <AnimatePresence initial={false}>
+                {column.map((client) => (
+                  <motion.div
                     key={client.id}
-                    client={client}
-                    onGrab={() => setDragging(client.id)}
-                    onCarry={(point) => setOver(columnAt(point))}
-                    onRelease={(point) => release(client, point)}
-                  />
-                ))
-              )}
+                    layout="position"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ height: 0, opacity: 0, transition: { ...transition, opacity: { duration: 0 } } }}
+                    transition={transition}
+                    style={{ position: 'relative', zIndex: dragging?.id === client.id ? 40 : undefined }}
+                  >
+                    <ClientCard
+                      client={client}
+                      onGrab={(height) => {
+                        reset()
+                        setDragging({ id: client.id, status: client.status, height })
+                      }}
+                      onCarry={(point) => setOver(columnAt(point))}
+                      onRelease={(point) => release(client, point)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              <DropGap
+                open={gapOpen}
+                height={gapHeight}
+                instant={!hovered && landedIn === status}
+                spacing={8}
+              />
             </div>
           </section>
         )
