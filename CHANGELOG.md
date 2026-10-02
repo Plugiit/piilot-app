@@ -11,6 +11,46 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.6.0] — Espace team · 2026-10-02
+
+Cette version donne à l'équipe un espace à elle : une page qui dit par quoi commencer la journée, une feuille de temps à la semaine, un menu débarrassé des outils de direction, et des notifications qui suivent aussi les tickets et les livrables.
+
+### Points forts
+
+- « Mon travail » : tâches en retard, tickets confiés, livrables à reprendre et projets en cours, sur une seule page.
+- Feuille de temps à la semaine, qu'on remplit d'une case à l'autre.
+- Le menu ne montre que ce que les droits du compte permettent.
+- Notifications pour les tickets (confié, réponse, statut) et les livrables (validation, retours).
+
+### Nouveautés
+
+#### Team
+
+- **Mon travail** : l'accueil de l'équipe. Les tâches assignées, les retards d'abord ; les tickets ouverts confiés, les plus urgents d'abord ; les livrables à déposer ou à reprendre après des retours, avec l'extrait du retour ; les projets en cours avec leur avancement et leur échéance ; le temps saisi depuis lundi.
+- **Feuille de la semaine** (Suivi du temps) : une grille projet et tâche par jour. Une case vide ou à une seule saisie se modifie sur place (90, 1h30 ou 1,5, puis Entrée ou Tab) ; la vider retire la saisie. Une case qui en regroupe plusieurs mène à sa journée. « Ajouter une ligne » ouvre un projet qui n'a encore rien cette semaine.
+- **Menu selon les droits** : les entrées, onglets et filtres qu'un compte ne peut pas ouvrir disparaissent, et une adresse saisie à la main ramène vers un écran permis. Un membre de l'équipe arrive sur « Mon travail » plutôt que sur le tableau de bord.
+
+#### Tous les espaces internes
+
+- **Notifications des tickets** : ticket ouvert ou confié, réponse, changement de statut. Elles mènent à la fiche du ticket.
+- **Notifications des livrables** : validation ou retours du client, pour l'équipe du projet et la personne qui a déposé la version. Elles mènent aux livrables du projet.
+
+#### Admin
+
+- **Rôles** : un groupe « Pilotage » avec le tableau de bord de l'agence et les budgets ; le pipeline commercial rejoint le CRM.
+
+### Améliorations
+
+- Les notifications des tâches arrivent de nouveau en temps réel : leur diffusion n'était jamais branchée.
+- La saisie du temps suit enfin la permission « Saisir du temps passé », que l'écran des rôles proposait sans effet.
+
+### Technique
+
+- Trois permissions : `dashboard.read`, `budgets.read`, `pipeline.read`, accordées au rôle `admin`. `time.read` devient la lecture des rapports de toute l'équipe. Le rôle `team` perd `time.read` et `roles.read` à la migration.
+- Sans `budgets.read`, l'API retire les heures vendues et l'état du budget des projets, ignore le filtre et le tri sur le budget, et refuse de fixer des heures vendues.
+- `GET /api/v1/admin/me/work` : la page « Mon travail » en un appel, cinq requêtes bornées.
+- Les notifications portent désormais `ticket_id` et `deliverable_id`.
+
 ## [0.5.0] — Gestion des comptes · 2026-10-02
 
 Cette version met fin à la création des comptes en ligne de commande : les administrateurs invitent, gèrent et désactivent les comptes depuis Piilot, et règlent ce que chaque rôle permet. Chacun peut aussi retrouver l'accès à son compte après un mot de passe oublié.
