@@ -1,4 +1,5 @@
 import {
+  Briefcase01Icon,
   Building03Icon,
   Calendar03Icon,
   CheckmarkSquare02Icon,
@@ -25,6 +26,8 @@ import { useRouterState } from '@tanstack/react-router'
 export interface MenuLeaf {
   label: string
   to: string
+  /** Permission sans laquelle l'entree n'apparait pas. */
+  permission?: string
 }
 
 /**
@@ -32,7 +35,7 @@ export interface MenuLeaf {
  * sous-entrees (`children`). Jamais les deux — un parent cliquable qui deplie
  * aussi laisse l'utilisateur sans moyen de faire l'un sans l'autre.
  */
-export type MenuItem = { icon: IconSvgElement; label: string } & (
+export type MenuItem = { icon: IconSvgElement; label: string; permission?: string } & (
   { to: string; children?: never } | { to?: never; children: MenuLeaf[] }
 )
 
@@ -70,7 +73,8 @@ export const MODULES: AppModule[] = [
       {
         label: 'Pilotage',
         items: [
-          { icon: Home03Icon, label: 'Tableau de bord', to: '/pm' },
+          { icon: Briefcase01Icon, label: 'Mon travail', to: '/pm/mon-travail' },
+          { icon: Home03Icon, label: 'Tableau de bord', to: '/pm', permission: 'dashboard.read' },
           { icon: Folder01Icon, label: 'Projets', to: '/pm/projets' },
           { icon: Calendar03Icon, label: 'Planning', to: '/pm/planning' },
         ],
@@ -78,19 +82,19 @@ export const MODULES: AppModule[] = [
       {
         label: 'Production',
         items: [
-          { icon: CheckmarkSquare02Icon, label: 'Tâches', to: '/pm/taches' },
+          { icon: CheckmarkSquare02Icon, label: 'Tâches', to: '/pm/taches', permission: 'tasks.read' },
           {
             icon: Clock01Icon,
             label: 'Suivi du temps',
             // Saisir son temps et l'analyser sont deux ecrans distincts : un
             // formulaire, puis un tableau d'agregats.
             children: [
-              { label: 'Saisie', to: '/pm/temps/saisie' },
-              { label: 'Rapports', to: '/pm/temps/rapports' },
+              { label: 'Saisie', to: '/pm/temps/saisie', permission: 'time.write' },
+              { label: 'Rapports', to: '/pm/temps/rapports', permission: 'time.read' },
             ],
           },
-          { icon: DeliveryBox01Icon, label: 'Livrables', to: '/pm/livrables' },
-          { icon: Ticket02Icon, label: 'Tickets', to: '/pm/tickets' },
+          { icon: DeliveryBox01Icon, label: 'Livrables', to: '/pm/livrables', permission: 'deliverables.read' },
+          { icon: Ticket02Icon, label: 'Tickets', to: '/pm/tickets', permission: 'tickets.read' },
         ],
       },
     ],
@@ -128,12 +132,19 @@ export const MODULES: AppModule[] = [
       {
         label: 'Accès',
         items: [
-          { icon: UserMultipleIcon, label: 'Comptes et rôles', to: '/parametres/comptes' },
+          {
+            icon: UserMultipleIcon,
+            label: 'Comptes et rôles',
+            to: '/parametres/comptes',
+            permission: 'roles.read',
+          },
         ],
       },
       {
         label: 'Apparence',
-        items: [{ icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps' }],
+        items: [
+          { icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps', permission: 'users.write' },
+        ],
       },
     ],
   },
@@ -180,6 +191,41 @@ export function useActiveModule(): AppModule | undefined {
   return [...MODULES, ACCOUNT_MODULE].find(
     (module) => pathname === module.to || pathname.startsWith(`${module.to}/`),
   )
+}
+
+/**
+ * Menu d'un module tel qu'un compte le voit : sans les entrees dont il n'a pas
+ * la permission, ni les groupes qu'elles laissent vides.
+ *
+ * Un ecran qu'on ne peut pas ouvrir n'a rien a faire dans la navigation : le
+ * montrer pour le refuser au clic, c'est encombrer l'espace de chacun avec les
+ * outils des autres.
+ */
+export function menuFor(module: AppModule, permissions: readonly string[]): MenuGroup[] {
+  const allowed = (permission?: string) => permission === undefined || permissions.includes(permission)
+
+  return module.menu
+    .map((group) => ({
+      ...group,
+      items: group.items.flatMap((item): MenuItem[] => {
+        if (!allowed(item.permission)) return []
+        if (item.children === undefined) return [item]
+
+        const children = item.children.filter((leaf) => allowed(leaf.permission))
+        if (children.length === 0) return []
+
+        // Une seule sous-entree : l'entree mene directement a elle, sans menu
+        // a deplier pour un seul choix.
+        const [only] = children
+        if (children.length === 1 && only !== undefined) {
+          const { children: _, ...rest } = item
+          return [{ ...rest, to: only.to }]
+        }
+
+        return [{ ...item, children }]
+      }),
+    }))
+    .filter((group) => group.items.length > 0)
 }
 
 /** Destinations d'une entree : la sienne, ou celles de ses sous-entrees. */

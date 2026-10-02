@@ -21,6 +21,7 @@ import {
   MODULES,
   activeDestination,
   destinationsOf,
+  menuFor,
   useActiveModule,
   type MenuItem,
 } from '@/components/layout/modules'
@@ -30,7 +31,7 @@ import type { SidebarApp } from '@/types/api'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
-import { logout } from '@/lib/auth'
+import { logout, sessionQuery } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -596,7 +597,12 @@ function Shortcuts() {
 }
 
 function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string }) {
-  const activeModule = useActiveModule()
+  const module = useActiveModule()
+  const { data: session } = useQuery(sessionQuery)
+  // Le module tel que ce compte le voit : sans les ecrans qu'il ne peut pas
+  // ouvrir. La destination active se cherche dans ce menu-la, sans quoi une
+  // entree masquee pourrait encore gagner.
+  const activeModule = module && { ...module, menu: menuFor(module, session?.permissions ?? []) }
   const transition = useSlideTransition()
 
   const pathname = useRouterState({ select: (state) => state.location.pathname })

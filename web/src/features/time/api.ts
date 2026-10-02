@@ -44,6 +44,7 @@ export function useCreateTimeEntry() {
       // qui les affichent, tableau de bord compris, doivent les relire.
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['my-work'] })
     },
   })
 }
@@ -63,6 +64,7 @@ export function useUpdateTimeEntry(id: string) {
       void queryClient.invalidateQueries({ queryKey: timeKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['my-work'] })
     },
   })
 }
@@ -77,6 +79,7 @@ export function useDeleteTimeEntry(id: string) {
       void queryClient.invalidateQueries({ queryKey: timeKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['my-work'] })
     },
   })
 }
