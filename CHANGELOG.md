@@ -37,12 +37,19 @@ Cette version termine le pilotage du temps : chaque projet affiche où il en est
 
 - La page Budget d'un projet recalcule l'alerte pendant la saisie des heures vendues, avec le même seuil que le reste de l'application.
 - L'agenda du tableau de bord, qui n'affichait que des événements d'exemple, est retiré. Il reviendra avec le planning.
+- **Glisser-déposer animé** dans les kanbans des tâches et le pipeline CRM : la colonne survolée s'allonge pour faire place à la carte, et les cartes voisines glissent au lieu de sauter.
+- Chaque colonne de kanban affiche son total réel, et indique quand elle n'est pas affichée en entier (« 50 affichées sur 538, les plus récentes »).
+
+### Corrections
+
+- L'écran **Tâches** n'affichait que des tâches terminées dès que l'agence dépassait 300 tâches : les colonnes « À faire », « En cours » et « En revue » restaient vides, et une carte qu'on y déposait disparaissait. Chaque colonne du kanban est désormais plafonnée séparément (50 cartes, les terminées les plus récentes d'abord), et la vue liste est paginée.
 
 ### Technique
 
 - Licence AGPL-3.0, guide de contribution, politique de sécurité et modèles d'issue et de pull request.
 - Chaque version publie l'image sur `ghcr.io/plugiit/piilot-app`, avec les tags `X.Y.Z`, `X.Y` et `latest`.
 - L'activité quotidienne est précalculée par déclencheur dans une table dédiée : le tableau de bord la lit sans rien recompter.
+- `GET /api/v1/admin/tasks` est paginé (`page`, `page_size`) ; nouvelle route `GET /api/v1/admin/tasks/board` pour le kanban de l'écran Tâches. Le tableau d'un projet (`GET /api/v1/admin/projects/{id}/tasks`) renvoie le total de chaque colonne à la place de `total` et `limit`, avec 100 cartes au plus par colonne.
 - Paramètre `budget` (`warning`, `over`) sur `GET /api/v1/admin/projects`, champ `budget_state` sur les projets, et nouveaux blocs dans `GET /api/v1/admin/dashboard`.
 - Nom technique aligné sur Piilot : cookies de session, émetteur des jetons et base de développement.
 
