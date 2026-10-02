@@ -165,6 +165,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Etat de la mise a jour
+         * @description Version en cours, derniere version publiee (verifiee en tache de fond aupres de GitHub), presence de l'updater et derniere demande de mise a jour. Exige system.update, accordee aux seuls admins.
+         */
+        get: operations["getAdminSystemUpdate"];
+        put?: never;
+        /**
+         * Lancer la mise a jour
+         * @description Enregistre une demande de mise a jour vers la derniere version. L'updater, un conteneur a part qui seul accede a Docker, la prend dans les secondes qui suivent : il tire la nouvelle image et recree le conteneur de l'application, en revenant a l'ancien si le nouveau ne demarre pas. Le service est coupe quelques instants pour tout le monde, et les migrations de la nouvelle version s'appliquent au demarrage. Exige system.update.
+         */
+        post: operations["postAdminSystemUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/projects": {
         parameters: {
             query?: never;
@@ -2764,6 +2788,58 @@ export interface components {
             page: number;
             page_size: number;
         };
+        /** @description Une version publiee sur GitHub. */
+        ReleaseInfo: {
+            version: string;
+            name: string;
+            /** @description Page de la release, avec ses notes. */
+            url: string;
+            /** Format: date-time */
+            published_at: string | null;
+        };
+        /** @description Derniere demande de mise a jour. */
+        UpdateRequestInfo: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description pending : en attente de l'updater ; running : en cours ; done : terminee ; failed : echouee, version precedente remise en route.
+             * @enum {string}
+             */
+            status: "pending" | "running" | "done" | "failed";
+            from_version: string;
+            target_version: string;
+            /** @description Nom de l'admin qui l'a lancee. */
+            requested_by: string;
+            /** @description Etape en cours ou derniere etape franchie. */
+            step: string;
+            /** @description Raison de l'echec, vide sinon. */
+            error: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+        };
+        /** @description Etat de la mise a jour de l'instance. */
+        UpdateStatus: {
+            /** @description Version du serveur en cours d'execution. */
+            current_version: string;
+            /** @description Derniere version stable publiee, nulle tant qu'aucune verification n'a abouti. */
+            latest: components["schemas"]["ReleaseInfo"] | null;
+            update_available: boolean;
+            /** @description L'updater donne signe de vie et a trouve l'application : la mise a jour peut etre lancee depuis l'interface. */
+            can_update: boolean;
+            /** @description Ce qui empeche l'updater de travailler (socket Docker absent, conteneur introuvable…), vide quand il est pret ou absent. */
+            updater_error: string;
+            /** @description La verification des versions est active (UPDATE_CHECK). */
+            check_enabled: boolean;
+            /** Format: date-time */
+            checked_at: string | null;
+            /** @description Erreur du dernier passage de verification, vide quand il a abouti. */
+            check_error: string;
+            last_request: components["schemas"]["UpdateRequestInfo"] | null;
+            /** @description Une mise a jour est en route : le bouton est remplace par son suivi. */
+            in_progress: boolean;
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -3046,6 +3122,59 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminSystemUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Etat */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postAdminSystemUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistree */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description UPDATER_UNAVAILABLE, UPDATE_NOT_AVAILABLE ou UPDATE_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listAdminProjects: {

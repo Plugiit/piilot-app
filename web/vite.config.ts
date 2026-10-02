@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
@@ -5,7 +6,25 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
+/**
+ * Version du front, lue dans le fichier VERSION a la racine du depot — celui
+ * que le script de release tient a jour et que le binaire Go embarque aussi.
+ * Le front la compare a celle du serveur pour proposer un rechargement apres
+ * un deploiement.
+ */
+function appVersion() {
+  try {
+    return readFileSync(new URL('../VERSION', import.meta.url), 'utf8').trim()
+  } catch {
+    return 'dev'
+  }
+}
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion()),
+  },
+
   plugins: [
     // Genere src/routeTree.gen.ts depuis src/routes/. Doit precéder le plugin
     // React pour que l'arbre soit a jour avant la transformation JSX.
@@ -26,6 +45,11 @@ export default defineConfig({
     // de session soit same-origin et que CORS ne s'applique pas localement.
     proxy: {
       '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      // La sonde porte la version du serveur, que le front surveille.
+      '/health': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
