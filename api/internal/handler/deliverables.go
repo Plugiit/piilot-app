@@ -83,9 +83,10 @@ func (h *Deliverables) List(c fiber.Ctx) error {
 //
 // Pas de statut : un livrable nait avec sa premiere version, donc en attente.
 type createDeliverableBody struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	URL         string  `json:"url"`
+	MilestoneID *string `json:"milestone_id"`
 }
 
 // Create depose un livrable et sa premiere version sur un projet.
@@ -102,12 +103,22 @@ func (h *Deliverables) Create(c fiber.Ctx) error {
 
 	actor := actorFrom(c)
 
+	var milestoneID *uuid.UUID
+	if body.MilestoneID != nil && strings.TrimSpace(*body.MilestoneID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*body.MilestoneID))
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"milestone_id": "Identifiant invalide"})
+		}
+		milestoneID = &id
+	}
+
 	item, err := h.svc.Create(c.Context(), usecase.CreateDeliverableInput{
 		ProjectID:   projectID,
 		Title:       body.Title,
 		Description: body.Description,
 		URL:         body.URL,
 		CreatedBy:   actor,
+		MilestoneID: milestoneID,
 	})
 	if err != nil {
 		return err

@@ -180,6 +180,8 @@ type CreateProjectInput struct {
 	TeamIDs     []uuid.UUID
 	CreatedBy   uuid.UUID
 	ServiceIDs  []uuid.UUID
+	// Modele dont le projet recoit les jalons, les taches et les services.
+	TemplateID *uuid.UUID
 }
 
 // UpdateProjectInput ne porte que ce qui change : un champ absent garde sa
@@ -632,6 +634,23 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 
 			return ProjectDetail{}, fmt.Errorf("affectation des services : %w", err)
 		}
+	}
+
+	if in.TemplateID != nil {
+		start := agencyToday(time.Now())
+		if in.StartsOn != nil {
+			start = *in.StartsOn
+		}
+
+		if err := applyTemplate(ctx, qtx, *in.TemplateID, project.ID, start, in.CreatedBy); err != nil {
+			return ProjectDetail{}, err
+		}
+	}
+
+	if err := recordProjectEvent(ctx, qtx, project.ID, InteractionProjectCreated, &in.CreatedBy, map[string]any{
+		"title": name,
+	}); err != nil {
+		return ProjectDetail{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {

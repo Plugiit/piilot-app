@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS client_interactions;
+DROP TABLE IF EXISTS project_template_tasks;
+DROP TABLE IF EXISTS project_template_milestones;
+DROP TABLE IF EXISTS project_template_services;
+DROP TABLE IF EXISTS project_templates;
+DROP TRIGGER IF EXISTS deliverable_versions_milestone_counts ON deliverable_versions;
+DROP TRIGGER IF EXISTS deliverables_milestone_counts ON deliverables;
+DROP FUNCTION IF EXISTS deliverable_versions_touch_milestone_counts();
+DROP FUNCTION IF EXISTS deliverables_touch_milestone_counts();
+DROP FUNCTION IF EXISTS refresh_milestone_deliverable_counts(uuid);
+ALTER TABLE deliverables DROP COLUMN IF EXISTS milestone_id;
+DROP TABLE IF EXISTS milestones;

@@ -4690,6 +4690,12 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Lien vers la preproduction, la maquette ou le document."
+                  },
+                  "milestone_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Jalon du meme projet. Un jalon d'un autre projet est ignore."
                   }
                 }
               }
@@ -6145,6 +6151,749 @@
           }
         }
       }
+    },
+    "/api/v1/admin/projects/{id}/milestones": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Jalons d'un projet",
+        "description": "Les jalons, dans l'ordre de leurs echeances, avec leurs livrables. Exige projects.read.",
+        "operationId": "listProjectMilestones",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jalons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ajouter un jalon",
+        "description": "Exige projects.write.",
+        "operationId": "createMilestone",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MilestoneRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Jalon cree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Milestone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/milestones/{id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier un jalon",
+        "description": "Titre, description, echeance, ou etat atteint. Exige projects.write.",
+        "operationId": "updateMilestone",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MilestoneRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Jalon modifie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Milestone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer un jalon",
+        "description": "Ses livrables restent, detaches. Exige projects.write.",
+        "operationId": "deleteMilestone",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Jalon supprime"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/deliverables/{id}/milestone": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Rattacher un livrable a un jalon",
+        "description": "Un jalon du meme projet, ou null pour detacher. Exige deliverables.write.",
+        "operationId": "setDeliverableMilestone",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "milestone_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Livrable rattache"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/planning": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Planning",
+        "description": "Jalons, echeances des projets et taches de la personne connectee sur une periode d'au plus 62 jours. scope=mine restreint jalons et projets a ceux ou elle intervient. Exige projects.read.",
+        "operationId": "getPlanning",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "mine"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calendrier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planning"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/project-templates": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modeles de projet",
+        "description": "Par ordre alphabetique, avec le nombre de jalons et de taches. Exige projects.read.",
+        "operationId": "listProjectTemplates",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Modeles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTemplatePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Creer un modele",
+        "description": "Exige projects.write.",
+        "operationId": "createProjectTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Modele cree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/project-templates/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Un modele",
+        "description": "Le modele et tout son contenu. Exige projects.read.",
+        "operationId": "getProjectTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Modele",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Enregistrer un modele",
+        "description": "Remplace le modele et tout son contenu. Exige projects.write.",
+        "operationId": "updateProjectTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Modele enregistre",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer un modele",
+        "description": "Les projets crees a partir de lui ne bougent pas. Exige projects.write.",
+        "operationId": "deleteProjectTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Modele supprime"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/interactions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Interactions",
+        "description": "Le journal de la relation client, du plus recent au plus ancien. source=manual pour les saisies, events pour les evenements automatiques, ou un genre precis. Exige clients.read.",
+        "operationId": "listInteractions",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteractionFeed"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/clients/{id}/interactions": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Noter une interaction",
+        "description": "Une note, un appel, un rendez-vous ou un e-mail. Exige clients.write.",
+        "operationId": "createInteraction",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInteractionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Interaction notee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/interactions/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Effacer une interaction",
+        "description": "Seules les saisies s'effacent ; un evenement automatique reste. Exige clients.write.",
+        "operationId": "deleteInteraction",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Interaction effacee"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7567,6 +8316,12 @@
               "format": "uuid"
             },
             "description": "Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout."
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Modele dont le projet recoit les jalons, les taches et les services. Les echeances partent du debut du projet, ou du jour de creation."
           }
         }
       },
@@ -9177,6 +9932,7 @@
           "status",
           "project",
           "client",
+          "milestone",
           "version",
           "created_at"
         ],
@@ -9202,6 +9958,15 @@
           },
           "client": {
             "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "milestone": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliverableRef"
+              }
+            ],
+            "nullable": true,
+            "description": "Jalon auquel le livrable se rattache."
           },
           "version": {
             "allOf": [
@@ -11040,6 +11805,508 @@
           "today": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "MilestoneDeliverable": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "brouillon",
+              "en_attente",
+              "valide",
+              "retours"
+            ]
+          }
+        }
+      },
+      "Milestone": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "due_on",
+          "completed_at",
+          "state",
+          "deliverables_total",
+          "deliverables_validated",
+          "deliverables"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "late",
+              "done"
+            ],
+            "description": "done : atteint. late : echeance passee sans etre atteint. upcoming : sinon."
+          },
+          "deliverables_total": {
+            "type": "integer"
+          },
+          "deliverables_validated": {
+            "type": "integer"
+          },
+          "deliverables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MilestoneDeliverable"
+            }
+          }
+        }
+      },
+      "MilestoneList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Milestone"
+            }
+          }
+        }
+      },
+      "MilestoneRequest": {
+        "type": "object",
+        "description": "Pour une modification, une cle absente laisse le champ en place ; due_on a null efface l'echeance.",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Marque le jalon atteint, ou le rouvre."
+          }
+        }
+      },
+      "PlanningItem": {
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "day",
+          "done",
+          "project",
+          "deliverables_total",
+          "deliverables_validated"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "milestone",
+              "project_due",
+              "task_due"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "deliverables_total": {
+            "type": "integer"
+          },
+          "deliverables_validated": {
+            "type": "integer"
+          }
+        }
+      },
+      "Planning": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "items"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanningItem"
+            }
+          }
+        }
+      },
+      "TemplateMilestone": {
+        "type": "object",
+        "required": [
+          "title",
+          "offset_days"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "offset_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "description": "Jours apres le debut du projet."
+          }
+        }
+      },
+      "TemplateTask": {
+        "type": "object",
+        "required": [
+          "title",
+          "description",
+          "priority",
+          "offset_days"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "offset_days": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 3650,
+            "description": "Echeance en jours apres le debut du projet ; nulle, sans echeance."
+          }
+        }
+      },
+      "ProjectTemplateSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "milestones",
+          "tasks",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "milestones": {
+            "type": "integer"
+          },
+          "tasks": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectTemplatePage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectTemplateSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "ProjectTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "services",
+          "milestones",
+          "tasks",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceTag"
+            }
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateMilestone"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateTask"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectTemplateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "description": "Le modele entier : son contenu est remplace d'un bloc.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "service_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "milestones": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/TemplateMilestone"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/TemplateTask"
+            }
+          }
+        }
+      },
+      "Interaction": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "body",
+          "occurred_at",
+          "client",
+          "project",
+          "author",
+          "payload",
+          "manual"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "call",
+              "meeting",
+              "email",
+              "project_created",
+              "deliverable_validated",
+              "ticket_opened"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "client": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "project": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliverableRef"
+              }
+            ],
+            "nullable": true
+          },
+          "author": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              }
+            ],
+            "nullable": true
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Ce que dit un evenement : titre, numero de ticket, version."
+          },
+          "manual": {
+            "type": "boolean",
+            "description": "Saisie a la main, qui peut s'effacer."
+          }
+        }
+      },
+      "InteractionFeed": {
+        "type": "object",
+        "required": [
+          "items",
+          "before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Interaction"
+            }
+          },
+          "before": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Curseur de la page suivante. Nul quand il n'y a plus rien."
+          }
+        }
+      },
+      "CreateInteractionRequest": {
+        "type": "object",
+        "required": [
+          "kind",
+          "body"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "call",
+              "meeting",
+              "email"
+            ]
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Absente, maintenant."
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         }
       }

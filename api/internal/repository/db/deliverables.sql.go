@@ -41,10 +41,13 @@ func (q *Queries) CountDeliverables(ctx context.Context, arg CountDeliverablesPa
 }
 
 const createDeliverable = `-- name: CreateDeliverable :one
-INSERT INTO deliverables (project_id, title, description, created_by)
+INSERT INTO deliverables (project_id, title, description, created_by, milestone_id)
 VALUES (
     $1, $2,
-    $3, $4
+    $3, $4,
+    -- Un jalon d'un autre projet est ignore plutot que rattache.
+    (SELECT m.id FROM milestones m
+     WHERE m.id = $5::uuid AND m.project_id = $1)
 )
 RETURNING id
 `
@@ -54,6 +57,7 @@ type CreateDeliverableParams struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	CreatedBy   *uuid.UUID `json:"created_by"`
+	MilestoneID *uuid.UUID `json:"milestone_id"`
 }
 
 // Le livrable nait sans version : c'est la soumission qui lui en donne une.
@@ -63,6 +67,7 @@ func (q *Queries) CreateDeliverable(ctx context.Context, arg CreateDeliverablePa
 		arg.Title,
 		arg.Description,
 		arg.CreatedBy,
+		arg.MilestoneID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -152,12 +157,15 @@ SELECT
     s.id         AS submitter_id,
     s.firstname  AS submitter_firstname,
     s.lastname   AS submitter_lastname,
-    s.avatar_url AS submitter_avatar_url
+    s.avatar_url AS submitter_avatar_url,
+    ms.id    AS milestone_id,
+    ms.title AS milestone_title
 FROM deliverables d
 JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL
 JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 LEFT JOIN users s ON s.id = v.submitted_by AND s.deleted_at IS NULL
+LEFT JOIN milestones ms ON ms.id = d.milestone_id
 WHERE d.id = $1 AND d.deleted_at IS NULL
 `
 
@@ -181,6 +189,8 @@ type GetDeliverableRow struct {
 	SubmitterFirstname *string    `json:"submitter_firstname"`
 	SubmitterLastname  *string    `json:"submitter_lastname"`
 	SubmitterAvatarUrl *string    `json:"submitter_avatar_url"`
+	MilestoneID        *uuid.UUID `json:"milestone_id"`
+	MilestoneTitle     *string    `json:"milestone_title"`
 }
 
 // Un livrable et sa version courante, aux memes colonnes que la liste : le
@@ -208,6 +218,8 @@ func (q *Queries) GetDeliverable(ctx context.Context, id uuid.UUID) (GetDelivera
 		&i.SubmitterFirstname,
 		&i.SubmitterLastname,
 		&i.SubmitterAvatarUrl,
+		&i.MilestoneID,
+		&i.MilestoneTitle,
 	)
 	return i, err
 }
@@ -344,12 +356,15 @@ SELECT
     s.id         AS submitter_id,
     s.firstname  AS submitter_firstname,
     s.lastname   AS submitter_lastname,
-    s.avatar_url AS submitter_avatar_url
+    s.avatar_url AS submitter_avatar_url,
+    ms.id    AS milestone_id,
+    ms.title AS milestone_title
 FROM deliverables d
 JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL
 JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 LEFT JOIN users s ON s.id = v.submitted_by AND s.deleted_at IS NULL
+LEFT JOIN milestones ms ON ms.id = d.milestone_id
 WHERE d.deleted_at IS NULL
   AND ($1::text IS NULL
        OR coalesce(v.decision, 'brouillon') = $1::text)
@@ -388,6 +403,8 @@ type ListDeliverablesRow struct {
 	SubmitterFirstname *string    `json:"submitter_firstname"`
 	SubmitterLastname  *string    `json:"submitter_lastname"`
 	SubmitterAvatarUrl *string    `json:"submitter_avatar_url"`
+	MilestoneID        *uuid.UUID `json:"milestone_id"`
+	MilestoneTitle     *string    `json:"milestone_title"`
 }
 
 // Livrables.
@@ -437,6 +454,8 @@ func (q *Queries) ListDeliverables(ctx context.Context, arg ListDeliverablesPara
 			&i.SubmitterFirstname,
 			&i.SubmitterLastname,
 			&i.SubmitterAvatarUrl,
+			&i.MilestoneID,
+			&i.MilestoneTitle,
 		); err != nil {
 			return nil, err
 		}
