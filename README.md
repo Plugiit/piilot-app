@@ -196,7 +196,7 @@ fichier `VERSION` à chaque release : il indique toujours la version en cours.
 Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 
 <!-- roadmap:readme -->
-**Version actuelle : `0.5.0`** — détail de chaque release dans [ROADMAP.md](ROADMAP.md).
+**Version actuelle : `0.6.0`** — détail de chaque release dans [ROADMAP.md](ROADMAP.md).
 
 | Statut | Version | Nom | Espace | Objectif |
 |---|---|---|---|---|
@@ -204,8 +204,8 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 0.2.0 | Gestion de projet | Admin | Projets, tâches, notifications, compte |
 | ✅ Livrée | 0.3.0 | Back-office PM et CRM | Admin | Tickets, livrables, temps, CRM, image unique |
 | ✅ Livrée | 0.4.0 | Temps et budgets | Admin | Rapports, budgets consommés, tableau de bord réel |
-| 📍 Actuelle | **0.5.0** | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
-| ⏳ À venir | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |
+| ✅ Livrée | 0.5.0 | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
+| 📍 Actuelle | **0.6.0** | Espace team | Team | « Mon travail », navigation par droits, notifications |
 | ⏳ À venir | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
 | ⏳ À venir | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
 | ⏳ À venir | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
