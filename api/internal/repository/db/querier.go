@@ -23,6 +23,9 @@ type Querier interface {
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
 	AddProjectService(ctx context.Context, arg AddProjectServiceParams) error
 	AddTaskService(ctx context.Context, arg AddTaskServiceParams) error
+	AddTemplateMilestone(ctx context.Context, arg AddTemplateMilestoneParams) error
+	AddTemplateService(ctx context.Context, arg AddTemplateServiceParams) error
+	AddTemplateTask(ctx context.Context, arg AddTemplateTaskParams) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
 	// Rattache un contact libre a un client.
 	//
@@ -45,6 +48,9 @@ type Querier interface {
 	ClearPrimaryContactOf(ctx context.Context, primaryContactID *uuid.UUID) error
 	ClearRolePermissions(ctx context.Context, code string) error
 	ClearTaskServices(ctx context.Context, taskID uuid.UUID) error
+	// Le contenu d'un modele s'enregistre d'un bloc : on efface puis on reecrit,
+	// dans la meme transaction. Un modele n'a pas d'historique a garder.
+	ClearTemplateContent(ctx context.Context, templateID uuid.UUID) error
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
@@ -54,6 +60,7 @@ type Querier interface {
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
 	CountOpenInvitations(ctx context.Context) (int64, error)
+	CountProjectTemplates(ctx context.Context) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	// Tous statuts confondus, livres compris : c'est ce qui decide si un client
 	// peut disparaitre. Un projet livre garde la trace de qui l'a commande.
@@ -82,12 +89,16 @@ type Querier interface {
 	// Le livrable nait sans version : c'est la soumission qui lui en donne une.
 	CreateDeliverable(ctx context.Context, arg CreateDeliverableParams) (uuid.UUID, error)
 	CreateDeliverableVersion(ctx context.Context, arg CreateDeliverableVersionParams) (uuid.UUID, error)
+	CreateInteraction(ctx context.Context, arg CreateInteractionParams) (uuid.UUID, error)
 	CreateInvitation(ctx context.Context, arg CreateInvitationParams) (Invitation, error)
 	CreateInvitedUser(ctx context.Context, arg CreateInvitedUserParams) (User, error)
+	CreateMilestone(ctx context.Context, arg CreateMilestoneParams) (Milestone, error)
+	CreateMilestoneFromTemplate(ctx context.Context, arg CreateMilestoneFromTemplateParams) error
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) (PasswordReset, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
+	CreateProjectTemplate(ctx context.Context, arg CreateProjectTemplateParams) (ProjectTemplate, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
@@ -127,6 +138,10 @@ type Querier interface {
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
 	DeleteExpiredRefreshTokens(ctx context.Context, retention pgtype.Interval) error
+	// Seules les saisies a la main s'effacent : un evenement est une trace.
+	DeleteInteraction(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteProjectTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	// Suppression douce, comme partout : un service retire d'un referentiel a pu
 	// etre porte par des donnees passees.
 	DeleteService(ctx context.Context, id uuid.UUID) (int64, error)
@@ -177,6 +192,7 @@ type Querier interface {
 	// De quoi ecrire la notification d'une decision : le titre, le projet et le
 	// numero de la version tranchee, figes au moment du geste.
 	GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error)
+	GetInteraction(ctx context.Context, id uuid.UUID) (ClientInteraction, error)
 	GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, error)
 	// Page d'acceptation : l'invitation, qui l'a envoyee et pour quel client.
 	// Rendue meme expiree ou deja acceptee : c'est l'appelant qui dit pourquoi le
@@ -184,9 +200,11 @@ type Querier interface {
 	GetInvitationByToken(ctx context.Context, tokenHash []byte) (GetInvitationByTokenRow, error)
 	// Derniere demande, pour l'etat affiche a l'ecran.
 	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
+	GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, error)
 	GetOpenInvitationByEmail(ctx context.Context, email string) (Invitation, error)
 	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
+	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
 	// les deux obtienne un nouvel acces.
@@ -315,12 +333,19 @@ type Querier interface {
 	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
 	// client, et le nouveau ne peut pas le lui prendre.
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
+	// Interactions client : le journal de la relation.
+	// Le journal, du plus recent au plus ancien, filtre par client et par genre.
+	// Pagination par curseur : la liste s'allonge par le haut.
+	ListInteractions(ctx context.Context, arg ListInteractionsParams) ([]ListInteractionsRow, error)
 	// Equipes de plusieurs projets en une requete.
 	//
 	// C'est la parade au N+1 de la liste : le handler passe les identifiants de la
 	// page entiere et repartit les lignes ensuite. Une requete par projet aurait
 	// fait vingt allers-retours pour afficher vingt lignes.
 	ListMembersOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListMembersOfProjectsRow, error)
+	// Les livrables rattaches aux jalons d'un projet, avec leur etat : la liste
+	// des jalons les montre sous chacun, sans second appel.
+	ListMilestoneDeliverables(ctx context.Context, projectID uuid.UUID) ([]ListMilestoneDeliverablesRow, error)
 	// Les livrables a deposer dans les projets d'une personne : ceux qui n'ont
 	// encore aucune version, et ceux dont le client a renvoye des retours. Ce qui
 	// attend la decision du client n'y figure pas — la balle n'est pas dans le
@@ -365,12 +390,28 @@ type Querier interface {
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
 	ListPermissionsByRole(ctx context.Context, roleCode string) ([]string, error)
+	// Le planning d'une periode : jalons, echeances de projets et taches de la
+	// personne. Trois sources reunies en une requete, triees par date et bornees.
+	//
+	// `mine` restreint jalons et projets a ceux ou la personne intervient ; les
+	// taches sont toujours les siennes — celles de toute l'agence noieraient le
+	// calendrier.
+	ListPlanning(ctx context.Context, arg ListPlanningParams) ([]ListPlanningRow, error)
 	// Comptes de portail rattaches au client. La colonne existe, l'ecran qui la
 	// remplit non : la fiche la montre pour que le jour ou on rattachera quelqu'un,
 	// ce soit visible.
 	ListPortalUsersOfClient(ctx context.Context, arg ListPortalUsersOfClientParams) ([]ListPortalUsersOfClientRow, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
+	// Jalons d'un projet.
+	// Les jalons d'un projet, dans l'ordre de leurs echeances. Un projet en compte
+	// une poignee ; la limite est la par principe.
+	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]Milestone, error)
+	// Modeles de projet.
+	// Les modeles, par ordre alphabetique, avec ce qu'ils contiennent. Les deux
+	// comptes portent sur quelques lignes par modele, lues par index ; une agence
+	// tient une poignee de modeles.
+	ListProjectTemplates(ctx context.Context, arg ListProjectTemplatesParams) ([]ListProjectTemplatesRow, error)
 	// Graphique « Charge par projet » : les projets en cours les plus avances
 	// dans leur budget.
 	//
@@ -466,6 +507,9 @@ type Querier interface {
 	// rien faire gagner a cette echelle.
 	// Derniere saisie du jour : ce qui dit « sur quoi il travaille ».
 	ListTeamDay(ctx context.Context, arg ListTeamDayParams) ([]ListTeamDayRow, error)
+	ListTemplateMilestones(ctx context.Context, templateID uuid.UUID) ([]ProjectTemplateMilestone, error)
+	ListTemplateServices(ctx context.Context, templateID uuid.UUID) ([]ListTemplateServicesRow, error)
+	ListTemplateTasks(ctx context.Context, templateID uuid.UUID) ([]ProjectTemplateTask, error)
 	// Ce qui est arrive au ticket, dans le meme ordre.
 	ListTicketEvents(ctx context.Context, ticketID uuid.UUID) ([]ListTicketEventsRow, error)
 	// Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
@@ -565,6 +609,9 @@ type Querier interface {
 	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
 	// Le numero suivant, sous le verrou pose juste avant.
 	NextDeliverableVersionNumero(ctx context.Context, deliverableID uuid.UUID) (int32, error)
+	// Inscrit un evenement au journal du client d'un projet, dans la transaction
+	// du geste. Les projets internes n'ont pas de relation client a raconter.
+	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
 	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
@@ -596,6 +643,10 @@ type Querier interface {
 	SaveUpdaterHeartbeat(ctx context.Context, arg SaveUpdaterHeartbeatParams) error
 	// La version qui vient d'etre soumise devient celle que l'ecran montre.
 	SetDeliverableCurrentVersion(ctx context.Context, arg SetDeliverableCurrentVersionParams) error
+	// Rattache un livrable a un jalon de son propre projet, ou le detache. Le
+	// projet est verifie dans la requete : un identifiant de jalon venu d'un autre
+	// projet ne rattache rien.
+	SetDeliverableMilestone(ctx context.Context, arg SetDeliverableMilestoneParams) (int64, error)
 	// Designe le contact principal. `NULL` le retire.
 	//
 	// La condition sur `client_id` est une ceinture : la cle etrangere composite
@@ -689,10 +740,14 @@ type Querier interface {
 	// passe par la designation du contact principal, qui sait tenir la cle
 	// etrangere composite dans le bon ordre.
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
+	// Un champ nul garde sa valeur ; l'echeance et l'etat ont chacun un drapeau,
+	// parce que « effacer » et « ne pas toucher » s'y distinguent.
+	UpdateMilestone(ctx context.Context, arg UpdateMilestoneParams) (Milestone, error)
 	// Mise a jour partielle : chaque champ absent de la requete garde sa valeur.
 	// COALESCE sur un parametre nullable dit exactement cela, et evite d'ecrire
 	// une requete par champ modifiable.
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateProjectTemplate(ctx context.Context, arg UpdateProjectTemplateParams) (ProjectTemplate, error)
 	// Les trois champs partent ensemble : le formulaire les montre tous, et une
 	// mise a jour partielle demanderait de distinguer « vide » de « inchange ».
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (UpdateServiceRow, error)

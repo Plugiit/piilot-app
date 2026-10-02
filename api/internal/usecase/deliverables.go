@@ -56,6 +56,8 @@ type DeliverableItem struct {
 	Status  string         `json:"status"`
 	Project DeliverableRef `json:"project"`
 	Client  DeliverableRef `json:"client"`
+	// Jalon auquel le livrable se rattache, s'il y en a un.
+	Milestone *DeliverableRef `json:"milestone"`
 	// Nul tant qu'aucune version n'a ete soumise.
 	Version   *DeliverableVersion `json:"version"`
 	CreatedAt time.Time           `json:"created_at"`
@@ -166,6 +168,7 @@ func (s *DeliverableService) List(
 			Status:    row.Status,
 			Project:   DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
 			Client:    DeliverableRef{ID: row.ClientID, Name: row.ClientName},
+			Milestone: milestoneRef(row.MilestoneID, row.MilestoneTitle),
 			CreatedAt: row.CreatedAt,
 			Version: versionOf(
 				row.VersionID, row.VersionNumero, row.VersionUrl, row.AttachmentID,
@@ -226,6 +229,7 @@ type CreateDeliverableInput struct {
 	Description string
 	URL         string
 	CreatedBy   *uuid.UUID
+	MilestoneID *uuid.UUID
 }
 
 // Create depose un livrable et sa premiere version.
@@ -260,6 +264,7 @@ func (s *DeliverableService) Create(
 		Title:       title,
 		Description: strings.TrimSpace(in.Description),
 		CreatedBy:   in.CreatedBy,
+		MilestoneID: in.MilestoneID,
 	})
 	if err != nil {
 		// Un projet qui n'existe pas est une faute de la requete, pas une
@@ -422,6 +427,18 @@ func (s *DeliverableService) Decide(
 		return DeliverableItem{}, err
 	}
 
+	if decision == "valide" {
+		info, err := q.GetDeliverableNotice(ctx, deliverableID)
+		if err != nil {
+			return DeliverableItem{}, fmt.Errorf("lecture du livrable : %w", err)
+		}
+		if err := recordProjectEvent(ctx, q, locked.ProjectID, InteractionDeliverableValidated, decidedBy, map[string]any{
+			"title": info.Title, "version": info.Numero,
+		}); err != nil {
+			return DeliverableItem{}, err
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return DeliverableItem{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
@@ -449,6 +466,7 @@ func (s *DeliverableService) Get(
 		Status:    row.Status,
 		Project:   DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
 		Client:    DeliverableRef{ID: row.ClientID, Name: row.ClientName},
+		Milestone: milestoneRef(row.MilestoneID, row.MilestoneTitle),
 		CreatedAt: row.CreatedAt,
 		Version: versionOf(
 			row.VersionID, row.VersionNumero, row.VersionUrl, row.AttachmentID,
@@ -543,4 +561,13 @@ func (s *DeliverableService) notifyDecision(
 		DeliverableID: &deliverableID,
 		Recipients:    recipients,
 	})
+}
+
+// milestoneRef compose le jalon d'une ligne, nul quand il n'y en a pas.
+func milestoneRef(id *uuid.UUID, title *string) *DeliverableRef {
+	if id == nil || title == nil {
+		return nil
+	}
+
+	return &DeliverableRef{ID: *id, Name: *title}
 }

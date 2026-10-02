@@ -424,6 +424,12 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 		return TicketItem{}, err
 	}
 
+	if err := recordProjectEvent(ctx, q, row.ProjectID, InteractionTicketOpened, in.CreatedBy, map[string]any{
+		"numero": row.Numero, "title": row.Subject,
+	}); err != nil {
+		return TicketItem{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return TicketItem{}, fmt.Errorf("validation de la transaction : %w", err)
 	}

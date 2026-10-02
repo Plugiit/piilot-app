@@ -76,6 +76,18 @@ type Client struct {
 	StatusChangedAt  time.Time  `json:"status_changed_at"`
 }
 
+type ClientInteraction struct {
+	ID         uuid.UUID  `json:"id"`
+	ClientID   uuid.UUID  `json:"client_id"`
+	Kind       string     `json:"kind"`
+	Body       string     `json:"body"`
+	OccurredAt time.Time  `json:"occurred_at"`
+	AuthorID   *uuid.UUID `json:"author_id"`
+	ProjectID  *uuid.UUID `json:"project_id"`
+	Payload    []byte     `json:"payload"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
 type Contact struct {
 	ID        uuid.UUID  `json:"id"`
 	ClientID  *uuid.UUID `json:"client_id"`
@@ -106,6 +118,7 @@ type Deliverable struct {
 	CreatedBy        *uuid.UUID `json:"created_by"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at"`
+	MilestoneID      *uuid.UUID `json:"milestone_id"`
 }
 
 type DeliverableVersion struct {
@@ -152,6 +165,21 @@ type Invitation struct {
 	UserID     *uuid.UUID `json:"user_id"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type Milestone struct {
+	ID                    uuid.UUID  `json:"id"`
+	ProjectID             uuid.UUID  `json:"project_id"`
+	Title                 string     `json:"title"`
+	Description           string     `json:"description"`
+	DueOn                 *time.Time `json:"due_on"`
+	Position              int32      `json:"position"`
+	CompletedAt           *time.Time `json:"completed_at"`
+	DeliverablesTotal     int32      `json:"deliverables_total"`
+	DeliverablesValidated int32      `json:"deliverables_validated"`
+	CreatedBy             *uuid.UUID `json:"created_by"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 type Notification struct {
@@ -224,6 +252,38 @@ type ProjectMember struct {
 type ProjectService struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	ServiceID uuid.UUID `json:"service_id"`
+}
+
+type ProjectTemplate struct {
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	CreatedBy   *uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type ProjectTemplateMilestone struct {
+	ID         uuid.UUID `json:"id"`
+	TemplateID uuid.UUID `json:"template_id"`
+	Title      string    `json:"title"`
+	OffsetDays int32     `json:"offset_days"`
+	Position   int32     `json:"position"`
+}
+
+type ProjectTemplateService struct {
+	TemplateID uuid.UUID `json:"template_id"`
+	ServiceID  uuid.UUID `json:"service_id"`
+}
+
+type ProjectTemplateTask struct {
+	ID          uuid.UUID `json:"id"`
+	TemplateID  uuid.UUID `json:"template_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Priority    string    `json:"priority"`
+	OffsetDays  *int32    `json:"offset_days"`
+	Position    int32     `json:"position"`
 }
 
 type RefreshToken struct {

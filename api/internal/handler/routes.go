@@ -26,6 +26,9 @@ type Deps struct {
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
+	Milestones    *Milestones
+	Templates     *ProjectTemplates
+	Interactions  *Interactions
 
 	Guard *middleware.Guard
 }
@@ -161,6 +164,10 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Avant « /contacts » sans parametre ? Non : chemin distinct, aucun conflit.
 	// Les contacts libres ont leur route parce qu'ils servent un autre ecran —
 	// le formulaire de creation d'un client, qui ne peut adopter qu'eux.
+	// Journal de la relation : le lire suit les fiches clients, y ecrire aussi.
+	crm.Get("/interactions", deps.Guard.RequirePermission("clients.read"), deps.Interactions.List)
+	crm.Post("/clients/:id/interactions", deps.Guard.RequirePermission("clients.write"), deps.Interactions.Create)
+	crm.Delete("/interactions/:id", deps.Guard.RequirePermission("clients.write"), deps.Interactions.Delete)
 	crm.Get("/contacts/free", deps.Guard.RequirePermission("clients.read"), deps.Contacts.ListFree)
 	crm.Get("/contacts", deps.Guard.RequirePermission("clients.read"), deps.Contacts.List)
 	crm.Post("/contacts", deps.Guard.RequirePermission("clients.write"), deps.Contacts.Create)
@@ -200,6 +207,26 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 
 	// Le tableau des taches est une vue du projet, sa creation aussi : les deux
 	// vivent sous le projet parce que c'est lui qui les porte a l'ecran.
+	// Jalons : l'onglet d'un projet. Les lire suit le projet, les ecrire aussi.
+	projects.Get("/:id/milestones", deps.Guard.RequirePermission("projects.read"), deps.Milestones.List)
+	projects.Post("/:id/milestones", deps.Guard.RequirePermission("projects.write"), deps.Milestones.Create)
+	milestones := r.Group("/milestones")
+	milestones.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Milestones.Update)
+	milestones.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Milestones.Delete)
+
+	// Planning : jalons, echeances des projets et taches de la personne, sur
+	// une periode bornee.
+	r.Get("/planning", deps.Guard.RequirePermission("projects.read"), deps.Milestones.Planning)
+
+	// Modeles de projet : les lire sert le formulaire de creation, les ecrire
+	// est un geste du module projets.
+	templates := r.Group("/project-templates")
+	templates.Get("", deps.Guard.RequirePermission("projects.read"), deps.Templates.List)
+	templates.Post("", deps.Guard.RequirePermission("projects.write"), deps.Templates.Create)
+	templates.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Templates.Get)
+	templates.Put("/:id", deps.Guard.RequirePermission("projects.write"), deps.Templates.Update)
+	templates.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Templates.Delete)
+
 	projects.Get("/:id/tasks", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Board)
 	projects.Post("/:id/tasks", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Create)
 
@@ -256,6 +283,8 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 
 	// Trancher demande un droit a part, que le role client porte aussi : c'est
 	// le seul geste d'ecriture que le portail lui accorde.
+	deliverables.Put("/:id/milestone", deps.Guard.RequirePermission("deliverables.write"), deps.Milestones.AttachDeliverable)
+
 	deliverables.Post("/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Deliverables.Decide)
 
 	// Referentiel des prestations de l'agence.

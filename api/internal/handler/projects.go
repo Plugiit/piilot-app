@@ -69,6 +69,7 @@ type createProjectRequest struct {
 	DueOn       *string  `json:"due_on"`
 	TeamIDs     []string `json:"team_ids"`
 	ServiceIDs  []string `json:"service_ids"`
+	TemplateID  *string  `json:"template_id"`
 }
 
 // updateProjectRequest est le corps de PATCH /admin/projects/:id.
@@ -258,6 +259,14 @@ func (h *Projects) Create(c fiber.Ctx) error {
 		return err
 	}
 	in.ServiceIDs = services
+
+	if req.TemplateID != nil && strings.TrimSpace(*req.TemplateID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*req.TemplateID))
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"template_id": "Identifiant invalide"})
+		}
+		in.TemplateID = &id
+	}
 
 	project, err := h.svc.Create(c.Context(), in)
 	if err != nil {

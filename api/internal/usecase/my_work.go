@@ -115,8 +115,7 @@ func (s *MyWorkService) Get(ctx context.Context, userID uuid.UUID) (MyWork, erro
 }
 
 func (s *MyWorkService) at(ctx context.Context, userID uuid.UUID, now time.Time) (MyWork, error) {
-	local := now.In(agencyZone)
-	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
+	today := agencyToday(now)
 	week := weekStartOf(today)
 
 	work := MyWork{

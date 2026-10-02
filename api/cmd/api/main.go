@@ -139,6 +139,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.PublicBaseURL, sender.Configured())),
 		AuthLinks:     handler.NewAuthLinks(authService, cookies, repository.NewRateLimiter(rdb), log),
 		MyWork:        handler.NewMyWork(usecase.NewMyWorkService(pool)),
+		Milestones:    handler.NewMilestones(usecase.NewMilestoneService(pool)),
+		Templates:     handler.NewProjectTemplates(usecase.NewProjectTemplateService(pool)),
+		Interactions:  handler.NewInteractions(usecase.NewInteractionService(pool)),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})

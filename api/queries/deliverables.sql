@@ -31,12 +31,15 @@ SELECT
     s.id         AS submitter_id,
     s.firstname  AS submitter_firstname,
     s.lastname   AS submitter_lastname,
-    s.avatar_url AS submitter_avatar_url
+    s.avatar_url AS submitter_avatar_url,
+    ms.id    AS milestone_id,
+    ms.title AS milestone_title
 FROM deliverables d
 JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL
 JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 LEFT JOIN users s ON s.id = v.submitted_by AND s.deleted_at IS NULL
+LEFT JOIN milestones ms ON ms.id = d.milestone_id
 WHERE d.deleted_at IS NULL
   AND (sqlc.narg('status')::text IS NULL
        OR coalesce(v.decision, 'brouillon') = sqlc.narg('status')::text)
@@ -82,12 +85,15 @@ SELECT
     s.id         AS submitter_id,
     s.firstname  AS submitter_firstname,
     s.lastname   AS submitter_lastname,
-    s.avatar_url AS submitter_avatar_url
+    s.avatar_url AS submitter_avatar_url,
+    ms.id    AS milestone_id,
+    ms.title AS milestone_title
 FROM deliverables d
 JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL
 JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 LEFT JOIN users s ON s.id = v.submitted_by AND s.deleted_at IS NULL
+LEFT JOIN milestones ms ON ms.id = d.milestone_id
 WHERE d.id = sqlc.arg('id') AND d.deleted_at IS NULL;
 
 -- name: ListDeliverableVersions :many
@@ -121,10 +127,13 @@ ORDER BY v.numero;
 
 -- name: CreateDeliverable :one
 -- Le livrable nait sans version : c'est la soumission qui lui en donne une.
-INSERT INTO deliverables (project_id, title, description, created_by)
+INSERT INTO deliverables (project_id, title, description, created_by, milestone_id)
 VALUES (
     sqlc.arg('project_id'), sqlc.arg('title'),
-    sqlc.arg('description'), sqlc.narg('created_by')
+    sqlc.arg('description'), sqlc.narg('created_by'),
+    -- Un jalon d'un autre projet est ignore plutot que rattache.
+    (SELECT m.id FROM milestones m
+     WHERE m.id = sqlc.narg('milestone_id')::uuid AND m.project_id = sqlc.arg('project_id'))
 )
 RETURNING id;
 
