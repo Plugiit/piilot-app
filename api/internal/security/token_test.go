@@ -9,7 +9,7 @@ import (
 )
 
 func signer() *TokenSigner {
-	return NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "plugiit-api")
+	return NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "piilot-api")
 }
 
 func TestSignPuisVerifyRestitueLesClaims(t *testing.T) {
@@ -53,7 +53,7 @@ func TestVerifyRejetteUneAutreCle(t *testing.T) {
 		t.Fatalf("Sign : %v", err)
 	}
 
-	autre := NewTokenSigner([]byte("une-autre-cle-de-test-suffisamment-32"), "plugiit-api")
+	autre := NewTokenSigner([]byte("une-autre-cle-de-test-suffisamment-32"), "piilot-api")
 	if _, err := autre.Verify(raw); err == nil {
 		t.Fatal("un jeton signe avec une autre cle doit etre rejete")
 	}

@@ -79,7 +79,7 @@ export function AppShell({ children, nav, user, area }: AppShellProps) {
     <div className="bg-sidebar flex h-screen w-full overflow-hidden">
       <aside className="bg-sidebar flex w-56 shrink-0 flex-col border-r">
         <div className="flex h-14 flex-col justify-center px-4">
-          <span className="font-semibold">Plugiit</span>
+          <span className="font-semibold">Piilot</span>
           <span className="text-muted-foreground text-[11px] tracking-wide uppercase">{area}</span>
         </div>
 

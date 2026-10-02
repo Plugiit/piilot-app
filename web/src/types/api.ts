@@ -5,7 +5,7 @@
  *
  *   npm run api:types
  *
- * qui le regenere depuis /openapi.json servi par plugiit-api-go. La separation
+ * qui le regenere depuis /openapi.json servi par l'API. La separation
  * est deliberee : sans elle, chaque regeneration effacerait les alias et le
  * code applicatif devrait manipuler
  * `components['schemas']['User']` partout.

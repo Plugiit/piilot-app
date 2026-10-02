@@ -1,6 +1,7 @@
-# plugiit-app-reactjs
+# Piilot — front
 
-Front Plugiit — SPA React servie en statique, consommant `plugiit-api-go`.
+SPA React de Piilot, servie par le binaire Go de `api/` sur la meme origine.
+Installation et deploiement : voir le [README racine](../README.md).
 
 Une seule application pour **tout le front** : back-office de l'agence
 (`/admin/*`), portail client (`/client/*`) et connexion (`/login`).
@@ -93,18 +94,8 @@ de l'appelant.
 Cibles : bundle initial < 200 Ko gzip, navigation a chaud 0 ms, navigation a
 froid < 100 ms.
 
-## Deploiement (Coolify)
+## Deploiement
 
-Application de type **Dockerfile**, port interne **8080**.
-
-Build args a definir :
-
-| Variable | Exemple |
-|---|---|
-| `VITE_API_URL` | `https://api.plugiit.com` |
-
-`VITE_API_URL` est lue **au build**, pas au runtime : la modifier impose de
-reconstruire l'image.
-
-Le build echoue si les types ou les tests echouent — aucune image n'est
-produite sur du rouge. La sonde `/healthz` sert au healthcheck.
+Le front n'est plus deploye seul : son build est embarque dans l'image unique
+construite a la racine du depot, et `VITE_API_URL` y reste vide. Voir le
+[README racine](../README.md).

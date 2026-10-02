@@ -1,6 +1,7 @@
-# plugiit-api-go
+# Piilot — API
 
-API Plugiit — backend Go consommé par `plugiit-app-reactjs`.
+Backend Go de Piilot, consommé par le front de `web/`. Installation,
+déploiement et configuration : voir le [README racine](../README.md).
 
 ## Stack
 
@@ -85,25 +86,7 @@ Les handlers metier renvoient `501 NOT_IMPLEMENTED` tant qu'ils ne sont pas
 ecrits. Un test verifie qu'aucune route sous `/api/v1/admin` n'est joignable
 sans authentification.
 
-## Deploiement (Coolify)
+## Deploiement
 
-Application de type **Dockerfile**, port interne **8080**.
-
-Variables a definir :
-
-| Variable | Exemple |
-|---|---|
-| `APP_ENV` | `production` |
-| `DATABASE_URL` | `postgres://user:pass@postgres:5432/plugiit?sslmode=disable` |
-| `REDIS_URL` | `redis://redis:6379/0` |
-| `JWT_SECRET` | 32 octets minimum |
-| `ADMIN_ORIGINS` | `https://admin.plugiit.com` |
-| `COOKIE_DOMAIN` | `.plugiit.com` |
-| `RUN_MIGRATIONS` | `true` |
-
-`ADMIN_ORIGINS` n'accepte pas de wildcard : les cookies exigent une origine
-explicite.
-
-Le build execute `go vet` et les tests ; l'image n'est produite que s'ils
-passent. Le healthcheck interroge `/health/ready`, donc Coolify ne bascule le
-trafic que quand la base et Redis repondent.
+L'API n'est plus deployee seule : elle est embarquee dans l'image unique
+construite a la racine du depot. Voir le [README racine](../README.md).

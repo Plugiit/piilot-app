@@ -31,7 +31,7 @@ func testAppWith(t *testing.T, auth AuthService, limiter RateLimiter) (*fiber.Ap
 		ErrorHandler: middleware.ErrorHandler(discardLogger()),
 	})
 
-	signer := security.NewTokenSigner([]byte(testSecret), "plugiit-api")
+	signer := security.NewTokenSigner([]byte(testSecret), "piilot-api")
 
 	Register(app, Deps{
 		Health: NewHealth(nil, nil, BuildInfo{Version: "test"}),

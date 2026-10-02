@@ -52,13 +52,13 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: plugiit
-          POSTGRES_PASSWORD: plugiit
-          POSTGRES_DB: plugiit
+          POSTGRES_USER: piilot
+          POSTGRES_PASSWORD: piilot
+          POSTGRES_DB: piilot
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U plugiit"
+          --health-cmd "pg_isready -U piilot"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -74,7 +74,7 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgres://plugiit:plugiit@localhost:5432/plugiit?sslmode=disable
+      DATABASE_URL: postgres://piilot:piilot@localhost:5432/piilot?sslmode=disable
       REDIS_URL: redis://localhost:6379/0
 
     defaults:

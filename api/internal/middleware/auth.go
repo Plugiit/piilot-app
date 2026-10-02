@@ -13,7 +13,7 @@ import (
 // AccessCookieName porte le jeton d'acces. Cookie httpOnly plutot que header
 // Authorization : le jeton reste inaccessible au JavaScript de l'admin, donc
 // une faille XSS ne permet pas de l'exfiltrer.
-const AccessCookieName = "plugiit_access"
+const AccessCookieName = "piilot_access"
 
 // claimsKey indexe les claims dans les locals de la requete.
 const claimsKey = "auth.claims"

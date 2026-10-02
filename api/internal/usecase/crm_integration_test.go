@@ -263,7 +263,7 @@ func TestCompteurDeComptesPortail(t *testing.T) {
 	err = pool.QueryRow(ctx,
 		`INSERT INTO users (email, password_hash, role, client_id)
 		 VALUES ($1, 'x', 'client', $2) RETURNING id`,
-		"portail-"+uuid.NewString()+"@plugiit.test", client.ID,
+		"portail-"+uuid.NewString()+"@piilot.test", client.ID,
 	).Scan(&accountID)
 	if err != nil {
 		t.Fatalf("creation du compte : %v", err)
@@ -389,7 +389,7 @@ func TestDeuxContactsNePartagentPasUneAdresseChezUnClient(t *testing.T) {
 	}
 	dropClient(t, pool, client.ID)
 
-	email := "doublon-" + uuid.NewString()[:8] + "@plugiit.test"
+	email := "doublon-" + uuid.NewString()[:8] + "@piilot.test"
 
 	if _, err := contacts.Create(ctx, usecase.CreateContactInput{
 		ClientID: &client.ID, Firstname: "Claire", Lastname: "Fontaine", Email: email,

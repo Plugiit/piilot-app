@@ -72,7 +72,7 @@ export interface paths {
         put?: never;
         /**
          * Ouvre une session
-         * @description Pose deux cookies httpOnly : plugiit_access (portee /) et plugiit_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.
+         * @description Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.
          */
         post: operations["login"];
         delete?: never;
@@ -112,7 +112,7 @@ export interface paths {
         put?: never;
         /**
          * Renouvelle la session
-         * @description Consomme le cookie plugiit_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.
+         * @description Consomme le cookie piilot_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.
          */
         post: operations["refresh"];
         delete?: never;
