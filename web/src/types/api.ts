@@ -215,3 +215,16 @@ export type TimeSheet = components['schemas']['TimeSheet']
 
 /** Etat de la mise a jour de l'instance, pour les admins. */
 export type UpdateStatus = components['schemas']['UpdateStatus']
+
+/** Comptes et roles : lignes, invitations, liens rendus une seule fois, matrice. */
+export type Account = components['schemas']['Account']
+export type AccountPage = components['schemas']['AccountPage']
+export type Invitation = components['schemas']['Invitation']
+export type InvitationList = components['schemas']['InvitationList']
+export type SentLink = components['schemas']['SentLink']
+export type InviteResult = components['schemas']['InviteResult']
+export type RoleMatrix = components['schemas']['RoleMatrix']
+export type RoleInfo = components['schemas']['RoleInfo']
+export type PermissionInfo = components['schemas']['PermissionInfo']
+export type InvitationView = components['schemas']['InvitationView']
+

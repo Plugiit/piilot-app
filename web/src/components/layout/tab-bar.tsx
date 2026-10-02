@@ -9,6 +9,8 @@ export interface Tab {
   to: string
   label: string
   icon: IconSvgElement
+  /** Pastille a cote du libelle, pour ce qui attend une action. Masquee a 0. */
+  badge?: number
 }
 
 /**
@@ -72,6 +74,12 @@ export function TabBar({
             >
               {tab.label}
             </span>
+
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="bg-brand flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-medium text-white tabular-nums">
+                {tab.badge}
+              </span>
+            )}
 
             {active && (
               <motion.span
