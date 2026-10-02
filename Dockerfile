@@ -29,6 +29,9 @@ COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY web/ ./
+# Le front embarque sa version pour la comparer a celle du serveur apres un
+# deploiement : vite.config.ts la lit dans ../VERSION.
+COPY VERSION /src/VERSION
 
 # VITE_API_URL vide : le client appelle /api/v1 en relatif, sur l'origine qui
 # a servi la page. Aucune URL d'environnement n'entre dans le bundle, la meme
@@ -73,7 +76,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${SOURCE_COMMIT}" \
     -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-w -s" \
-    -o /out/seed ./cmd/seed
+    -o /out/seed ./cmd/seed \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
+    -ldflags="-w -s -X main.version=${VERSION}" \
+    -o /out/updater ./cmd/updater
 
 # =============================================================================
 # Stage 3 : API — tests (bloque le build)
@@ -111,6 +117,10 @@ COPY --from=api /out/api /app/api
 # La commande d'amorcage voyage avec l'image : un deploiement neuf a une table
 # users vide, et sans elle personne ne peut se connecter.
 COPY --from=api /out/seed /app/seed
+# L'updater voyage dans la meme image, mais tourne dans son propre conteneur
+# (service « updater » du docker-compose) : c'est lui, et lui seul, qui recoit
+# le socket Docker.
+COPY --from=api /out/updater /app/updater
 
 # Le front appartient a l'utilisateur app : le serveur de fichiers y depose la
 # version compressee de chaque asset au premier acces.
