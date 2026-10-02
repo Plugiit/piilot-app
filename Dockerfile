@@ -8,11 +8,18 @@
 # Chaque etape de verification bloque le build : une image n'est produite que
 # si le front ET l'API passent, donc un deploiement ne peut pas partir sur du
 # rouge. La version precedente reste en ligne.
+#
+# Multi-architecture (amd64 et arm64) sans tout emuler : le front, la
+# compilation et les tests tournent sur la machine de build
+# (`--platform=$BUILDPLATFORM`), Go compile directement pour la cible
+# (GOARCH). Seule l'image finale, qui ne fait que copier des fichiers et
+# installer trois paquets, est construite pour chaque architecture.
 
 # =============================================================================
 # Stage 1 : front — lint, typage, tests, build
 # =============================================================================
-FROM node:24-alpine AS web
+# Le bundle est du JavaScript : le meme vaut pour toutes les architectures.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 
 WORKDIR /src/web
 
@@ -37,7 +44,11 @@ RUN npm run routes:gen \
 # =============================================================================
 # Stage 2 : API — compilation
 # =============================================================================
-FROM golang:1.26-alpine AS api
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS api
+
+# Fournies par BuildKit : l'architecture de l'image a produire.
+ARG TARGETOS=linux
+ARG TARGETARCH
 
 WORKDIR /src/api
 
@@ -58,15 +69,17 @@ ARG SOURCE_COMMIT=none
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION="$(cat /src/VERSION)" \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
     -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${SOURCE_COMMIT}" \
     -o /out/api ./cmd/api \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-w -s" \
     -o /out/seed ./cmd/seed
 
 # =============================================================================
 # Stage 3 : API — tests (bloque le build)
 # =============================================================================
+# Herite de la plateforme de build : les tests tournent une fois, nativement,
+# quel que soit le nombre d'architectures produites.
 FROM api AS api-test
 
 RUN --mount=type=cache,target=/go/pkg/mod \

@@ -28,6 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Emulation arm64, comme a la release : seule l'image finale en a besoin (installation de
+      # trois paquets Alpine), le reste du build tourne nativement — voir
+      # l'en-tete du Dockerfile.
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Construit l'image de production
@@ -35,6 +40,9 @@ jobs:
         with:
           context: .
           target: production
+          # Les deux architectures publiees : une image arm64 cassee doit se
+          # voir ici, pas le jour de la release.
+          platforms: linux/amd64,linux/arm64
           push: false
           build-args: |
             SOURCE_COMMIT=${{ github.sha }}
