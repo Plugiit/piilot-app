@@ -37,21 +37,34 @@ export function isInternal(user: User): boolean {
 }
 
 /**
+ * Vrai quand le compte detient la permission.
+ *
+ * Sert a ne pas montrer ce qui serait refuse : le menu, les onglets, les
+ * colonnes. Ce n'est jamais une protection — l'API refuse de toute facon, sur
+ * chaque endpoint.
+ */
+export function can(user: Pick<User, 'permissions'> | undefined, permission: string): boolean {
+  return user?.permissions.includes(permission) === true
+}
+
+/**
  * Espace d'accueil d'un utilisateur.
  *
  * Le back-office occupe la racine : en production il vit sur son propre
  * sous-domaine, ou `/admin` serait un doublon du domaine lui-meme. Le portail
  * garde son segment en attendant d'etre ecrit et de rejoindre le sien.
  *
- * Un interne atterrit sur `/pm` : le travail quotidien de l'agence se fait
- * dans les projets. La racine n'est pas un ecran, seulement une redirection
- * vers ici — il n'y a pas d'accueil au-dessus des modules.
+ * Un interne atterrit dans les projets : sur le tableau de bord de l'agence
+ * s'il le lit, sur « Mon travail » sinon — un chef de projet commence sa
+ * journee par ce qui l'attend, pas par les chiffres de l'agence.
  *
- * C'est le role qui decide ou atterrit une connexion, et cette fonction est la
+ * C'est cette fonction qui decide ou atterrit une connexion, et elle est la
  * seule source de cette regle — la connexion et les gardes s'y referent toutes.
  */
-export function homeFor(user: User): '/pm' | '/client' {
-  return isInternal(user) ? '/pm' : '/client'
+export function homeFor(user: User): '/pm' | '/pm/mon-travail' | '/client' {
+  if (!isInternal(user)) return '/client'
+
+  return can(user, 'dashboard.read') ? '/pm' : '/pm/mon-travail'
 }
 
 /**

@@ -228,3 +228,10 @@ export type RoleInfo = components['schemas']['RoleInfo']
 export type PermissionInfo = components['schemas']['PermissionInfo']
 export type InvitationView = components['schemas']['InvitationView']
 
+
+/** Page « Mon travail » : ce qui attend la personne connectee. */
+export type MyWork = components['schemas']['MyWork']
+export type WorkTask = components['schemas']['WorkTask']
+export type WorkTicket = components['schemas']['WorkTicket']
+export type WorkDeliverable = components['schemas']['WorkDeliverable']
+export type WorkProject = components['schemas']['WorkProject']

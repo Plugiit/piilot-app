@@ -154,9 +154,29 @@ export interface paths {
         };
         /**
          * Tableau de bord de l'agence
-         * @description Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige projects.read.
+         * @description Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige dashboard.read.
          */
         get: operations["getAdminDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/me/work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mon travail
+         * @description Ce qui attend la personne connectee : ses taches ouvertes (en retard d'abord), ses tickets ouverts, les livrables a deposer ou a reprendre dans ses projets, ses projets en cours et son temps de la semaine. Exige projects.read.
+         */
+        get: operations["getMyWork"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1251,7 +1271,7 @@ export interface paths {
         };
         /**
          * Kanban commercial
-         * @description Toutes les cartes, bornees et non paginees. Exige clients.read.
+         * @description Toutes les cartes, bornees et non paginees. Exige pipeline.read.
          */
         get: operations["getCrmClientBoard"];
         put?: never;
@@ -1272,7 +1292,7 @@ export interface paths {
         get?: never;
         /**
          * Deplacer un client dans le pipeline
-         * @description Ne touche que le statut : glisser une carte ne doit pas reecrire les coordonnees. Exige clients.write.
+         * @description Ne touche que le statut : glisser une carte ne doit pas reecrire les coordonnees. Exige clients.write et pipeline.read.
          */
         put: operations["moveCrmClientStatus"];
         post?: never;
@@ -1663,13 +1683,13 @@ export interface paths {
         };
         /**
          * Mon temps passe
-         * @description Sert l'ecran PM > Temps > Saisie. Le compte vient de la session : on relit son propre pointage, jamais celui d'un autre. Sans parametre, la journee courante.
+         * @description Sert l'ecran PM > Temps > Saisie. Le compte vient de la session : on relit son propre pointage, jamais celui d'un autre. Sans parametre, la journee courante. Exige time.write.
          */
         get: operations["getTimeSheet"];
         put?: never;
         /**
          * Pointer du temps
-         * @description Enregistre une saisie au nom du compte connecte. Met a jour les heures consommees du projet, tenues par declencheur.
+         * @description Enregistre une saisie au nom du compte connecte. Met a jour les heures consommees du projet, tenues par declencheur. Exige time.write.
          */
         post: operations["createTimeEntry"];
         delete?: never;
@@ -1693,14 +1713,14 @@ export interface paths {
         post?: never;
         /**
          * Supprimer une saisie
-         * @description Suppression douce. Les heures du projet sont recalculees.
+         * @description Suppression douce. Les heures du projet sont recalculees. Exige time.write.
          */
         delete: operations["deleteTimeEntry"];
         options?: never;
         head?: never;
         /**
          * Modifier une saisie
-         * @description Une saisie qui n'appartient pas au compte appelant rend 404 : elle ne correspond a aucune ligne.
+         * @description Une saisie qui n'appartient pas au compte appelant rend 404 : elle ne correspond a aucune ligne. Exige time.write.
          */
         patch: operations["updateTimeEntry"];
         trace?: never;
@@ -1857,6 +1877,7 @@ export interface components {
             status: "cadrage" | "production" | "attente" | "livre";
             /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
             progress: number;
+            /** @description Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none. */
             hours_sold: number;
             /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
             hours_spent: number;
@@ -1960,6 +1981,7 @@ export interface components {
             status: "cadrage" | "production" | "attente" | "livre";
             /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
             progress: number;
+            /** @description Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none. */
             hours_sold: number;
             /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
             hours_spent: number;
@@ -2393,8 +2415,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created";
-            /** @description De quoi ecrire la phrase sans relire la tache : son titre au moment du geste, l'ancien et le nouveau statut. */
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback";
+            /** @description De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message. */
             payload: {
                 [key: string]: unknown;
             };
@@ -2402,6 +2424,16 @@ export interface components {
             task_id: string | null;
             /** Format: uuid */
             project_id: string | null;
+            /**
+             * Format: uuid
+             * @description Ticket dont parle la notification.
+             */
+            ticket_id: string | null;
+            /**
+             * Format: uuid
+             * @description Livrable dont parle la notification.
+             */
+            deliverable_id: string | null;
             /** @description Auteur du geste. Nul quand son compte a ete supprime. */
             actor: components["schemas"]["Person"] | null;
             /** Format: date-time */
@@ -3287,6 +3319,82 @@ export interface components {
         ResetRequest: {
             password: string;
         };
+        WorkTask: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            status: "todo" | "progress" | "review";
+            /** @enum {string} */
+            priority: "low" | "medium" | "high";
+            /** Format: date */
+            due_on: string | null;
+            overdue: boolean;
+            project: components["schemas"]["DeliverableRef"];
+        };
+        WorkTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            numero: number;
+            subject: string;
+            /** @enum {string} */
+            status: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+            /** @enum {string} */
+            priority: "low" | "normal" | "high" | "urgent" | "critical";
+            /** Format: date-time */
+            updated_at: string;
+            project: components["schemas"]["DeliverableRef"];
+        };
+        WorkDeliverable: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            project: components["schemas"]["DeliverableRef"];
+            /**
+             * @description draft : rien n'a ete depose. feedback : le client a renvoye des retours sur la version courante.
+             * @enum {string}
+             */
+            state: "draft" | "feedback";
+            version: number | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            feedback: string;
+        };
+        WorkProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            client_name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            progress: number;
+            /** Format: date */
+            due_on: string | null;
+            tasks_total: number;
+            tasks_done: number;
+        };
+        /** @description Tout ce qu'affiche la page Mon travail. Chaque bloc est borne ; les totaux portent sur toutes les lignes. */
+        MyWork: {
+            tasks: components["schemas"]["WorkTask"][];
+            /** Format: int64 */
+            tasks_total: number;
+            /** Format: int64 */
+            tasks_overdue: number;
+            tickets: components["schemas"]["WorkTicket"][];
+            /** Format: int64 */
+            tickets_total: number;
+            deliverables: components["schemas"]["WorkDeliverable"][];
+            /** Format: int64 */
+            deliverables_total: number;
+            projects: components["schemas"]["WorkProject"][];
+            /** Format: date */
+            week_start: string;
+            /** Format: int64 */
+            week_minutes: number;
+            /** Format: date */
+            today: string;
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -3565,6 +3673,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardSummary"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getMyWork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Travail de la personne */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyWork"];
                 };
             };
             401: components["responses"]["Unauthorized"];
