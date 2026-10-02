@@ -11,6 +11,47 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.4.0] — Temps et budgets
+
+Cette version termine le pilotage du temps : chaque projet affiche où il en est de son budget, et le tableau de bord ne montre plus que des données réelles. Elle s'adresse aux administrateurs qui suivent la rentabilité des projets et la charge de l'équipe. C'est aussi la première version publiée sous licence libre.
+
+### Points forts
+
+- Budget de chaque projet : heures consommées sur heures vendues, avec une alerte à 80 % et au-delà de 100 %.
+- Liste des projets filtrable et triable par budget, pour retrouver d'un coup ceux qui dérivent.
+- Tableau de bord entièrement réel : activité de l'année, charge par projet, temps de l'équipe du jour et de la semaine.
+- Piilot est distribué sous licence AGPL-3.0, et son image Docker est publiée sur GitHub.
+
+### Nouveautés
+
+#### Admin
+
+- **Budget sur la carte projet** : heures consommées sur heures vendues, à côté de l'échéance. La mention passe en orange « À surveiller » à partir de 80 % du budget consommé, et en rouge « Hors budget » au-delà. Les projets internes et ceux sans heures vendues n'ont pas d'alerte.
+- **Budget sur la fiche projet** : une barre sous l'avancement, avec les heures restantes ou dépassées. Un projet sans heures vendues propose un lien vers la page où les saisir.
+- **Filtre « Budget »** dans la liste des projets (« À surveiller », « Hors budget ») et tri par part du budget consommée.
+- **Charge par projet** (tableau de bord) : les huit projets en cours les plus avancés dans leur budget, avec la part consommée et le dépassement, et le nombre de projets hors budget ou à surveiller. Un clic sur une barre ouvre le projet.
+- **Équipe aujourd'hui** (tableau de bord) : pour chaque membre, le temps saisi dans la journée et depuis lundi, la part facturable du jour et le dernier projet sur lequel il a pointé.
+- **Activité par jour** (tableau de bord) : une case par jour de l'année, selon le nombre de tâches terminées, de tickets ouverts et de versions de livrables déposées.
+
+### Améliorations
+
+- La page Budget d'un projet recalcule l'alerte pendant la saisie des heures vendues, avec le même seuil que le reste de l'application.
+- L'agenda du tableau de bord, qui n'affichait que des événements d'exemple, est retiré. Il reviendra avec le planning.
+
+### Technique
+
+- Licence AGPL-3.0, guide de contribution, politique de sécurité et modèles d'issue et de pull request.
+- Chaque version publie l'image sur `ghcr.io/plugiit/piilot-app`, avec les tags `X.Y.Z`, `X.Y` et `latest`.
+- L'activité quotidienne est précalculée par déclencheur dans une table dédiée : le tableau de bord la lit sans rien recompter.
+- Paramètre `budget` (`warning`, `over`) sur `GET /api/v1/admin/projects`, champ `budget_state` sur les projets, et nouveaux blocs dans `GET /api/v1/admin/dashboard`.
+- Nom technique aligné sur Piilot : cookies de session, émetteur des jetons et base de développement.
+
+### À savoir pour le déploiement
+
+- Migration `000028_daily_activity`, appliquée au démarrage : crée la table d'activité quotidienne et la remplit à partir des tâches terminées, des tickets et des versions de livrables existants.
+- Les cookies de session changent de nom : **tout le monde est déconnecté une fois** après la mise à jour.
+- Aucune nouvelle variable d'environnement.
+
 ## [0.3.2] — Rapports de temps · 2026-09-19
 
 Cette version ouvre l'écran des rapports de temps : le temps de toute l'équipe sur une période, réparti entre facturable et non facturable, filtrable et exportable. Elle s'adresse aux administrateurs qui bouclent le mois ou suivent la charge d'un projet.

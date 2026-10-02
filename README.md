@@ -46,21 +46,24 @@ Une seule application, trois espaces :
 
 ### Tableau de bord
 
-Les chiffres clés de l'agence (projets, clients, heures vendues) et
-l'avancement des tâches par service. La barre latérale donne des raccourcis
-vers les projets favoris.
+Les chiffres clés de l'agence (projets, clients, heures vendues), l'activité
+de l'année jour par jour (tâches terminées, tickets ouverts, livrables
+déposés), le temps facturable et l'avancement des tâches par service.
 
-> La carte d'activité, le temps facturable et l'agenda de cet écran sont
-> encore des emplacements factices. Ils seront retirés en 0.4, puis branchés
-> sur des données réelles en 0.7 (voir la [roadmap](ROADMAP.md)).
+Deux blocs servent à piloter la charge : les projets en cours les plus avancés
+dans leur budget, avec le nombre de projets hors budget ou à surveiller, et le
+temps saisi par chaque membre de l'équipe aujourd'hui et depuis lundi. La
+barre latérale donne des raccourcis vers les projets favoris.
 
 ![Tableau de bord](docs/images/dashboard.jpg)
 
 ### Projets
 
 Tous les projets de l'agence en cartes : statut (cadrage, production, attente
-client, livré), équipe, échéance, priorité et avancement. Recherche, filtres
-par statut et par client, tri, pagination côté serveur.
+client, livré), équipe, échéance, priorité, avancement et heures consommées
+sur heures vendues. Un projet passe « à surveiller » à 80 % de son budget et
+« hors budget » au-delà. Recherche, filtres par statut, client et budget, tri,
+pagination côté serveur.
 
 ![Liste des projets](docs/images/projets.jpg)
 
@@ -150,7 +153,8 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 | Saisie du temps | ✅ En place |
 | CRM : clients, contacts, pipeline | ✅ En place |
 | Services, apps de la barre latérale, notifications | ✅ En place |
-| Rapports de temps | 🚧 Écran réservé, pas encore développé |
+| Rapports de temps | ✅ En place |
+| Budgets et alertes de dépassement | ✅ En place |
 | CRM : interactions | 🚧 Écran réservé, pas encore développé |
 | Modèles de projet, gestion des comptes | 🚧 Écrans réservés, pas encore développés |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |

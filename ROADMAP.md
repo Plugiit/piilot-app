@@ -148,10 +148,13 @@ suivantes :
 
 - **Rapports de temps** ✅ : par projet, personne, service, client et période ;
   facturable et non facturable ; export CSV.
-- **Budgets réels** : heures vendues, consommées (depuis la saisie du temps),
-  restantes. Alerte de dépassement.
-- **Tableau de bord** : compteurs réels (projets, clients, heures, services),
-  à la place des widgets factices. Activité du jour, charge par personne.
+- **Budgets réels** ✅ : heures vendues, consommées (depuis la saisie du temps),
+  restantes. Alerte « à surveiller » à 80 % du budget, « hors budget » au-delà.
+  Filtre et tri par budget dans la liste des projets.
+- **Tableau de bord** ✅ : compteurs réels (projets, clients, heures, services),
+  à la place des widgets factices. Activité de l'année, charge par projet,
+  temps de chaque personne aujourd'hui et sur la semaine. L'agenda factice est
+  retiré, il revient avec le planning en 0.7.
 
 **Technique**
 
