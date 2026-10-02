@@ -1,5 +1,6 @@
 import {
   Building03Icon,
+  Comment01Icon,
   Contact01Icon,
   Folder01Icon,
   Globe02Icon,
@@ -22,8 +23,10 @@ import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
 import { PrimaryContactPicker } from '@/features/clients/primary-contact-picker'
 import { ClientRowActions } from '@/features/clients/row-actions'
 import { ContactRowActions } from '@/features/contacts/row-actions'
+import { InteractionForm, InteractionList } from '@/features/interactions/journal'
 import { PROJECT_STATUS } from '@/features/projects/format'
 import { Avatars, Meter, StatusPill } from '@/features/projects/ui'
+import { can, sessionQuery } from '@/lib/auth'
 import { formatPhone } from '@/lib/countries'
 import type { CrmClientDetail, ProjectStatus } from '@/types/api'
 
@@ -144,6 +147,7 @@ function ClientDetailPage() {
   const navigate = useNavigate()
 
   const { data } = useQuery(clientDetailQuery(id))
+  const { data: session } = useQuery(sessionQuery)
 
   // Le loader a deja rempli le cache : `data` est present des le premier rendu.
   if (data === undefined) return null
@@ -390,6 +394,15 @@ function ClientDetailPage() {
             )}
           </PanelCard>
         </div>
+
+        {/* Le journal de la relation, sur toute la largeur : il s'allonge, la
+            ou les blocs du dessus restent courts. */}
+        <PanelCard icon={Comment01Icon} title="JOURNAL">
+          <div className="flex flex-col gap-3">
+            {can(session, 'clients.write') && <InteractionForm clientId={client.id} />}
+            <InteractionList clientId={client.id} />
+          </div>
+        </PanelCard>
       </div>
     </PageFrame>
   )
