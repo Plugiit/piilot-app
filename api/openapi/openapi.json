@@ -300,6 +300,80 @@
         }
       }
     },
+    "/api/v1/admin/system/update": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Etat de la mise a jour",
+        "description": "Version en cours, derniere version publiee (verifiee en tache de fond aupres de GitHub), presence de l'updater et derniere demande de mise a jour. Exige system.update, accordee aux seuls admins.",
+        "operationId": "getAdminSystemUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Etat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lancer la mise a jour",
+        "description": "Enregistre une demande de mise a jour vers la derniere version. L'updater, un conteneur a part qui seul accede a Docker, la prend dans les secondes qui suivent : il tire la nouvelle image et recree le conteneur de l'application, en revenant a l'ancien si le nouveau ne demarre pas. Le service est coupe quelques instants pour tout le monde, et les migrations de la nouvelle version s'appliquent au demarrage. Exige system.update.",
+        "operationId": "postAdminSystemUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "UPDATER_UNAVAILABLE, UPDATE_NOT_AVAILABLE ou UPDATE_IN_PROGRESS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/projects": {
       "get": {
         "tags": [
@@ -9122,6 +9196,168 @@
           },
           "page_size": {
             "type": "integer"
+          }
+        }
+      },
+      "ReleaseInfo": {
+        "type": "object",
+        "description": "Une version publiee sur GitHub.",
+        "required": [
+          "version",
+          "name",
+          "url",
+          "published_at"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Page de la release, avec ses notes."
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateRequestInfo": {
+        "type": "object",
+        "description": "Derniere demande de mise a jour.",
+        "required": [
+          "id",
+          "status",
+          "from_version",
+          "target_version",
+          "requested_by",
+          "step",
+          "error",
+          "created_at",
+          "finished_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "description": "pending : en attente de l'updater ; running : en cours ; done : terminee ; failed : echouee, version precedente remise en route."
+          },
+          "from_version": {
+            "type": "string"
+          },
+          "target_version": {
+            "type": "string"
+          },
+          "requested_by": {
+            "type": "string",
+            "description": "Nom de l'admin qui l'a lancee."
+          },
+          "step": {
+            "type": "string",
+            "description": "Etape en cours ou derniere etape franchie."
+          },
+          "error": {
+            "type": "string",
+            "description": "Raison de l'echec, vide sinon."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateStatus": {
+        "type": "object",
+        "description": "Etat de la mise a jour de l'instance.",
+        "required": [
+          "current_version",
+          "latest",
+          "update_available",
+          "can_update",
+          "updater_error",
+          "check_enabled",
+          "checked_at",
+          "check_error",
+          "last_request",
+          "in_progress"
+        ],
+        "properties": {
+          "current_version": {
+            "type": "string",
+            "description": "Version du serveur en cours d'execution."
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Derniere version stable publiee, nulle tant qu'aucune verification n'a abouti."
+          },
+          "update_available": {
+            "type": "boolean"
+          },
+          "can_update": {
+            "type": "boolean",
+            "description": "L'updater donne signe de vie et a trouve l'application : la mise a jour peut etre lancee depuis l'interface."
+          },
+          "updater_error": {
+            "type": "string",
+            "description": "Ce qui empeche l'updater de travailler (socket Docker absent, conteneur introuvable…), vide quand il est pret ou absent."
+          },
+          "check_enabled": {
+            "type": "boolean",
+            "description": "La verification des versions est active (UPDATE_CHECK)."
+          },
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "check_error": {
+            "type": "string",
+            "description": "Erreur du dernier passage de verification, vide quand il a abouti."
+          },
+          "last_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UpdateRequestInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "in_progress": {
+            "type": "boolean",
+            "description": "Une mise a jour est en route : le bouton est remplace par son suivi."
           }
         }
       }

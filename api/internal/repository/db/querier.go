@@ -12,6 +12,10 @@ import (
 )
 
 type Querier interface {
+	// Au demarrage de l'updater : une demande restee « en cours » vient d'un
+	// updater interrompu en pleine mise a jour. Elle est close en echec plutot que
+	// de bloquer toute nouvelle demande.
+	AbandonStaleUpdateRequests(ctx context.Context) error
 	// Poser deux fois la meme etoile n'est pas une erreur : c'est un bouton qu'on
 	// peut recliquer, pas une creation.
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
@@ -92,6 +96,7 @@ type Querier interface {
 	// Inscrit un message au registre.
 	CreateTicketMessage(ctx context.Context, arg CreateTicketMessageParams) (CreateTicketMessageRow, error)
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (uuid.UUID, error)
+	CreateUpdateRequest(ctx context.Context, arg CreateUpdateRequestParams) (AppUpdateRequest, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Enregistre la reponse du client sur une version precise.
 	//
@@ -116,6 +121,7 @@ type Querier interface {
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
+	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Une piece jointe se lit par son seul identifiant, quel que soit son
 	// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
 	// de servir celles des projets comme celles des taches.
@@ -143,6 +149,8 @@ type Querier interface {
 	// Un livrable et sa version courante, aux memes colonnes que la liste : le
 	// depot et la decision rendent la ligne telle que l'ecran la reaffiche.
 	GetDeliverable(ctx context.Context, id uuid.UUID) (GetDeliverableRow, error)
+	// Derniere demande, pour l'etat affiche a l'ecran.
+	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -152,6 +160,7 @@ type Querier interface {
 	// tranche, parce qu'un jeton revoque presente a nouveau signale un rejeu et
 	// doit declencher la revocation de toute la famille.
 	GetRefreshTokenWithUser(ctx context.Context, tokenHash []byte) (GetRefreshTokenWithUserRow, error)
+	GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
 	GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
@@ -179,6 +188,7 @@ type Querier interface {
 	// registre.
 	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
 	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (GetTimeEntryRow, error)
+	GetUpdater(ctx context.Context) (AppUpdater, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
@@ -488,6 +498,11 @@ type Querier interface {
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
 	RoleHasPermission(ctx context.Context, arg RoleHasPermissionParams) (bool, error)
+	// Resultat d'un passage reussi : la version vue remplace la precedente.
+	SaveReleaseCheck(ctx context.Context, arg SaveReleaseCheckParams) error
+	// Passage rate : on garde la derniere version connue, on note l'erreur.
+	SaveReleaseCheckError(ctx context.Context, error string) error
+	SaveUpdaterHeartbeat(ctx context.Context, arg SaveUpdaterHeartbeatParams) error
 	// La version qui vient d'etre soumise devient celle que l'ecran montre.
 	SetDeliverableCurrentVersion(ctx context.Context, arg SetDeliverableCurrentVersionParams) error
 	// Designe le contact principal. `NULL` le retire.
@@ -510,6 +525,7 @@ type Querier interface {
 	// et qui efface le fichier qu'elle designait, sans quoi le magasin garderait
 	// tous les logos jamais deposes.
 	SetSidebarAppLogo(ctx context.Context, arg SetSidebarAppLogoParams) (SetSidebarAppLogoRow, error)
+	SetUpdateRequestStep(ctx context.Context, arg SetUpdateRequestStepParams) error
 	// Vrai quand la cle designe encore le logo d'une app vivante : c'est ce qui
 	// autorise a servir le fichier.
 	SidebarAppLogoKeyInUse(ctx context.Context, logoKey *string) (bool, error)
@@ -525,6 +541,9 @@ type Querier interface {
 	SoftDeleteProject(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTask(ctx context.Context, id uuid.UUID) error
 	SoftDeleteTaskComment(ctx context.Context, arg SoftDeleteTaskCommentParams) error
+	// L'updater prend la demande en attente et la passe en cours, d'un seul
+	// geste : une demande n'est jamais executee deux fois.
+	StartPendingUpdateRequest(ctx context.Context) (AppUpdateRequest, error)
 	// Total de la plage, en minutes. Calcule par la base plutot qu'en additionnant
 	// les lignes rendues : la liste est bornee, le total ne doit pas l'etre.
 	SumTimeEntries(ctx context.Context, arg SumTimeEntriesParams) (int64, error)
