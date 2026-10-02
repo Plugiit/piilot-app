@@ -58,7 +58,7 @@ func newService(t *testing.T) (*usecase.AuthService, *pgxpool.Pool) {
 	}
 	t.Cleanup(pool.Close)
 
-	signer := security.NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "plugiit-api")
+	signer := security.NewTokenSigner([]byte("secret-de-test-suffisamment-long-32"), "piilot-api")
 
 	// Les avatars atterrissent dans un dossier temporaire, efface avec le test :
 	// rien ici ne lit ni n'ecrit de photo, mais le service exige un stockage.
@@ -83,7 +83,7 @@ func createUser(t *testing.T, pool *pgxpool.Pool, role string) (uuid.UUID, strin
 		t.Fatalf("hachage : %v", err)
 	}
 
-	email := "test-" + uuid.NewString() + "@plugiit.test"
+	email := "test-" + uuid.NewString() + "@piilot.test"
 
 	var id uuid.UUID
 	err = pool.QueryRow(ctx,
@@ -159,7 +159,7 @@ func TestLoginNeDistinguePasUnEmailInconnuDUnMauvaisMotDePasse(t *testing.T) {
 	svc, _ := newService(t)
 
 	_, err := svc.Login(context.Background(), usecase.LoginInput{
-		Email:    "inconnu-" + uuid.NewString() + "@plugiit.test",
+		Email:    "inconnu-" + uuid.NewString() + "@piilot.test",
 		Password: testPassword,
 	})
 

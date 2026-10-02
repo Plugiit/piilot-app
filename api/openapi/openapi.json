@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Plugiit API",
+    "title": "Piilot API",
     "version": "1.0.0",
-    "description": "API interne Plugiit. Source de verite du contrat HTTP : le front genere ses types depuis ce document (npm run api:types). Toute route montee doit y figurer, ce que verifie TestSpecOpenAPICouvreToutesLesRoutes."
+    "description": "API de Piilot. Source de verite du contrat HTTP : le front genere ses types depuis ce document (npm run api:types). Toute route montee doit y figurer, ce que verifie TestSpecOpenAPICouvreToutesLesRoutes."
   },
   "servers": [
     {
@@ -107,7 +107,7 @@
           "auth"
         ],
         "summary": "Ouvre une session",
-        "description": "Pose deux cookies httpOnly : plugiit_access (portee /) et plugiit_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
+        "description": "Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
         "operationId": "login",
         "requestBody": {
           "required": true,
@@ -170,7 +170,7 @@
           "auth"
         ],
         "summary": "Renouvelle la session",
-        "description": "Consomme le cookie plugiit_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.",
+        "description": "Consomme le cookie piilot_refresh et le remplace : un jeton ne sert qu'une fois. Un jeton deja consomme qui se represente est traite comme un rejeu et revoque toutes les sessions du compte.",
         "operationId": "refresh",
         "responses": {
           "200": {
@@ -5084,7 +5084,7 @@
       "sessionCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "plugiit_access",
+        "name": "piilot_access",
         "description": "Cookie httpOnly pose par /auth/login. Inaccessible au JavaScript : le navigateur l'envoie seul."
       }
     },

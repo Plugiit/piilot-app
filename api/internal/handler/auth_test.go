@@ -26,7 +26,7 @@ import (
 // lieu de servir le profil.
 func TestMeServiLeProfilAvecUnJetonValide(t *testing.T) {
 	userID := uuid.New()
-	auth := &stubAuth{profile: usecase.Profile{ID: userID, Email: "test@plugiit.com", Role: "admin"}}
+	auth := &stubAuth{profile: usecase.Profile{ID: userID, Email: "test@piilot.test", Role: "admin"}}
 
 	app, signer := testAppWith(t, auth, &stubLimiter{})
 
@@ -80,7 +80,7 @@ func TestMeRefuseUnJetonSigneParUneAutreCle(t *testing.T) {
 
 	app, _ := testAppWith(t, auth, &stubLimiter{})
 
-	intrus := security.NewTokenSigner([]byte("une-autre-cle-de-32-octets-au-moins"), "plugiit-api")
+	intrus := security.NewTokenSigner([]byte("une-autre-cle-de-32-octets-au-moins"), "piilot-api")
 
 	token, err := intrus.Sign(uuid.New(), "admin", time.Minute)
 	if err != nil {

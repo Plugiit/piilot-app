@@ -1,4 +1,4 @@
-// Commande api : point d'entree du backend Plugiit.
+// Commande api : point d'entree du backend Piilot.
 package main
 
 import (
@@ -78,7 +78,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	app := newApp(cfg, log)
 
-	signer := security.NewTokenSigner(cfg.JWTSecret, "plugiit-api")
+	signer := security.NewTokenSigner(cfg.JWTSecret, "piilot-api")
 	files, err := storage.NewLocal(cfg.FilesDir)
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 func newApp(cfg config.Config, log *slog.Logger) *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName:      "plugiit-api",
+		AppName:      "piilot-api",
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		ErrorHandler: middleware.ErrorHandler(log),

@@ -11,7 +11,7 @@
 //	    cree un compte admin. C'est le meme binaire, appele sous ce nom (lien
 //	    symbolique installe dans l'image).
 //
-//	SEED_PASSWORD='...' seed -email=moi@plugiit.com [-firstname=...] [-lastname=...] [-role=team]
+//	SEED_PASSWORD='...' seed -email=admin@example.fr [-firstname=...] [-lastname=...] [-role=team]
 //	    Scriptable. Sans SEED_PASSWORD, un mot de passe est genere et affiche
 //	    une seule fois.
 //

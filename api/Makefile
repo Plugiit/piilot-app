@@ -9,7 +9,7 @@ LDFLAGS := -w -s -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 SQLC    := docker run --rm -v $(PWD):/src -w /src sqlc/sqlc:latest
 MIGRATE := docker run --rm -v $(PWD)/migrations:/migrations --network host migrate/migrate:latest
 
-DATABASE_URL ?= postgres://plugiit:plugiit@localhost:5432/plugiit?sslmode=disable
+DATABASE_URL ?= postgres://piilot:piilot@localhost:5432/piilot?sslmode=disable
 
 .PHONY: help
 help: ## Affiche cette aide
@@ -37,7 +37,7 @@ create-admin: ## Cree un compte admin en interactif (questions, mot de passe mas
 	go run ./cmd/seed
 
 .PHONY: seed
-seed: ## Cree un compte sans question : make seed EMAIL=moi@plugiit.com [ROLE=admin]
+seed: ## Cree un compte sans question : make seed EMAIL=admin@example.fr [ROLE=admin]
 	@test -n "$(EMAIL)" || (echo "usage: make seed EMAIL=... [ROLE=admin]" && exit 1)
 	go run ./cmd/seed -email=$(EMAIL) $(if $(ROLE),-role=$(ROLE),)
 

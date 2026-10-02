@@ -11,7 +11,7 @@ import (
 
 // RefreshCookieName porte le jeton de rafraichissement, separe du jeton
 // d'acces : les deux n'ont ni la meme duree ni la meme portee.
-const RefreshCookieName = "plugiit_refresh"
+const RefreshCookieName = "piilot_refresh"
 
 // refreshCookiePath restreint l'envoi du cookie de rafraichissement au groupe
 // /auth. Il ne part donc pas sur les requetes metier, ou il n'aurait rien a
