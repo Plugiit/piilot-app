@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import { clientBoardQuery, useMoveClientStatus } from '@/features/clients/api'
 import { ClientBoard } from '@/features/clients/board'
 import { CLIENT_STATUS } from '@/features/clients/format'
 import { HttpError } from '@/lib/api'
+import { can } from '@/lib/auth'
 
 import { paramsOf } from '../clients'
 
@@ -17,6 +18,10 @@ import { paramsOf } from '../clients'
  * l'information qu'on vient lire. Il garde la recherche et le chargé de compte.
  */
 export const Route = createFileRoute('/_app/crm/clients/kanban')({
+  // Le pipeline commercial est un outil de direction : sans le droit, la liste.
+  beforeLoad: ({ context }) => {
+    if (!can(context.user, 'pipeline.read')) throw redirect({ to: '/crm/clients', search: (prev) => prev, replace: true })
+  },
   loaderDeps: ({ search }) => {
     const { search: query, managerId } = paramsOf(search)
 

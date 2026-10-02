@@ -1,7 +1,7 @@
 import { Download04Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -20,6 +20,7 @@ import {
   type ReportGroupBy,
 } from '@/features/time/reports'
 import { HttpError } from '@/lib/api'
+import { can } from '@/lib/auth'
 
 import { ReportChart } from './-chart'
 import { ReportEntries } from './-entries'
@@ -48,6 +49,10 @@ const searchSchema = z.object({
 type Search = z.infer<typeof searchSchema>
 
 export const Route = createFileRoute('/_app/pm/temps/rapports/')({
+  // Les rapports lisent le temps de toute l'equipe : sans le droit, on revient a sa propre saisie.
+  beforeLoad: ({ context }) => {
+    if (!can(context.user, 'time.read')) throw redirect({ to: '/pm/temps/saisie', replace: true })
+  },
   validateSearch: searchSchema,
   component: RapportsTempsPage,
 })

@@ -19,7 +19,18 @@ import type { PermissionInfo, RoleMatrix } from '@/types/api'
  * on administre — plutot que l'ordre alphabetique des codes, qui ouvrait la
  * grille sur le CRM.
  */
-const GROUP_ORDER = ['Projets', 'Tâches', 'Livrables', 'Tickets', 'Temps passé', 'CRM', 'Comptes', 'Rôles', 'Système']
+const GROUP_ORDER = [
+  'Pilotage',
+  'Projets',
+  'Tâches',
+  'Livrables',
+  'Tickets',
+  'Temps passé',
+  'CRM',
+  'Comptes',
+  'Rôles',
+  'Système',
+]
 
 export const Route = createFileRoute('/_app/parametres/comptes/roles')({
   component: RolesPage,

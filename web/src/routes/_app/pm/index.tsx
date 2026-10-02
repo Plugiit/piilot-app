@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { ActivityHeatmap } from '@/components/activity-heatmap'
 import { PageFrame } from '@/components/layout/page-frame'
@@ -7,6 +7,7 @@ import { StatTiles } from '@/components/stat-tiles'
 import { TeamActivity } from '@/components/team-activity'
 import { TimeBillable } from '@/components/time-billable'
 import { WorkloadChart } from '@/components/workload-chart'
+import { can } from '@/lib/auth'
 
 /**
  * Tableau de bord du module Project Management.
@@ -19,6 +20,10 @@ import { WorkloadChart } from '@/components/workload-chart'
  * pourra lire de vraies echeances.
  */
 export const Route = createFileRoute('/_app/pm/')({
+  // Le tableau de bord de l'agence est un outil de direction : l'equipe commence sa journee par « Mon travail ».
+  beforeLoad: ({ context }) => {
+    if (!can(context.user, 'dashboard.read')) throw redirect({ to: '/pm/mon-travail', replace: true })
+  },
   component: ProjectManagementPage,
 })
 

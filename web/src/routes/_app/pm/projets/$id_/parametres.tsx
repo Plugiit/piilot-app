@@ -15,6 +15,7 @@ import { TabBar, type Tab } from '@/components/layout/tab-bar'
 import { Button } from '@/components/ui/button'
 import { projectDetailQuery } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
+import { can, sessionQuery } from '@/lib/auth'
 
 /**
  * Onglets des reglages.
@@ -63,6 +64,12 @@ function SettingsLayout() {
   const { id } = Route.useParams()
   const navigate = useNavigate()
   const { data: project } = useQuery(projectDetailQuery(id))
+  const { data: session } = useQuery(sessionQuery)
+  // L'onglet Budget suit le droit de le lire : sa route le refuse de toute
+  // facon, autant ne pas le proposer.
+  const tabs = can(session, 'budgets.read')
+    ? TABS
+    : TABS.filter((tab) => tab.to !== '/pm/projets/$id/parametres/budget')
 
   if (project === undefined) return null
 
@@ -104,7 +111,7 @@ function SettingsLayout() {
             tiennent avec 67px de marge a 1024px, la plus petite largeur ou le
             panneau est affiche. */}
         <div className="flex items-center border-b border-[#e8e8e9] pl-4">
-          <TabBar tabs={TABS} params={{ id }} layoutId="project-settings-tab" />
+          <TabBar tabs={tabs} params={{ id }} layoutId="project-settings-tab" />
         </div>
 
         <Outlet />

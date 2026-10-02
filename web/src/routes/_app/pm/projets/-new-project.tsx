@@ -34,6 +34,7 @@ import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { ProjectStatus } from '@/types/api'
+import { can, sessionQuery } from '@/lib/auth'
 
 /**
  * Ce que le formulaire exige, et rien de plus.
@@ -74,6 +75,8 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
   const listId = useId()
 
   const { data: clients } = useQuery({ ...clientListQuery(), enabled: open })
+  const { data: session } = useQuery(sessionQuery)
+  const seesBudget = can(session, 'budgets.read')
   const { data: people } = useQuery({ ...peopleQuery, enabled: open })
   const create = useCreateProject()
 
@@ -195,20 +198,24 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="hours_sold"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Heures vendues</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={0} step={0.5} placeholder="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className={seesBudget ? 'grid grid-cols-2 gap-4' : 'grid grid-cols-1 gap-4'}>
+              {/* Les heures vendues sont un chiffre commercial : sans
+                  `budgets.read`, le serveur refuserait de les enregistrer. */}
+              {seesBudget && (
+                <FormField
+                  control={form.control}
+                  name="hours_sold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Heures vendues</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.5} placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}

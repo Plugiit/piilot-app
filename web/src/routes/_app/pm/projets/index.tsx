@@ -62,6 +62,7 @@ import { useSearchField } from '@/lib/search-field'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { BudgetState, Person, Project, ProjectStatus } from '@/types/api'
+import { can, sessionQuery } from '@/lib/auth'
 
 import { NewProjectDialog } from './-new-project'
 
@@ -600,10 +601,13 @@ function AddProjectCard() {
 function SortMenu({
   sort,
   dir,
+  sorts,
   onSort,
 }: {
   sort: Sort
   dir: 'asc' | 'desc'
+  /** Tris proposes : sans `budgets.read`, pas de tri sur le budget. */
+  sorts: readonly Sort[]
   onSort: (value: Sort) => void
 }) {
   return (
@@ -621,7 +625,7 @@ function SortMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {SORTS.map((value) => (
+        {sorts.map((value) => (
           <DropdownMenuItem key={value} onSelect={() => onSort(value)}>
             {SORT_LABELS[value]}
             {sort === value && (
@@ -643,6 +647,11 @@ function ProjectsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
 
+  // Les budgets sont un outil de direction : sans le droit, ni filtre ni tri
+  // dessus. Le serveur les retire de toute facon des reponses.
+  const { data: session } = useQuery(sessionQuery)
+  const seesBudget = can(session, 'budgets.read')
+
   // Filtre, tri et pagination partent au serveur. La cle de cache derive des
   // parametres d'URL, donc revenir en arriere reaffiche la page precedente
   // sans la recharger.
@@ -652,8 +661,8 @@ function ProjectsPage() {
     search: search.search?.trim() === '' ? undefined : search.search,
     status: search.status,
     clientId: search.client_id,
-    budget: search.budget,
-    sort: search.sort,
+    budget: seesBudget ? search.budget : undefined,
+    sort: !seesBudget && search.sort === 'budget' ? 'due' : search.sort,
     dir: search.dir,
   }
 
@@ -756,18 +765,25 @@ function ProjectsPage() {
             onChange={(value) => setFilter({ client_id: value })}
           />
 
-          <FilterMenu
-            name="Budget"
-            all="Tous les budgets"
-            value={search.budget}
-            options={budgetOptions}
-            onChange={(value) => setFilter({ budget: value as 'warning' | 'over' | undefined })}
-          />
+          {seesBudget && (
+            <FilterMenu
+              name="Budget"
+              all="Tous les budgets"
+              value={search.budget}
+              options={budgetOptions}
+              onChange={(value) => setFilter({ budget: value as 'warning' | 'over' | undefined })}
+            />
+          )}
 
           {/* Pas de bouton « effacer » ici : chaque menu porte son entree
               « Tous les… », qui leve son filtre la ou on l'a pose. Un bouton
               de plus dans la barre disait la meme chose une troisieme fois. */}
-          <SortMenu sort={search.sort} dir={search.dir} onSort={setSort} />
+          <SortMenu
+            sort={!seesBudget && search.sort === 'budget' ? 'due' : search.sort}
+            dir={search.dir}
+            sorts={seesBudget ? SORTS : SORTS.filter((value) => value !== 'budget')}
+            onSort={setSort}
+          />
 
           <NewProjectDialog />
         </div>

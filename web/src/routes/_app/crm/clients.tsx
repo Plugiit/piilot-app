@@ -12,6 +12,7 @@ import { type CrmClientParams } from '@/features/clients/api'
 import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
 import { NewClientDialog } from '@/features/clients/new-client-dialog'
 import { peopleQuery } from '@/features/projects/api'
+import { can, sessionQuery } from '@/lib/auth'
 import { useSearchField } from '@/lib/search-field'
 import type { ClientStatus, Person } from '@/types/api'
 
@@ -63,6 +64,10 @@ function ClientsLayout() {
   const navigate = Route.useNavigate()
 
   const { data: people } = useQuery(peopleQuery)
+  const { data: session } = useQuery(sessionQuery)
+  // Le pipeline est un outil commercial de direction : sans le droit, la
+  // liste seule, et sans onglet pour une seule vue.
+  const tabs = can(session, 'pipeline.read') ? TABS : []
 
   // Tout changement de filtre ramene page 1 : rester en page 3 d'une liste qui
   // vient de se reduire n'afficherait rien.
@@ -145,9 +150,11 @@ function ClientsLayout() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center border-b border-[#e8e8e9] pl-4">
-          <TabBar tabs={TABS} layoutId="clients-tab" keepSearch />
-        </div>
+        {tabs.length > 0 && (
+          <div className="flex shrink-0 items-center border-b border-[#e8e8e9] pl-4">
+            <TabBar tabs={tabs} layoutId="clients-tab" keepSearch />
+          </div>
+        )}
 
         <Outlet />
       </div>

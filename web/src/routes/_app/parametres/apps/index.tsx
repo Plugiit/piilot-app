@@ -1,12 +1,13 @@
 import { LinkSquare02Icon, TextAlignLeftIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { PageFrame } from '@/components/layout/page-frame'
 import { sidebarAppListQuery } from '@/features/sidebar-apps/api'
 import { AppMark, AppRowActions, NewAppDialog } from '@/features/sidebar-apps/dialogs'
 import { HttpError } from '@/lib/api'
+import { can } from '@/lib/auth'
 
 /**
  * Apps du rail.
@@ -18,6 +19,10 @@ import { HttpError } from '@/lib/api'
  * un rail, et au-dela ce n'est plus un rail.
  */
 export const Route = createFileRoute('/_app/parametres/apps/')({
+  // Les apps du rail valent pour toute l'agence : seul qui gere les comptes les regle.
+  beforeLoad: ({ context }) => {
+    if (!can(context.user, 'users.write')) throw redirect({ to: '/parametres/services', search: { page: 1 }, replace: true })
+  },
   loader: ({ context }) =>
     context.queryClient.query({ ...sidebarAppListQuery(), staleTime: 'static' }),
   component: AppsPage,
