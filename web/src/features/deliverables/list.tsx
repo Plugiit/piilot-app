@@ -69,14 +69,26 @@ const COLUMNS: Column[] = [
     label: 'Projet',
     icon: FolderOpenIcon,
     width: 'min-w-[150px] flex-[1_1_150px]',
+    // Le jalon sous le projet : il dit a quelle etape le livrable compte.
     cell: (item) => (
-      <Link
-        to="/pm/projets/$id"
-        params={{ id: item.project.id }}
-        className="truncate text-[14px] text-[#1b1b1b] hover:underline"
-      >
-        {item.project.name}
-      </Link>
+      <span className="flex min-w-0 flex-col">
+        <Link
+          to="/pm/projets/$id"
+          params={{ id: item.project.id }}
+          className="truncate text-[14px] text-[#1b1b1b] hover:underline"
+        >
+          {item.project.name}
+        </Link>
+        {item.milestone !== null && (
+          <Link
+            to="/pm/projets/$id/jalons"
+            params={{ id: item.project.id }}
+            className="truncate text-[12px] text-[#8d8d8d] hover:underline"
+          >
+            {item.milestone.name}
+          </Link>
+        )}
+      </span>
     ),
   },
   {

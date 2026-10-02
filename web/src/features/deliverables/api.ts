@@ -50,6 +50,8 @@ export interface CreateDeliverableValues {
   title: string
   description: string
   url: string
+  /** Jalon du meme projet, ou aucun. */
+  milestone_id?: string | null
 }
 
 /** Depose un livrable et sa premiere version sur un projet. */
@@ -66,6 +68,8 @@ export function useCreateDeliverable(projectId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: deliverableKeys.all })
+      // Les compteurs des jalons suivent les livrables qui s'y rattachent.
+      void queryClient.invalidateQueries({ queryKey: ['milestones'] })
     },
   })
 }
@@ -84,6 +88,8 @@ export function useSubmitVersion(deliverableId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: deliverableKeys.all })
+      // Les compteurs des jalons suivent les livrables qui s'y rattachent.
+      void queryClient.invalidateQueries({ queryKey: ['milestones'] })
     },
   })
 }
@@ -113,6 +119,8 @@ export function useDecideDeliverable(deliverableId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: deliverableKeys.all })
+      // Les compteurs des jalons suivent les livrables qui s'y rattachent.
+      void queryClient.invalidateQueries({ queryKey: ['milestones'] })
     },
   })
 }

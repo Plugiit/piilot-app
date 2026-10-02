@@ -1,8 +1,11 @@
 import {
   ArrowLeft02Icon,
+  Attachment02Icon,
   CheckmarkSquare02Icon,
   Delete02Icon,
   Exchange01Icon,
+  File01Icon,
+  Flag02Icon,
   KanbanIcon,
   Link04Icon,
   ListViewIcon,
@@ -11,8 +14,6 @@ import {
   Settings02Icon,
   StarIcon,
   Ticket02Icon,
-  File01Icon,
-  Attachment02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
@@ -43,16 +44,17 @@ import {
   useUpdateProject,
   useUploadProjectFile,
 } from '@/features/projects/api'
+import { MilestoneDialog } from '@/features/milestones/milestone-dialog'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate } from '@/features/projects/format'
 import { Avatars, BudgetBar, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { ServicePills } from '@/features/services/tag'
 import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
 import { HttpError } from '@/lib/api'
+import { can, sessionQuery } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectStatus } from '@/types/api'
-import { can, sessionQuery } from '@/lib/auth'
 
 import { InviteDialog } from './-invite'
 
@@ -136,6 +138,7 @@ const TOUS_LES_PROJETS: Crumb = {
 const TABS: Tab[] = [
   { to: '/pm/projets/$id/taches', label: 'Tâches', icon: CheckmarkSquare02Icon },
   { to: '/pm/projets/$id/tickets', label: 'Tickets', icon: Ticket02Icon },
+  { to: '/pm/projets/$id/jalons', label: 'Jalons', icon: Flag02Icon },
 ]
 
 // Deux tailles pour un meme rendu : les tracés n'occupent pas la meme part de
@@ -439,6 +442,7 @@ function ProjectLayout() {
   const update = useUpdateProject(id)
   const matchRoute = useMatchRoute()
   const surTickets = matchRoute({ to: '/pm/projets/$id/tickets', params: { id } }) !== false
+  const surJalons = matchRoute({ to: '/pm/projets/$id/jalons', params: { id } }) !== false
 
   // Le loader a deja rempli le cache : ce cas ne se produit qu'au tout premier
   // rendu d'une navigation sans prefetch.
@@ -644,11 +648,18 @@ function ProjectLayout() {
               est ancre au bas de son lien, et une rangee plus haute que les
               onglets les centrerait en decollant le filet du bord. */}
           <div className="flex items-center gap-2">
-            <ViewSwitch />
-            {surTickets ? (
-              <NewTicketDialog projectId={project.id} />
+            {/* Les jalons n'ont qu'une vue : une frise, pas de kanban. */}
+            {surJalons ? (
+              can(session, 'projects.write') && <MilestoneDialog projectId={project.id} />
             ) : (
-              <NewTaskDialog projectId={project.id} />
+              <>
+                <ViewSwitch />
+                {surTickets ? (
+                  <NewTicketDialog projectId={project.id} />
+                ) : (
+                  <NewTaskDialog projectId={project.id} />
+                )}
+              </>
             )}
           </div>
         </div>

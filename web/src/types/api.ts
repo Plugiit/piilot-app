@@ -235,3 +235,19 @@ export type WorkTask = components['schemas']['WorkTask']
 export type WorkTicket = components['schemas']['WorkTicket']
 export type WorkDeliverable = components['schemas']['WorkDeliverable']
 export type WorkProject = components['schemas']['WorkProject']
+
+/** Jalons d'un projet, et le planning qui les reprend. */
+export type Milestone = components['schemas']['Milestone']
+export type MilestoneDeliverable = components['schemas']['MilestoneDeliverable']
+export type Planning = components['schemas']['Planning']
+export type PlanningItem = components['schemas']['PlanningItem']
+
+/** Modeles de projet. */
+export type ProjectTemplate = components['schemas']['ProjectTemplate']
+export type ProjectTemplateSummary = components['schemas']['ProjectTemplateSummary']
+export type TemplateMilestone = components['schemas']['TemplateMilestone']
+export type TemplateTask = components['schemas']['TemplateTask']
+
+/** Journal de la relation client. */
+export type Interaction = components['schemas']['Interaction']
+export type InteractionKind = Interaction['kind']
