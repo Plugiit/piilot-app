@@ -1,8 +1,22 @@
-import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQueryClient,
+  type QueryKey,
+} from '@tanstack/react-query'
 
 import { projectKeys } from '@/features/projects/api'
 import { api, postFile, unwrap } from '@/lib/api'
-import type { Attachment, TaskBoard, TaskList, TaskPriority, TaskStatus } from '@/types/api'
+import type {
+  Attachment,
+  GlobalTaskBoard,
+  TaskBoard,
+  TaskColumns,
+  TaskPage,
+  TaskPriority,
+  TaskStatus,
+} from '@/types/api'
 
 /**
  * Cles de cache des taches.
@@ -14,8 +28,11 @@ import type { Attachment, TaskBoard, TaskList, TaskPriority, TaskStatus } from '
 export const taskKeys = {
   all: ['tasks'] as const,
   board: (projectId: string) => [...taskKeys.all, 'board', projectId] as const,
+  // Les deux vues de l'ecran « Taches » sous le meme prefixe : une ecriture
+  // les rafraichit ensemble.
   lists: () => [...taskKeys.all, 'list'] as const,
-  list: (params: TaskListParams) => [...taskKeys.lists(), params] as const,
+  list: (params: TaskListParams) => [...taskKeys.lists(), 'page', params] as const,
+  globalBoard: (params: TaskListParams) => [...taskKeys.lists(), 'board', params] as const,
   detail: (id: string) => [...taskKeys.all, 'detail', id] as const,
   comments: (id: string) => [...taskKeys.all, 'comments', id] as const,
 }
@@ -26,13 +43,29 @@ export interface TaskListParams {
   status?: TaskStatus
   priority?: TaskPriority
   projectId?: string
+  /** Vue liste seulement : le kanban ne se feuillette pas. */
+  page?: number
+}
+
+/** Lignes par page de la vue liste. */
+export const TASK_PAGE_SIZE = 50
+
+/** Filtres de la barre d'outils, au format de l'API. */
+function filtersOf(params: TaskListParams) {
+  return {
+    search: params.search,
+    status: params.status,
+    priority: params.priority,
+    project_id: params.projectId,
+  }
 }
 
 /**
- * Taches de toute l'agence.
+ * Vue liste de l'ecran « Taches » : une page de taches de toute l'agence.
  *
- * Une seule requete pour les deux vues : la liste et le kanban montrent le
- * meme jeu de taches, range autrement. Changer d'onglet ne recharge donc rien.
+ * Deux requetes distinctes pour la liste et le kanban : la liste se feuillette,
+ * le kanban montre les premieres cartes de chaque colonne. Un seul jeu de
+ * donnees pour les deux obligeait a plafonner la liste comme un kanban.
  *
  * `keepPreviousData` garde l'affichage precedent pendant qu'un filtre change :
  * sans lui, le tableau se viderait entre deux frappes de la recherche.
@@ -44,17 +77,52 @@ export function taskListQuery(params: TaskListParams) {
       unwrap(
         await api.GET('/api/v1/admin/tasks', {
           params: {
-            query: {
-              search: params.search,
-              status: params.status,
-              priority: params.priority,
-              project_id: params.projectId,
-            },
+            query: { ...filtersOf(params), page: params.page ?? 1, page_size: TASK_PAGE_SIZE },
           },
         }),
       ),
     placeholderData: keepPreviousData,
   })
+}
+
+/** Vue kanban de l'ecran « Taches » : plafonnee par colonne, memes filtres. */
+export function taskGlobalBoardQuery(params: TaskListParams) {
+  const { page: _page, ...filters } = params
+
+  return queryOptions({
+    // Sans la page : changer de page dans la liste ne doit pas recharger le
+    // kanban, qui ne la lit pas.
+    queryKey: taskKeys.globalBoard(filters),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/v1/admin/tasks/board', { params: { query: filtersOf(filters) } })),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Deplace une carte dans un cache de kanban ou de liste, avant la reponse du
+ * serveur.
+ *
+ * Les totaux de colonne suivent quand la reponse en porte : sans eux, l'en-tete
+ * d'une colonne garderait son ancien compte jusqu'au rechargement.
+ */
+function moveInCache<T extends { items: { id: string; status: TaskStatus }[]; columns?: TaskColumns }>(
+  data: T,
+  id: string,
+  status: TaskStatus,
+): T {
+  const from = data.items.find((task) => task.id === id)?.status
+  const items = data.items.map((task) => (task.id === id ? { ...task, status } : task))
+
+  if (data.columns === undefined || from === undefined || from === status) {
+    return { ...data, items }
+  }
+
+  return {
+    ...data,
+    items,
+    columns: { ...data.columns, [from]: data.columns[from] - 1, [status]: data.columns[status] + 1 },
+  }
 }
 
 /** Tableau des taches d'un projet. */
@@ -218,10 +286,7 @@ export function useMoveTask(projectId: string) {
       const previous = queryClient.getQueryData<TaskBoard>(taskKeys.board(projectId))
 
       if (previous !== undefined) {
-        queryClient.setQueryData<TaskBoard>(taskKeys.board(projectId), {
-          ...previous,
-          items: previous.items.map((task) => (task.id === id ? { ...task, status } : task)),
-        })
+        queryClient.setQueryData<TaskBoard>(taskKeys.board(projectId), moveInCache(previous, id, status))
       }
 
       return { previous }
@@ -244,15 +309,14 @@ export function useMoveTask(projectId: string) {
  * Deplacement d'une tache depuis l'ecran global.
  *
  * Meme endpoint que dans un projet, autre cache : la mise a jour optimiste
- * porte ici sur la liste filtree et non sur le tableau d'un projet. C'est la
- * seule chose qui distingue les deux — et la raison de ne pas avoir tordu
- * `useMoveTask` pour servir les deux ecrans avec un parametre de plus.
+ * porte ici sur la vue ouverte — la page de la liste ou le kanban, dont la cle
+ * est passee par l'appelant — et non sur le tableau d'un projet.
  *
  * Le projet de la tache voyage dans les variables : une liste qui traverse
  * les projets ne peut pas le tenir de son contexte, alors qu'il faut bien
  * rafraichir le tableau et les compteurs du projet touche.
  */
-export function useMoveTaskInList(params: TaskListParams) {
+export function useMoveTaskInList(key: QueryKey) {
   const queryClient = useQueryClient()
   const invalidate = useTaskInvalidation()
 
@@ -265,23 +329,18 @@ export function useMoveTaskInList(params: TaskListParams) {
         }),
       ),
     onMutate: async ({ id, status }) => {
-      const key = taskKeys.list(params)
-
       await queryClient.cancelQueries({ queryKey: key })
-      const previous = queryClient.getQueryData<TaskList>(key)
+      const previous = queryClient.getQueryData<TaskPage | GlobalTaskBoard>(key)
 
       if (previous !== undefined) {
-        queryClient.setQueryData<TaskList>(key, {
-          ...previous,
-          items: previous.items.map((task) => (task.id === id ? { ...task, status } : task)),
-        })
+        queryClient.setQueryData(key, moveInCache(previous, id, status))
       }
 
       return { previous }
     },
     onError: (_error, _variables, context) => {
       if (context?.previous !== undefined) {
-        queryClient.setQueryData(taskKeys.list(params), context.previous)
+        queryClient.setQueryData(key, context.previous)
       }
     },
     onSuccess: (task) => {

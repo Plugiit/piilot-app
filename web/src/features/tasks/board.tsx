@@ -24,7 +24,7 @@ import {
 import { Avatars, PriorityTag } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import type { TaskStatus, TaskSummary } from '@/types/api'
+import type { TaskColumns as ColumnTotals, TaskStatus, TaskSummary } from '@/types/api'
 
 const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
@@ -294,11 +294,17 @@ function TaskCard({
  */
 export function TaskColumns({
   tasks,
+  totals,
   onOpen,
   onMove,
   onCreate,
 }: {
   tasks: BoardTask[]
+  /**
+   * Total de chaque colonne cote serveur. Les colonnes sont plafonnees : sans
+   * ce total, l'en-tete annoncerait 50 la ou il y en a 541.
+   */
+  totals?: ColumnTotals
   onOpen: (taskId: string) => void
   onMove: (task: BoardTask, status: TaskStatus) => void
   /**
@@ -392,6 +398,8 @@ export function TaskColumns({
       {TASK_STATUS_ORDER.map((status) => {
         const column = TASK_STATUS[status]
         const items = tasks.filter((task) => task.status === status)
+        const total = Math.max(totals?.[status] ?? items.length, items.length)
+        const hidden = total - items.length
 
         // L'emplacement s'ouvre sous une carte portee au-dessus d'une autre
         // colonne que la sienne, et reste ouvert jusqu'a ce qu'elle y arrive.
@@ -417,8 +425,8 @@ export function TaskColumns({
                 <h2 className="truncate text-[16px] leading-[1.5] font-medium text-[#1b1b1b]">
                   {column.label}
                 </h2>
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#4770e4] text-[12px] text-white tabular-nums">
-                  {items.length}
+                <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[#4770e4] px-1.5 text-[12px] text-white tabular-nums">
+                  {total}
                 </span>
               </div>
 
@@ -512,6 +520,16 @@ export function TaskColumns({
                 spacing={4}
               />
             </div>
+
+            {/* La colonne est plafonnee cote serveur : on dit ce qui manque et
+                lesquelles on montre, plutot que de laisser croire que la
+                colonne est complete. */}
+            {hidden > 0 && (
+              <p className="px-3 py-2 text-center text-[12px] text-[#73757c]">
+                {items.length} affichées sur {total}
+                {status === 'done' ? ', les plus récentes' : ''}. Filtrez pour voir les autres.
+              </p>
+            )}
 
             {onCreate !== undefined && (
               <button
