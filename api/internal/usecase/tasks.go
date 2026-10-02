@@ -264,7 +264,7 @@ type TaskService struct {
 
 // NewTaskService construit le service.
 func NewTaskService(pool *pgxpool.Pool, files storage.Store, maxFile int64, bus Bus) *TaskService {
-	return &TaskService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile}
+	return &TaskService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile, bus: bus}
 }
 
 // List renvoie une page de la vue liste de l'ecran « Taches ».
