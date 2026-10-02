@@ -165,6 +165,210 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Comptes
+         * @description Onglet Comptes : comptes de l'agence et du portail, les actifs d'abord. Exige users.read.
+         */
+        get: operations["listAdminAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invitations en attente
+         * @description Onglet Invitations, expirees comprises. Exige users.read.
+         */
+        get: operations["listAdminInvitations"];
+        put?: never;
+        /**
+         * Inviter
+         * @description Cree une invitation valable sept jours et l'envoie par e-mail si l'envoi est configure. Le lien est rendu une seule fois. Exige users.write.
+         */
+        post: operations["inviteAdminAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/invitations/{id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renvoyer une invitation
+         * @description Nouveau lien, valable sept jours ; l'ancien cesse de valoir. Exige users.write.
+         */
+        post: operations["resendAdminInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Annuler une invitation
+         * @description Son lien cesse de valoir. Exige users.write.
+         */
+        delete: operations["revokeAdminInvitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Changer le role
+         * @description Entre admin et team. Prend effet a la requete suivante du compte. Refuse sur son propre compte et pour le dernier admin actif. Exige users.write.
+         */
+        patch: operations["setAdminAccountRole"];
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Desactiver
+         * @description Le compte ne se connecte plus et perd toutes ses sessions, immediatement. Exige users.write.
+         */
+        post: operations["disableAdminAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactiver
+         * @description Exige users.write.
+         */
+        post: operations["enableAdminAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{id}/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lien de reinitialisation
+         * @description Cree un lien valable une heure, envoye par e-mail si l'envoi est configure et rendu pour etre copie. Exige users.write.
+         */
+        post: operations["resetAdminAccountPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Roles et permissions
+         * @description Matrice de l'onglet Roles. Exige roles.read.
+         */
+        get: operations["listAdminRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles/{code}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Permissions d'un role
+         * @description Remplace les permissions d'un role. Le role admin ne se modifie pas ; users.write, roles.write et system.update ne s'accordent qu'a lui. Exige roles.write.
+         */
+        put: operations["setAdminRolePermissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/system/update": {
         parameters: {
             query?: never;
@@ -707,6 +911,94 @@ export interface paths {
         get: operations["getAvatar"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invitation
+         * @description Page d'acceptation, sans session. Bornee par IP.
+         */
+        get: operations["getInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accepter une invitation
+         * @description Cree le compte et ouvre la session (cookies). Bornee par IP.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reglage du mot de passe oublie
+         * @description Dit si l'instance envoie des e-mails.
+         */
+        get: operations["getForgotConfig"];
+        put?: never;
+        /**
+         * Mot de passe oublie
+         * @description Envoie un lien valable une heure si l'adresse est celle d'un compte actif. Repond 202 dans tous les cas : la reponse ne dit pas si l'adresse existe. Bornee par IP et par compte.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lien de reinitialisation
+         * @description Compte vise par le lien. Bornee par IP.
+         */
+        get: operations["getPasswordReset"];
+        put?: never;
+        /**
+         * Reinitialiser le mot de passe
+         * @description Change le mot de passe et ferme toutes les sessions du compte. Rend l'adresse, pour pre-remplir la connexion. Bornee par IP.
+         */
+        post: operations["resetPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2840,6 +3132,161 @@ export interface components {
             /** @description Une mise a jour est en route : le bouton est remplace par son suivi. */
             in_progress: boolean;
         };
+        /** @description Client auquel un compte de portail est rattache. */
+        ClientRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @description Ligne de l'ecran Comptes. */
+        Account: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            firstname: string;
+            lastname: string;
+            initials: string;
+            avatar_url: string | null;
+            role: string;
+            client: components["schemas"]["ClientRef"] | null;
+            /** @enum {string} */
+            status: "active" | "disabled";
+            /** Format: date-time */
+            last_login_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Le compte de l'appelant : son role et son etat ne se modifient pas depuis cet ecran. */
+            is_self: boolean;
+        };
+        /** @description Page de l'ecran Comptes. */
+        AccountPage: {
+            items: components["schemas"]["Account"][];
+            total: number;
+            page: number;
+            page_size: number;
+            /** @description Invitations en attente, pour la pastille de l'onglet. */
+            open_invitations: number;
+            /** @description L'instance envoie des e-mails. Sinon, les liens se copient et se transmettent a la main. */
+            mail_enabled: boolean;
+        };
+        /** @description Invitation en attente de reponse. */
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            firstname: string;
+            lastname: string;
+            role: string;
+            client: components["schemas"]["ClientRef"] | null;
+            invited_by: string;
+            /** @enum {string} */
+            status: "pending" | "expired";
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description Onglet Invitations. */
+        InvitationList: {
+            items: components["schemas"]["Invitation"][];
+            mail_enabled: boolean;
+        };
+        /** @description Lien d'invitation ou de reinitialisation, rendu une seule fois : seule son empreinte est stockee. */
+        SentLink: {
+            link: string;
+            /** @description Le lien est aussi parti par e-mail. */
+            emailed: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description Invitation creee et son lien. */
+        InviteResult: {
+            invitation: components["schemas"]["Invitation"];
+            link: string;
+            emailed: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description Invitation a envoyer. */
+        InviteRequest: {
+            email: string;
+            firstname?: string;
+            lastname?: string;
+            /** @enum {string} */
+            role: "admin" | "team" | "client";
+            /**
+             * Format: uuid
+             * @description Obligatoire pour le role client.
+             */
+            client_id?: string | null;
+        };
+        /** @description Nouveau role d'un compte interne. */
+        SetRoleRequest: {
+            /** @enum {string} */
+            role: "admin" | "team";
+        };
+        /** @description Permission de la matrice des roles. */
+        PermissionInfo: {
+            code: string;
+            label: string;
+            group: string;
+            /** @description Reservee au role admin : ne s'accorde a aucun autre. */
+            admin_only: boolean;
+        };
+        /** @description Role de la matrice. */
+        RoleInfo: {
+            code: string;
+            label: string;
+            editable: boolean;
+            note: string;
+            /** @description Comptes actifs portant ce role. */
+            users: number;
+            permissions: string[];
+            /** @description Permissions que ce role peut recevoir. */
+            grantable: string[];
+        };
+        /** @description Onglet Roles. */
+        RoleMatrix: {
+            roles: components["schemas"]["RoleInfo"][];
+            permissions: components["schemas"]["PermissionInfo"][];
+        };
+        /** @description Permissions completes d'un role. */
+        RolePermissionsRequest: {
+            permissions: string[];
+        };
+        /** @description Page d'acceptation d'une invitation. */
+        InvitationView: {
+            email: string;
+            firstname: string;
+            lastname: string;
+            role: string;
+            invited_by: string;
+            client_name: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description Ce que l'invite choisit. */
+        AcceptInvitationRequest: {
+            firstname: string;
+            lastname: string;
+            password: string;
+        };
+        /** @description Demande de lien de reinitialisation. */
+        ForgotRequest: {
+            email: string;
+        };
+        /** @description Reglage de la page mot de passe oublie. */
+        ForgotConfig: {
+            mail_enabled: boolean;
+        };
+        /** @description Compte vise par un lien de reinitialisation. */
+        ResetInfo: {
+            email: string;
+        };
+        /** @description Nouveau mot de passe. */
+        ResetRequest: {
+            password: string;
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -3122,6 +3569,324 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminAccounts: {
+        parameters: {
+            query?: {
+                /** @description Nom ou adresse */
+                search?: string;
+                /** @description Role exact */
+                role?: "admin" | "team" | "client";
+                /** @description Etat du compte */
+                status?: "active" | "disabled";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page de comptes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invitations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    inviteAdminAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Invitation creee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description ACCOUNT_EXISTS ou INVITATION_PENDING (details.invitation_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    resendAdminInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Nouveau lien */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentLink"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    revokeAdminInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setAdminAccountRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description SELF_CHANGE, LAST_ADMIN ou CLIENT_ROLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    disableAdminAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description SELF_CHANGE ou LAST_ADMIN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    enableAdminAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description SELF_CHANGE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    resetAdminAccountPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lien */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentLink"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matrice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMatrix"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setAdminRolePermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermissionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Matrice a jour */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMatrix"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description ROLE_LOCKED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
         };
     };
     getAdminSystemUpdate: {
@@ -4169,6 +4934,210 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Jeton du lien recu par e-mail. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invitation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationView"];
+                };
+            };
+            /** @description INVITATION_INVALID */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description INVITATION_EXPIRED ou INVITATION_USED */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Jeton du lien recu par e-mail. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Session ouverte */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description INVITATION_INVALID */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description INVITATION_EXPIRED ou INVITATION_USED */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getForgotConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reglage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForgotConfig"];
+                };
+            };
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotRequest"];
+            };
+        };
+        responses: {
+            /** @description Demande prise en compte */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Jeton du lien recu par e-mail. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compte */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetInfo"];
+                };
+            };
+            /** @description RESET_INVALID */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Jeton du lien recu par e-mail. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Mot de passe change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetInfo"];
+                };
+            };
+            /** @description RESET_INVALID */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["RateLimited"];
         };
     };
     listNotifications: {

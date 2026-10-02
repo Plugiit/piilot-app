@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ViewOffIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -30,6 +30,8 @@ import { homeFor, login, sessionQuery } from '@/lib/auth'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
+  // Adresse pre-remplie au retour d'une reinitialisation de mot de passe.
+  email: z.string().optional(),
 })
 
 export const Route = createFileRoute('/login')({
@@ -75,7 +77,7 @@ function writeRememberedEmail(email: string | null) {
 }
 
 function LoginPage() {
-  const { redirect } = Route.useSearch()
+  const { redirect, email: prefilled } = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -85,7 +87,7 @@ function LoginPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { email: remembered, password: '' },
+    defaultValues: { email: prefilled ?? remembered, password: '' },
   })
 
   const mutation = useMutation({
@@ -302,15 +304,15 @@ function LoginPage() {
                     </Label>
                   </div>
 
-                  {/* Aucun ecran de reinitialisation n'existe encore cote API :
-                      le lien est pose comme dans la maquette et ne mene nulle
-                      part tant que la route n'est pas ecrite. */}
-                  <a
-                    href="#"
+                  {/* L'adresse deja saisie suit : la personne n'a pas a la
+                      retaper sur la page suivante. */}
+                  <Link
+                    to="/mot-de-passe-oublie"
+                    search={{ email: form.watch('email') || undefined }}
                     className="text-brand shrink-0 text-right text-[16px] leading-[1.5] whitespace-nowrap hover:underline"
                   >
                     Mot de passe oublié ?
-                  </a>
+                  </Link>
                 </div>
               </div>
 
