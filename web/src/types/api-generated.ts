@@ -1785,6 +1785,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/projects/{id}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Jalons d'un projet
+         * @description Les jalons, dans l'ordre de leurs echeances, avec leurs livrables. Exige projects.read.
+         */
+        get: operations["listProjectMilestones"];
+        put?: never;
+        /**
+         * Ajouter un jalon
+         * @description Exige projects.write.
+         */
+        post: operations["createMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/milestones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un jalon
+         * @description Ses livrables restent, detaches. Exige projects.write.
+         */
+        delete: operations["deleteMilestone"];
+        options?: never;
+        head?: never;
+        /**
+         * Modifier un jalon
+         * @description Titre, description, echeance, ou etat atteint. Exige projects.write.
+         */
+        patch: operations["updateMilestone"];
+        trace?: never;
+    };
+    "/api/v1/admin/deliverables/{id}/milestone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rattacher un livrable a un jalon
+         * @description Un jalon du meme projet, ou null pour detacher. Exige deliverables.write.
+         */
+        put: operations["setDeliverableMilestone"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/planning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Planning
+         * @description Jalons, echeances des projets et taches de la personne connectee sur une periode d'au plus 62 jours. scope=mine restreint jalons et projets a ceux ou elle intervient. Exige projects.read.
+         */
+        get: operations["getPlanning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/project-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Modeles de projet
+         * @description Par ordre alphabetique, avec le nombre de jalons et de taches. Exige projects.read.
+         */
+        get: operations["listProjectTemplates"];
+        put?: never;
+        /**
+         * Creer un modele
+         * @description Exige projects.write.
+         */
+        post: operations["createProjectTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/project-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Un modele
+         * @description Le modele et tout son contenu. Exige projects.read.
+         */
+        get: operations["getProjectTemplate"];
+        /**
+         * Enregistrer un modele
+         * @description Remplace le modele et tout son contenu. Exige projects.write.
+         */
+        put: operations["updateProjectTemplate"];
+        post?: never;
+        /**
+         * Supprimer un modele
+         * @description Les projets crees a partir de lui ne bougent pas. Exige projects.write.
+         */
+        delete: operations["deleteProjectTemplate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Interactions
+         * @description Le journal de la relation client, du plus recent au plus ancien. source=manual pour les saisies, events pour les evenements automatiques, ou un genre precis. Exige clients.read.
+         */
+        get: operations["listInteractions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/clients/{id}/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noter une interaction
+         * @description Une note, un appel, un rendez-vous ou un e-mail. Exige clients.write.
+         */
+        post: operations["createInteraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/crm/interactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Effacer une interaction
+         * @description Seules les saisies s'effacent ; un evenement automatique reste. Exige clients.write.
+         */
+        delete: operations["deleteInteraction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2254,6 +2454,11 @@ export interface components {
             team_ids?: string[];
             /** @description Services du referentiel. La cle absente laisse la liste en place ; presente, elle la fixe entierement — vide comprise, qui detache tout. */
             service_ids?: string[];
+            /**
+             * Format: uuid
+             * @description Modele dont le projet recoit les jalons, les taches et les services. Les echeances partent du debut du projet, ou du jour de creation.
+             */
+            template_id?: string | null;
         };
         /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface la date. */
         UpdateProjectRequest: {
@@ -2790,6 +2995,8 @@ export interface components {
             status: "brouillon" | "en_attente" | "valide" | "retours";
             project: components["schemas"]["DeliverableRef"];
             client: components["schemas"]["DeliverableRef"];
+            /** @description Jalon auquel le livrable se rattache. */
+            milestone: components["schemas"]["DeliverableRef"] | null;
             /** @description Nul tant qu'aucune version n'a ete soumise. */
             version: components["schemas"]["DeliverableVersion"] | null;
             /** Format: date-time */
@@ -3394,6 +3601,150 @@ export interface components {
             week_minutes: number;
             /** Format: date */
             today: string;
+        };
+        MilestoneDeliverable: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            status: "brouillon" | "en_attente" | "valide" | "retours";
+        };
+        Milestone: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            /** Format: date */
+            due_on: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+            /**
+             * @description done : atteint. late : echeance passee sans etre atteint. upcoming : sinon.
+             * @enum {string}
+             */
+            state: "upcoming" | "late" | "done";
+            deliverables_total: number;
+            deliverables_validated: number;
+            deliverables: components["schemas"]["MilestoneDeliverable"][];
+        };
+        MilestoneList: {
+            items: components["schemas"]["Milestone"][];
+        };
+        /** @description Pour une modification, une cle absente laisse le champ en place ; due_on a null efface l'echeance. */
+        MilestoneRequest: {
+            title?: string;
+            description?: string;
+            /** Format: date */
+            due_on?: string | null;
+            /** @description Marque le jalon atteint, ou le rouvre. */
+            done?: boolean;
+        };
+        PlanningItem: {
+            /** @enum {string} */
+            kind: "milestone" | "project_due" | "task_due";
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** Format: date */
+            day: string;
+            done: boolean;
+            project: components["schemas"]["DeliverableRef"];
+            deliverables_total: number;
+            deliverables_validated: number;
+        };
+        Planning: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            items: components["schemas"]["PlanningItem"][];
+        };
+        TemplateMilestone: {
+            title: string;
+            /** @description Jours apres le debut du projet. */
+            offset_days: number;
+        };
+        TemplateTask: {
+            title: string;
+            description: string;
+            /** @enum {string} */
+            priority: "low" | "medium" | "high";
+            /** @description Echeance en jours apres le debut du projet ; nulle, sans echeance. */
+            offset_days: number | null;
+        };
+        ProjectTemplateSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            milestones: number;
+            tasks: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ProjectTemplatePage: {
+            items: components["schemas"]["ProjectTemplateSummary"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        ProjectTemplate: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            services: components["schemas"]["ServiceTag"][];
+            milestones: components["schemas"]["TemplateMilestone"][];
+            tasks: components["schemas"]["TemplateTask"][];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description Le modele entier : son contenu est remplace d'un bloc. */
+        ProjectTemplateRequest: {
+            name: string;
+            description?: string;
+            service_ids?: string[];
+            milestones?: components["schemas"]["TemplateMilestone"][];
+            tasks?: components["schemas"]["TemplateTask"][];
+        };
+        Interaction: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "note" | "call" | "meeting" | "email" | "project_created" | "deliverable_validated" | "ticket_opened";
+            body: string;
+            /** Format: date-time */
+            occurred_at: string;
+            client: components["schemas"]["DeliverableRef"];
+            project: components["schemas"]["DeliverableRef"] | null;
+            author: components["schemas"]["Person"] | null;
+            /** @description Ce que dit un evenement : titre, numero de ticket, version. */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description Saisie a la main, qui peut s'effacer. */
+            manual: boolean;
+        };
+        InteractionFeed: {
+            items: components["schemas"]["Interaction"][];
+            /**
+             * Format: date-time
+             * @description Curseur de la page suivante. Nul quand il n'y a plus rien.
+             */
+            before: string | null;
+        };
+        CreateInteractionRequest: {
+            /** @enum {string} */
+            kind: "note" | "call" | "meeting" | "email";
+            body: string;
+            /**
+             * Format: date-time
+             * @description Absente, maintenant.
+             */
+            occurred_at?: string | null;
+            /** Format: uuid */
+            project_id?: string | null;
         };
     };
     responses: {
@@ -6017,6 +6368,11 @@ export interface operations {
                     description?: string;
                     /** @description Lien vers la preproduction, la maquette ou le document. */
                     url: string;
+                    /**
+                     * Format: uuid
+                     * @description Jalon du meme projet. Un jalon d'un autre projet est ignore.
+                     */
+                    milestone_id?: string | null;
                 };
             };
         };
@@ -6734,6 +7090,384 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listProjectMilestones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Jalons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneRequest"];
+            };
+        };
+        responses: {
+            /** @description Jalon cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Jalon supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneRequest"];
+            };
+        };
+        responses: {
+            /** @description Jalon modifie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    setDeliverableMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    milestone_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Livrable rattache */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getPlanning: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                scope?: "all" | "mine";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Calendrier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Planning"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listProjectTemplates: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Modeles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTemplatePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createProjectTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Modele cree */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getProjectTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Modele */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateProjectTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Modele enregistre */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteProjectTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Modele supprime */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInteractions: {
+        parameters: {
+            query?: {
+                client_id?: string;
+                source?: string;
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Journal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionFeed"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createInteraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction notee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteInteraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Interaction effacee */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
         };
     };

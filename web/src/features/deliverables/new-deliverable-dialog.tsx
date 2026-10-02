@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateDeliverable } from '@/features/deliverables/api'
+import { milestoneListQuery } from '@/features/milestones/api'
 import { projectListQuery } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
 
@@ -56,7 +57,11 @@ const schema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis'),
   description: z.string(),
   url: z.string().trim().min(1, 'Le lien est requis'),
+  milestone_id: z.string(),
 })
+
+/** Valeur du choix « aucun jalon » : Radix refuse la chaine vide. */
+const SANS_JALON = 'aucun'
 
 type Values = z.infer<typeof schema>
 
@@ -73,13 +78,21 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
     title: '',
     description: '',
     url: '',
+    milestone_id: SANS_JALON,
   }
 
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: vierge })
 
   // Le projet choisi dans le formulaire porte la mutation : l'endpoint vit
   // sous le projet, c'est lui qui designe ou le livrable se depose.
-  const create = useCreateDeliverable(projectId ?? form.watch('project_id'))
+  const chosen = projectId ?? form.watch('project_id')
+  const create = useCreateDeliverable(chosen)
+
+  // Les jalons du projet choisi : le livrable s'y rattache des son depot.
+  const { data: milestones } = useQuery({
+    ...milestoneListQuery(chosen),
+    enabled: open && chosen !== '',
+  })
 
   function onSubmit(values: Values) {
     create.mutate(
@@ -87,6 +100,7 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
         title: values.title.trim(),
         description: values.description.trim(),
         url: values.url.trim(),
+        milestone_id: values.milestone_id === SANS_JALON ? null : values.milestone_id,
       },
       {
         onSuccess: (item) => {
@@ -142,6 +156,36 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
                         {(projects?.items ?? []).map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {(milestones?.items.length ?? 0) > 0 && (
+              <FormField
+                control={form.control}
+                name="milestone_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Jalon</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={SANS_JALON}>
+                          <span className="text-[#73757c]">Aucun jalon</span>
+                        </SelectItem>
+                        {(milestones?.items ?? []).map((milestone) => (
+                          <SelectItem key={milestone.id} value={milestone.id}>
+                            {milestone.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
