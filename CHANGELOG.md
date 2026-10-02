@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.4.0] — Temps et budgets
+## [0.4.0] — Temps et budgets · 2026-10-02
 
 Cette version termine le pilotage du temps : chaque projet affiche où il en est de son budget, et le tableau de bord ne montre plus que des données réelles. Elle s'adresse aux administrateurs qui suivent la rentabilité des projets et la charge de l'équipe. C'est aussi la première version publiée sous licence libre.
 
