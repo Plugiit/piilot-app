@@ -23,6 +23,8 @@ l'application réelle, sur une instance remplie de données fictives.</sub>
 - [Exploitation](#exploitation)
 - [Développement](#développement)
 - [Structure du dépôt](#structure-du-dépôt)
+- [Contribuer](#contribuer)
+- [Licence](#licence)
 
 ---
 
@@ -407,11 +409,12 @@ docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d --buil
 
 ### Variante : l'image seule, avec Postgres et Redis existants
 
-L'image n'a besoin que de variables d'environnement et d'un volume :
+L'image n'a besoin que de variables d'environnement et d'un volume. Chaque
+release est publiée sur `ghcr.io/plugiit/piilot-app`, avec trois tags :
+la version exacte (`0.4.0`), la mineure (`0.4`, qui suit les correctifs) et
+`latest`. En production, épingler une version plutôt que `latest`.
 
 ```bash
-docker build -t piilot-app .
-
 docker run -d --name piilot --restart unless-stopped \
   -p 127.0.0.1:8080:8080 \
   -v piilot-files:/app/data/files \
@@ -420,8 +423,11 @@ docker run -d --name piilot --restart unless-stopped \
   -e DATABASE_URL='postgres://piilot:MOT_DE_PASSE@db.interne:5432/piilot?sslmode=require' \
   -e REDIS_URL='redis://:MOT_DE_PASSE@redis.interne:6379/0' \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
-  piilot-app
+  ghcr.io/plugiit/piilot-app:0.4
 ```
+
+Pour construire l'image soi-même plutôt que la récupérer :
+`docker build -t piilot-app .`
 
 > Générer `JWT_SECRET` une fois et le conserver : le changer déconnecte tout
 > le monde.
@@ -442,7 +448,7 @@ create-admin
 ```
 Création d'un compte admin
 
-Adresse e-mail : moi@plugiit.com
+Adresse e-mail : admin@example.fr
 Prénom : Maxence
 Nom : Mahieux
 Mot de passe (12 caractères minimum) :
@@ -450,7 +456,7 @@ Confirmation :
 
 Compte créé
   id    558da275-9cc5-4cc7-995f-f152e7ec61bf
-  email moi@plugiit.com
+  email admin@example.fr
   rôle  admin
 ```
 
@@ -474,7 +480,7 @@ n'importe quel rôle :
 
 ```sh
 SEED_PASSWORD='un-mot-de-passe-solide' seed \
-    -email=lea@plugiit.com -firstname=Léa -lastname=Bernard -role=team
+    -email=lea@example.fr -firstname=Léa -lastname=Bernard -role=team
 ```
 
 Le mot de passe passe par `SEED_PASSWORD`, jamais par un paramètre, pour ne
@@ -627,3 +633,18 @@ VERSION                     version courante, tenue par le script de release
 CHANGELOG.md                historique des versions
 ROADMAP.md                  étapes jusqu'à la V1
 ```
+
+## Contribuer
+
+Les contributions sont bienvenues : voir [CONTRIBUTING.md](CONTRIBUTING.md)
+pour les conventions et la marche à suivre. Une faille de sécurité ne se
+signale pas en issue publique : voir [SECURITY.md](SECURITY.md).
+
+## Licence
+
+Piilot est distribué sous licence [GNU Affero General Public License v3](LICENSE).
+
+Vous pouvez l'utiliser, le modifier et le redistribuer librement. Si vous
+faites tourner une **version modifiée** accessible à d'autres personnes par le
+réseau, vous devez leur donner accès au code source de cette version, sous la
+même licence.
