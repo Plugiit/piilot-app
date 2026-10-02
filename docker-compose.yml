@@ -60,6 +60,20 @@ services:
       # doit rien appeler au-dehors.
       UPDATE_CHECK: ${UPDATE_CHECK:-true}
 
+      # --- E-mails ----------------------------------------------------------
+      # Serveur SMTP des invitations et du mot de passe oublie. Facultatif :
+      # vide, Piilot n'envoie rien et les liens se copient depuis l'ecran des
+      # comptes. N'importe quel fournisseur convient (Brevo, Scaleway,
+      # Mailjet…) ; pour le RGPD, un service heberge dans l'UE.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Expediteur : « Piilot <piilot@votre-agence.fr> ».
+      SMTP_FROM: ${SMTP_FROM:-}
+      # starttls (port 587), tls (port 465) ou none (serveur local de test).
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
       WRITE_TIMEOUT: ${WRITE_TIMEOUT:-30s}
