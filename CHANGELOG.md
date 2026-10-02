@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.4.1] — Image arm64
+## [0.4.1] — Image arm64 · 2026-10-02
 
 Cette version publie l'image Docker de Piilot pour les processeurs ARM, en plus des processeurs x86. Elle s'adresse à ceux qui hébergent Piilot sur un serveur ARM ou le font tourner sur un Mac Apple Silicon. L'application elle-même ne change pas.
 
