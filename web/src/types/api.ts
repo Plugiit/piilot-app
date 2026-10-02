@@ -212,3 +212,6 @@ export type TimeEntry = components['schemas']['TimeEntry']
 
 /** Feuille de temps : les lignes d'une plage, leur total, et le total par jour. */
 export type TimeSheet = components['schemas']['TimeSheet']
+
+/** Etat de la mise a jour de l'instance, pour les admins. */
+export type UpdateStatus = components['schemas']['UpdateStatus']

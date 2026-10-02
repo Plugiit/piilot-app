@@ -3,6 +3,7 @@ import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
 
 import { ErrorState } from '@/components/layout/error-state'
 import { Toaster } from '@/components/ui/sonner'
+import { VersionBanner } from '@/features/system/version-banner'
 
 /**
  * Le QueryClient est injecte dans le contexte du routeur : les loaders de
@@ -27,6 +28,9 @@ function RootLayout() {
     <>
       <Outlet />
       <Toaster position="bottom-right" richColors closeButton />
+      {/* A la racine : un onglet reste ouvert apres un deploiement doit etre
+          prevenu ou qu'il soit, connexion comprise. */}
+      <VersionBanner />
     </>
   )
 }
