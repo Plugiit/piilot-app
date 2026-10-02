@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/api'
 
 import { CHAMP, Card, Field, SaveBar } from '@/components/settings-ui'
+import { can } from '@/lib/auth'
 
 const schema = z.object({
   hours_sold: z.number().min(0, 'Un nombre positif est attendu'),
@@ -22,6 +23,12 @@ const schema = z.object({
 type Values = z.infer<typeof schema>
 
 export const Route = createFileRoute('/_app/pm/projets/$id_/parametres/budget')({
+  // Sans le droit, pas de budget a regler : retour a la fiche.
+  beforeLoad: ({ context, params }) => {
+    if (!can(context.user, 'budgets.read')) {
+      throw redirect({ to: '/pm/projets/$id', params: { id: params.id }, replace: true })
+    }
+  },
   component: BudgetPage,
 })
 

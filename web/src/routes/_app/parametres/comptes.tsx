@@ -1,12 +1,12 @@
 import { MailSend01Icon, ShieldUserIcon, UserMultipleIcon } from '@hugeicons/core-free-icons'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { PageFrame } from '@/components/layout/page-frame'
 import { TabBar, type Tab } from '@/components/layout/tab-bar'
 import { invitationListQuery } from '@/features/accounts/api'
 import { InviteDialog } from '@/features/accounts/invite-dialog'
-import { sessionQuery } from '@/lib/auth'
+import { can, sessionQuery } from '@/lib/auth'
 
 /**
  * Ecran « Comptes et rôles » : qui a acces a Piilot, et avec quels droits.
@@ -20,6 +20,10 @@ import { sessionQuery } from '@/lib/auth'
  * verifie de toute facon.
  */
 export const Route = createFileRoute('/_app/parametres/comptes')({
+  // Ecran d'administration : sans le droit, on retombe sur les referentiels.
+  beforeLoad: ({ context }) => {
+    if (!can(context.user, 'roles.read')) throw redirect({ to: '/parametres/services', search: { page: 1 }, replace: true })
+  },
   component: AccountsLayout,
 })
 

@@ -52,6 +52,7 @@ import { HttpError } from '@/lib/api'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectStatus } from '@/types/api'
+import { can, sessionQuery } from '@/lib/auth'
 
 import { InviteDialog } from './-invite'
 
@@ -432,6 +433,8 @@ function ProjectLinks({ project }: { project: ProjectDetail }) {
 function ProjectLayout() {
   const { id } = Route.useParams()
   const { data: project } = useQuery(projectDetailQuery(id))
+  const { data: session } = useQuery(sessionQuery)
+  const seesBudget = can(session, 'budgets.read')
   const favorite = useToggleFavorite(id)
   const update = useUpdateProject(id)
   const matchRoute = useMatchRoute()
@@ -614,9 +617,11 @@ function ProjectLayout() {
               <TasksRatio project={project} />
             </MetaRow>
 
-            <MetaRow label="Budget">
-              <ProjectBudget project={project} />
-            </MetaRow>
+            {seesBudget && (
+              <MetaRow label="Budget">
+                <ProjectBudget project={project} />
+              </MetaRow>
+            )}
 
             <MetaRow label="Document">
               <Attachments project={project} />
