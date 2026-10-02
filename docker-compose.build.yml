@@ -1,0 +1,17 @@
+# Construire l'image depuis les sources plutot que de tirer celle publiee sur
+# ghcr.io : pour tester une branche, ou une version modifiee de Piilot.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# L'image construite n'existe que sur ce serveur : l'updater ne peut pas tirer
+# de version plus recente, la mise a jour depuis l'interface echouera avec un
+# message clair. On met a jour en reconstruisant.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: piilot-app:local
+
+  updater:
+    image: piilot-app:local

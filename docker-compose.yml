@@ -16,11 +16,18 @@
 # General > Domains, sous la forme https://piilot.example.fr:8080 — le :8080
 # designe le port interne vers lequel Traefik route, pas le port public.
 
+# L'application tourne sur l'image publiee a chaque release, et non sur un
+# build fait sur le serveur : deploiement plus rapide, meme image partout, et
+# c'est ce qui permet a l'updater de la mettre a jour en tirant la suivante.
+# Pour construire depuis les sources : docker-compose.build.yml.
+#
+# PIILOT_TAG : `latest` suit toutes les versions et permet la mise a jour
+# depuis l'interface ; `0.4` ne suit que les correctifs de la 0.4 ; `0.4.1`
+# fige la version (l'updater n'a alors rien a mettre a jour).
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${PIILOT_IMAGE:-ghcr.io/plugiit/piilot-app}:${PIILOT_TAG:-latest}
     restart: unless-stopped
     environment:
       # --- Exposition -------------------------------------------------------
@@ -47,6 +54,12 @@ services:
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
       REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-720h}
 
+      # --- Mise a jour ------------------------------------------------------
+      # Verification des nouvelles versions aupres des releases GitHub, pour
+      # proposer la mise a jour aux admins. false pour une instance qui ne
+      # doit rien appeler au-dehors.
+      UPDATE_CHECK: ${UPDATE_CHECK:-true}
+
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
       WRITE_TIMEOUT: ${WRITE_TIMEOUT:-30s}
@@ -72,6 +85,35 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 3
+
+  # Met l'application a jour quand un admin le demande depuis l'interface : tire
+  # la nouvelle image et recree le conteneur « app », en revenant a l'ancien si
+  # le nouveau ne demarre pas.
+  #
+  # C'est le seul conteneur qui recoit le socket Docker — l'application,
+  # exposee sur Internet, ne l'a jamais. Il n'ouvre aucun port et ne recoit
+  # d'ordre que par la base. Retirer ce service desactive la mise a jour depuis
+  # l'interface, sans rien casser d'autre.
+  updater:
+    image: ${PIILOT_IMAGE:-ghcr.io/plugiit/piilot-app}:${PIILOT_TAG:-latest}
+    restart: unless-stopped
+    entrypoint: ["/app/updater"]
+    # root : le socket Docker appartient a root sur l'hote. Ce conteneur a de
+    # toute facon la main sur Docker ; l'utilisateur ne change rien a son
+    # pouvoir, seulement a sa capacite a ouvrir le socket.
+    user: "0"
+    environment:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-piilot}?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # La sonde de l'image interroge l'API sur :8080, que l'updater ne sert
+    # pas : sans ce reglage, il serait marque malade en permanence.
+    healthcheck:
+      disable: true
 
   postgres:
     image: postgres:17-alpine
