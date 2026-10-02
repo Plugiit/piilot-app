@@ -5,7 +5,7 @@
  * les deux perd le rechargement a chaud, chaque modification d'une constante
  * remontant tout l'arbre au lieu de repeindre le composant touche.
  */
-import type { ProjectPriority, ProjectStatus, TaskStatus } from '@/types/api'
+import type { BudgetState, ProjectPriority, ProjectStatus, TaskStatus } from '@/types/api'
 
 /**
  * Couleurs des jauges du module.
@@ -186,3 +186,48 @@ export const PROJECT_STATUS_ORDER: ProjectStatus[] = [
   'attente',
   'livre',
 ]
+
+/**
+ * Part des heures vendues a partir de laquelle un projet passe « a
+ * surveiller ».
+ *
+ * C'est l'API qui classe les projets (`budget_state`) ; ce seuil n'existe ici
+ * que pour la page Budget, qui recalcule l'etat a chaque frappe dans le champ
+ * des heures vendues, avant tout enregistrement. Il doit rester egal a
+ * `BudgetWarningRatio` cote Go.
+ */
+export const BUDGET_WARNING_RATIO = 0.8
+
+/**
+ * Etats du budget : libelle et couleur.
+ *
+ * Le vert n'est pas employe pour « sain » : un budget dans les clous est
+ * l'etat normal, il n'a pas a attirer l'oeil. Seules les derives se colorent.
+ */
+export const BUDGET_STATE: Record<BudgetState, { label: string; color: string }> = {
+  none: { label: 'Sans budget', color: '#c4c4c4' },
+  ok: { label: 'Dans le budget', color: '#73757c' },
+  warning: { label: 'À surveiller', color: WARN_COLOR },
+  over: { label: 'Hors budget', color: ALERT_COLOR },
+}
+
+/** Etat du budget recalcule cote front, pour la page Budget seulement. */
+export function budgetStateOf(sold: number, spent: number, internal: boolean): BudgetState {
+  if (internal || sold <= 0) return 'none'
+  if (spent > sold) return 'over'
+  if (spent >= sold * BUDGET_WARNING_RATIO) return 'warning'
+  return 'ok'
+}
+
+const HOURS = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
+
+/**
+ * Volume d'heures, « 12,5 h ».
+ *
+ * Une decimale au plus : un budget se parle en heures, et deux chiffres apres
+ * la virgule donneraient une precision que des saisies a la demi-heure n'ont
+ * pas.
+ */
+export function formatHours(hours: number): string {
+  return `${HOURS.format(hours)} h`
+}

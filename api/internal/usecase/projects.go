@@ -54,11 +54,15 @@ type ProjectListItem struct {
 	Progress    int       `json:"progress"`
 	HoursSold   float64   `json:"hours_sold"`
 	HoursSpent  float64   `json:"hours_spent"`
-	StartsOn    *string   `json:"starts_on"`
-	DueOn       *string   `json:"due_on"`
-	TasksTotal  int       `json:"tasks_total"`
-	TasksDone   int       `json:"tasks_done"`
-	Team        []Person  `json:"team"`
+	// Etat du budget, derive des deux colonnes precedentes : voir
+	// budgetStateOf. Calcule ici pour que la carte, la fiche et le tableau de
+	// bord appliquent le meme seuil.
+	BudgetState string   `json:"budget_state"`
+	StartsOn    *string  `json:"starts_on"`
+	DueOn       *string  `json:"due_on"`
+	TasksTotal  int      `json:"tasks_total"`
+	TasksDone   int      `json:"tasks_done"`
+	Team        []Person `json:"team"`
 	// Prestations vendues. Vide quand le projet n'en releve d'aucune — un
 	// chantier interne — et souvent plusieurs : une refonte, c'est du design
 	// et du developpement.
@@ -101,6 +105,7 @@ type ProjectDetail struct {
 	Progress           int       `json:"progress"`
 	HoursSold          float64   `json:"hours_sold"`
 	HoursSpent         float64   `json:"hours_spent"`
+	BudgetState        string    `json:"budget_state"`
 	StartsOn           *string   `json:"starts_on"`
 	DueOn              *string   `json:"due_on"`
 	TasksTotal         int       `json:"tasks_total"`
@@ -141,6 +146,9 @@ type ProjectFilters struct {
 	Status   *string
 	ClientID *uuid.UUID
 	Search   *string
+	// Budget restreint la liste aux projets « warning » ou « over ». Nul : pas
+	// de filtre.
+	Budget   *string
 	Sort     string
 	Dir      string
 	Page     int
@@ -211,6 +219,57 @@ var projectPriorities = map[string]struct{}{
 	"low": {}, "medium": {}, "high": {},
 }
 
+// BudgetWarningRatio est la part des heures vendues a partir de laquelle un
+// projet passe « a surveiller ». Au-dela de la totalite, il est en
+// depassement.
+//
+// 80 % plutot qu'un seuil plus tardif : sur un projet de 30 heures, le dernier
+// cinquieme represente une semaine de travail, c'est le delai qu'il faut pour
+// prevenir le client avant que le depassement soit acquis.
+const BudgetWarningRatio = 0.8
+
+// Etats du budget d'un projet, du plus calme au plus urgent.
+const (
+	BudgetNone    = "none"    // projet interne ou sans heures vendues
+	BudgetOK      = "ok"      // moins de BudgetWarningRatio consomme
+	BudgetWarning = "warning" // entre BudgetWarningRatio et la totalite
+	BudgetOver    = "over"    // plus d'heures consommees que vendues
+)
+
+// budgetStateOf classe un projet selon la part de son budget consommee.
+//
+// Un projet interne n'a pas de budget : son temps n'est pas facturable, le
+// comparer a des heures vendues n'a pas de sens. Un projet sans heures vendues
+// non plus — le signaler en depassement des la premiere saisie noierait les
+// vrais depassements sous les projets dont on n'a simplement pas saisi le
+// devis.
+func budgetStateOf(sold, spent float64, internal bool) string {
+	switch {
+	case internal || sold <= 0:
+		return BudgetNone
+	case spent > sold:
+		return BudgetOver
+	case spent >= sold*BudgetWarningRatio:
+		return BudgetWarning
+	default:
+		return BudgetOK
+	}
+}
+
+// Etats acceptes par le filtre de la liste. « ok » et « none » n'y figurent
+// pas : la liste sert a trouver les projets qui derivent, pas ceux qui vont
+// bien.
+var budgetFilters = map[string]struct{}{
+	BudgetWarning: {}, BudgetOver: {},
+}
+
+// ValidBudgetFilter dit si `value` est un filtre de budget accepte.
+func ValidBudgetFilter(value string) bool {
+	_, ok := budgetFilters[value]
+
+	return ok
+}
+
 // Colonnes de tri autorisees. La requete construit son ORDER BY a partir de
 // cette valeur : la clore ici est ce qui empeche l'ecran de demander n'importe
 // quoi.
@@ -249,23 +308,27 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 	}
 
 	total, err := s.q.CountProjects(ctx, db.CountProjectsParams{
-		Status:   f.Status,
-		ClientID: f.ClientID,
-		Search:   f.Search,
+		Status:        f.Status,
+		ClientID:      f.ClientID,
+		Search:        f.Search,
+		Budget:        f.Budget,
+		BudgetWarning: BudgetWarningRatio,
 	})
 	if err != nil {
 		return ProjectPage{}, fmt.Errorf("comptage des projets : %w", err)
 	}
 
 	rows, err := s.q.ListProjects(ctx, db.ListProjectsParams{
-		ViewerID:   f.Viewer,
-		Status:     f.Status,
-		ClientID:   f.ClientID,
-		Search:     f.Search,
-		Sort:       f.Sort,
-		Dir:        f.Dir,
-		PageSize:   int32(f.PageSize),
-		PageOffset: int32((f.Page - 1) * f.PageSize),
+		ViewerID:      f.Viewer,
+		Status:        f.Status,
+		ClientID:      f.ClientID,
+		Search:        f.Search,
+		Budget:        f.Budget,
+		BudgetWarning: BudgetWarningRatio,
+		Sort:          f.Sort,
+		Dir:           f.Dir,
+		PageSize:      int32(f.PageSize),
+		PageOffset:    int32((f.Page - 1) * f.PageSize),
 	})
 	if err != nil {
 		return ProjectPage{}, fmt.Errorf("lecture des projets : %w", err)
@@ -286,6 +349,7 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 			Progress:    int(row.Progress),
 			HoursSold:   row.HoursSold,
 			HoursSpent:  row.HoursSpent,
+			BudgetState: budgetStateOf(row.HoursSold, row.HoursSpent, row.IsInternal),
 			StartsOn:    formatDate(row.StartsOn),
 			DueOn:       formatDate(row.DueOn),
 			TasksTotal:  int(row.TasksTotal),
@@ -421,6 +485,7 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 		Progress:           int(row.Progress),
 		HoursSold:          row.HoursSold,
 		HoursSpent:         row.HoursSpent,
+		BudgetState:        budgetStateOf(row.HoursSold, row.HoursSpent, row.IsInternal),
 		StartsOn:           formatDate(row.StartsOn),
 		DueOn:              formatDate(row.DueOn),
 		TasksTotal:         int(row.TasksTotal),
@@ -872,6 +937,16 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
+// weekStartOf rend le lundi de la semaine de `day`.
+//
+// Lundi et non dimanche : c'est le debut de la semaine de travail, et celui
+// que la saisie du temps affiche.
+func weekStartOf(day time.Time) time.Time {
+	offset := (int(day.Weekday()) + 6) % 7
+
+	return day.AddDate(0, 0, -offset)
+}
+
 // Metric est un chiffre du tableau de bord et son evolution.
 //
 // `Change` est nul quand la periode precedente etait vide : une progression
@@ -895,6 +970,54 @@ type DashboardSummary struct {
 	// Avancement des taches par nature. Vide tant qu'aucune tache n'existe :
 	// l'ecran montre alors un panneau vide plutot que des chiffres inventes.
 	TaskProgress []TaskProgress `json:"task_progress"`
+	// Projets en cours qui derivent sur leur budget.
+	Budget BudgetAlerts `json:"budget"`
+	// Projets en cours les plus avances dans leur budget, huit au plus.
+	Workload []ProjectLoad `json:"workload"`
+	// Membres de l'equipe et leur temps du jour et de la semaine.
+	Team []TeamDay `json:"team"`
+	// Activite de l'annee civile en cours, un element par jour actif.
+	Activity []DayActivity `json:"activity"`
+}
+
+// BudgetAlerts compte les projets en cours par etat de budget derivant.
+type BudgetAlerts struct {
+	Warning int `json:"warning"`
+	Over    int `json:"over"`
+}
+
+// ProjectLoad est une barre du graphique « Charge par projet ».
+type ProjectLoad struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	ClientName  string    `json:"client_name"`
+	HoursSold   float64   `json:"hours_sold"`
+	HoursSpent  float64   `json:"hours_spent"`
+	BudgetState string    `json:"budget_state"`
+}
+
+// TeamDay est une ligne de la carte « Equipe aujourd'hui ».
+//
+// Des minutes et non des heures decimales : la carte affiche « 3 h 10 », et
+// une conversion en flottant puis retour perdrait la minute en route.
+type TeamDay struct {
+	Person               Person `json:"person"`
+	TodayMinutes         int    `json:"today_minutes"`
+	TodayBillableMinutes int    `json:"today_billable_minutes"`
+	// Depuis lundi, aujourd'hui compris : la charge de la semaine.
+	WeekMinutes int `json:"week_minutes"`
+	// Projet et tache de la derniere saisie du jour. Chaines vides sans saisie
+	// aujourd'hui ; la tache l'est aussi quand la saisie n'en portait pas.
+	LastProject string `json:"last_project"`
+	LastTask    string `json:"last_task"`
+}
+
+// DayActivity est une case de la carte « Activite par jour ».
+type DayActivity struct {
+	Day          string `json:"day"`
+	Tasks        int    `json:"tasks"`
+	Tickets      int    `json:"tickets"`
+	Deliverables int    `json:"deliverables"`
 }
 
 // TimeSummary repartit le temps saisi entre facturable et non facturable.
@@ -924,9 +1047,22 @@ type TaskProgress struct {
 	Done     int    `json:"done"`
 }
 
-// Dashboard renvoie les chiffres d'en-tete, en une requete.
+// Dashboard renvoie tout le tableau de bord en un appel.
+//
+// Cinq requetes, toutes lues sur des colonnes precalculees ou bornees : les
+// chiffres d'en-tete, l'avancement des taches, la charge par projet, l'equipe
+// de la semaine et l'activite de l'annee. Chacune sert un bloc different de
+// l'ecran ; les fondre en une seule ne ferait qu'une requete illisible.
+//
+// « Aujourd'hui » est le jour du fuseau du serveur (TZ dans l'image), pas
+// celui de la base : c'est ce fuseau que la saisie du temps utilise pour
+// dater une journee.
 func (s *ProjectService) Dashboard(ctx context.Context) (DashboardSummary, error) {
-	row, err := s.q.GetDashboardStats(ctx)
+	return s.dashboardAt(ctx, time.Now())
+}
+
+func (s *ProjectService) dashboardAt(ctx context.Context, now time.Time) (DashboardSummary, error) {
+	row, err := s.q.GetDashboardStats(ctx, BudgetWarningRatio)
 	if err != nil {
 		return DashboardSummary{}, fmt.Errorf("lecture des agregats : %w", err)
 	}
@@ -946,7 +1082,73 @@ func (s *ProjectService) Dashboard(ctx context.Context) (DashboardSummary, error
 		})
 	}
 
+	loads, err := s.q.ListProjectWorkload(ctx)
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("charge par projet : %w", err)
+	}
+
+	workload := make([]ProjectLoad, 0, len(loads))
+	for _, l := range loads {
+		workload = append(workload, ProjectLoad{
+			ID:          l.ID,
+			Name:        l.Name,
+			ClientName:  l.ClientName,
+			HoursSold:   l.HoursSold,
+			HoursSpent:  l.HoursSpent,
+			BudgetState: budgetStateOf(l.HoursSold, l.HoursSpent, false),
+		})
+	}
+
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	members, err := s.q.ListTeamDay(ctx, db.ListTeamDayParams{
+		Today:     today,
+		WeekStart: weekStartOf(today),
+	})
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("equipe du jour : %w", err)
+	}
+
+	team := make([]TeamDay, 0, len(members))
+	for _, m := range members {
+		team = append(team, TeamDay{
+			Person: Person{
+				ID:        m.ID,
+				Firstname: m.Firstname,
+				Lastname:  m.Lastname,
+				Initials:  initialsOf(m.Firstname, m.Lastname),
+				AvatarURL: m.AvatarUrl,
+			},
+			TodayMinutes:         int(m.TodayMinutes),
+			TodayBillableMinutes: int(m.TodayBillableMinutes),
+			WeekMinutes:          int(m.WeekMinutes),
+			LastProject:          m.LastProject,
+			LastTask:             m.LastTask,
+		})
+	}
+
+	days, err := s.q.ListDailyActivity(ctx, db.ListDailyActivityParams{
+		FromDay: time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, time.UTC),
+		ToDay:   time.Date(now.Year(), time.December, 31, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("activite par jour : %w", err)
+	}
+
+	activity := make([]DayActivity, 0, len(days))
+	for _, d := range days {
+		activity = append(activity, DayActivity{
+			Day:          d.Day.Format(dateLayout),
+			Tasks:        int(d.TasksDone),
+			Tickets:      int(d.TicketsOpened),
+			Deliverables: int(d.DeliverablesSubmitted),
+		})
+	}
+
 	return DashboardSummary{
+		Budget:    BudgetAlerts{Warning: int(row.BudgetWarning), Over: int(row.BudgetOver)},
+		Workload:  workload,
+		Team:      team,
+		Activity:  activity,
 		Projects:  metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
 		Clients:   metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
 		HoursSold: metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),

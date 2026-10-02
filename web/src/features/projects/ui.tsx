@@ -4,14 +4,16 @@ import type { ReactNode } from 'react'
 
 import { DashboardCard } from '@/components/dashboard-card'
 import {
+  BUDGET_STATE,
   DONE_COLOR,
+  formatHours,
   PRIORITY_TONE,
   PROGRESS_COLOR,
   tintOf,
   type StatusPill as StatusPillTokens,
 } from '@/features/projects/format'
 import { cn } from '@/lib/utils'
-import type { Person, ProjectPriority } from '@/types/api'
+import type { BudgetState, Person, ProjectPriority } from '@/types/api'
 
 /**
  * Vocabulaire visuel partage par les ecrans d'un projet.
@@ -353,6 +355,65 @@ export function ProgressBar({ value }: { value: number }) {
           {ratio} %
         </span>
       )}
+    </div>
+  )
+}
+
+/**
+ * Budget de la fiche projet : la part des heures vendues deja consommee, et
+ * l'ecart qui reste — ou qui deborde.
+ *
+ * Meme gabarit que la barre d'avancement juste au-dessus, pour que les deux
+ * se comparent d'un coup d'oeil : un projet a 40 % d'avancement et 90 % de
+ * budget se lit sans calcul. La barre plafonne a 100 % ; le depassement se
+ * dit en heures a cote, une barre qui sortirait de son cadre ne dirait pas de
+ * combien.
+ */
+export function BudgetBar({
+  sold,
+  spent,
+  state,
+}: {
+  sold: number
+  spent: number
+  state: Exclude<BudgetState, 'none'>
+}) {
+  const ratio = Math.round((spent / sold) * 100)
+  const width = Math.max(0, Math.min(100, ratio))
+  const inside = width >= 20
+  const rest = sold - spent
+  const { color, label } = BUDGET_STATE[state]
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div
+        role="img"
+        aria-label={`${label} : ${ratio} % du budget consommé`}
+        className="relative h-6 w-[200px] shrink-0 overflow-hidden rounded-full bg-[#e8e8e9]"
+      >
+        <div
+          className="flex h-full items-center rounded-full transition-[width]"
+          style={{ width: `${width}%`, backgroundColor: color }}
+        >
+          {inside && (
+            <span className="pl-2 text-[12px] font-medium text-white tabular-nums">{ratio} %</span>
+          )}
+        </div>
+
+        {!inside && (
+          <span className="absolute inset-y-0 right-2 flex items-center text-[12px] font-medium text-[#73757c] tabular-nums">
+            {ratio} %
+          </span>
+        )}
+      </div>
+
+      <p className="text-[14px] text-[#73757c] tabular-nums">
+        {formatHours(spent)} sur {formatHours(sold)}
+        {' · '}
+        <span className={cn(state !== 'ok' && 'font-medium')} style={state === 'ok' ? undefined : { color }}>
+          {rest < 0 ? `${formatHours(-rest)} au-delà du vendu` : `${formatHours(rest)} restantes`}
+        </span>
+      </p>
     </div>
   )
 }

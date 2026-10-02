@@ -22,6 +22,17 @@ WHERE p.deleted_at IS NULL
   AND (sqlc.narg('status')::text IS NULL OR p.status = sqlc.narg('status')::text)
   AND (sqlc.narg('client_id')::uuid IS NULL OR p.client_id = sqlc.narg('client_id')::uuid)
   AND (sqlc.narg('search')::text IS NULL OR p.name ILIKE '%' || sqlc.narg('search')::text || '%')
+  -- Etat du budget, lu sur les heures precalculees : aucune somme au rendu.
+  -- Le seuil d'alerte vient du code, qui le partage avec l'etat affiche sur
+  -- chaque ligne ; l'ecrire ici une seconde fois laisserait les deux diverger.
+  -- Les projets livres sont ecartes, comme dans les alertes du tableau de
+  -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
+  AND (sqlc.narg('budget')::text IS NULL OR (
+        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+            (sqlc.narg('budget')::text = 'over' AND p.hours_spent > p.hours_sold)
+         OR (sqlc.narg('budget')::text = 'warning'
+             AND p.hours_spent <= p.hours_sold
+             AND p.hours_spent >= p.hours_sold * sqlc.arg('budget_warning')::numeric))))
 ORDER BY
     -- Les favoris remontent avant tout le reste, quel que soit le tri demande :
     -- c'est ce que promet une etoile — epingler, pas ajouter un critere de plus
@@ -34,8 +45,13 @@ ORDER BY
     CASE WHEN sqlc.arg('sort')::text = 'name' AND sqlc.arg('dir')::text = 'desc' THEN p.name END DESC,
     CASE WHEN sqlc.arg('sort')::text = 'progress' AND sqlc.arg('dir')::text = 'asc' THEN p.progress END ASC,
     CASE WHEN sqlc.arg('sort')::text = 'progress' AND sqlc.arg('dir')::text = 'desc' THEN p.progress END DESC,
-    CASE WHEN sqlc.arg('sort')::text = 'budget' AND sqlc.arg('dir')::text = 'asc' THEN p.hours_spent END ASC,
-    CASE WHEN sqlc.arg('sort')::text = 'budget' AND sqlc.arg('dir')::text = 'desc' THEN p.hours_spent END DESC,
+    -- Le budget se trie sur la part consommee, pas sur les heures : 40 h sur
+    -- un projet de 400 inquietent moins que 30 h sur un projet de 32. Un projet
+    -- sans budget n'a pas de part, il ferme la liste dans les deux sens.
+    CASE WHEN sqlc.arg('sort')::text = 'budget' AND sqlc.arg('dir')::text = 'asc'
+         THEN p.hours_spent / NULLIF(p.hours_sold, 0) END ASC NULLS LAST,
+    CASE WHEN sqlc.arg('sort')::text = 'budget' AND sqlc.arg('dir')::text = 'desc'
+         THEN p.hours_spent / NULLIF(p.hours_sold, 0) END DESC NULLS LAST,
     CASE WHEN sqlc.arg('dir')::text = 'desc' THEN p.due_on END DESC NULLS LAST,
     p.due_on ASC NULLS LAST,
     -- Depart d'egalite stable : sans lui, deux projets de meme echeance
@@ -48,7 +64,18 @@ SELECT count(*) FROM projects p
 WHERE p.deleted_at IS NULL
   AND (sqlc.narg('status')::text IS NULL OR p.status = sqlc.narg('status')::text)
   AND (sqlc.narg('client_id')::uuid IS NULL OR p.client_id = sqlc.narg('client_id')::uuid)
-  AND (sqlc.narg('search')::text IS NULL OR p.name ILIKE '%' || sqlc.narg('search')::text || '%');
+  AND (sqlc.narg('search')::text IS NULL OR p.name ILIKE '%' || sqlc.narg('search')::text || '%')
+  -- Etat du budget, lu sur les heures precalculees : aucune somme au rendu.
+  -- Le seuil d'alerte vient du code, qui le partage avec l'etat affiche sur
+  -- chaque ligne ; l'ecrire ici une seconde fois laisserait les deux diverger.
+  -- Les projets livres sont ecartes, comme dans les alertes du tableau de
+  -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
+  AND (sqlc.narg('budget')::text IS NULL OR (
+        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+            (sqlc.narg('budget')::text = 'over' AND p.hours_spent > p.hours_sold)
+         OR (sqlc.narg('budget')::text = 'warning'
+             AND p.hours_spent <= p.hours_sold
+             AND p.hours_spent >= p.hours_sold * sqlc.arg('budget_warning')::numeric))));
 
 -- name: GetProject :one
 SELECT
@@ -177,7 +204,18 @@ SELECT
     (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
      WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_billable,
     (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
-     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable;
+     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable,
+
+    -- Projets en cours qui derivent sur leur budget, memes regles que l'etat
+    -- de chaque carte (voir budgetStateOf). Un projet livre n'alerte plus : ce
+    -- qui est consomme l'est, il n'y a plus rien a prevenir.
+    (SELECT count(*) FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+       AND hours_sold > 0 AND hours_spent > hours_sold)                            AS budget_over,
+    (SELECT count(*) FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+       AND hours_sold > 0 AND hours_spent <= hours_sold
+       AND hours_spent >= hours_sold * sqlc.arg('budget_warning')::numeric)        AS budget_warning;
 
 -- name: ListProjectFiles :many
 -- Pieces jointes d'un projet, la derniere deposee en premier.

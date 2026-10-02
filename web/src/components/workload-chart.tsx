@@ -1,96 +1,82 @@
 import { Calendar03Icon } from '@hugeicons/core-free-icons'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 
 import { PanelCard } from '@/components/panel-card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { dashboardQuery } from '@/features/projects/api'
+import { BUDGET_STATE, formatHours } from '@/features/projects/format'
 import { LIGHT_TOOLTIP } from '@/lib/tooltip'
 import { cn } from '@/lib/utils'
+import type { ProjectLoad } from '@/types/api'
 
 /**
- * Natures d'heures, du bas de la barre vers le haut.
+ * Parts d'une barre, du bas vers le haut.
  *
- * Le rouge n'est pas une troisieme nature : c'est la part de la charge qui
- * passe au-dela du budget vendu. Un projet qui l'affiche est en depassement,
- * ce qui se lit sans avoir a comparer deux chiffres.
+ * Le rouge n'est pas une troisieme nature : c'est la part des heures saisies
+ * au-dela du budget vendu. Il prend la place du restant, qui n'existe plus des
+ * qu'il y a depassement — un projet qui l'affiche se lit sans comparer deux
+ * chiffres.
  */
-const NATURES = [
-  { key: 'confirmed', label: 'Confirmé', color: '#0db471' },
-  { key: 'forecast', label: 'Prévisionnel', color: '#4956f4' },
+const PARTS = [
+  { key: 'consumed', label: 'Consommé', color: '#4956f4' },
+  { key: 'remaining', label: 'Restant', color: '#e6e6e6' },
   { key: 'over', label: 'Hors budget', color: '#e5484d' },
 ] as const
 
-interface ProjectLoad {
-  /** Etiquette de l'axe : abregee, une barre ne porte pas un nom entier. */
-  short: string
-  name: string
-  confirmed: number
-  forecast: number
-  /** Part de la charge au-dela du budget vendu. */
-  over: number
+type PartKey = (typeof PARTS)[number]['key']
+
+/** Les trois parts d'un projet, en heures. Leur somme est la hauteur de sa barre. */
+function partsOf(project: ProjectLoad): Record<PartKey, number> {
+  return {
+    consumed: Math.min(project.hours_spent, project.hours_sold),
+    remaining: Math.max(project.hours_sold - project.hours_spent, 0),
+    over: Math.max(project.hours_spent - project.hours_sold, 0),
+  }
 }
 
-/**
- * Charge figee, par projet.
- *
- * Une seule serie : le graphique dit le volume d'heures que porte chaque
- * projet, decompose en trois natures. Il portait auparavant un selecteur de
- * fenetre (semaine, quinzaine, mois) qui multipliait la meme lecture par trois
- * sans rien en dire de plus.
- */
-const LOAD: ProjectLoad[] = [
-  { short: 'Vitrine', name: 'Refonte vitrine', confirmed: 26, forecast: 10, over: 0 },
-  { short: 'Mobile', name: 'Application mobile', confirmed: 34, forecast: 14, over: 9 },
-  { short: 'Institut.', name: 'Site institutionnel', confirmed: 18, forecast: 12, over: 0 },
-  { short: 'Holding', name: 'Site vitrine holding', confirmed: 12, forecast: 18, over: 0 },
-  { short: 'Identité', name: 'Identité visuelle', confirmed: 6, forecast: 14, over: 0 },
-]
-
-function formatHours(hours: number) {
-  // Une decimale : la moyenne tombe rarement rond, et deux chiffres apres la
-  // virgule donneraient une precision que des heures saisies a la demi-heure
-  // n'ont pas.
-  const rounded = Math.round(hours * 10) / 10
-
-  return `${rounded.toString().replace('.', ',')} h`
+function heightOf(project: ProjectLoad) {
+  return Math.max(project.hours_sold, project.hours_spent)
 }
 
 /**
  * Graduations de l'axe : cinq paliers ronds au-dessus de la plus haute barre.
  *
- * Calculees et non figees — le plafond depend de la charge du moment, et une
+ * Calculees et non figees — le plafond depend des budgets du moment, et une
  * echelle ecrite en dur ecraserait les barres le jour ou elle serait depassee.
  */
 function axisOf(series: ProjectLoad[]) {
-  const tallest = Math.max(...series.map((p) => p.confirmed + p.forecast + p.over))
+  const tallest = Math.max(0, ...series.map(heightOf))
   const step = Math.max(5, Math.ceil(tallest / 4 / 5) * 5)
 
   return { ceiling: step * 4, ticks: [4, 3, 2, 1, 0].map((level) => level * step) }
 }
 
 /**
- * Une colonne du graphique : sa barre, et l'infobulle qui la detaille.
+ * Une colonne du graphique : sa barre, l'infobulle qui la detaille, et le lien
+ * vers le projet.
  *
  * C'est le couloir entier qui declenche l'infobulle, pas la barre : viser 14px
  * de large a la souris demanderait de la precision pour rien, et une barre
  * courte serait presque impossible a survoler.
- *
- * Les natures se nommaient auparavant dans une legende au pied de la carte.
- * Elles se nomment desormais ici, avec leur part en heures : la legende disait
- * a quoi correspondaient trois couleurs, l'infobulle dit ce que vaut chacune
- * pour le projet qu'on regarde.
  */
 function BarColumn({ project, ceiling }: { project: ProjectLoad; ceiling: number }) {
-  const total = project.confirmed + project.forecast + project.over
+  const hours = partsOf(project)
+  const total = heightOf(project)
+  const ratio = Math.round((project.hours_spent / project.hours_sold) * 100)
 
-  // De haut en bas : le hors-budget couronne la barre, le confirme la fonde.
-  const parts = NATURES.map((nature) => ({ ...nature, hours: project[nature.key] }))
+  // De haut en bas : le hors-budget couronne la barre, le consomme la fonde.
+  const parts = PARTS.map((part) => ({ ...part, hours: hours[part.key] }))
     .filter((part) => part.hours > 0)
     .reverse()
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div
-          aria-label={`${project.name} : ${formatHours(total)}`}
+        <Link
+          to="/pm/projets/$id"
+          params={{ id: project.id }}
+          aria-label={`${project.name} : ${ratio} % du budget consommé`}
           className="flex h-full min-w-0 flex-1 items-end justify-center"
         >
           {/* `items-end` sur la colonne : sans lui, la barre — qui tient sa
@@ -108,12 +94,18 @@ function BarColumn({ project, ceiling }: { project: ProjectLoad; ceiling: number
               />
             ))}
           </div>
-        </div>
+        </Link>
       </TooltipTrigger>
 
       <TooltipContent className={cn(LIGHT_TOOLTIP, 'flex-col items-start gap-1 px-3 py-2')}>
-        <p className="text-[11px] leading-none text-[#777]">{project.name}</p>
-        <p className="text-[13px] leading-none font-medium">{formatHours(total)}</p>
+        <p className="text-[11px] leading-none text-[#777]">{project.client_name}</p>
+        <p className="text-[13px] leading-none font-medium">{project.name}</p>
+        <p
+          className="text-[11px] leading-none font-medium"
+          style={{ color: BUDGET_STATE[project.budget_state].color }}
+        >
+          {ratio} % du budget · {BUDGET_STATE[project.budget_state].label}
+        </p>
 
         <div className="flex flex-col gap-1 pt-0.5">
           {parts.map((part) => (
@@ -132,70 +124,107 @@ function BarColumn({ project, ceiling }: { project: ProjectLoad; ceiling: number
   )
 }
 
+/**
+ * Charge par projet : les projets en cours les plus avances dans leur budget.
+ *
+ * L'API en renvoie huit, tries sur la part consommee. Le chiffre de tete
+ * compte les depassements de tous les projets en cours, pas seulement de ceux
+ * affiches : c'est lui qui dit s'il faut ouvrir la liste filtree.
+ */
 export function WorkloadChart() {
-  const { ceiling, ticks } = axisOf(LOAD)
-
-  // La moyenne, et non le total : le titre annonce une charge « par projet »,
-  // c'est donc ce que le chiffre doit dire. Un total repondrait a une autre
-  // question, celle de la charge de l'agence.
-  const total = LOAD.reduce((sum, p) => sum + p.confirmed + p.forecast + p.over, 0)
-  const average = LOAD.length === 0 ? 0 : total / LOAD.length
+  const { data, isPending } = useQuery(dashboardQuery)
+  const load = data?.workload ?? []
+  const over = data?.budget.over ?? 0
+  const warning = data?.budget.warning ?? 0
+  const { ceiling, ticks } = axisOf(load)
 
   return (
     <TooltipProvider>
-      <PanelCard icon={Calendar03Icon} title="CHARGE PAR PROJET">
+      <PanelCard
+        icon={Calendar03Icon}
+        title="CHARGE PAR PROJET"
+        action={
+          <Link
+            to="/pm/projets"
+            search={{ budget: over > 0 ? 'over' : 'warning', sort: 'budget', dir: 'desc', page: 1 }}
+            className="text-[12px] whitespace-nowrap text-[#64748b] hover:text-[#111] hover:underline"
+          >
+            Voir les budgets
+          </Link>
+        }
+      >
         <div className="flex flex-1 flex-col gap-3">
-          <div className="flex items-baseline gap-2">
-            <p className="text-[32px] leading-[1.3] font-semibold text-[#1f1f1f] tabular-nums">
-              {formatHours(average)}
+          {isPending && <div className="h-[260px] animate-pulse rounded-[4px] bg-[#f2f2f2]" />}
+
+          {!isPending && load.length === 0 && (
+            <p className="py-6 text-center text-[13px] text-[#8d8d8d]">
+              Aucun projet en cours avec des heures vendues.
             </p>
+          )}
 
-            {/* Le chiffre seul se lirait comme un total. Trois mots suffisent a
-                dire lequel des deux on regarde. */}
-            <p className="text-[12px] leading-[1.5] text-[#8d8d8d]">en moyenne par projet</p>
-          </div>
+          {!isPending && load.length > 0 && (
+            <>
+              <div className="flex items-baseline gap-2">
+                <p
+                  className="text-[32px] leading-[1.3] font-semibold tabular-nums"
+                  style={{ color: over > 0 ? BUDGET_STATE.over.color : '#1f1f1f' }}
+                >
+                  {over}
+                </p>
 
-          <div className="flex flex-1 gap-2">
-            {/* L'axe porte la meme hauteur que la zone tracee, sinon ses
-                graduations ne tomberaient pas sur les bonnes hauteurs. */}
-            <div className="flex h-[186px] shrink-0 flex-col justify-between text-right text-[14px] leading-none text-[#666] tabular-nums">
-              {ticks.map((tick) => (
-                <p key={tick}>{tick} h</p>
-              ))}
-            </div>
+                <p className="text-[12px] leading-[1.5] text-[#8d8d8d]">
+                  {over > 1 ? 'projets hors budget' : 'projet hors budget'}
+                  {warning > 0 && ` · ${warning} à surveiller`}
+                </p>
+              </div>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="relative h-[186px]">
-                {/* Grille horizontale : les barres se lisent sinon a vue de nez
-                    des que l'axe s'eloigne. */}
-                {ticks.map((tick) => (
-                  <div
-                    key={tick}
-                    aria-hidden
-                    className="absolute inset-x-0 border-t border-dashed border-[#ebebeb]"
-                    style={{ bottom: `${(tick / ceiling) * 100}%` }}
-                  />
-                ))}
-
-                <div className="relative flex h-full items-end justify-between gap-1">
-                  {LOAD.map((project) => (
-                    <BarColumn key={project.short} project={project} ceiling={ceiling} />
+              <div className="flex flex-1 gap-2">
+                {/* L'axe porte la meme hauteur que la zone tracee, sinon ses
+                    graduations ne tomberaient pas sur les bonnes hauteurs. */}
+                <div className="flex h-[186px] shrink-0 flex-col justify-between text-right text-[14px] leading-none text-[#666] tabular-nums">
+                  {ticks.map((tick) => (
+                    <p key={tick}>{tick} h</p>
                   ))}
                 </div>
-              </div>
 
-              <div className="flex justify-between gap-1">
-                {LOAD.map((project) => (
-                  <p
-                    key={project.short}
-                    className="min-w-0 flex-1 truncate text-center text-[14px] leading-[1.5] tracking-[-0.28px] text-[#a8a7ab]"
-                  >
-                    {project.short}
-                  </p>
-                ))}
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <div className="relative h-[186px]">
+                    {/* Grille horizontale : les barres se lisent sinon a vue de
+                        nez des que l'axe s'eloigne. */}
+                    {ticks.map((tick) => (
+                      <div
+                        key={tick}
+                        aria-hidden
+                        className="absolute inset-x-0 border-t border-dashed border-[#ebebeb]"
+                        style={{ bottom: `${(tick / ceiling) * 100}%` }}
+                      />
+                    ))}
+
+                    <div className="relative flex h-full items-end justify-between gap-1">
+                      {load.map((project) => (
+                        <BarColumn key={project.id} project={project} ceiling={ceiling} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Le client et non le projet sous la barre : « Refonte du
+                      site… » revient sur la moitie des projets, le client les
+                      distingue. Le nom complet est dans l'infobulle. */}
+                  <div className="flex justify-between gap-1">
+                    {load.map((project) => (
+                      <p
+                        key={project.id}
+                        title={project.name}
+                        className="min-w-0 flex-1 truncate text-center text-[12px] leading-[1.5] text-[#a8a7ab]"
+                      >
+                        {project.client_name}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </PanelCard>
     </TooltipProvider>

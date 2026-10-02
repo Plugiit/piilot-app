@@ -58,6 +58,13 @@ type Contact struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
+type DailyActivity struct {
+	Day                   time.Time `json:"day"`
+	TasksDone             int32     `json:"tasks_done"`
+	TicketsOpened         int32     `json:"tickets_opened"`
+	DeliverablesSubmitted int32     `json:"deliverables_submitted"`
+}
+
 type Deliverable struct {
 	ID               uuid.UUID  `json:"id"`
 	ProjectID        uuid.UUID  `json:"project_id"`

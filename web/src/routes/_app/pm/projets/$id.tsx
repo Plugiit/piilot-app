@@ -44,7 +44,7 @@ import {
   useUploadProjectFile,
 } from '@/features/projects/api'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate } from '@/features/projects/format'
-import { Avatars, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
+import { Avatars, BudgetBar, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { ServicePills } from '@/features/services/tag'
 import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
@@ -357,6 +357,38 @@ function TasksRatio({ project }: { project: ProjectDetail }) {
 }
 
 /**
+ * Budget du projet, ou la raison pour laquelle il n'en a pas.
+ *
+ * Un projet sans heures vendues renvoie vers la page ou on les saisit : c'est
+ * le plus souvent un devis qu'on n'a pas reporte, et le lien evite d'aller
+ * chercher l'onglet.
+ */
+function ProjectBudget({ project }: { project: ProjectDetail }) {
+  if (project.is_internal) {
+    return <p className="text-[14px] text-[#a2a3a7]">Projet interne : temps non facturable</p>
+  }
+
+  if (project.budget_state === 'none') {
+    return (
+      <p className="text-[14px] text-[#a2a3a7]">
+        Aucune heure vendue ·{' '}
+        <Link
+          to="/pm/projets/$id/parametres/budget"
+          params={{ id: project.id }}
+          className="text-[#1b1b1b] underline-offset-2 hover:underline"
+        >
+          Saisir le budget
+        </Link>
+      </p>
+    )
+  }
+
+  return (
+    <BudgetBar sold={project.hours_sold} spent={project.hours_spent} state={project.budget_state} />
+  )
+}
+
+/**
  * Les trois liens de travail du projet.
  *
  * Chacun porte son nom : « voici la preproduction » ne se devine pas d'une
@@ -580,6 +612,10 @@ function ProjectLayout() {
             <MetaRow label="Avancement">
               <ProgressBar value={project.progress} />
               <TasksRatio project={project} />
+            </MetaRow>
+
+            <MetaRow label="Budget">
+              <ProjectBudget project={project} />
             </MetaRow>
 
             <MetaRow label="Document">

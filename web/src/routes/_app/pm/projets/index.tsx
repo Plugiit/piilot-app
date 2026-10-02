@@ -5,6 +5,7 @@ import {
   ArrowUp01Icon,
   ArrowUpDownIcon,
   Calendar03Icon,
+  Clock01Icon,
   Flag02Icon,
   Exchange01Icon,
   FolderOpenIcon,
@@ -45,7 +46,9 @@ import {
   type ProjectListParams,
 } from '@/features/projects/api'
 import {
+  BUDGET_STATE,
   DONE_COLOR,
+  formatHours,
   PROGRESS_COLOR,
   PROJECT_PRIORITY as PRIORITY,
   PROJECT_STATUS as STATUS,
@@ -58,7 +61,7 @@ import { HttpError } from '@/lib/api'
 import { useSearchField } from '@/lib/search-field'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import type { Person, Project, ProjectStatus } from '@/types/api'
+import type { BudgetState, Person, Project, ProjectStatus } from '@/types/api'
 
 import { NewProjectDialog } from './-new-project'
 
@@ -95,6 +98,7 @@ const searchSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['cadrage', 'production', 'attente', 'livre']).optional().catch(undefined),
   client_id: z.string().optional(),
+  budget: z.enum(['warning', 'over']).optional().catch(undefined),
   sort: z.enum(SORTS).catch('due'),
   dir: z.enum(['asc', 'desc']).catch('asc'),
 })
@@ -110,15 +114,16 @@ function daysUntil(date: Date) {
 }
 
 /**
- * Un projet derive quand il consomme plus qu'il n'a vendu, ou quand son
- * echeance est passee sans qu'il soit livre.
+ * Un projet derive quand son echeance est passee sans qu'il soit livre. La
+ * derive de budget, elle, vient de l'API (`budget_state`), qui applique le
+ * meme seuil partout.
  *
  * Ce n'est pas un cinquieme statut : les deux se superposent a n'importe
  * lequel des quatre, et un projet peut deriver sur les deux tableaux a la
  * fois.
  *
- * La derive ne se signale que dans la colonne concernee — le budget rougit le
- * budget, le retard rougit l'echeance. Pas de marqueur sur la ligne entiere :
+ * La derive ne se signale que dans la mention concernee — le budget colore le
+ * budget, le retard rougit l'echeance. Pas de marqueur sur la carte entiere :
  * il fallait en connaitre la regle pour le lire, et une couleur qui demande
  * une explication ne dit rien.
  */
@@ -126,9 +131,40 @@ function driftOf(project: Project) {
   const due = parseApiDate(project.due_on)
 
   return {
-    overBudget: project.hours_spent > project.hours_sold,
     late: project.status !== 'livre' && due !== null && daysUntil(due) < 0,
   }
+}
+
+/** Filtres de budget proposes : les derives seulement. */
+const BUDGET_FILTERS: Exclude<BudgetState, 'none' | 'ok'>[] = ['warning', 'over']
+
+/**
+ * Heures consommees sur heures vendues, a cote de l'echeance et de la
+ * priorite.
+ *
+ * En gris tant que le budget tient ; la couleur et l'icone d'alerte ne
+ * viennent qu'avec la derive. Absente d'un projet sans budget : « 12 h sur
+ * 0 h » ne dirait rien d'utile.
+ */
+function BudgetMention({ project }: { project: Project }) {
+  if (project.budget_state === 'none') return null
+
+  const drifting = project.budget_state !== 'ok'
+  const { label, color } = BUDGET_STATE[project.budget_state]
+
+  return (
+    <span
+      title={label}
+      className={cn('flex items-center gap-1 text-[12px] whitespace-nowrap', drifting ? 'font-medium' : 'text-[#73757c]')}
+      style={drifting ? { color } : undefined}
+    >
+      <HugeiconsIcon icon={drifting ? Alert02Icon : Clock01Icon} size={16} strokeWidth={1.6} />
+      <span className="tabular-nums">
+        {formatHours(project.hours_spent)} / {formatHours(project.hours_sold)}
+      </span>
+      <span className="sr-only">{label}</span>
+    </span>
+  )
 }
 
 
@@ -508,6 +544,8 @@ function ProjectCard({ project }: { project: Project }) {
             <HugeiconsIcon icon={Flag02Icon} size={16} strokeWidth={1.6} />
             {PRIORITY[project.priority].label}
           </span>
+
+          <BudgetMention project={project} />
         </div>
       </div>
 
@@ -614,6 +652,7 @@ function ProjectsPage() {
     search: search.search?.trim() === '' ? undefined : search.search,
     status: search.status,
     clientId: search.client_id,
+    budget: search.budget,
     sort: search.sort,
     dir: search.dir,
   }
@@ -637,10 +676,21 @@ function ProjectsPage() {
     label: client.name,
   }))
 
-  const active = [search.status, search.client_id].filter(Boolean).length
+  const budgetOptions: Option[] = BUDGET_FILTERS.map((state) => ({
+    value: state,
+    label: BUDGET_STATE[state].label,
+    color: BUDGET_STATE[state].color,
+  }))
+
+  const active = [search.status, search.client_id, search.budget].filter(Boolean).length
 
   /** Tout changement de filtre ramene en page 1 : la page 2 d'une autre liste n'a pas de sens. */
-  function setFilter(patch: { search?: string; status?: ProjectStatus; client_id?: string }) {
+  function setFilter(patch: {
+    search?: string
+    status?: ProjectStatus
+    client_id?: string
+    budget?: 'warning' | 'over'
+  }) {
     // `replace` : un filtre affine la vue courante, il ne fait pas une
     // etape a part. Sans lui, chaque frappe et chaque case cochee laissait
     // une entree a repasser au retour arriere.
@@ -704,6 +754,14 @@ function ProjectsPage() {
             value={search.client_id}
             options={clientOptions}
             onChange={(value) => setFilter({ client_id: value })}
+          />
+
+          <FilterMenu
+            name="Budget"
+            all="Tous les budgets"
+            value={search.budget}
+            options={budgetOptions}
+            onChange={(value) => setFilter({ budget: value as 'warning' | 'over' | undefined })}
           />
 
           {/* Pas de bouton « effacer » ici : chaque menu porte son entree

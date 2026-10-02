@@ -68,16 +68,35 @@ WHERE p.deleted_at IS NULL
   AND ($1::text IS NULL OR p.status = $1::text)
   AND ($2::uuid IS NULL OR p.client_id = $2::uuid)
   AND ($3::text IS NULL OR p.name ILIKE '%' || $3::text || '%')
+  -- Etat du budget, lu sur les heures precalculees : aucune somme au rendu.
+  -- Le seuil d'alerte vient du code, qui le partage avec l'etat affiche sur
+  -- chaque ligne ; l'ecrire ici une seconde fois laisserait les deux diverger.
+  -- Les projets livres sont ecartes, comme dans les alertes du tableau de
+  -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
+  AND ($4::text IS NULL OR (
+        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+            ($4::text = 'over' AND p.hours_spent > p.hours_sold)
+         OR ($4::text = 'warning'
+             AND p.hours_spent <= p.hours_sold
+             AND p.hours_spent >= p.hours_sold * $5::numeric))))
 `
 
 type CountProjectsParams struct {
-	Status   *string    `json:"status"`
-	ClientID *uuid.UUID `json:"client_id"`
-	Search   *string    `json:"search"`
+	Status        *string    `json:"status"`
+	ClientID      *uuid.UUID `json:"client_id"`
+	Search        *string    `json:"search"`
+	Budget        *string    `json:"budget"`
+	BudgetWarning float64    `json:"budget_warning"`
 }
 
 func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countProjects, arg.Status, arg.ClientID, arg.Search)
+	row := q.db.QueryRow(ctx, countProjects,
+		arg.Status,
+		arg.ClientID,
+		arg.Search,
+		arg.Budget,
+		arg.BudgetWarning,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -309,7 +328,18 @@ SELECT
     (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
      WHERE deleted_at IS NULL AND NOT is_internal)                                 AS time_billable,
     (SELECT coalesce(sum(hours_spent), 0)::numeric FROM projects
-     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable
+     WHERE deleted_at IS NULL AND is_internal)                                     AS time_non_billable,
+
+    -- Projets en cours qui derivent sur leur budget, memes regles que l'etat
+    -- de chaque carte (voir budgetStateOf). Un projet livre n'alerte plus : ce
+    -- qui est consomme l'est, il n'y a plus rien a prevenir.
+    (SELECT count(*) FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+       AND hours_sold > 0 AND hours_spent > hours_sold)                            AS budget_over,
+    (SELECT count(*) FROM projects
+     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+       AND hours_sold > 0 AND hours_spent <= hours_sold
+       AND hours_spent >= hours_sold * $1::numeric)        AS budget_warning
 `
 
 type GetDashboardStatsRow struct {
@@ -325,6 +355,8 @@ type GetDashboardStatsRow struct {
 	TimeBudget       float64 `json:"time_budget"`
 	TimeBillable     float64 `json:"time_billable"`
 	TimeNonBillable  float64 `json:"time_non_billable"`
+	BudgetOver       int64   `json:"budget_over"`
+	BudgetWarning    int64   `json:"budget_warning"`
 }
 
 // Chiffres d'en-tete du tableau de bord.
@@ -338,8 +370,8 @@ type GetDashboardStatsRow struct {
 // clients d'une agence, quelques centaines de lignes) et qu'ils passent par
 // les index partiels `deleted_at IS NULL`. Le jour ou ces tables grossissent,
 // c'est un instantane quotidien qu'il faudra stocker, pas un index de plus.
-func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error) {
-	row := q.db.QueryRow(ctx, getDashboardStats)
+func (q *Queries) GetDashboardStats(ctx context.Context, budgetWarning float64) (GetDashboardStatsRow, error) {
+	row := q.db.QueryRow(ctx, getDashboardStats, budgetWarning)
 	var i GetDashboardStatsRow
 	err := row.Scan(
 		&i.ProjectsTotal,
@@ -354,6 +386,8 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 		&i.TimeBudget,
 		&i.TimeBillable,
 		&i.TimeNonBillable,
+		&i.BudgetOver,
+		&i.BudgetWarning,
 	)
 	return i, err
 }
@@ -595,6 +629,17 @@ WHERE p.deleted_at IS NULL
   AND ($2::text IS NULL OR p.status = $2::text)
   AND ($3::uuid IS NULL OR p.client_id = $3::uuid)
   AND ($4::text IS NULL OR p.name ILIKE '%' || $4::text || '%')
+  -- Etat du budget, lu sur les heures precalculees : aucune somme au rendu.
+  -- Le seuil d'alerte vient du code, qui le partage avec l'etat affiche sur
+  -- chaque ligne ; l'ecrire ici une seconde fois laisserait les deux diverger.
+  -- Les projets livres sont ecartes, comme dans les alertes du tableau de
+  -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
+  AND ($5::text IS NULL OR (
+        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+            ($5::text = 'over' AND p.hours_spent > p.hours_sold)
+         OR ($5::text = 'warning'
+             AND p.hours_spent <= p.hours_sold
+             AND p.hours_spent >= p.hours_sold * $6::numeric))))
 ORDER BY
     -- Les favoris remontent avant tout le reste, quel que soit le tri demande :
     -- c'est ce que promet une etoile — epingler, pas ajouter un critere de plus
@@ -603,29 +648,36 @@ ORDER BY
     is_favorite DESC,
     -- Un seul ORDER BY parametre plutot que quatre requetes : le tri vient de
     -- l'ecran, et les colonnes possibles sont closes par le handler.
-    CASE WHEN $5::text = 'name' AND $6::text = 'asc' THEN p.name END ASC,
-    CASE WHEN $5::text = 'name' AND $6::text = 'desc' THEN p.name END DESC,
-    CASE WHEN $5::text = 'progress' AND $6::text = 'asc' THEN p.progress END ASC,
-    CASE WHEN $5::text = 'progress' AND $6::text = 'desc' THEN p.progress END DESC,
-    CASE WHEN $5::text = 'budget' AND $6::text = 'asc' THEN p.hours_spent END ASC,
-    CASE WHEN $5::text = 'budget' AND $6::text = 'desc' THEN p.hours_spent END DESC,
-    CASE WHEN $6::text = 'desc' THEN p.due_on END DESC NULLS LAST,
+    CASE WHEN $7::text = 'name' AND $8::text = 'asc' THEN p.name END ASC,
+    CASE WHEN $7::text = 'name' AND $8::text = 'desc' THEN p.name END DESC,
+    CASE WHEN $7::text = 'progress' AND $8::text = 'asc' THEN p.progress END ASC,
+    CASE WHEN $7::text = 'progress' AND $8::text = 'desc' THEN p.progress END DESC,
+    -- Le budget se trie sur la part consommee, pas sur les heures : 40 h sur
+    -- un projet de 400 inquietent moins que 30 h sur un projet de 32. Un projet
+    -- sans budget n'a pas de part, il ferme la liste dans les deux sens.
+    CASE WHEN $7::text = 'budget' AND $8::text = 'asc'
+         THEN p.hours_spent / NULLIF(p.hours_sold, 0) END ASC NULLS LAST,
+    CASE WHEN $7::text = 'budget' AND $8::text = 'desc'
+         THEN p.hours_spent / NULLIF(p.hours_sold, 0) END DESC NULLS LAST,
+    CASE WHEN $8::text = 'desc' THEN p.due_on END DESC NULLS LAST,
     p.due_on ASC NULLS LAST,
     -- Depart d'egalite stable : sans lui, deux projets de meme echeance
     -- peuvent changer de place d'une page a l'autre et l'un des deux disparait.
     p.id ASC
-LIMIT $8 OFFSET $7
+LIMIT $10 OFFSET $9
 `
 
 type ListProjectsParams struct {
-	ViewerID   uuid.UUID  `json:"viewer_id"`
-	Status     *string    `json:"status"`
-	ClientID   *uuid.UUID `json:"client_id"`
-	Search     *string    `json:"search"`
-	Sort       string     `json:"sort"`
-	Dir        string     `json:"dir"`
-	PageOffset int32      `json:"page_offset"`
-	PageSize   int32      `json:"page_size"`
+	ViewerID      uuid.UUID  `json:"viewer_id"`
+	Status        *string    `json:"status"`
+	ClientID      *uuid.UUID `json:"client_id"`
+	Search        *string    `json:"search"`
+	Budget        *string    `json:"budget"`
+	BudgetWarning float64    `json:"budget_warning"`
+	Sort          string     `json:"sort"`
+	Dir           string     `json:"dir"`
+	PageOffset    int32      `json:"page_offset"`
+	PageSize      int32      `json:"page_size"`
 }
 
 type ListProjectsRow struct {
@@ -670,6 +722,8 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 		arg.Status,
 		arg.ClientID,
 		arg.Search,
+		arg.Budget,
+		arg.BudgetWarning,
 		arg.Sort,
 		arg.Dir,
 		arg.PageOffset,
