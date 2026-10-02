@@ -11,6 +11,34 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.7.0] — Projets et CRM avancés · 2026-10-02
+
+Cette version donne aux projets leurs étapes et à la relation client sa mémoire : des jalons reliés aux livrables, un planning qui les montre, des modèles pour démarrer un projet en un geste, et un journal par client qui se remplit en partie tout seul.
+
+### Points forts
+
+- Jalons : les étapes datées d'un projet, avec les livrables qui les tiennent.
+- Planning : un calendrier du mois avec les jalons, les échéances et ses tâches.
+- Modèles de projet : jalons, tâches et services posés dès la création.
+- Journal client : notes, appels, rendez-vous et e-mails, plus les événements automatiques.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Jalons** (onglet du projet) : une frise des étapes, chacune avec son échéance, sa description et ses livrables. Le nombre de livrables validés se lit sur chaque jalon ; on le coche quand il est atteint, il passe « en retard » quand son échéance est dépassée. Un livrable se rattache à un jalon à son dépôt ou depuis la frise, et la liste des livrables affiche son jalon.
+- **Planning** : le mois en calendrier, avec les jalons, les échéances des projets et ses propres tâches. Bascule entre ses projets et toute l'agence (l'équipe démarre sur ses projets). Chaque entrée mène au projet, à ses jalons ou à la tâche.
+- **Modèles de projet** (Paramètres) : un nom, des services, des jalons et des tâches dont les échéances se comptent en jours depuis le début du projet. Tout s'édite sur une page et s'enregistre d'un bloc.
+- **Partir d'un modèle** : à la création d'un projet, le modèle choisi lui donne ses jalons, ses tâches et ses services.
+- **Journal client** (fiche client et écran Interactions) : notes, appels, rendez-vous et e-mails saisis à la main, datés après coup si besoin ; projet créé, livrable validé et ticket ouvert s'y inscrivent seuls. Filtres par client et par source, chargement des entrées plus anciennes.
+
+### Technique
+
+- Migration `000032` : tables `milestones`, `project_templates` (et leurs jalons, tâches et services), `client_interactions`, colonne `deliverables.milestone_id`. Les compteurs de livrables des jalons sont tenus par déclencheur.
+- Les événements du journal s'écrivent dans la transaction du geste qui les provoque.
+- Planning borné à 62 jours par requête, en une seule requête SQL.
+- Nouveaux endpoints : jalons, `PUT /deliverables/:id/milestone`, `GET /planning`, modèles de projet, interactions CRM.
+
 ## [0.6.0] — Espace team · 2026-10-02
 
 Cette version donne à l'équipe un espace à elle : une page qui dit par quoi commencer la journée, une feuille de temps à la semaine, un menu débarrassé des outils de direction, et des notifications qui suivent aussi les tickets et les livrables.

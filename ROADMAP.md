@@ -224,14 +224,17 @@ espace sans onglet d'admin.
 
 **Nouveautés**
 
-- **Jalons** : étapes datées du projet, reliées aux livrables. Affichées dans
-  le portail client.
-- **Planning** : vue calendrier des jalons et des échéances, remplaçant le
-  lien vers l'agenda partagé.
-- **Modèles de projet** : créer un projet avec ses tâches, jalons et services
-  pré-remplis.
-- **Interactions CRM** : journal des notes et appels saisis à la main, et des
-  événements automatiques (projet créé, livrable validé, ticket ouvert).
+- **Jalons** ✅ : étapes datées du projet, reliées aux livrables, avec le
+  compte des livrables validés. Leur affichage dans le portail client vient
+  avec la 0.8.0, qui ouvre l'API du portail.
+- **Planning** ✅ : vue calendrier des jalons, des échéances de projets et des
+  tâches de chacun, remplaçant le lien vers l'agenda partagé. En lecture
+  seule, sans synchronisation avec un agenda extérieur.
+- **Modèles de projet** ✅ : créer un projet avec ses tâches, jalons et
+  services pré-remplis.
+- **Interactions CRM** ✅ : journal des notes, appels, rendez-vous et e-mails
+  saisis à la main, et des événements automatiques (projet créé, livrable
+  validé, ticket ouvert).
 
 **Terminé quand** : tous les projets en cours ont leurs jalons et livrables,
 et le pipeline commercial se gère en kanban.
