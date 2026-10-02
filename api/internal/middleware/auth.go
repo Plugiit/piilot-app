@@ -18,13 +18,15 @@ const AccessCookieName = "piilot_access"
 // claimsKey indexe les claims dans les locals de la requete.
 const claimsKey = "auth.claims"
 
-// PermissionChecker repond a « ce role detient-il cette permission ».
+// PermissionChecker repond a « ce role detient-il cette permission » et a « ce
+// compte est-il toujours actif, avec quel role ».
 //
 // L'interface est declaree ici, chez le consommateur, et non dans le paquet qui
 // l'implemente : le middleware n'a ainsi aucune dependance vers usecase ni vers
 // le schema SQL.
 type PermissionChecker interface {
 	HasPermission(ctx context.Context, roleCode, permissionCode string) (bool, error)
+	ActiveRole(ctx context.Context, userID uuid.UUID) (role string, active bool, err error)
 }
 
 // Guard construit les middlewares d'authentification et d'autorisation.
@@ -51,7 +53,22 @@ func (g *Guard) Authenticated(c fiber.Ctx) error {
 		return domain.ErrUnauthorized.WithCause(err)
 	}
 
-	c.Locals(claimsKey, claims)
+	// Le jeton dit qui appelle ; la base dit si ce compte a encore le droit
+	// d'appeler, et avec quel role. Un compte desactive perd l'acces a la
+	// requete suivante, un role change s'applique aussitot — sans attendre les
+	// quinze minutes du jeton. Une lecture par cle primaire.
+	role, active, err := g.permissions.ActiveRole(c.Context(), claims.UserID)
+	if err != nil {
+		// Une panne de lecture ne doit pas ouvrir l'acces : on refuse.
+		return domain.ErrInternal.WithCause(err)
+	}
+	if !active {
+		return domain.ErrSessionExpired
+	}
+
+	current := *claims
+	current.Role = role
+	c.Locals(claimsKey, &current)
 
 	return c.Next()
 }

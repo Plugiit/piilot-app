@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/netip"
 	"strings"
 	"time"
@@ -78,6 +79,27 @@ type AuthService struct {
 	// second voudrait dire une seconde sauvegarde a tenir.
 	files     storage.Store
 	maxAvatar int64
+	// Adresse publique des liens envoyes par e-mail, et envoi actif ou non.
+	// Poses par SetLinks : sans eux, « mot de passe oublie » ne cree aucun
+	// lien.
+	baseURL     string
+	mailEnabled bool
+}
+
+// SetLinks donne au service l'adresse publique de l'application et dit si les
+// e-mails partent. Separe du constructeur, que les tests appellent sans avoir
+// besoin de liens.
+func (s *AuthService) SetLinks(baseURL string, mailEnabled bool) {
+	s.baseURL = baseURL
+	s.mailEnabled = mailEnabled
+}
+
+// ErrAccountDisabled est rendu a la connexion d'un compte desactive. Il n'est
+// rendu qu'apres verification du mot de passe : sans le bon mot de passe, la
+// reponse reste « identifiants incorrects », et l'etat du compte ne fuit pas.
+var ErrAccountDisabled = &domain.Error{
+	Status: http.StatusForbidden, Code: "ACCOUNT_DISABLED",
+	Message: "Ce compte est désactivé. Contactez un administrateur de Piilot.",
 }
 
 // NewAuthService construit le service. Le pool est requis en plus des requetes
@@ -116,6 +138,10 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (Session, error)
 
 	if !security.VerifyPassword(user.PasswordHash, in.Password) {
 		return Session{}, domain.ErrInvalidCredentials
+	}
+
+	if user.DisabledAt != nil {
+		return Session{}, ErrAccountDisabled
 	}
 
 	// Avant l'emission : si cette ecriture echoue, aucun jeton n'a ete cree et
@@ -171,7 +197,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken, userAgent string, i
 
 	// Le compte a pu etre supprime depuis l'emission du jeton : la jointure de
 	// la requete evite qu'un compte efface obtienne un acces neuf.
-	if row.UserDeletedAt != nil {
+	if row.UserDeletedAt != nil || row.UserDisabledAt != nil {
 		return Session{}, domain.ErrSessionExpired
 	}
 
@@ -251,6 +277,21 @@ func (s *AuthService) Me(ctx context.Context, userID uuid.UUID) (Profile, error)
 	}
 
 	return s.profile(ctx, user)
+}
+
+// ActiveRole rend le role du compte s'il est toujours actif. La garde l'appelle
+// a chaque requete authentifiee : un compte desactive ou supprime perd l'acces
+// a la requete suivante, et un changement de role s'applique aussitot, sans
+// attendre l'expiration du jeton d'acces.
+func (s *AuthService) ActiveRole(ctx context.Context, userID uuid.UUID) (string, bool, error) {
+	role, err := s.q.GetActiveUserRole(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("lecture de l'etat du compte : %w", err)
+	}
+	return role, true, nil
 }
 
 // HasPermission indique si un role detient une permission. Consomme par la

@@ -122,6 +122,38 @@ type DeliverableVersion struct {
 	Feedback      string     `json:"feedback"`
 }
 
+type EmailOutbox struct {
+	ID            uuid.UUID  `json:"id"`
+	Kind          string     `json:"kind"`
+	ToAddress     string     `json:"to_address"`
+	Subject       string     `json:"subject"`
+	TextBody      string     `json:"text_body"`
+	HtmlBody      string     `json:"html_body"`
+	Status        string     `json:"status"`
+	Attempts      int32      `json:"attempts"`
+	NextAttemptAt time.Time  `json:"next_attempt_at"`
+	LastError     string     `json:"last_error"`
+	CreatedAt     time.Time  `json:"created_at"`
+	SentAt        *time.Time `json:"sent_at"`
+}
+
+type Invitation struct {
+	ID         uuid.UUID  `json:"id"`
+	Email      string     `json:"email"`
+	Firstname  string     `json:"firstname"`
+	Lastname   string     `json:"lastname"`
+	Role       string     `json:"role"`
+	ClientID   *uuid.UUID `json:"client_id"`
+	TokenHash  []byte     `json:"token_hash"`
+	InvitedBy  *uuid.UUID `json:"invited_by"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	AcceptedAt *time.Time `json:"accepted_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+	UserID     *uuid.UUID `json:"user_id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
 type Notification struct {
 	ID        uuid.UUID  `json:"id"`
 	UserID    uuid.UUID  `json:"user_id"`
@@ -131,6 +163,15 @@ type Notification struct {
 	TaskID    *uuid.UUID `json:"task_id"`
 	ProjectID *uuid.UUID `json:"project_id"`
 	ReadAt    *time.Time `json:"read_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type PasswordReset struct {
+	ID        uuid.UUID  `json:"id"`
+	UserID    uuid.UUID  `json:"user_id"`
+	TokenHash []byte     `json:"token_hash"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at"`
 	CreatedAt time.Time  `json:"created_at"`
 }
 
@@ -367,4 +408,5 @@ type User struct {
 	City         string     `json:"city"`
 	Country      string     `json:"country"`
 	ClientID     *uuid.UUID `json:"client_id"`
+	DisabledAt   *time.Time `json:"disabled_at"`
 }

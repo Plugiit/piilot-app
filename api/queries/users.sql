@@ -71,3 +71,67 @@ RETURNING *;
 SELECT EXISTS (
     SELECT 1 FROM users WHERE avatar_url = $1 AND deleted_at IS NULL
 );
+
+-- name: GetActiveUserRole :one
+-- Question posee par la garde a chaque requete authentifiee : ce compte
+-- est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
+-- le jeton : desactiver un compte ou changer son role prend effet a la requete
+-- suivante, pas a l'expiration du jeton.
+SELECT role FROM users
+WHERE id = $1 AND deleted_at IS NULL AND disabled_at IS NULL;
+
+-- name: ListAccounts :many
+-- Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
+-- auquel un compte de portail est rattache.
+SELECT
+    u.id, u.email, u.firstname, u.lastname, u.role, u.avatar_url,
+    u.client_id, u.disabled_at, u.last_login_at, u.created_at,
+    c.name AS client_name
+FROM users u
+LEFT JOIN clients c ON c.id = u.client_id
+WHERE u.deleted_at IS NULL
+  AND (sqlc.narg('role')::text IS NULL OR u.role = sqlc.narg('role')::text)
+  AND (sqlc.narg('status')::text IS NULL
+       OR (sqlc.narg('status')::text = 'active' AND u.disabled_at IS NULL)
+       OR (sqlc.narg('status')::text = 'disabled' AND u.disabled_at IS NOT NULL))
+  AND (sqlc.narg('search')::text IS NULL
+       OR (u.firstname || ' ' || u.lastname) ILIKE '%' || sqlc.narg('search')::text || '%'
+       OR u.email ILIKE '%' || sqlc.narg('search')::text || '%')
+-- Les comptes actifs d'abord : un compte desactive est une archive, il ne
+-- doit pas s'intercaler entre deux personnes avec qui l'on travaille.
+ORDER BY (u.disabled_at IS NOT NULL), u.firstname, u.lastname, u.id
+LIMIT sqlc.arg('page_size') OFFSET sqlc.arg('page_offset');
+
+-- name: CountAccounts :one
+SELECT count(*) FROM users u
+WHERE u.deleted_at IS NULL
+  AND (sqlc.narg('role')::text IS NULL OR u.role = sqlc.narg('role')::text)
+  AND (sqlc.narg('status')::text IS NULL
+       OR (sqlc.narg('status')::text = 'active' AND u.disabled_at IS NULL)
+       OR (sqlc.narg('status')::text = 'disabled' AND u.disabled_at IS NOT NULL))
+  AND (sqlc.narg('search')::text IS NULL
+       OR (u.firstname || ' ' || u.lastname) ILIKE '%' || sqlc.narg('search')::text || '%'
+       OR u.email ILIKE '%' || sqlc.narg('search')::text || '%');
+
+-- name: CountActiveAdmins :one
+-- Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
+-- plus personne ne pourrait gerer les comptes ni les droits.
+SELECT count(*) FROM users
+WHERE role = 'admin' AND deleted_at IS NULL AND disabled_at IS NULL;
+
+-- name: SetUserRole :exec
+UPDATE users SET role = $2, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: DisableUser :exec
+UPDATE users SET disabled_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND disabled_at IS NULL;
+
+-- name: EnableUser :exec
+UPDATE users SET disabled_at = NULL, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: CreateInvitedUser :one
+INSERT INTO users (email, password_hash, firstname, lastname, role, client_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;

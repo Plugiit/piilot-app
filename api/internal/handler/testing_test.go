@@ -27,10 +27,16 @@ func discardLogger() *slog.Logger {
 // elle-meme — celle-ci vit en base et se teste contre une vraie Postgres.
 type stubPermissions struct {
 	granted bool
+	// inactive simule un compte desactive depuis l'emission de son jeton.
+	inactive bool
 }
 
 func (s stubPermissions) HasPermission(context.Context, string, string) (bool, error) {
 	return s.granted, nil
+}
+
+func (s stubPermissions) ActiveRole(context.Context, uuid.UUID) (string, bool, error) {
+	return "admin", !s.inactive, nil
 }
 
 // stubAuth remplace le service d'authentification. Le champ meCalled permet de
