@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TASK_STATUS } from '@/features/projects/format'
+import { TICKET_STATUS } from '@/features/tickets/format'
 import { Avatars } from '@/features/projects/ui'
 import {
   notificationFeedQuery,
@@ -17,7 +18,7 @@ import {
   useMarkNotificationRead,
 } from '@/features/notifications/api'
 import { cn } from '@/lib/utils'
-import type { AppNotification, TaskStatus } from '@/types/api'
+import type { AppNotification, TaskStatus, TicketStatus } from '@/types/api'
 
 const WHEN = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' })
 
@@ -33,6 +34,12 @@ function since(iso: string): string {
   if (hours > -24) return WHEN.format(hours, 'hour')
 
   return WHEN.format(Math.round(hours / 24), 'day')
+}
+
+function ticketStatusLabel(value: unknown): string {
+  return typeof value === 'string' && value in TICKET_STATUS
+    ? TICKET_STATUS[value as TicketStatus].label.toLowerCase()
+    : '—'
 }
 
 function statusLabel(value: unknown): string {
@@ -51,6 +58,7 @@ function statusLabel(value: unknown): string {
 function sentence(item: AppNotification): ReactNode {
   const who = item.actor === null ? 'Quelqu’un' : item.actor.firstname
   const title = typeof item.payload.title === 'string' ? item.payload.title : 'une tâche'
+  const ticket = typeof item.payload.numero === 'number' ? `#${item.payload.numero}` : 'un ticket'
 
   switch (item.kind) {
     case 'task_assigned':
@@ -67,6 +75,20 @@ function sentence(item: AppNotification): ReactNode {
       return `${who} a commenté « ${title} »`
     case 'project_created':
       return `${who} a créé le projet « ${title} »`
+    case 'ticket_created':
+      return `${who} a ouvert le ticket ${ticket} « ${title} »`
+    case 'ticket_assigned':
+      return `${who} vous a confié le ticket ${ticket} « ${title} »`
+    case 'ticket_replied':
+      return item.payload.internal === true
+        ? `${who} a ajouté une note interne au ticket ${ticket}`
+        : `${who} a répondu au ticket ${ticket} « ${title} »`
+    case 'ticket_status_changed':
+      return `${who} a passé le ticket ${ticket} en ${ticketStatusLabel(item.payload.to)}`
+    case 'deliverable_validated':
+      return `${who} a validé « ${title} »`
+    case 'deliverable_feedback':
+      return `${who} a renvoyé des retours sur « ${title} »`
   }
 }
 
@@ -173,6 +195,16 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
     unread ? 'bg-[#fff8f4] hover:bg-[#fff2ea]' : 'hover:bg-[#f8f8f8]',
   )
 
+  // Le ticket mene a sa fiche, le livrable a la liste de son projet, la tache
+  // au tiroir de son projet.
+  if (item.ticket_id !== null) {
+    return (
+      <Link to="/pm/tickets/$id" params={{ id: item.ticket_id }} onClick={onOpen} className={className}>
+        {body}
+      </Link>
+    )
+  }
+
   // Une notification qui ne designe plus rien reste lisible : son projet a pu
   // etre supprime entre-temps, et un lien mort vaut moins qu'un texte simple.
   if (item.project_id === null) {
@@ -180,6 +212,19 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
       <button type="button" onClick={onOpen} className={cn(className, 'cursor-pointer')}>
         {body}
       </button>
+    )
+  }
+
+  if (item.deliverable_id !== null) {
+    return (
+      <Link
+        to="/pm/livrables"
+        search={{ page: 1, projet: item.project_id }}
+        onClick={onOpen}
+        className={className}
+      >
+        {body}
+      </Link>
     )
   }
 
