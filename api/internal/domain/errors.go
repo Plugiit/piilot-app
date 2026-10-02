@@ -30,6 +30,14 @@ func (e *Error) Error() string {
 // Unwrap expose la cause pour errors.Is / errors.As.
 func (e *Error) Unwrap() error { return e.cause }
 
+// Is reconnait une erreur metier a son code. WithCause et WithDetails rendent
+// une copie : sans cette methode, errors.Is(err, ErrX) serait faux des qu'une
+// erreur porte une cause ou des details.
+func (e *Error) Is(target error) bool {
+	t, ok := target.(*Error)
+	return ok && t.Code == e.Code
+}
+
 // WithCause attache l'erreur technique d'origine : elle part dans les logs,
 // jamais dans la reponse HTTP.
 func (e *Error) WithCause(err error) *Error {
