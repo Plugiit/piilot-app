@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -96,10 +97,11 @@ type TicketService struct {
 	// statut qu'il annonce vont dans la meme transaction.
 	pool *pgxpool.Pool
 	q    *db.Queries
+	bus  Bus
 }
 
-func NewTicketService(pool *pgxpool.Pool) *TicketService {
-	return &TicketService{pool: pool, q: db.New(pool)}
+func NewTicketService(pool *pgxpool.Pool, bus Bus) *TicketService {
+	return &TicketService{pool: pool, q: db.New(pool), bus: bus}
 }
 
 // ListAssignedTo renvoie une page des tickets confies a quelqu'un.
@@ -385,7 +387,18 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 		return TicketItem{}, domain.ErrValidation.WithDetails(details)
 	}
 
-	row, err := s.q.CreateTicket(ctx, db.CreateTicketParams{
+	// Une transaction pour que le ticket et ses notifications aboutissent
+	// ensemble : un ticket depose sans que personne n'en soit prevenu est
+	// precisement ce que les notifications doivent eviter.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return TicketItem{}, fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	q := s.q.WithTx(tx)
+
+	row, err := q.CreateTicket(ctx, db.CreateTicketParams{
 		ProjectID:   in.ProjectID,
 		Subject:     subject,
 		Description: strings.TrimSpace(in.Description),
@@ -397,6 +410,22 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 	})
 	if err != nil {
 		return TicketItem{}, fmt.Errorf("creation du ticket : %w", err)
+	}
+
+	err = s.notifyTicket(ctx, q, ticketNotice{
+		TicketID:    row.ID,
+		ProjectID:   row.ProjectID,
+		Actor:       in.CreatedBy,
+		Payload:     ticketPayload(row.Numero, row.Subject, row.ProjectName),
+		NewAssignee: in.AssigneeID,
+		Kind:        NotifyTicketCreated,
+	})
+	if err != nil {
+		return TicketItem{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return TicketItem{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
 
 	return TicketItem{
@@ -694,6 +723,9 @@ func (s *TicketService) PostMessage(
 		return TicketDetail{}, fmt.Errorf("inscription du message : %w", err)
 	}
 
+	apresStatus := avant.Status
+	var nouvelAssigne *uuid.UUID
+
 	if in.NewStatus != nil || in.NewPriority != nil || in.ChangeAssignee {
 		if err := q.UpdateTicketFields(ctx, db.UpdateTicketFieldsParams{
 			ID:             ticketID,
@@ -738,6 +770,36 @@ func (s *TicketService) PostMessage(
 				return TicketDetail{}, fmt.Errorf("journal du ticket : %w", err)
 			}
 		}
+
+		apresStatus = apres.Status
+		if apres.AssigneeID != nil && (avant.AssigneeID == nil || *avant.AssigneeID != *apres.AssigneeID) {
+			nouvelAssigne = apres.AssigneeID
+		}
+	}
+
+	// Une seule notification par personne et par geste, la plus parlante : etre
+	// designe pour traiter le ticket prime sur le changement de statut, qui
+	// prime sur la simple reponse.
+	payload := ticketPayload(avant.Numero, avant.Subject, avant.ProjectName)
+	payload["excerpt"] = excerpt(body)
+	payload["internal"] = in.IsInternal
+	kind := NotifyTicketReplied
+	if apresStatus != avant.Status {
+		kind = NotifyTicketStatusChanged
+		payload["from"] = avant.Status
+		payload["to"] = apresStatus
+	}
+
+	err = s.notifyTicket(ctx, q, ticketNotice{
+		TicketID:    ticketID,
+		ProjectID:   avant.ProjectID,
+		Actor:       in.AuthorID,
+		Payload:     payload,
+		NewAssignee: nouvelAssigne,
+		Kind:        kind,
+	})
+	if err != nil {
+		return TicketDetail{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -823,4 +885,71 @@ func (s *TicketService) Rename(
 	}
 
 	return s.Get(ctx, ticketID)
+}
+
+// ticketNotice decrit un geste pose sur un ticket, pret a etre notifie.
+type ticketNotice struct {
+	TicketID  uuid.UUID
+	ProjectID uuid.UUID
+	Actor     *uuid.UUID
+	Kind      string
+	Payload   map[string]any
+	// Personne qui vient d'etre designee pour traiter le ticket : elle recoit
+	// « vous a confie » plutot que le genre du geste.
+	NewAssignee *uuid.UUID
+}
+
+// notifyTicket previent les administrateurs, la personne qui traite le ticket
+// et celle qui l'a ouvert. Appelee dans la transaction du geste.
+func (s *TicketService) notifyTicket(ctx context.Context, q *db.Queries, n ticketNotice) error {
+	actor := uuid.Nil
+	if n.Actor != nil {
+		actor = *n.Actor
+	}
+
+	recipients, err := q.ListTicketNotificationRecipients(ctx, db.ListTicketNotificationRecipientsParams{
+		TicketID: n.TicketID,
+		ActorID:  actor,
+	})
+	if err != nil {
+		return fmt.Errorf("recherche des destinataires : %w", err)
+	}
+
+	base := notice{
+		ActorID:   actor,
+		Payload:   n.Payload,
+		ProjectID: &n.ProjectID,
+		TicketID:  &n.TicketID,
+	}
+
+	others := make([]uuid.UUID, 0, len(recipients))
+	for _, id := range recipients {
+		if n.NewAssignee == nil || id != *n.NewAssignee {
+			others = append(others, id)
+		}
+	}
+
+	// La personne designee figure deja parmi les destinataires : la requete lit
+	// le ticket dans la transaction, apres sa mise a jour. Le test d'appartenance
+	// l'ecarte quand elle ne doit rien recevoir — compte du portail, desactive,
+	// ou auteur du geste.
+	if n.NewAssignee != nil && slices.Contains(recipients, *n.NewAssignee) {
+		assigned := base
+		assigned.Kind = NotifyTicketAssigned
+		assigned.Recipients = []uuid.UUID{*n.NewAssignee}
+		if err := deliver(ctx, q, s.bus, assigned); err != nil {
+			return err
+		}
+	}
+
+	rest := base
+	rest.Kind = n.Kind
+	rest.Recipients = others
+
+	return deliver(ctx, q, s.bus, rest)
+}
+
+// ticketPayload porte de quoi ecrire la phrase sans relire le ticket.
+func ticketPayload(numero int64, subject, project string) map[string]any {
+	return map[string]any{"numero": numero, "title": subject, "project": project}
 }

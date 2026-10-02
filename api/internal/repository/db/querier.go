@@ -174,6 +174,9 @@ type Querier interface {
 	// Un livrable et sa version courante, aux memes colonnes que la liste : le
 	// depot et la decision rendent la ligne telle que l'ecran la reaffiche.
 	GetDeliverable(ctx context.Context, id uuid.UUID) (GetDeliverableRow, error)
+	// De quoi ecrire la notification d'une decision : le titre, le projet et le
+	// numero de la version tranchee, figes au moment du geste.
+	GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error)
 	GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, error)
 	// Page d'acceptation : l'invitation, qui l'a envoyee et pour quel client.
 	// Rendue meme expiree ou deja acceptee : c'est l'appelant qui dit pourquoi le
@@ -282,6 +285,9 @@ type Querier interface {
 	// Carte « Activite par jour » : une ligne par jour actif de la periode,
 	// precalculee par declencheur. Les jours sans ligne sont des jours vides.
 	ListDailyActivity(ctx context.Context, arg ListDailyActivityParams) ([]DailyActivity, error)
+	// Qui prevenir quand le client tranche un livrable : les administrateurs,
+	// l'equipe du projet et la personne qui a depose la version.
+	ListDeliverableNotificationRecipients(ctx context.Context, arg ListDeliverableNotificationRecipientsParams) ([]uuid.UUID, error)
 	// Le fil complet d'un livrable, de la premiere version a la derniere : c'est
 	// la trace que le module existe pour garder.
 	ListDeliverableVersions(ctx context.Context, deliverableID uuid.UUID) ([]ListDeliverableVersionsRow, error)
@@ -315,6 +321,28 @@ type Querier interface {
 	// page entiere et repartit les lignes ensuite. Une requete par projet aurait
 	// fait vingt allers-retours pour afficher vingt lignes.
 	ListMembersOfProjects(ctx context.Context, projectIds []uuid.UUID) ([]ListMembersOfProjectsRow, error)
+	// Les livrables a deposer dans les projets d'une personne : ceux qui n'ont
+	// encore aucune version, et ceux dont le client a renvoye des retours. Ce qui
+	// attend la decision du client n'y figure pas — la balle n'est pas dans le
+	// camp de l'equipe.
+	ListMyDeliverablesToSubmit(ctx context.Context, arg ListMyDeliverablesToSubmitParams) ([]ListMyDeliverablesToSubmitRow, error)
+	// Page « Mon travail » : ce qui attend une personne, dans tous ses projets.
+	//
+	// Cinq requetes bornees plutot qu'une seule : chaque bloc a son ordre et sa
+	// limite, et les reunir demanderait des UNION aux colonnes forcees qui ne se
+	// liraient plus.
+	// Les taches non terminees d'une personne, les plus pressantes d'abord : en
+	// retard, puis par echeance, puis sans echeance.
+	//
+	// Les deux comptes portent sur toutes les lignes, pas sur la page : l'ecran
+	// annonce « 12 en retard » meme quand il n'en montre que les premieres.
+	ListMyOpenTasks(ctx context.Context, arg ListMyOpenTasksParams) ([]ListMyOpenTasksRow, error)
+	// Les tickets ouverts confies a une personne, les plus urgents d'abord.
+	ListMyOpenTickets(ctx context.Context, arg ListMyOpenTicketsParams) ([]ListMyOpenTicketsRow, error)
+	// Les projets en cours ou une personne intervient, les plus proches de leur
+	// echeance d'abord. Les compteurs de taches sont ceux tenus par les
+	// declencheurs : aucun comptage ici.
+	ListMyProjects(ctx context.Context, arg ListMyProjectsParams) ([]ListMyProjectsRow, error)
 	// Qui prevenir pour un geste pose sur une tache.
 	//
 	// Les administrateurs suivent tout ce qui se passe ; les personnes affectees a
@@ -442,6 +470,12 @@ type Querier interface {
 	ListTicketEvents(ctx context.Context, ticketID uuid.UUID) ([]ListTicketEventsRow, error)
 	// Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
 	ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]ListTicketMessagesRow, error)
+	// Qui prevenir pour un geste pose sur un ticket : les administrateurs, la
+	// personne qui le traite et celle qui l'a ouvert.
+	//
+	// Les comptes du portail sont ecartes : la cloche est un outil du
+	// back-office, le client suit son ticket depuis le portail.
+	ListTicketNotificationRecipients(ctx context.Context, arg ListTicketNotificationRecipientsParams) ([]uuid.UUID, error)
 	// Tickets.
 	//
 	// Les trois vues de l'ecran — tableau, kanban par projet, kanban par statut —
@@ -602,6 +636,9 @@ type Querier interface {
 	// L'updater prend la demande en attente et la passe en cours, d'un seul
 	// geste : une demande n'est jamais executee deux fois.
 	StartPendingUpdateRequest(ctx context.Context) (AppUpdateRequest, error)
+	// Le temps saisi par une personne sur une semaine. Au plus quelques dizaines
+	// de lignes, lues par l'index (user_id, spent_on).
+	SumMyWeekMinutes(ctx context.Context, arg SumMyWeekMinutesParams) (int64, error)
 	// Total de la plage, en minutes. Calcule par la base plutot qu'en additionnant
 	// les lignes rendues : la liste est bornee, le total ne doit pas l'etre.
 	SumTimeEntries(ctx context.Context, arg SumTimeEntriesParams) (int64, error)

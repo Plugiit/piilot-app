@@ -174,3 +174,12 @@ WHERE id = sqlc.arg('id') AND decision = 'en_attente';
 
 -- name: TouchDeliverable :exec
 UPDATE deliverables SET updated_at = now() WHERE id = sqlc.arg('id');
+
+-- name: GetDeliverableNotice :one
+-- De quoi ecrire la notification d'une decision : le titre, le projet et le
+-- numero de la version tranchee, figes au moment du geste.
+SELECT d.title, p.name AS project_name, coalesce(v.numero, 0)::integer AS numero
+FROM deliverables d
+JOIN projects p ON p.id = d.project_id
+LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
+WHERE d.id = $1;

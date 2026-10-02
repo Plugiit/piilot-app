@@ -130,14 +130,15 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Contacts: handler.NewContacts(contactService),
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
-		Tickets:       handler.NewTickets(usecase.NewTicketService(pool)),
-		Deliverables:  handler.NewDeliverables(usecase.NewDeliverableService(pool)),
+		Tickets:       handler.NewTickets(usecase.NewTicketService(pool, notifyBus)),
+		Deliverables:  handler.NewDeliverables(usecase.NewDeliverableService(pool, notifyBus)),
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
 		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
 		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.PublicBaseURL, sender.Configured())),
 		AuthLinks:     handler.NewAuthLinks(authService, cookies, repository.NewRateLimiter(rdb), log),
+		MyWork:        handler.NewMyWork(usecase.NewMyWorkService(pool)),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})

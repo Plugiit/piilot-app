@@ -273,7 +273,7 @@
           "admin"
         ],
         "summary": "Tableau de bord de l'agence",
-        "description": "Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige projects.read.",
+        "description": "Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige dashboard.read.",
         "operationId": "getAdminDashboard",
         "security": [
           {
@@ -287,6 +287,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/me/work": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mon travail",
+        "description": "Ce qui attend la personne connectee : ses taches ouvertes (en retard d'abord), ses tickets ouverts, les livrables a deposer ou a reprendre dans ses projets, ses projets en cours et son temps de la semaine. Exige projects.read.",
+        "operationId": "getMyWork",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Travail de la personne",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyWork"
                 }
               }
             }
@@ -3993,7 +4026,7 @@
           "admin"
         ],
         "summary": "Kanban commercial",
-        "description": "Toutes les cartes, bornees et non paginees. Exige clients.read.",
+        "description": "Toutes les cartes, bornees et non paginees. Exige pipeline.read.",
         "operationId": "getCrmClientBoard",
         "security": [
           {
@@ -4043,7 +4076,7 @@
           "admin"
         ],
         "summary": "Deplacer un client dans le pipeline",
-        "description": "Ne touche que le statut : glisser une carte ne doit pas reecrire les coordonnees. Exige clients.write.",
+        "description": "Ne touche que le statut : glisser une carte ne doit pas reecrire les coordonnees. Exige clients.write et pipeline.read.",
         "operationId": "moveCrmClientStatus",
         "security": [
           {
@@ -5508,7 +5541,7 @@
           "admin"
         ],
         "summary": "Mon temps passe",
-        "description": "Sert l'ecran PM > Temps > Saisie. Le compte vient de la session : on relit son propre pointage, jamais celui d'un autre. Sans parametre, la journee courante.",
+        "description": "Sert l'ecran PM > Temps > Saisie. Le compte vient de la session : on relit son propre pointage, jamais celui d'un autre. Sans parametre, la journee courante. Exige time.write.",
         "operationId": "getTimeSheet",
         "security": [
           {
@@ -5562,7 +5595,7 @@
           "admin"
         ],
         "summary": "Pointer du temps",
-        "description": "Enregistre une saisie au nom du compte connecte. Met a jour les heures consommees du projet, tenues par declencheur.",
+        "description": "Enregistre une saisie au nom du compte connecte. Met a jour les heures consommees du projet, tenues par declencheur. Exige time.write.",
         "operationId": "createTimeEntry",
         "security": [
           {
@@ -5653,7 +5686,7 @@
           "admin"
         ],
         "summary": "Modifier une saisie",
-        "description": "Une saisie qui n'appartient pas au compte appelant rend 404 : elle ne correspond a aucune ligne.",
+        "description": "Une saisie qui n'appartient pas au compte appelant rend 404 : elle ne correspond a aucune ligne. Exige time.write.",
         "operationId": "updateTimeEntry",
         "security": [
           {
@@ -5733,7 +5766,7 @@
           "admin"
         ],
         "summary": "Supprimer une saisie",
-        "description": "Suppression douce. Les heures du projet sont recalculees.",
+        "description": "Suppression douce. Les heures du projet sont recalculees. Exige time.write.",
         "operationId": "deleteTimeEntry",
         "security": [
           {
@@ -6405,7 +6438,8 @@
             "description": "Avancement declare par l'equipe, distinct du rapport des taches faites"
           },
           "hours_sold": {
-            "type": "number"
+            "type": "number",
+            "description": "Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none."
           },
           "hours_spent": {
             "type": "number",
@@ -6706,7 +6740,8 @@
             "description": "Avancement declare par l'equipe, distinct du rapport des taches faites"
           },
           "hours_sold": {
-            "type": "number"
+            "type": "number",
+            "description": "Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none."
           },
           "hours_spent": {
             "type": "number",
@@ -7968,6 +8003,8 @@
           "payload",
           "task_id",
           "project_id",
+          "ticket_id",
+          "deliverable_id",
           "actor",
           "read_at",
           "created_at"
@@ -7986,13 +8023,19 @@
               "task_unassigned",
               "task_commented",
               "task_due_changed",
-              "project_created"
+              "project_created",
+              "ticket_created",
+              "ticket_assigned",
+              "ticket_replied",
+              "ticket_status_changed",
+              "deliverable_validated",
+              "deliverable_feedback"
             ]
           },
           "payload": {
             "type": "object",
             "additionalProperties": true,
-            "description": "De quoi ecrire la phrase sans relire la tache : son titre au moment du geste, l'ancien et le nouveau statut."
+            "description": "De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message."
           },
           "task_id": {
             "type": "string",
@@ -8003,6 +8046,18 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Ticket dont parle la notification."
+          },
+          "deliverable_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Livrable dont parle la notification."
           },
           "actor": {
             "allOf": [
@@ -10720,6 +10775,271 @@
         "properties": {
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "WorkTask": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "due_on",
+          "overdue",
+          "project"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "progress",
+              "review"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          }
+        }
+      },
+      "WorkTicket": {
+        "type": "object",
+        "required": [
+          "id",
+          "numero",
+          "subject",
+          "status",
+          "priority",
+          "updated_at",
+          "project"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "in_progress",
+              "in_review",
+              "ready_to_deploy",
+              "done",
+              "annule"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent",
+              "critical"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          }
+        }
+      },
+      "WorkDeliverable": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "project",
+          "state",
+          "version",
+          "decided_at",
+          "feedback"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "feedback"
+            ],
+            "description": "draft : rien n'a ete depose. feedback : le client a renvoye des retours sur la version courante."
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "feedback": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkProject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "client_name",
+          "status",
+          "progress",
+          "due_on",
+          "tasks_total",
+          "tasks_done"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "tasks_total": {
+            "type": "integer"
+          },
+          "tasks_done": {
+            "type": "integer"
+          }
+        }
+      },
+      "MyWork": {
+        "type": "object",
+        "description": "Tout ce qu'affiche la page Mon travail. Chaque bloc est borne ; les totaux portent sur toutes les lignes.",
+        "required": [
+          "tasks",
+          "tasks_total",
+          "tasks_overdue",
+          "tickets",
+          "tickets_total",
+          "deliverables",
+          "deliverables_total",
+          "projects",
+          "week_start",
+          "week_minutes",
+          "today"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkTask"
+            }
+          },
+          "tasks_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tasks_overdue": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkTicket"
+            }
+          },
+          "tickets_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deliverables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkDeliverable"
+            }
+          },
+          "deliverables_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkProject"
+            }
+          },
+          "week_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "week_minutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "today": {
+            "type": "string",
+            "format": "date"
           }
         }
       }

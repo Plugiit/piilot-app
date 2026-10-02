@@ -21,8 +21,8 @@ SELECT count(*) FROM notifications
 WHERE user_id = $1 AND read_at IS NULL;
 
 -- name: CreateNotification :one
-INSERT INTO notifications (user_id, actor_id, kind, payload, task_id, project_id)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO notifications (user_id, actor_id, kind, payload, task_id, project_id, ticket_id, deliverable_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: MarkNotificationRead :exec
@@ -48,3 +48,32 @@ LEFT JOIN task_assignees ta ON ta.user_id = u.id AND ta.task_id = sqlc.narg('tas
 WHERE u.deleted_at IS NULL
   AND u.id <> sqlc.arg('actor_id')
   AND (u.role = 'admin' OR ta.user_id IS NOT NULL);
+
+-- name: ListTicketNotificationRecipients :many
+-- Qui prevenir pour un geste pose sur un ticket : les administrateurs, la
+-- personne qui le traite et celle qui l'a ouvert.
+--
+-- Les comptes du portail sont ecartes : la cloche est un outil du
+-- back-office, le client suit son ticket depuis le portail.
+SELECT DISTINCT u.id
+FROM users u
+JOIN tickets t ON t.id = sqlc.arg('ticket_id')::uuid
+WHERE u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+  AND u.role <> 'client'
+  AND u.id <> sqlc.arg('actor_id')
+  AND (u.role = 'admin' OR u.id = t.assignee_id OR u.id = t.created_by);
+
+-- name: ListDeliverableNotificationRecipients :many
+-- Qui prevenir quand le client tranche un livrable : les administrateurs,
+-- l'equipe du projet et la personne qui a depose la version.
+SELECT DISTINCT u.id
+FROM users u
+JOIN deliverables d ON d.id = sqlc.arg('deliverable_id')::uuid
+LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
+LEFT JOIN project_members pm ON pm.project_id = d.project_id AND pm.user_id = u.id
+WHERE u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+  AND u.role <> 'client'
+  AND u.id <> sqlc.arg('actor_id')
+  AND (u.role = 'admin' OR pm.user_id IS NOT NULL OR u.id = v.submitted_by);

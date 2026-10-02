@@ -155,15 +155,17 @@ type Invitation struct {
 }
 
 type Notification struct {
-	ID        uuid.UUID  `json:"id"`
-	UserID    uuid.UUID  `json:"user_id"`
-	ActorID   *uuid.UUID `json:"actor_id"`
-	Kind      string     `json:"kind"`
-	Payload   []byte     `json:"payload"`
-	TaskID    *uuid.UUID `json:"task_id"`
-	ProjectID *uuid.UUID `json:"project_id"`
-	ReadAt    *time.Time `json:"read_at"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID            uuid.UUID  `json:"id"`
+	UserID        uuid.UUID  `json:"user_id"`
+	ActorID       *uuid.UUID `json:"actor_id"`
+	Kind          string     `json:"kind"`
+	Payload       []byte     `json:"payload"`
+	TaskID        *uuid.UUID `json:"task_id"`
+	ProjectID     *uuid.UUID `json:"project_id"`
+	ReadAt        *time.Time `json:"read_at"`
+	CreatedAt     time.Time  `json:"created_at"`
+	TicketID      *uuid.UUID `json:"ticket_id"`
+	DeliverableID *uuid.UUID `json:"deliverable_id"`
 }
 
 type PasswordReset struct {

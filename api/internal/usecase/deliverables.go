@@ -99,10 +99,11 @@ type DeliverableService struct {
 	// courante ne peuvent pas se faire en deux temps.
 	pool *pgxpool.Pool
 	q    *db.Queries
+	bus  Bus
 }
 
-func NewDeliverableService(pool *pgxpool.Pool) *DeliverableService {
-	return &DeliverableService{pool: pool, q: db.New(pool)}
+func NewDeliverableService(pool *pgxpool.Pool, bus Bus) *DeliverableService {
+	return &DeliverableService{pool: pool, q: db.New(pool), bus: bus}
 }
 
 // personOfDeliverable compose une personne a partir des colonnes d'une jointure
@@ -417,6 +418,10 @@ func (s *DeliverableService) Decide(
 		return DeliverableItem{}, fmt.Errorf("mise a jour du livrable : %w", err)
 	}
 
+	if err := s.notifyDecision(ctx, q, locked.ProjectID, deliverableID, decision, feedback, decidedBy); err != nil {
+		return DeliverableItem{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return DeliverableItem{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
@@ -492,4 +497,50 @@ func (s *DeliverableService) Versions(
 	}
 
 	return entries, nil
+}
+
+// notifyDecision previent l'equipe du projet que le client a tranche.
+//
+// Les administrateurs, l'equipe du projet et la personne qui a depose la
+// version : ceux qui ont a reprendre le travail, ou a le cloturer.
+func (s *DeliverableService) notifyDecision(
+	ctx context.Context,
+	q *db.Queries,
+	projectID, deliverableID uuid.UUID,
+	decision, feedback string,
+	decidedBy *uuid.UUID,
+) error {
+	actor := uuid.Nil
+	if decidedBy != nil {
+		actor = *decidedBy
+	}
+
+	info, err := q.GetDeliverableNotice(ctx, deliverableID)
+	if err != nil {
+		return fmt.Errorf("lecture du livrable : %w", err)
+	}
+
+	recipients, err := q.ListDeliverableNotificationRecipients(ctx, db.ListDeliverableNotificationRecipientsParams{
+		DeliverableID: deliverableID,
+		ActorID:       actor,
+	})
+	if err != nil {
+		return fmt.Errorf("recherche des destinataires : %w", err)
+	}
+
+	kind := NotifyDeliverableValidated
+	payload := map[string]any{"title": info.Title, "project": info.ProjectName, "version": info.Numero}
+	if decision == "retours" {
+		kind = NotifyDeliverableFeedback
+		payload["excerpt"] = excerpt(strings.TrimSpace(feedback))
+	}
+
+	return deliver(ctx, q, s.bus, notice{
+		Kind:          kind,
+		ActorID:       actor,
+		Payload:       payload,
+		ProjectID:     &projectID,
+		DeliverableID: &deliverableID,
+		Recipients:    recipients,
+	})
 }
