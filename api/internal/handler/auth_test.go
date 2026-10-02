@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/plugiit/piilot-app/api/internal/middleware"
@@ -183,5 +184,42 @@ func TestLoginReussiRemetLesCompteursAZero(t *testing.T) {
 	// Deux compteurs : celui de l'adresse et celui du compte.
 	if limiter.resets != 2 {
 		t.Errorf("compteurs remis a zero = %d, attendu 2", limiter.resets)
+	}
+}
+
+// Un compte desactive apres l'emission de son jeton perd l'acces a la requete
+// suivante, sans attendre l'expiration du jeton : la garde relit l'etat du
+// compte en base.
+func TestUnCompteDesactiveEstRefuseMalgreUnJetonValide(t *testing.T) {
+	userID := uuid.New()
+	auth := &stubAuth{profile: usecase.Profile{ID: userID, Role: "admin"}}
+
+	app := fiber.New(fiber.Config{ErrorHandler: middleware.ErrorHandler(discardLogger())})
+	signer := security.NewTokenSigner([]byte(testSecret), "piilot-api")
+	Register(app, Deps{
+		Health: NewHealth(nil, nil, BuildInfo{Version: "test"}),
+		Auth:   NewAuth(auth, CookieConfig{}, &stubLimiter{}, discardLogger()),
+		Guard:  middleware.NewGuard(signer, stubPermissions{granted: true, inactive: true}),
+	})
+
+	token, err := signer.Sign(userID, "admin", time.Minute)
+	if err != nil {
+		t.Fatalf("signature du jeton : %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.AccessCookieName, Value: token})
+
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("requete : %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("statut = %d, attendu 401", res.StatusCode)
+	}
+	if auth.meCalled {
+		t.Fatal("le handler a ete atteint pour un compte desactive")
 	}
 }

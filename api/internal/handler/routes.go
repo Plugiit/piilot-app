@@ -23,6 +23,8 @@ type Deps struct {
 	TimeEntries   *TimeEntries
 	TimeReports   *TimeReports
 	Updates       *Updates
+	Accounts      *Accounts
+	AuthLinks     *AuthLinks
 
 	Guard *middleware.Guard
 }
@@ -73,6 +75,15 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 	// Les photos se lisent entre comptes connectes : elles s'affichent dans les
 	// equipes et les affectations, pas seulement sur ses propres reglages.
 	r.Get("/avatars/:key", deps.Guard.Authenticated, deps.Auth.Avatar)
+
+	// Parcours par lien, sans session : le jeton du lien fait office de preuve.
+	// Chacun est borne par adresse IP dans le handler.
+	r.Get("/invitations/:token", deps.AuthLinks.Invitation)
+	r.Post("/invitations/:token/accept", deps.AuthLinks.AcceptInvitation)
+	r.Get("/password/forgot", deps.AuthLinks.ForgotConfig)
+	r.Post("/password/forgot", deps.AuthLinks.Forgot)
+	r.Get("/password/reset/:token", deps.AuthLinks.ResetInfo)
+	r.Post("/password/reset/:token", deps.AuthLinks.Reset)
 }
 
 // registerAdminRoutes monte les endpoints de l'admin. Tout est authentifie et
@@ -94,6 +105,21 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("admin", "team"))
 
 	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Projects.Dashboard)
+
+	// Comptes et roles. La lecture est ouverte a qui porte users.read (l'equipe
+	// voit qui est dans Piilot) ; toute ecriture exige users.write ou
+	// roles.write, que seul le role admin peut recevoir.
+	r.Get("/accounts", deps.Guard.RequirePermission("users.read"), deps.Accounts.List)
+	r.Get("/accounts/invitations", deps.Guard.RequirePermission("users.read"), deps.Accounts.Invitations)
+	r.Post("/accounts/invitations", deps.Guard.RequirePermission("users.write"), deps.Accounts.Invite)
+	r.Post("/accounts/invitations/:id/resend", deps.Guard.RequirePermission("users.write"), deps.Accounts.ResendInvitation)
+	r.Delete("/accounts/invitations/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.RevokeInvitation)
+	r.Patch("/accounts/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.SetRole)
+	r.Post("/accounts/:id/disable", deps.Guard.RequirePermission("users.write"), deps.Accounts.Disable)
+	r.Post("/accounts/:id/enable", deps.Guard.RequirePermission("users.write"), deps.Accounts.Enable)
+	r.Post("/accounts/:id/password-reset", deps.Guard.RequirePermission("users.write"), deps.Accounts.PasswordReset)
+	r.Get("/roles", deps.Guard.RequirePermission("roles.read"), deps.Accounts.Roles)
+	r.Put("/roles/:code/permissions", deps.Guard.RequirePermission("roles.write"), deps.Accounts.SetRolePermissions)
 
 	// Mise a jour de l'application : admins seuls, par la permission
 	// system.update que la migration 000029 ne donne qu'a eux.

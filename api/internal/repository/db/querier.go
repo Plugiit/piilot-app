@@ -16,6 +16,7 @@ type Querier interface {
 	// updater interrompu en pleine mise a jour. Elle est close en echec plutot que
 	// de bloquer toute nouvelle demande.
 	AbandonStaleUpdateRequests(ctx context.Context) error
+	AcceptInvitation(ctx context.Context, arg AcceptInvitationParams) error
 	// Poser deux fois la meme etoile n'est pas une erreur : c'est un bouton qu'on
 	// peut recliquer, pas une creation.
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
@@ -36,19 +37,30 @@ type Querier interface {
 	// du magasin a qui en devinerait la cle, court-circuitant les droits du projet
 	// qui la porte.
 	AvatarURLExists(ctx context.Context, avatarUrl *string) (bool, error)
+	// Le prochain e-mail a envoyer, verrouille pour la transaction de l'envoi.
+	ClaimDueEmail(ctx context.Context) (EmailOutbox, error)
 	// Retire la designation qui pointe vers ce contact, quel que soit le client.
 	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
 	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
 	ClearPrimaryContactOf(ctx context.Context, primaryContactID *uuid.UUID) error
+	ClearRolePermissions(ctx context.Context, code string) error
 	ClearTaskServices(ctx context.Context, taskID uuid.UUID) error
+	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
+	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
+	// plus personne ne pourrait gerer les comptes ni les droits.
+	CountActiveAdmins(ctx context.Context) (int64, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
+	CountOpenInvitations(ctx context.Context) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	// Tous statuts confondus, livres compris : c'est ce qui decide si un client
 	// peut disparaitre. Un projet livre garde la trace de qui l'a commande.
 	CountProjectsOfClient(ctx context.Context, clientID uuid.UUID) (int64, error)
+	// Borne par compte : un tiers qui connait une adresse ne doit pas pouvoir la
+	// noyer sous les e-mails de reinitialisation.
+	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	// Total de chaque colonne du kanban, filtres compris.
@@ -60,6 +72,7 @@ type Querier interface {
 	CountTicketsByProject(ctx context.Context, arg CountTicketsByProjectParams) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
+	CountUsersByRole(ctx context.Context) ([]CountUsersByRoleRow, error)
 	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
 	// cle etrangere composite exige qu'un contact principal lui appartienne deja.
 	CreateClient(ctx context.Context, name string) (Client, error)
@@ -69,7 +82,10 @@ type Querier interface {
 	// Le livrable nait sans version : c'est la soumission qui lui en donne une.
 	CreateDeliverable(ctx context.Context, arg CreateDeliverableParams) (uuid.UUID, error)
 	CreateDeliverableVersion(ctx context.Context, arg CreateDeliverableVersionParams) (uuid.UUID, error)
+	CreateInvitation(ctx context.Context, arg CreateInvitationParams) (Invitation, error)
+	CreateInvitedUser(ctx context.Context, arg CreateInvitedUserParams) (User, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) (PasswordReset, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
@@ -121,7 +137,15 @@ type Querier interface {
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
+	DisableUser(ctx context.Context, id uuid.UUID) error
+	EnableUser(ctx context.Context, id uuid.UUID) error
+	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
+	// Question posee par la garde a chaque requete authentifiee : ce compte
+	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
+	// le jeton : desactiver un compte ou changer son role prend effet a la requete
+	// suivante, pas a l'expiration du jeton.
+	GetActiveUserRole(ctx context.Context, id uuid.UUID) (string, error)
 	// Une piece jointe se lit par son seul identifiant, quel que soit son
 	// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
 	// de servir celles des projets comme celles des taches.
@@ -130,6 +154,7 @@ type Querier interface {
 	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
 	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
 	GetClientByName(ctx context.Context, name string) (Client, error)
+	GetClientName(ctx context.Context, id uuid.UUID) (string, error)
 	GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error)
 	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs
 	// que le tableau montre deja.
@@ -149,8 +174,15 @@ type Querier interface {
 	// Un livrable et sa version courante, aux memes colonnes que la liste : le
 	// depot et la decision rendent la ligne telle que l'ecran la reaffiche.
 	GetDeliverable(ctx context.Context, id uuid.UUID) (GetDeliverableRow, error)
+	GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, error)
+	// Page d'acceptation : l'invitation, qui l'a envoyee et pour quel client.
+	// Rendue meme expiree ou deja acceptee : c'est l'appelant qui dit pourquoi le
+	// lien ne vaut plus, et l'ecran l'explique.
+	GetInvitationByToken(ctx context.Context, tokenHash []byte) (GetInvitationByTokenRow, error)
 	// Derniere demande, pour l'etat affiche a l'ecran.
 	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
+	GetOpenInvitationByEmail(ctx context.Context, email string) (Invitation, error)
+	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -191,6 +223,14 @@ type Querier interface {
 	GetUpdater(ctx context.Context) (AppUpdater, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
+	// Un mot de passe change rend caducs les autres liens en circulation.
+	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
+	// Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
+	// auquel un compte de portail est rattache.
+	// Les comptes actifs d'abord : un compte desactive est une archive, il ne
+	// doit pas s'intercaler entre deux personnes avec qui l'on travaille.
+	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
 	// pour les equipes de projets.
 	ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListAssigneesOfTasksRow, error)
@@ -288,6 +328,11 @@ type Querier interface {
 	// et un OFFSET ferait reapparaitre une ligne deja lue des qu'une notification
 	// arrive pendant la lecture.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
+	// Onglet « Invitations » : celles qui attendent une reponse, expirees
+	// comprises — c'est la qu'on les renvoie. Bornee : une agence n'a pas cent
+	// invitations en attente, et au-dela le probleme n'est pas l'affichage.
+	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
+	ListPermissions(ctx context.Context) ([]Permission, error)
 	// Permissions d'un role, servies telles quelles au front pour qu'il masque les
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
 	// garde reste la seule autorite.
@@ -319,6 +364,10 @@ type Querier interface {
 	// Projets du client, tels que sa fiche les liste. Bornee : une fiche montre ce
 	// qui se lit d'un coup d'oeil, pas tout l'historique d'un gros compte.
 	ListProjectsOfClient(ctx context.Context, arg ListProjectsOfClientParams) ([]ListProjectsOfClientRow, error)
+	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
+	// requete. Bornee par construction : quelques roles, quelques dizaines de
+	// permissions.
+	ListRolePermissionCodes(ctx context.Context) ([]ListRolePermissionCodesRow, error)
 	ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, error)
 	// Services : referentiel des prestations de l'agence.
 	// Page du tableau, par ordre alphabetique.
@@ -462,6 +511,11 @@ type Querier interface {
 	LockTicket(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
+	MarkEmailFailed(ctx context.Context, arg MarkEmailFailedParams) error
+	MarkEmailRetry(ctx context.Context, arg MarkEmailRetryParams) error
+	// Les corps sont effaces : ils portent des liens a usage unique, qui n'ont
+	// plus rien a faire en base une fois l'e-mail parti.
+	MarkEmailSent(ctx context.Context, id uuid.UUID) error
 	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
 	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
@@ -479,6 +533,8 @@ type Querier interface {
 	NextDeliverableVersionNumero(ctx context.Context, deliverableID uuid.UUID) (int32, error)
 	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
+	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
+	RenewInvitation(ctx context.Context, arg RenewInvitationParams) (Invitation, error)
 	// Repasse le logo en automatique.
 	//
 	// Efface le logo courant et rouvre la recuperation : le job exige un logo nul,
@@ -491,6 +547,7 @@ type Querier interface {
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
+	RevokeInvitation(ctx context.Context, id uuid.UUID) error
 	// Idempotent : revoquer deux fois ne change pas la date de la premiere
 	// revocation, ce qui garde intacte la trace d'un rejeu.
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
@@ -526,6 +583,7 @@ type Querier interface {
 	// tous les logos jamais deposes.
 	SetSidebarAppLogo(ctx context.Context, arg SetSidebarAppLogoParams) (SetSidebarAppLogoRow, error)
 	SetUpdateRequestStep(ctx context.Context, arg SetUpdateRequestStepParams) error
+	SetUserRole(ctx context.Context, arg SetUserRoleParams) error
 	// Vrai quand la cle designe encore le logo d'une app vivante : c'est ce qui
 	// autorise a servir le fichier.
 	SidebarAppLogoKeyInUse(ctx context.Context, logoKey *string) (bool, error)

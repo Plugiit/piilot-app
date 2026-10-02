@@ -300,6 +300,568 @@
         }
       }
     },
+    "/api/v1/admin/accounts": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Comptes",
+        "description": "Onglet Comptes : comptes de l'agence et du portail, les actifs d'abord. Exige users.read.",
+        "operationId": "listAdminAccounts",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Nom ou adresse",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "description": "Role exact",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "team",
+                "client"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Etat du compte",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page de comptes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/invitations": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Invitations en attente",
+        "description": "Onglet Invitations, expirees comprises. Exige users.read.",
+        "operationId": "listAdminInvitations",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Inviter",
+        "description": "Cree une invitation valable sept jours et l'envoie par e-mail si l'envoi est configure. Le lien est rendu une seule fois. Exige users.write.",
+        "operationId": "inviteAdminAccount",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invitation creee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "ACCOUNT_EXISTS ou INVITATION_PENDING (details.invitation_id)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/invitations/{id}/resend": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Renvoyer une invitation",
+        "description": "Nouveau lien, valable sept jours ; l'ancien cesse de valoir. Exige users.write.",
+        "operationId": "resendAdminInvitation",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nouveau lien",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/invitations/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Annuler une invitation",
+        "description": "Son lien cesse de valoir. Exige users.write.",
+        "operationId": "revokeAdminInvitation",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/{id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Changer le role",
+        "description": "Entre admin et team. Prend effet a la requete suivante du compte. Refuse sur son propre compte et pour le dernier admin actif. Exige users.write.",
+        "operationId": "setAdminAccountRole",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "SELF_CHANGE, LAST_ADMIN ou CLIENT_ROLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/{id}/disable": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Desactiver",
+        "description": "Le compte ne se connecte plus et perd toutes ses sessions, immediatement. Exige users.write.",
+        "operationId": "disableAdminAccount",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "SELF_CHANGE ou LAST_ADMIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/{id}/enable": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reactiver",
+        "description": "Exige users.write.",
+        "operationId": "enableAdminAccount",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "SELF_CHANGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/accounts/{id}/password-reset": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lien de reinitialisation",
+        "description": "Cree un lien valable une heure, envoye par e-mail si l'envoi est configure et rendu pour etre copie. Exige users.write.",
+        "operationId": "resetAdminAccountPassword",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lien",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/roles": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Roles et permissions",
+        "description": "Matrice de l'onglet Roles. Exige roles.read.",
+        "operationId": "listAdminRoles",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matrice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMatrix"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/roles/{code}/permissions": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Permissions d'un role",
+        "description": "Remplace les permissions d'un role. Le role admin ne se modifie pas ; users.write, roles.write et system.update ne s'accordent qu'a lui. Exige roles.write.",
+        "operationId": "setAdminRolePermissions",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolePermissionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matrice a jour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMatrix"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "ROLE_LOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
     "/api/v1/admin/system/update": {
       "get": {
         "tags": [
@@ -2271,6 +2833,285 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitations/{token}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Invitation",
+        "description": "Page d'acceptation, sans session. Bornee par IP.",
+        "operationId": "getInvitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Jeton du lien recu par e-mail."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "INVITATION_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "INVITATION_EXPIRED ou INVITATION_USED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitations/{token}/accept": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Accepter une invitation",
+        "description": "Cree le compte et ouvre la session (cookies). Bornee par IP.",
+        "operationId": "acceptInvitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Jeton du lien recu par e-mail."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session ouverte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "INVITATION_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "INVITATION_EXPIRED ou INVITATION_USED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reglage du mot de passe oublie",
+        "description": "Dit si l'instance envoie des e-mails.",
+        "operationId": "getForgotConfig",
+        "responses": {
+          "200": {
+            "description": "Reglage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgotConfig"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mot de passe oublie",
+        "description": "Envoie un lien valable une heure si l'adresse est celle d'un compte actif. Repond 202 dans tous les cas : la reponse ne dit pas si l'adresse existe. Bornee par IP et par compte.",
+        "operationId": "forgotPassword",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Demande prise en compte"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset/{token}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Lien de reinitialisation",
+        "description": "Compte vise par le lien. Bornee par IP.",
+        "operationId": "getPasswordReset",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Jeton du lien recu par e-mail."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetInfo"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "RESET_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reinitialiser le mot de passe",
+        "description": "Change le mot de passe et ferme toutes les sessions du compte. Rend l'adresse, pour pre-remplir la connexion. Bornee par IP.",
+        "operationId": "resetPassword",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Jeton du lien recu par e-mail."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mot de passe change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetInfo"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "RESET_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -9358,6 +10199,527 @@
           "in_progress": {
             "type": "boolean",
             "description": "Une mise a jour est en route : le bouton est remplace par son suivi."
+          }
+        }
+      },
+      "ClientRef": {
+        "type": "object",
+        "description": "Client auquel un compte de portail est rattache.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Account": {
+        "type": "object",
+        "description": "Ligne de l'ecran Comptes.",
+        "required": [
+          "id",
+          "email",
+          "firstname",
+          "lastname",
+          "initials",
+          "avatar_url",
+          "role",
+          "client",
+          "status",
+          "last_login_at",
+          "created_at",
+          "is_self"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "client": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClientRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "last_login_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_self": {
+            "type": "boolean",
+            "description": "Le compte de l'appelant : son role et son etat ne se modifient pas depuis cet ecran."
+          }
+        }
+      },
+      "AccountPage": {
+        "type": "object",
+        "description": "Page de l'ecran Comptes.",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "open_invitations",
+          "mail_enabled"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "open_invitations": {
+            "type": "integer",
+            "description": "Invitations en attente, pour la pastille de l'onglet."
+          },
+          "mail_enabled": {
+            "type": "boolean",
+            "description": "L'instance envoie des e-mails. Sinon, les liens se copient et se transmettent a la main."
+          }
+        }
+      },
+      "Invitation": {
+        "type": "object",
+        "description": "Invitation en attente de reponse.",
+        "required": [
+          "id",
+          "email",
+          "firstname",
+          "lastname",
+          "role",
+          "client",
+          "invited_by",
+          "status",
+          "expires_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "client": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClientRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invited_by": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "expired"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InvitationList": {
+        "type": "object",
+        "description": "Onglet Invitations.",
+        "required": [
+          "items",
+          "mail_enabled"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invitation"
+            }
+          },
+          "mail_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SentLink": {
+        "type": "object",
+        "description": "Lien d'invitation ou de reinitialisation, rendu une seule fois : seule son empreinte est stockee.",
+        "required": [
+          "link",
+          "emailed",
+          "expires_at"
+        ],
+        "properties": {
+          "link": {
+            "type": "string"
+          },
+          "emailed": {
+            "type": "boolean",
+            "description": "Le lien est aussi parti par e-mail."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InviteResult": {
+        "type": "object",
+        "description": "Invitation creee et son lien.",
+        "required": [
+          "invitation",
+          "link",
+          "emailed",
+          "expires_at"
+        ],
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/Invitation"
+          },
+          "link": {
+            "type": "string"
+          },
+          "emailed": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InviteRequest": {
+        "type": "object",
+        "description": "Invitation a envoyer.",
+        "required": [
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "team",
+              "client"
+            ]
+          },
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Obligatoire pour le role client."
+          }
+        }
+      },
+      "SetRoleRequest": {
+        "type": "object",
+        "description": "Nouveau role d'un compte interne.",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "team"
+            ]
+          }
+        }
+      },
+      "PermissionInfo": {
+        "type": "object",
+        "description": "Permission de la matrice des roles.",
+        "required": [
+          "code",
+          "label",
+          "group",
+          "admin_only"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "admin_only": {
+            "type": "boolean",
+            "description": "Reservee au role admin : ne s'accorde a aucun autre."
+          }
+        }
+      },
+      "RoleInfo": {
+        "type": "object",
+        "description": "Role de la matrice.",
+        "required": [
+          "code",
+          "label",
+          "editable",
+          "note",
+          "users",
+          "permissions",
+          "grantable"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "users": {
+            "type": "integer",
+            "description": "Comptes actifs portant ce role."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grantable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Permissions que ce role peut recevoir."
+          }
+        }
+      },
+      "RoleMatrix": {
+        "type": "object",
+        "description": "Onglet Roles.",
+        "required": [
+          "roles",
+          "permissions"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleInfo"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionInfo"
+            }
+          }
+        }
+      },
+      "RolePermissionsRequest": {
+        "type": "object",
+        "description": "Permissions completes d'un role.",
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "InvitationView": {
+        "type": "object",
+        "description": "Page d'acceptation d'une invitation.",
+        "required": [
+          "email",
+          "firstname",
+          "lastname",
+          "role",
+          "invited_by",
+          "client_name",
+          "expires_at"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "invited_by": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AcceptInvitationRequest": {
+        "type": "object",
+        "description": "Ce que l'invite choisit.",
+        "required": [
+          "firstname",
+          "lastname",
+          "password"
+        ],
+        "properties": {
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotRequest": {
+        "type": "object",
+        "description": "Demande de lien de reinitialisation.",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotConfig": {
+        "type": "object",
+        "description": "Reglage de la page mot de passe oublie.",
+        "required": [
+          "mail_enabled"
+        ],
+        "properties": {
+          "mail_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ResetInfo": {
+        "type": "object",
+        "description": "Compte vise par un lien de reinitialisation.",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "ResetRequest": {
+        "type": "object",
+        "description": "Nouveau mot de passe.",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
           }
         }
       }

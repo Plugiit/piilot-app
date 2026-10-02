@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
 )
@@ -30,6 +31,45 @@ func (q *Queries) AvatarURLExists(ctx context.Context, avatarUrl *string) (bool,
 	return exists, err
 }
 
+const countAccounts = `-- name: CountAccounts :one
+SELECT count(*) FROM users u
+WHERE u.deleted_at IS NULL
+  AND ($1::text IS NULL OR u.role = $1::text)
+  AND ($2::text IS NULL
+       OR ($2::text = 'active' AND u.disabled_at IS NULL)
+       OR ($2::text = 'disabled' AND u.disabled_at IS NOT NULL))
+  AND ($3::text IS NULL
+       OR (u.firstname || ' ' || u.lastname) ILIKE '%' || $3::text || '%'
+       OR u.email ILIKE '%' || $3::text || '%')
+`
+
+type CountAccountsParams struct {
+	Role   *string `json:"role"`
+	Status *string `json:"status"`
+	Search *string `json:"search"`
+}
+
+func (q *Queries) CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccounts, arg.Role, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveAdmins = `-- name: CountActiveAdmins :one
+SELECT count(*) FROM users
+WHERE role = 'admin' AND deleted_at IS NULL AND disabled_at IS NULL
+`
+
+// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
+// plus personne ne pourrait gerer les comptes ni les droits.
+func (q *Queries) CountActiveAdmins(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveAdmins)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
 WHERE deleted_at IS NULL
@@ -43,10 +83,60 @@ func (q *Queries) CountUsers(ctx context.Context, role *string) (int64, error) {
 	return count, err
 }
 
+const createInvitedUser = `-- name: CreateInvitedUser :one
+INSERT INTO users (email, password_hash, firstname, lastname, role, client_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at
+`
+
+type CreateInvitedUserParams struct {
+	Email        string     `json:"email"`
+	PasswordHash string     `json:"password_hash"`
+	Firstname    string     `json:"firstname"`
+	Lastname     string     `json:"lastname"`
+	Role         string     `json:"role"`
+	ClientID     *uuid.UUID `json:"client_id"`
+}
+
+func (q *Queries) CreateInvitedUser(ctx context.Context, arg CreateInvitedUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createInvitedUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Firstname,
+		arg.Lastname,
+		arg.Role,
+		arg.ClientID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Role,
+		&i.AvatarUrl,
+		&i.TotpSecret,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Gender,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+		&i.ClientID,
+		&i.DisabledAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, firstname, lastname, role)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at
 `
 
 type CreateUserParams struct {
@@ -86,12 +176,49 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.City,
 		&i.Country,
 		&i.ClientID,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
+const disableUser = `-- name: DisableUser :exec
+UPDATE users SET disabled_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND disabled_at IS NULL
+`
+
+func (q *Queries) DisableUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disableUser, id)
+	return err
+}
+
+const enableUser = `-- name: EnableUser :exec
+UPDATE users SET disabled_at = NULL, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) EnableUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, enableUser, id)
+	return err
+}
+
+const getActiveUserRole = `-- name: GetActiveUserRole :one
+SELECT role FROM users
+WHERE id = $1 AND deleted_at IS NULL AND disabled_at IS NULL
+`
+
+// Question posee par la garde a chaque requete authentifiee : ce compte
+// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
+// le jeton : desactiver un compte ou changer son role prend effet a la requete
+// suivante, pas a l'expiration du jeton.
+func (q *Queries) GetActiveUserRole(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getActiveUserRole, id)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at FROM users
 WHERE email = $1 AND deleted_at IS NULL
 `
 
@@ -118,12 +245,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.City,
 		&i.Country,
 		&i.ClientID,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -150,12 +278,96 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.City,
 		&i.Country,
 		&i.ClientID,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
+const listAccounts = `-- name: ListAccounts :many
+SELECT
+    u.id, u.email, u.firstname, u.lastname, u.role, u.avatar_url,
+    u.client_id, u.disabled_at, u.last_login_at, u.created_at,
+    c.name AS client_name
+FROM users u
+LEFT JOIN clients c ON c.id = u.client_id
+WHERE u.deleted_at IS NULL
+  AND ($1::text IS NULL OR u.role = $1::text)
+  AND ($2::text IS NULL
+       OR ($2::text = 'active' AND u.disabled_at IS NULL)
+       OR ($2::text = 'disabled' AND u.disabled_at IS NOT NULL))
+  AND ($3::text IS NULL
+       OR (u.firstname || ' ' || u.lastname) ILIKE '%' || $3::text || '%'
+       OR u.email ILIKE '%' || $3::text || '%')
+ORDER BY (u.disabled_at IS NOT NULL), u.firstname, u.lastname, u.id
+LIMIT $5 OFFSET $4
+`
+
+type ListAccountsParams struct {
+	Role       *string `json:"role"`
+	Status     *string `json:"status"`
+	Search     *string `json:"search"`
+	PageOffset int32   `json:"page_offset"`
+	PageSize   int32   `json:"page_size"`
+}
+
+type ListAccountsRow struct {
+	ID          uuid.UUID  `json:"id"`
+	Email       string     `json:"email"`
+	Firstname   string     `json:"firstname"`
+	Lastname    string     `json:"lastname"`
+	Role        string     `json:"role"`
+	AvatarUrl   *string    `json:"avatar_url"`
+	ClientID    *uuid.UUID `json:"client_id"`
+	DisabledAt  *time.Time `json:"disabled_at"`
+	LastLoginAt *time.Time `json:"last_login_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ClientName  *string    `json:"client_name"`
+}
+
+// Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
+// auquel un compte de portail est rattache.
+// Les comptes actifs d'abord : un compte desactive est une archive, il ne
+// doit pas s'intercaler entre deux personnes avec qui l'on travaille.
+func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listAccounts,
+		arg.Role,
+		arg.Status,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountsRow{}
+	for rows.Next() {
+		var i ListAccountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Firstname,
+			&i.Lastname,
+			&i.Role,
+			&i.AvatarUrl,
+			&i.ClientID,
+			&i.DisabledAt,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.ClientName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id FROM users
+SELECT id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at FROM users
 WHERE deleted_at IS NULL
   AND ($1::text IS NULL OR role = $1::text)
 ORDER BY firstname, lastname
@@ -198,6 +410,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.City,
 			&i.Country,
 			&i.ClientID,
+			&i.DisabledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -207,6 +420,21 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const setUserRole = `-- name: SetUserRole :exec
+UPDATE users SET role = $2, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+type SetUserRoleParams struct {
+	ID   uuid.UUID `json:"id"`
+	Role string    `json:"role"`
+}
+
+func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) error {
+	_, err := q.db.Exec(ctx, setUserRole, arg.ID, arg.Role)
+	return err
 }
 
 const touchUserLogin = `-- name: TouchUserLogin :exec
@@ -222,7 +450,7 @@ func (q *Queries) TouchUserLogin(ctx context.Context, id uuid.UUID) error {
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $1::text, updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at
 `
 
 type UpdateUserAvatarParams struct {
@@ -255,6 +483,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.City,
 		&i.Country,
 		&i.ClientID,
+		&i.DisabledAt,
 	)
 	return i, err
 }
@@ -289,7 +518,7 @@ UPDATE users SET
     country     = COALESCE($9::text, country),
     updated_at  = now()
 WHERE id = $10 AND deleted_at IS NULL
-RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id
+RETURNING id, email, password_hash, firstname, lastname, role, avatar_url, totp_secret, last_login_at, created_at, updated_at, deleted_at, gender, phone, address, postal_code, city, country, client_id, disabled_at
 `
 
 type UpdateUserProfileParams struct {
@@ -344,6 +573,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.City,
 		&i.Country,
 		&i.ClientID,
+		&i.DisabledAt,
 	)
 	return i, err
 }

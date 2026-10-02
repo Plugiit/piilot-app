@@ -19,7 +19,8 @@ SELECT
     rt.expires_at  AS expires_at,
     rt.revoked_at  AS revoked_at,
     u.role         AS user_role,
-    u.deleted_at   AS user_deleted_at
+    u.deleted_at   AS user_deleted_at,
+    u.disabled_at  AS user_disabled_at
 FROM refresh_tokens rt
 JOIN users u ON u.id = rt.user_id
 WHERE rt.token_hash = $1;

@@ -65,6 +65,15 @@ type Config struct {
 	// doit rien appeler au-dehors.
 	UpdateCheck      bool
 	UpdateRepository string
+
+	// Serveur SMTP des e-mails (invitations, mot de passe oublie). Facultatif :
+	// sans lui, les liens se copient depuis l'ecran des comptes.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+	SMTPSecurity string
 }
 
 // Load lit la configuration depuis l'environnement et echoue si une valeur
@@ -92,6 +101,13 @@ func Load() (Config, error) {
 
 		UpdateCheck:      envBool("UPDATE_CHECK", true),
 		UpdateRepository: env("UPDATE_REPOSITORY", "Plugiit/piilot-app"),
+
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     envInt("SMTP_PORT", 587),
+		SMTPUsername: os.Getenv("SMTP_USERNAME"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:     os.Getenv("SMTP_FROM"),
+		SMTPSecurity: env("SMTP_SECURITY", "starttls"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -106,6 +122,10 @@ func Load() (Config, error) {
 	case EnvDevelopment, EnvStaging, EnvProduction:
 	default:
 		return Config{}, fmt.Errorf("APP_ENV invalide : %q", cfg.Env)
+	}
+
+	if cfg.SMTPHost != "" && cfg.SMTPFrom == "" {
+		return Config{}, fmt.Errorf("SMTP_FROM est obligatoire quand SMTP_HOST est renseigne")
 	}
 
 	if cfg.MaxUploadMiB < 1 {

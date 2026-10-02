@@ -20,6 +20,7 @@ import (
 
 	"github.com/plugiit/piilot-app/api/internal/config"
 	"github.com/plugiit/piilot-app/api/internal/handler"
+	"github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
 	"github.com/plugiit/piilot-app/api/internal/repository"
 	"github.com/plugiit/piilot-app/api/internal/security"
@@ -91,6 +92,17 @@ func run(cfg config.Config, log *slog.Logger) error {
 		pool, signer, cfg.AccessTTL, cfg.RefreshTTL, files, 2*(1<<20),
 	)
 
+	sender := mail.SMTP{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername, Password: cfg.SMTPPassword,
+		From: cfg.SMTPFrom, Security: cfg.SMTPSecurity,
+	}
+	if err := sender.Validate(); err != nil {
+		return err
+	}
+	// Liens des e-mails (invitations, reinitialisations) : adresse publique de
+	// l'application, et envoi actif seulement avec un serveur SMTP.
+	authService.SetLinks(cfg.PublicBaseURL, sender.Configured())
+
 	projectService := usecase.NewProjectService(pool, files, cfg.MaxUploadMiB*(1<<20))
 	// Le bus porte les notifications jusqu'aux flux ouverts ; le service les
 	// ecrit et les relit.
@@ -124,6 +136,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
 		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
+		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.PublicBaseURL, sender.Configured())),
+		AuthLinks:     handler.NewAuthLinks(authService, cookies, repository.NewRateLimiter(rdb), log),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
@@ -147,6 +161,14 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Verification des nouvelles versions. Memes raisons que les logos : GitHub
 	// est un serveur tiers, un ecran ne l'attend pas. Les mises a jour, elles,
 	// sont executees par l'updater, un conteneur a part (cmd/updater).
+	// Envoi des e-mails de la file. Sans serveur SMTP, rien n'y entre : les
+	// liens se copient depuis l'ecran des comptes.
+	if sender.Configured() {
+		repository.StartMailOutbox(ctx, pool, sender, log)
+	} else {
+		log.Info("envoi d'e-mails desactive : SMTP_HOST non renseigne")
+	}
+
 	if cfg.UpdateCheck {
 		repository.StartReleaseCheck(ctx, pool, cfg.UpdateRepository, log)
 	}

@@ -9,6 +9,47 @@ import (
 	"context"
 )
 
+const clearRolePermissions = `-- name: ClearRolePermissions :exec
+DELETE FROM role_permissions
+WHERE role_id = (SELECT id FROM roles WHERE code = $1)
+`
+
+func (q *Queries) ClearRolePermissions(ctx context.Context, code string) error {
+	_, err := q.db.Exec(ctx, clearRolePermissions, code)
+	return err
+}
+
+const countUsersByRole = `-- name: CountUsersByRole :many
+SELECT role, count(*) AS total FROM users
+WHERE deleted_at IS NULL AND disabled_at IS NULL
+GROUP BY role
+`
+
+type CountUsersByRoleRow struct {
+	Role  string `json:"role"`
+	Total int64  `json:"total"`
+}
+
+func (q *Queries) CountUsersByRole(ctx context.Context) ([]CountUsersByRoleRow, error) {
+	rows, err := q.db.Query(ctx, countUsersByRole)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountUsersByRoleRow{}
+	for rows.Next() {
+		var i CountUsersByRoleRow
+		if err := rows.Scan(&i.Role, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRoleByCode = `-- name: GetRoleByCode :one
 SELECT id, code, label, is_system, created_at, updated_at FROM roles
 WHERE code = $1
@@ -26,6 +67,52 @@ func (q *Queries) GetRoleByCode(ctx context.Context, code string) (Role, error) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const grantRolePermission = `-- name: GrantRolePermission :exec
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.code = $1 AND p.code = $2
+ON CONFLICT DO NOTHING
+`
+
+type GrantRolePermissionParams struct {
+	RoleCode       string `json:"role_code"`
+	PermissionCode string `json:"permission_code"`
+}
+
+func (q *Queries) GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error {
+	_, err := q.db.Exec(ctx, grantRolePermission, arg.RoleCode, arg.PermissionCode)
+	return err
+}
+
+const listPermissions = `-- name: ListPermissions :many
+SELECT id, code, label, created_at FROM permissions ORDER BY code LIMIT 500
+`
+
+func (q *Queries) ListPermissions(ctx context.Context) ([]Permission, error) {
+	rows, err := q.db.Query(ctx, listPermissions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Permission{}
+	for rows.Next() {
+		var i Permission
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Label,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPermissionsByRole = `-- name: ListPermissionsByRole :many
@@ -54,6 +141,43 @@ func (q *Queries) ListPermissionsByRole(ctx context.Context, roleCode string) ([
 			return nil, err
 		}
 		items = append(items, code)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRolePermissionCodes = `-- name: ListRolePermissionCodes :many
+SELECT r.code AS role_code, p.code AS permission_code
+FROM role_permissions rp
+JOIN roles r       ON r.id = rp.role_id
+JOIN permissions p ON p.id = rp.permission_id
+ORDER BY r.code, p.code
+LIMIT 1000
+`
+
+type ListRolePermissionCodesRow struct {
+	RoleCode       string `json:"role_code"`
+	PermissionCode string `json:"permission_code"`
+}
+
+// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
+// requete. Bornee par construction : quelques roles, quelques dizaines de
+// permissions.
+func (q *Queries) ListRolePermissionCodes(ctx context.Context) ([]ListRolePermissionCodesRow, error) {
+	rows, err := q.db.Query(ctx, listRolePermissionCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRolePermissionCodesRow{}
+	for rows.Next() {
+		var i ListRolePermissionCodesRow
+		if err := rows.Scan(&i.RoleCode, &i.PermissionCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

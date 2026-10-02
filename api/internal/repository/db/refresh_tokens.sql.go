@@ -72,19 +72,21 @@ SELECT
     rt.expires_at  AS expires_at,
     rt.revoked_at  AS revoked_at,
     u.role         AS user_role,
-    u.deleted_at   AS user_deleted_at
+    u.deleted_at   AS user_deleted_at,
+    u.disabled_at  AS user_disabled_at
 FROM refresh_tokens rt
 JOIN users u ON u.id = rt.user_id
 WHERE rt.token_hash = $1
 `
 
 type GetRefreshTokenWithUserRow struct {
-	TokenID       uuid.UUID  `json:"token_id"`
-	UserID        uuid.UUID  `json:"user_id"`
-	ExpiresAt     time.Time  `json:"expires_at"`
-	RevokedAt     *time.Time `json:"revoked_at"`
-	UserRole      string     `json:"user_role"`
-	UserDeletedAt *time.Time `json:"user_deleted_at"`
+	TokenID        uuid.UUID  `json:"token_id"`
+	UserID         uuid.UUID  `json:"user_id"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	RevokedAt      *time.Time `json:"revoked_at"`
+	UserRole       string     `json:"user_role"`
+	UserDeletedAt  *time.Time `json:"user_deleted_at"`
+	UserDisabledAt *time.Time `json:"user_disabled_at"`
 }
 
 // Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
@@ -104,6 +106,7 @@ func (q *Queries) GetRefreshTokenWithUser(ctx context.Context, tokenHash []byte)
 		&i.RevokedAt,
 		&i.UserRole,
 		&i.UserDeletedAt,
+		&i.UserDisabledAt,
 	)
 	return i, err
 }
