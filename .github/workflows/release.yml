@@ -8,8 +8,8 @@ name: Release
 # completee d'un pied de page : lien de comparaison, liste des commits et
 # informations de deploiement.
 #
-# L'image construite est publiee sur ghcr.io/plugiit/piilot-app, taguee
-# X.Y.Z et X.Y, plus `latest` hors pre-version. Les notes sont preparees
+# L'image construite est publiee sur ghcr.io/plugiit/piilot-app, pour amd64 et
+# arm64, taguee X.Y.Z et X.Y, plus `latest` hors pre-version. Les notes sont preparees
 # avant : un CHANGELOG incomplet arrete tout avant qu'une image parte.
 on:
   push:
@@ -75,11 +75,16 @@ jobs:
                 "$previous" "$GITHUB_REF_NAME" "$repo_url" "$previous" "$GITHUB_REF_NAME"
             fi
             printf '**Vérifications** : image construite pour ce tag, lint, typage et tests passés.\n\n'
-            printf '**Image Docker** : `docker pull %s:%s`\n\n' "$IMAGE" "$version"
+            printf '**Image Docker** (amd64 et arm64) : `docker pull %s:%s`\n\n' "$IMAGE" "$version"
             printf '<details>\n<summary>%s commits dans cette version</summary>\n\n' "$count"
             head -n 300 commits.md
             printf '\n</details>\n'
           } >> notes.md
+
+      # Emulation arm64 : seule l'image finale en a besoin (installation de
+      # trois paquets Alpine), le reste du build tourne nativement — voir
+      # l'en-tete du Dockerfile.
+      - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
 
@@ -108,6 +113,7 @@ jobs:
         with:
           context: .
           target: production
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
