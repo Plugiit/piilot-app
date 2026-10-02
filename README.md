@@ -139,7 +139,7 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
   est récupéré automatiquement par une tâche de fond.
 - **Compte** : profil, photo, mot de passe.
 - **Rôles et permissions en base** : trois rôles système (`admin`, `team`,
-  `client`) et 17 permissions. Un droit retiré prend effet immédiatement, sans
+  `client`) et 18 permissions. Un droit retiré prend effet immédiatement, sans
   attendre l'expiration d'une session.
 
 ## État d'avancement
@@ -287,8 +287,8 @@ Sécurité :
 
 ## Installation avec Coolify
 
-C'est la cible de déploiement. Coolify construit l'image depuis le dépôt,
-génère les secrets et les expose dans son interface. **Aucune valeur n'est à
+C'est la cible de déploiement. Coolify lit le `docker-compose.yml` du dépôt,
+tire l'image publiée, génère les secrets et les expose dans son interface. **Aucune valeur n'est à
 écrire dans un fichier.**
 
 **1. Créer la ressource**
@@ -303,7 +303,8 @@ génère les secrets et les expose dans son interface. **Aucune valeur n'est à
 | Build Pack | **Docker Compose** |
 | Docker Compose Location | `/docker-compose.yml` |
 
-Coolify lit le fichier et crée trois services : `app`, `postgres` et `redis`.
+Coolify lit le fichier et crée quatre services : `app`, `updater`, `postgres`
+et `redis`.
 
 **2. Attribuer le domaine**
 
@@ -321,19 +322,17 @@ déploiement. Le détail est dans [Configuration](#configuration).
 
 **4. Déployer**
 
-*Deploy*. Le build prend quelques minutes : il installe les dépendances,
-vérifie et teste les deux côtés, compile, puis démarre. Les migrations
-s'appliquent au démarrage de l'API.
-
-Si le build échoue, aucune image n'est produite et la version précédente reste
-en ligne. Les logs du build indiquent l'étape en cause.
+*Deploy*. Coolify tire l'image `ghcr.io/plugiit/piilot-app:latest`, déjà
+construite et testée par la CI, puis démarre. Les migrations s'appliquent au
+démarrage de l'API.
 
 **5. Créer le premier compte**
 
 Voir [Premier compte](#premier-compte).
 
-**Mises à jour** : activer *Auto Deploy* (webhook GitHub) pour redéployer à
-chaque push sur `master`, ou déclencher *Redeploy* à la main.
+**Mises à jour** : depuis l'interface, par le bouton que voient les
+administrateurs (voir [Mise à jour depuis l'interface](#mise-à-jour-depuis-linterface)).
+*Redeploy* dans Coolify fonctionne aussi : il tire la dernière image.
 
 > **Ne jamais régénérer `SERVICE_PASSWORD_POSTGRES` après le premier
 > déploiement.** Postgres n'applique le mot de passe qu'à la création de son
@@ -366,9 +365,10 @@ finale, par exemple `https://piilot.example.fr`.
 **2. Démarrer**
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d
 ```
 
+L'image est tirée depuis `ghcr.io` : rien n'est compilé sur le serveur.
 `docker-compose.selfhost.yml` ajoute la seule chose que Coolify fait à sa
 place : il publie le port de l'application sur `127.0.0.1:8080`.
 
@@ -404,12 +404,17 @@ location / {
 }
 ```
 
-**Mettre à jour**
+**Mettre à jour** : depuis l'interface (voir
+[Mise à jour depuis l'interface](#mise-à-jour-depuis-linterface)), ou à la main :
 
 ```bash
-git pull
-docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.selfhost.yml pull
+docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d
 ```
+
+Pour construire depuis les sources plutôt que tirer l'image publiée, ajouter
+`-f docker-compose.build.yml` et `--build`. La mise à jour depuis l'interface
+n'est alors pas disponible : il n'y a pas d'image plus récente à tirer.
 
 ### Variante : l'image seule, avec Postgres et Redis existants
 
@@ -433,6 +438,10 @@ docker run -d --name piilot --restart unless-stopped \
 
 Pour construire l'image soi-même plutôt que la récupérer :
 `docker build -t piilot-app .`
+
+Sans Docker Compose, la mise à jour depuis l'interface n'est pas disponible :
+l'updater retrouve l'application par les étiquettes que Compose pose sur ses
+conteneurs.
 
 > Générer `JWT_SECRET` une fois et le conserver : le changer déconnecte tout
 > le monde.
@@ -524,6 +533,8 @@ que de la laisser répondre 500 à la première requête.
 | `REFRESH_TOKEN_TTL` | `720h` | Durée d'une session sans reconnexion (30 jours) |
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
 | `SHUTDOWN_TIMEOUT` | `15s` | Délai laissé aux requêtes en cours à l'arrêt |
+| `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
+| `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub, toutes les 6 heures |
 
 ### Fixées par l'image
 
@@ -562,6 +573,49 @@ Coolify) : `docker volume ls | grep piilot` le donne. Ces commandes se
 planifient avec cron, et les archives doivent partir hors du serveur.
 
 Une sauvegarde n'a de valeur que si sa restauration a été testée.
+
+### Mise à jour depuis l'interface
+
+Quand une nouvelle version est publiée, les administrateurs voient un bouton
+**Mettre à jour** dans l'en-tête. Il ouvre les notes de version et, après
+confirmation, met l'application à jour en une à deux minutes. Pour tous les
+autres comptes, un bandeau propose ensuite de recharger la page.
+
+C'est le service **`updater`** du `docker-compose.yml` qui s'en charge. Il ne
+dépend d'aucun outil de déploiement : Coolify, Docker Compose seul, peu
+importe.
+
+1. L'admin confirme : l'application enregistre une demande en base.
+2. L'updater la prend dans les dix secondes, tire la nouvelle image depuis
+   `ghcr.io`, arrête l'application et la recrée à l'identique sur la nouvelle
+   image (variables, volumes, réseaux, étiquettes).
+3. Il attend que la nouvelle version réponde à sa sonde de santé. Si elle ne
+   démarre pas, il remet l'ancienne en route.
+
+**Sécurité.** L'updater est le seul conteneur qui reçoit le socket Docker,
+c'est-à-dire un accès équivalent à root sur le serveur. L'application, exposée
+sur Internet, ne l'a jamais. L'updater n'ouvre aucun port et ne reçoit d'ordre
+que par la base, et il ne sait faire qu'une chose : mettre à jour le service
+`app` de son projet vers l'image publiée. Pour se passer de la mise à jour
+depuis l'interface, retirer le service `updater` : rien d'autre ne change.
+
+À savoir :
+
+- **Faire une sauvegarde avant.** La mise à jour applique les migrations de
+  la nouvelle version, qui ne se défont pas. Le retour arrière remet l'ancienne
+  version en route, pas l'ancien schéma de base.
+- Le bouton n'apparaît que si l'updater donne signe de vie. Sinon, le
+  dialogue dit ce qui l'en empêche (socket Docker non monté, conteneur
+  introuvable…).
+- `PIILOT_TAG` doit suivre les versions : `latest`, ou `0.4` pour les seuls
+  correctifs. Avec une version figée (`0.4.1`), l'updater n'a rien à tirer.
+- L'updater lui-même passe sur la nouvelle image au prochain
+  `docker compose up` ou *Redeploy* : il change rarement, et ne peut pas se
+  remplacer pendant qu'il travaille.
+- La vérification des versions interroge l'API publique de GitHub. Pour une
+  instance qui ne doit rien appeler au-dehors : `UPDATE_CHECK=false`.
+- Seuls les comptes qui ont la permission `system.update` voient le bouton :
+  le rôle `admin`, par défaut.
 
 ### Sondes
 
@@ -618,6 +672,7 @@ Principes à respecter en contribuant :
 api/                        API Go
 ├── cmd/api/                point d'entrée
 ├── cmd/seed/               création de comptes (create-admin, seed)
+├── cmd/updater/            mise à jour de l'application (service updater)
 ├── internal/               config, domaine, handlers, usecases, repository…
 ├── migrations/             SQL versionné, embarqué dans le binaire
 ├── queries/                requêtes SQL (source de sqlc)
@@ -630,7 +685,8 @@ scripts/release.sh          publication d'une version
 scripts/roadmap.sh          statut des releases, recalculé depuis VERSION
 docs/images/                captures du README
 Dockerfile                  image unique : front + API
-docker-compose.yml          déploiement : app + Postgres + Redis (Coolify)
+docker-compose.yml          déploiement : app, updater, Postgres, Redis (image ghcr.io)
+docker-compose.build.yml    construction de l'image depuis les sources
 docker-compose.selfhost.yml publication du port hors Coolify
 docker-compose.dev.yml      Postgres + Redis pour le développement
 .env.example                variables pour une installation hors Coolify
