@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.5.0] — Gestion des comptes
+## [0.5.0] — Gestion des comptes · 2026-10-02
 
 Cette version met fin à la création des comptes en ligne de commande : les administrateurs invitent, gèrent et désactivent les comptes depuis Piilot, et règlent ce que chaque rôle permet. Chacun peut aussi retrouver l'accès à son compte après un mot de passe oublié.
 
