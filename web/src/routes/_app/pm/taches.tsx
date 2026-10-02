@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { projectListQuery } from '@/features/projects/api'
 import { TASK_STATUS, TASK_STATUS_ORDER } from '@/features/projects/format'
-import { taskListQuery, type TaskListParams } from '@/features/tasks/api'
+import type { TaskListParams } from '@/features/tasks/api'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { useSearchField } from '@/lib/search-field'
 import type { TaskStatus } from '@/types/api'
@@ -32,6 +32,8 @@ const searchSchema = z.object({
   status: z.enum(['todo', 'progress', 'review', 'done']).optional(),
   projet: z.string().optional(),
   tache: z.string().optional(),
+  // Page de la vue liste. Le kanban l'ignore : il ne se feuillette pas.
+  page: z.number().int().min(1).optional().catch(undefined),
 })
 
 /** Ce que la barre d'outils envoie au serveur, deduit de l'adresse. */
@@ -40,16 +42,14 @@ export function paramsOf(search: z.infer<typeof searchSchema>): TaskListParams {
     search: search.search?.trim() === '' ? undefined : search.search,
     status: search.status,
     projectId: search.projet,
+    page: search.page,
   }
 }
 
+// Les donnees sont chargees par chaque vue et non ici : la liste lit une page,
+// le kanban les premieres cartes de chaque colonne.
 export const Route = createFileRoute('/_app/pm/taches')({
   validateSearch: searchSchema,
-  // Seuls les filtres declenchent un rechargement : ouvrir une tache change
-  // l'adresse sans rien changer a la liste.
-  loaderDeps: ({ search }) => paramsOf(search),
-  loader: ({ context, deps }) =>
-    context.queryClient.query({ ...taskListQuery(deps), staleTime: 'static' }),
   component: TasksLayout,
 })
 
@@ -68,7 +68,6 @@ function TasksLayout() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
 
-  const { data: list } = useQuery(taskListQuery(paramsOf(search)))
   const { data: projects } = useQuery(
     projectListQuery({ page: 1, pageSize: 100, sort: 'name', dir: 'asc' }),
   )
@@ -77,7 +76,8 @@ function TasksLayout() {
     // `replace` : un filtre affine la vue courante, il ne fait pas une
     // etape a part. Sans lui, chaque frappe et chaque case cochee laissait
     // une entree a repasser au retour arriere.
-    void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
+    // Retour en page 1 : la page 3 d'une autre selection n'a pas de sens.
+    void navigate({ search: (prev) => ({ ...prev, ...patch, page: undefined }), replace: true })
   }
 
   // La frappe est immediate a l'ecran, l'adresse ne suit qu'apres une pause.
@@ -148,12 +148,6 @@ function TasksLayout() {
             />
           </div>
 
-          {list !== undefined && list.total > list.limit && (
-            <p className="text-[12px] text-[#73757c]">
-              {list.total} tâches correspondent, {list.limit} affichées. Affinez les filtres pour
-              voir le reste.
-            </p>
-          )}
         </div>
 
         <div className="flex shrink-0 items-center border-b border-[#e8e8e9] pl-4">

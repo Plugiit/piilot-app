@@ -136,11 +136,17 @@ export type TaskSummary = components['schemas']['TaskSummary']
 /** Carte de l'ecran « Taches » : une TaskSummary qui porte le nom de son projet. */
 export type TaskListItem = components['schemas']['TaskListItem']
 
-/** Enveloppe de l'ecran « Taches » : bornee, non paginee. */
-export type TaskList = components['schemas']['TaskList']
+/** Une page de la vue liste de l'ecran « Taches ». */
+export type TaskPage = components['schemas']['TaskPage']
 
-/** Contenu de l'onglet « Tâches » d'un projet. */
+/** Vue kanban de l'ecran « Taches » : plafonnee par colonne. */
+export type GlobalTaskBoard = components['schemas']['GlobalTaskBoard']
+
+/** Contenu de l'onglet « Tâches » d'un projet, plafonne par colonne. */
 export type TaskBoard = components['schemas']['TaskBoard']
+
+/** Total de chaque colonne d'un kanban, filtres compris. */
+export type TaskColumns = components['schemas']['TaskColumns']
 
 /** Tout ce que le panneau lateral affiche a son ouverture. */
 export type TaskDetail = components['schemas']['TaskDetail']

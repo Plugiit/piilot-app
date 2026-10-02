@@ -352,10 +352,30 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Taches de toute l'agence
-         * @description Ecran « Taches » du module, ses deux vues comprises. Filtres facultatifs : sans aucun, la reponse couvre l'agence entiere. Exige tasks.read.
+         * Taches de toute l'agence, page par page
+         * @description Vue liste de l'ecran « Taches » du module, paginee cote serveur, dans l'ordre du flux (a faire, en cours, en revue, terminee). Filtres facultatifs : sans aucun, la reponse couvre l'agence entiere. Exige tasks.read.
          */
         get: operations["listAdminTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tasks/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kanban des taches de toute l'agence
+         * @description Vue kanban de l'ecran « Taches » du module : memes filtres que la liste, au plus column_limit cartes par colonne, et le total de chaque colonne. Les terminees les plus recentes d'abord. Exige tasks.read.
+         */
+        get: operations["getAdminTasksBoard"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1775,23 +1795,16 @@ export interface components {
             /** @description Prestations dont releve l'entite. Vide quand aucune. */
             services: components["schemas"]["ServiceTag"][];
         };
-        /** @description Contenu de l'onglet Taches d'un projet. */
+        /** @description Contenu de l'onglet Taches d'un projet, ses deux vues comprises : au plus column_limit cartes par colonne, les terminees les plus recentes d'abord. */
         TaskBoard: {
             items: components["schemas"]["TaskSummary"][];
-            total: number;
-            /** @description Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache. */
-            limit: number;
+            columns: components["schemas"]["TaskColumns"];
+            /** @description Cartes par colonne au plus. Une colonne dont le total depasse ce chiffre n'est pas affichee en entier. */
+            column_limit: number;
         };
         /** @description Carte de l'ecran Taches du module : la meme que dans un projet, plus le nom de celui-ci — sortie de sa fiche, une tache ne dit plus a quoi elle se rattache. */
         TaskListItem: components["schemas"]["TaskSummary"] & {
             project_name: string;
-        };
-        /** @description Contenu de l'ecran Taches, ses deux vues comprises. Borne sans pagination : un kanban ne se feuillette pas. */
-        TaskList: {
-            items: components["schemas"]["TaskListItem"][];
-            total: number;
-            /** @description Nombre maximum de taches renvoyees. Compare a total, il dit si l'ecran en cache. */
-            limit: number;
         };
         Subtask: {
             /** Format: uuid */
@@ -2730,6 +2743,27 @@ export interface components {
             /** @description Versions de livrables deposees ce jour-la. */
             deliverables: number;
         };
+        /** @description Total de chaque colonne d'un kanban, filtres compris. Compare au nombre de cartes recues dans la colonne, il dit ce que l'ecran ne montre pas. */
+        TaskColumns: {
+            todo: number;
+            progress: number;
+            review: number;
+            done: number;
+        };
+        /** @description Vue kanban de l'ecran Taches : les taches de toute l'agence, plafonnees par colonne. */
+        GlobalTaskBoard: {
+            items: components["schemas"]["TaskListItem"][];
+            columns: components["schemas"]["TaskColumns"];
+            /** @description Cartes par colonne au plus. Une colonne dont le total depasse ce chiffre n'est pas affichee en entier. */
+            column_limit: number;
+        };
+        /** @description Une page de la vue liste de l'ecran Taches. */
+        TaskPage: {
+            items: components["schemas"]["TaskListItem"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -3374,6 +3408,8 @@ export interface operations {
                 priority?: "low" | "medium" | "high";
                 /** @description Taches d'un seul projet */
                 project_id?: string;
+                page?: number;
+                page_size?: number;
             };
             header?: never;
             path?: never;
@@ -3387,7 +3423,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskList"];
+                    "application/json": components["schemas"]["TaskPage"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminTasksBoard: {
+        parameters: {
+            query?: {
+                /** @description Filtre sur l'intitule de la tache */
+                search?: string;
+                /** @description Statut exact */
+                status?: "todo" | "progress" | "review" | "done";
+                /** @description Priorite exacte */
+                priority?: "low" | "medium" | "high";
+                /** @description Taches d'un seul projet */
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kanban */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalTaskBoard"];
                 };
             };
             400: components["responses"]["ValidationFailed"];

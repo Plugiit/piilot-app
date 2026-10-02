@@ -39,6 +39,13 @@ function ProjectTasksPage() {
   const move = useMoveTask(id)
   const create = useCreateTask(id)
 
+  // Le tableau est plafonne par colonne : la vue en tableau, qui melange les
+  // colonnes, doit dire elle aussi qu'elle n'affiche pas tout.
+  const columns = board?.columns
+  const total =
+    columns === undefined ? 0 : columns.todo + columns.progress + columns.review + columns.done
+  const hidden = total - (board?.items.length ?? 0)
+
   // `replace` : ouvrir puis fermer une tache ne doit pas empiler deux entrees
   // d'historique, sinon le bouton Retour rouvrirait ce qu'on vient de fermer.
   function openTask(taskId: string | null) {
@@ -48,23 +55,27 @@ function ProjectTasksPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {vue !== 'kanban' ? (
-        <TaskTable
-          tasks={board?.items ?? []}
-          pending={move.isPending}
-          onToggle={(task, done) => move.mutate({ id: task.id, status: done ? 'done' : 'todo' })}
-          onOpen={openTask}
-          empty="Aucune tâche pour l’instant. Créez la première depuis « Créer une tâche »."
-        />
-      ) : (
         <>
-          {board !== undefined && board.total > board.limit && (
+          {hidden > 0 && (
             <p className="px-4 pt-4 text-[12px] text-[#73757c]">
-              {board.total} tâches dans ce projet, {board.limit} affichées.
+              {board?.items.length} tâches affichées sur {total} : au-delà de{' '}
+              {board?.column_limit} par statut, les plus anciennes ne sont pas chargées.
             </p>
           )}
 
+          <TaskTable
+            tasks={board?.items ?? []}
+            pending={move.isPending}
+            onToggle={(task, done) => move.mutate({ id: task.id, status: done ? 'done' : 'todo' })}
+            onOpen={openTask}
+            empty="Aucune tâche pour l’instant. Créez la première depuis « Créer une tâche »."
+          />
+        </>
+      ) : (
+        <>
           <TaskColumns
             tasks={board?.items ?? []}
+            totals={board?.columns}
             onOpen={openTask}
             onMove={(task, status) =>
               move.mutate({ id: task.id, status }, { onError: reportError })
