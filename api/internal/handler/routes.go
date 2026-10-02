@@ -174,6 +174,9 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// L'ecran « Taches » du module, qui traverse les projets. Monte avant
 	// « /:id » par principe, meme si les deux chemins ne se confondent pas.
 	tasks.Get("", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.List)
+	// Avant /:id : Fiber prend les routes dans l'ordre, et « board » serait lu
+	// comme un identifiant de tache.
+	tasks.Get("/board", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.GlobalBoard)
 	tasks.Get("/:id", deps.Guard.RequirePermission("tasks.read"), deps.Tasks.Get)
 	tasks.Patch("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Update)
 	tasks.Delete("/:id", deps.Guard.RequirePermission("tasks.write"), deps.Tasks.Delete)

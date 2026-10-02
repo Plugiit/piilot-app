@@ -19,9 +19,26 @@ import (
 	"github.com/plugiit/piilot-app/api/internal/storage"
 )
 
-// Borne du tableau. Un projet qui la depasse a un probleme de decoupage, pas
-// d'affichage : l'ecran le dit plutot que de charger indefiniment.
-const taskBoardLimit = 300
+// Cartes par colonne au plus, sur les kanbans.
+//
+// Un plafond par colonne et non pour tout le tableau : un plafond global,
+// applique a une liste triee par statut, donnait toutes les places a la
+// premiere colonne venue — les taches terminees, qui ne font que s'accumuler —
+// et vidait les colonnes actives. Chaque colonne dit son total, l'ecran signale
+// ce qu'il ne montre pas.
+//
+// Un projet porte rarement plus de cent taches par etat ; l'ecran global, qui
+// traverse tous les projets, s'arrete a cinquante pour rester lisible.
+const (
+	projectColumnLimit = 100
+	globalColumnLimit  = 50
+)
+
+// Taille de page de la vue liste, par defaut et au plus.
+const (
+	taskPageSize    = 50
+	taskPageSizeMax = 100
+)
 
 // Borne des collections du panneau lateral.
 const (
@@ -56,13 +73,38 @@ type TaskSummary struct {
 	Services []ServiceTag `json:"services"`
 }
 
-// TaskBoard est le contenu de l'onglet « Tâches » d'un projet.
+// TaskColumns porte le total de chaque colonne d'un kanban, filtres compris.
+//
+// Compare au nombre de cartes recues dans la colonne, il dit ce que l'ecran ne
+// montre pas : « 50 sur 541 ».
+type TaskColumns struct {
+	Todo     int64 `json:"todo"`
+	Progress int64 `json:"progress"`
+	Review   int64 `json:"review"`
+	Done     int64 `json:"done"`
+}
+
+func (c *TaskColumns) set(status string, total int64) {
+	switch status {
+	case "todo":
+		c.Todo = total
+	case "progress":
+		c.Progress = total
+	case "review":
+		c.Review = total
+	case "done":
+		c.Done = total
+	}
+}
+
+// TaskBoard est le contenu de l'onglet « Tâches » d'un projet, ses deux vues
+// comprises.
 type TaskBoard struct {
-	Items []TaskSummary `json:"items"`
-	Total int64         `json:"total"`
-	// Limit dit combien de taches l'ecran a le droit d'afficher : compare a
-	// Total, il permet de signaler qu'on n'en montre pas la totalite.
-	Limit int `json:"limit"`
+	Items   []TaskSummary `json:"items"`
+	Columns TaskColumns   `json:"columns"`
+	// Cartes par colonne au plus : une colonne dont le total depasse ce
+	// chiffre n'est pas affichee en entier.
+	ColumnLimit int `json:"column_limit"`
 }
 
 // TaskListItem est une carte de l'ecran « Taches » du module.
@@ -76,24 +118,32 @@ type TaskListItem struct {
 	ProjectName string `json:"project_name"`
 }
 
-// TaskList est le contenu de l'ecran « Taches », ses deux vues comprises.
-//
-// Pas de pagination, une borne : l'ecran a une vue kanban, et un kanban ne se
-// feuillette pas. Total dit ce qui existe, Limit ce que la vue a le droit de
-// montrer — leur ecart est ce que l'ecran signale.
-type TaskList struct {
-	Items []TaskListItem `json:"items"`
-	Total int64          `json:"total"`
-	Limit int            `json:"limit"`
+// TaskPage est une page de la vue liste de l'ecran « Taches ».
+type TaskPage struct {
+	Items    []TaskListItem `json:"items"`
+	Total    int64          `json:"total"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"page_size"`
+}
+
+// GlobalTaskBoard est la vue kanban de l'ecran « Taches » : les taches de
+// toute l'agence, plafonnees par colonne.
+type GlobalTaskBoard struct {
+	Items       []TaskListItem `json:"items"`
+	Columns     TaskColumns    `json:"columns"`
+	ColumnLimit int            `json:"column_limit"`
 }
 
 // TaskFilters porte ce que la barre d'outils de l'ecran « Taches » sait
 // reduire. Tous facultatifs : sans aucun, l'ecran montre l'agence entiere.
+// La page ne sert qu'a la vue liste ; le kanban l'ignore.
 type TaskFilters struct {
 	Status    *string
 	Priority  *string
 	ProjectID *uuid.UUID
 	Search    *string
+	Page      int
+	PageSize  int
 }
 
 // Subtask est une ligne de la liste a cocher du panneau.
@@ -217,12 +267,18 @@ func NewTaskService(pool *pgxpool.Pool, files storage.Store, maxFile int64, bus 
 	return &TaskService{pool: pool, q: db.New(pool), files: files, maxFile: maxFile}
 }
 
-// List renvoie les taches de toute l'agence, filtrees par la barre d'outils.
+// List renvoie une page de la vue liste de l'ecran « Taches ».
 //
-// Deux requetes pour la page, plus une pour les affectations : le compte, la
-// liste, puis les personnes affectees d'un coup — jamais une requete par
-// ligne.
-func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskList, error) {
+// Deux requetes pour la page, plus deux pour les affectations et les
+// services : jamais une requete par ligne.
+func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskPage, error) {
+	if f.Page < 1 {
+		f.Page = 1
+	}
+	if f.PageSize < 1 || f.PageSize > taskPageSizeMax {
+		f.PageSize = taskPageSize
+	}
+
 	total, err := s.q.CountTasks(ctx, db.CountTasksParams{
 		Status:    f.Status,
 		Priority:  f.Priority,
@@ -230,119 +286,155 @@ func (s *TaskService) List(ctx context.Context, f TaskFilters) (TaskList, error)
 		Search:    f.Search,
 	})
 	if err != nil {
-		return TaskList{}, fmt.Errorf("comptage des taches : %w", err)
+		return TaskPage{}, fmt.Errorf("comptage des taches : %w", err)
 	}
 
 	rows, err := s.q.ListTasks(ctx, db.ListTasksParams{
-		Status:    f.Status,
-		Priority:  f.Priority,
-		ProjectID: f.ProjectID,
-		Search:    f.Search,
-		PageSize:  taskBoardLimit,
+		Status:     f.Status,
+		Priority:   f.Priority,
+		ProjectID:  f.ProjectID,
+		Search:     f.Search,
+		PageSize:   int32(f.PageSize),
+		PageOffset: int32((f.Page - 1) * f.PageSize),
 	})
 	if err != nil {
-		return TaskList{}, fmt.Errorf("lecture des taches : %w", err)
+		return TaskPage{}, fmt.Errorf("lecture des taches : %w", err)
 	}
 
 	items := make([]TaskListItem, 0, len(rows))
-	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.ID)
 		items = append(items, TaskListItem{
-			TaskSummary: TaskSummary{
-				ID:        row.ID,
-				ProjectID: row.ProjectID,
-				Title:     row.Title,
-				// Vide et non nulle : le contrat annonce un tableau, et
-				// l'ecran qui compte ses elements tomberait sur un nul.
-				Services:         []ServiceTag{},
-				Status:           row.Status,
-				Tag:              row.Tag,
-				Priority:         row.Priority,
-				Description:      row.Description,
-				SubtasksTotal:    int(row.SubtasksTotal),
-				SubtasksDone:     int(row.SubtasksDone),
-				CommentsCount:    int(row.CommentsCount),
-				AttachmentsCount: int(row.AttachmentsCount),
-				DueOn:            formatDate(row.DueOn),
-				Hours:            row.Hours,
-				Position:         int(row.Position),
-				Assignees:        []Person{},
-			},
+			TaskSummary: summaryOf(row.Task),
 			ProjectName: row.ProjectName,
 		})
 	}
 
-	byTask, err := s.assigneesOf(ctx, ids)
-	if err != nil {
-		return TaskList{}, err
+	if err := s.decorateItems(ctx, items); err != nil {
+		return TaskPage{}, err
 	}
 
-	byService, err := s.servicesOf(ctx, ids)
-	if err != nil {
-		return TaskList{}, err
-	}
-
-	for i := range items {
-		if people, ok := byTask[items[i].ID]; ok {
-			items[i].Assignees = people
-		}
-		if services, ok := byService[items[i].ID]; ok {
-			items[i].Services = services
-		}
-	}
-
-	return TaskList{Items: items, Total: total, Limit: taskBoardLimit}, nil
+	return TaskPage{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize}, nil
 }
 
-// Board renvoie le tableau d'un projet : deux requetes, quel que soit le
-// nombre de colonnes et de cartes.
-func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard, error) {
-	total, err := s.q.CountTasksOfProject(ctx, projectID)
+// GlobalBoard renvoie la vue kanban de l'ecran « Taches » : memes filtres que
+// la liste, au plus globalColumnLimit cartes par colonne.
+func (s *TaskService) GlobalBoard(ctx context.Context, f TaskFilters) (GlobalTaskBoard, error) {
+	counts, err := s.q.CountTasksByStatus(ctx, db.CountTasksByStatusParams{
+		Status:    f.Status,
+		Priority:  f.Priority,
+		ProjectID: f.ProjectID,
+		Search:    f.Search,
+	})
 	if err != nil {
-		return TaskBoard{}, fmt.Errorf("comptage des taches : %w", err)
+		return GlobalTaskBoard{}, fmt.Errorf("comptage des colonnes : %w", err)
+	}
+
+	var columns TaskColumns
+	for _, c := range counts {
+		columns.set(c.Status, c.Total)
+	}
+
+	rows, err := s.q.ListTasksBoard(ctx, db.ListTasksBoardParams{
+		Status:      f.Status,
+		Priority:    f.Priority,
+		ProjectID:   f.ProjectID,
+		Search:      f.Search,
+		ColumnLimit: globalColumnLimit,
+	})
+	if err != nil {
+		return GlobalTaskBoard{}, fmt.Errorf("lecture des taches : %w", err)
+	}
+
+	items := make([]TaskListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, TaskListItem{
+			TaskSummary: summaryOf(row.Task),
+			ProjectName: row.ProjectName,
+		})
+	}
+
+	if err := s.decorateItems(ctx, items); err != nil {
+		return GlobalTaskBoard{}, err
+	}
+
+	return GlobalTaskBoard{Items: items, Columns: columns, ColumnLimit: globalColumnLimit}, nil
+}
+
+// Board renvoie le tableau d'un projet, au plus projectColumnLimit cartes par
+// colonne : deux requetes, quel que soit le nombre de colonnes et de cartes,
+// plus les affectations et les services.
+func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard, error) {
+	counts, err := s.q.CountTasksOfProjectByStatus(ctx, projectID)
+	if err != nil {
+		return TaskBoard{}, fmt.Errorf("comptage des colonnes : %w", err)
+	}
+
+	var columns TaskColumns
+	for _, c := range counts {
+		columns.set(c.Status, c.Total)
 	}
 
 	rows, err := s.q.ListTasksOfProject(ctx, db.ListTasksOfProjectParams{
-		ProjectID: projectID,
-		PageSize:  taskBoardLimit,
+		ProjectID:   projectID,
+		ColumnLimit: projectColumnLimit,
 	})
 	if err != nil {
 		return TaskBoard{}, fmt.Errorf("lecture des taches : %w", err)
 	}
 
 	items := make([]TaskSummary, 0, len(rows))
-	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.ID)
-		items = append(items, TaskSummary{
-			ID:               row.ID,
-			ProjectID:        row.ProjectID,
-			Title:            row.Title,
-			Services:         []ServiceTag{},
-			Status:           row.Status,
-			Tag:              row.Tag,
-			Priority:         row.Priority,
-			Description:      row.Description,
-			SubtasksTotal:    int(row.SubtasksTotal),
-			SubtasksDone:     int(row.SubtasksDone),
-			CommentsCount:    int(row.CommentsCount),
-			AttachmentsCount: int(row.AttachmentsCount),
-			DueOn:            formatDate(row.DueOn),
-			Hours:            row.Hours,
-			Position:         int(row.Position),
-			Assignees:        []Person{},
-		})
+		items = append(items, summaryOf(row.Task))
+	}
+
+	if err := s.decorate(ctx, items); err != nil {
+		return TaskBoard{}, err
+	}
+
+	return TaskBoard{Items: items, Columns: columns, ColumnLimit: projectColumnLimit}, nil
+}
+
+// summaryOf rend la carte d'une tache. Les affectations et les services
+// partent vides : decorate les remplit pour toute la page d'un coup.
+func summaryOf(t db.Task) TaskSummary {
+	return TaskSummary{
+		ID:        t.ID,
+		ProjectID: t.ProjectID,
+		Title:     t.Title,
+		// Vide et non nulle : le contrat annonce un tableau, et l'ecran qui
+		// compte ses elements tomberait sur un nul.
+		Services:         []ServiceTag{},
+		Status:           t.Status,
+		Tag:              t.Tag,
+		Priority:         t.Priority,
+		Description:      t.Description,
+		SubtasksTotal:    int(t.SubtasksTotal),
+		SubtasksDone:     int(t.SubtasksDone),
+		CommentsCount:    int(t.CommentsCount),
+		AttachmentsCount: int(t.AttachmentsCount),
+		DueOn:            formatDate(t.DueOn),
+		Hours:            t.Hours,
+		Position:         int(t.Position),
+		Assignees:        []Person{},
+	}
+}
+
+// decorate charge les affectations et les services de toutes les cartes en
+// deux requetes, puis les repartit : la parade au N+1.
+func (s *TaskService) decorate(ctx context.Context, items []TaskSummary) error {
+	ids := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
 	}
 
 	byTask, err := s.assigneesOf(ctx, ids)
 	if err != nil {
-		return TaskBoard{}, err
+		return err
 	}
 
 	byService, err := s.servicesOf(ctx, ids)
 	if err != nil {
-		return TaskBoard{}, err
+		return err
 	}
 
 	for i := range items {
@@ -354,7 +446,25 @@ func (s *TaskService) Board(ctx context.Context, projectID uuid.UUID) (TaskBoard
 		}
 	}
 
-	return TaskBoard{Items: items, Total: total, Limit: taskBoardLimit}, nil
+	return nil
+}
+
+// decorateItems fait de meme pour les cartes de l'ecran global.
+func (s *TaskService) decorateItems(ctx context.Context, items []TaskListItem) error {
+	summaries := make([]TaskSummary, len(items))
+	for i := range items {
+		summaries[i] = items[i].TaskSummary
+	}
+
+	if err := s.decorate(ctx, summaries); err != nil {
+		return err
+	}
+
+	for i := range items {
+		items[i].TaskSummary = summaries[i]
+	}
+
+	return nil
 }
 
 // Get renvoie le detail d'une tache : tache, affectations, sous-taches,
