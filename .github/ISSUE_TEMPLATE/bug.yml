@@ -1,0 +1,58 @@
+name: Bug
+description: Quelque chose ne fonctionne pas comme prévu.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Une faille de sécurité ne se signale **pas** ici : voir [SECURITY.md](https://github.com/Plugiit/piilot-app/blob/master/SECURITY.md).
+        Aucune donnée réelle (noms de clients, adresses, contenus) ni aucun secret dans ce formulaire.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Fichier `VERSION`, ou réponse de `/health/live` sur l'instance.
+      placeholder: 0.3.2
+    validations:
+      required: true
+  - type: dropdown
+    id: espace
+    attributes:
+      label: Espace concerné
+      options:
+        - Admin
+        - Team
+        - Portail client
+        - Connexion
+        - Installation, déploiement
+        - API
+    validations:
+      required: true
+  - type: textarea
+    id: etapes
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. Ouvrir…
+        2. Cliquer sur…
+        3. Constater…
+    validations:
+      required: true
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Résultat attendu
+    validations:
+      required: true
+  - type: textarea
+    id: obtenu
+    attributes:
+      label: Résultat obtenu
+      description: Message d'erreur, capture, et `request_id` de la réponse en erreur s'il y en a un.
+    validations:
+      required: true
+  - type: textarea
+    id: environnement
+    attributes:
+      label: Environnement
+      description: Coolify, Docker Compose, image seule ; navigateur si le problème est à l'écran.
