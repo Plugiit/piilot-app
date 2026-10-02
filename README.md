@@ -414,9 +414,10 @@ docker compose -f docker-compose.yml -f docker-compose.selfhost.yml up -d --buil
 ### Variante : l'image seule, avec Postgres et Redis existants
 
 L'image n'a besoin que de variables d'environnement et d'un volume. Chaque
-release est publiée sur `ghcr.io/plugiit/piilot-app`, avec trois tags :
-la version exacte (`0.4.0`), la mineure (`0.4`, qui suit les correctifs) et
-`latest`. En production, épingler une version plutôt que `latest`.
+release est publiée sur `ghcr.io/plugiit/piilot-app`, pour amd64 et arm64
+(serveurs ARM, Mac Apple Silicon), avec trois tags : la version exacte
+(`0.4.1`), la mineure (`0.4`, qui suit les correctifs) et `latest`. En
+production, épingler une version plutôt que `latest`.
 
 ```bash
 docker run -d --name piilot --restart unless-stopped \
