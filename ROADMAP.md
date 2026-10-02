@@ -195,20 +195,24 @@ sans aucune commande shell.
 
 **Nouveautés**
 
-- **Page « Mon travail »** : tâches en retard, assignations, tickets,
+- **Page « Mon travail »** ✅ : tâches en retard, assignations, tickets,
   livrables à déposer. Lien vers chaque projet où on intervient.
-- **Feuille de temps hebdomadaire** : pointage à la semaine, en plus de la
+- **Feuille de temps hebdomadaire** ✅ : pointage à la semaine, en plus de la
   saisie par jour.
-- **Navigation selon les permissions** : le front lit les droits retournés
-  par `/auth/me` et n'affiche que les entrées accessibles. Pas de « Clients »,
-  pas de « Pipeline commercial », pas de budgets, pas de rapports.
-- **Notifications** : étendues aux tickets (assignation, réponse, changement
+- **Navigation selon les permissions** ✅ : le front lit les droits retournés
+  par `/auth/me` et n'affiche que les entrées accessibles. Pas de tableau de
+  bord d'agence, pas de pipeline commercial, pas de budgets, pas de rapports.
+  L'équipe garde les fiches clients et les contacts, dont elle a besoin pour
+  travailler.
+- **Notifications** ✅ : étendues aux tickets (assignation, réponse, changement
   de statut) et aux livrables (validation, retours).
 
 **Technique**
 
-- Nouvelles permissions pour ce que `team` ne doit plus voir (pipeline
-  commercial, montants, budgets).
+- Nouvelles permissions pour ce que `team` ne doit plus voir ✅ :
+  `dashboard.read`, `budgets.read`, `pipeline.read`. `time.read` devient la
+  lecture des rapports de toute l'équipe ; `time.write` protège enfin la
+  saisie.
 
 **Terminé quand** : un chef de projet passe une semaine complète dans son
 espace sans onglet d'admin.

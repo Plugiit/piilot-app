@@ -57,6 +57,22 @@ barre latérale donne des raccourcis vers les projets favoris.
 
 ![Tableau de bord](docs/images/dashboard.jpg)
 
+Le tableau de bord est un outil de direction : il demande la permission
+`dashboard.read`, que seul le rôle `admin` détient par défaut.
+
+### Mon travail
+
+L'accueil de l'équipe. Ce qui attend la personne connectée, tous projets
+confondus : ses tâches (les retards d'abord), les tickets qu'on lui a confiés,
+les livrables à déposer ou à reprendre après des retours du client, ses
+projets en cours et le temps saisi depuis lundi.
+
+Le menu ne montre que ce que les droits du compte permettent : un membre de
+l'équipe ne voit ni le tableau de bord de l'agence, ni les budgets, ni le
+pipeline commercial, ni les rapports de temps, ni l'administration des comptes.
+
+![Mon travail](docs/images/mon-travail.jpg)
+
 ### Projets
 
 Tous les projets de l'agence en cartes : statut (cadrage, production, attente
@@ -97,6 +113,12 @@ Le total du jour s'affiche en haut à droite.
 
 ![Saisie du temps](docs/images/temps-saisie.jpg)
 
+Ou à la semaine : une grille projet par jour, où l'on remplit les cases d'un
+Tab à l'autre. Une case qui regroupe plusieurs saisies mène à sa journée pour
+les reprendre une à une.
+
+![Feuille de la semaine](docs/images/temps-semaine.jpg)
+
 ### Livrables
 
 L'agence dépose un livrable (maquette, prototype, recette), qui est ensuite
@@ -132,14 +154,16 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 ### Et aussi
 
 - **Notifications en temps réel**, poussées par un flux SSE : tâche créée,
-  assignée, commentée, changement de statut ou d'échéance, nouveau projet.
+  assignée, commentée, changement de statut ou d'échéance, nouveau projet ;
+  ticket confié, réponse ou changement de statut ; retours ou validation d'un
+  livrable.
 - **Services** : le référentiel des prestations vendues (design, développement,
   SEO…), avec une couleur par service, réutilisé partout.
 - **Apps de la barre latérale** : les outils de l'agence en un clic. Leur logo
   est récupéré automatiquement par une tâche de fond.
 - **Compte** : profil, photo, mot de passe.
 - **Rôles et permissions en base** : trois rôles système (`admin`, `team`,
-  `client`) et 18 permissions. Un droit retiré prend effet immédiatement, sans
+  `client`) et 21 permissions. Un droit retiré prend effet immédiatement, sans
   attendre l'expiration d'une session.
 
 ## État d'avancement
@@ -157,6 +181,7 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 | Budgets et alertes de dépassement | ✅ En place |
 | CRM : interactions | 🚧 Écran réservé, pas encore développé |
 | Comptes, invitations, rôles, mot de passe oublié | ✅ En place |
+| Espace équipe : « Mon travail », feuille de la semaine, menu selon les droits | ✅ En place |
 | Modèles de projet | 🚧 Écran réservé, pas encore développé |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** | 🚧 Espace et connexion en place, écrans de suivi à venir |
