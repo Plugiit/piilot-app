@@ -93,6 +93,30 @@ dessous, en liste ou en kanban.
 Les paramètres du projet couvrent l'équipe, le budget en heures vendues, le
 planning et la suppression.
 
+Les **jalons** découpent le projet en étapes datées — cadrage, maquettes
+validées, mise en ligne. Chacun rassemble les livrables qui le tiennent et
+montre combien sont validés ; on le coche quand il est atteint, il passe en
+retard quand son échéance est dépassée.
+
+![Jalons d'un projet](docs/images/jalons.jpg)
+
+### Planning
+
+Un calendrier du mois : les jalons, les échéances des projets et ses propres
+tâches, sur ses projets ou sur toute l'agence. Chaque entrée mène au projet ou
+à la tâche. Le planning lit ce que Piilot sait ; il ne se synchronise avec
+aucun agenda extérieur.
+
+![Planning](docs/images/planning.jpg)
+
+### Modèles de projet
+
+Un modèle pose les jalons, les tâches et les services d'un projet type, avec
+des échéances comptées en jours depuis son début. On le choisit à la création
+d'un projet, qui en reçoit une copie à adapter.
+
+![Modèle de projet](docs/images/modele-projet.jpg)
+
 ### Tâches
 
 Chaque tâche a ses responsables, son échéance, sa priorité, ses services, sa
@@ -151,6 +175,13 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 
 ![Fiche client](docs/images/client-fiche.jpg)
 
+Son **journal** raconte la relation : les notes, appels, rendez-vous et
+e-mails qu'on y saisit, et les événements qui s'y inscrivent seuls — projet
+créé, livrable validé, ticket ouvert. L'écran *Interactions* montre le même
+fil pour tous les clients.
+
+![Journal d'un client](docs/images/journal-client.jpg)
+
 ### Et aussi
 
 - **Notifications en temps réel**, poussées par un flux SSE : tâche créée,
@@ -179,10 +210,11 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 | Services, apps de la barre latérale, notifications | ✅ En place |
 | Rapports de temps | ✅ En place |
 | Budgets et alertes de dépassement | ✅ En place |
-| CRM : interactions | 🚧 Écran réservé, pas encore développé |
+| CRM : journal des interactions | ✅ En place |
 | Comptes, invitations, rôles, mot de passe oublié | ✅ En place |
 | Espace équipe : « Mon travail », feuille de la semaine, menu selon les droits | ✅ En place |
-| Modèles de projet | 🚧 Écran réservé, pas encore développé |
+| Modèles de projet | ✅ En place |
+| Jalons et planning | ✅ En place |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** | 🚧 Espace et connexion en place, écrans de suivi à venir |
 
