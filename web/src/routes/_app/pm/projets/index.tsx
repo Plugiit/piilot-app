@@ -58,11 +58,11 @@ import {
   tintOf,
 } from '@/features/projects/format'
 import { HttpError } from '@/lib/api'
+import { can, sessionQuery } from '@/lib/auth'
 import { useSearchField } from '@/lib/search-field'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { BudgetState, Person, Project, ProjectStatus } from '@/types/api'
-import { can, sessionQuery } from '@/lib/auth'
 
 import { NewProjectDialog } from './-new-project'
 
