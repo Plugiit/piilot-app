@@ -7,11 +7,12 @@ import {
   ArrowRight02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { HoverMenuContent, HoverMenuItem } from '@/components/hover-menu'
+import { DropGap, useColumnTransition, useLanding } from '@/components/kanban-gap'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   DONE_COLOR,
@@ -124,10 +125,12 @@ function TaskCard({
   today: number
   onOpen: () => void
   onMove: (status: TaskStatus) => void
-  onGrab: () => void
+  /** Recoit la hauteur de la carte : c'est celle de l'emplacement a ouvrir. */
+  onGrab: (height: number) => void
   onCarry: (point: { x: number; y: number }) => void
   onRelease: (point: { x: number; y: number } | null) => void
 }) {
+  const self = useRef<HTMLElement>(null)
   const due = parseApiDate(task.due_on)
   const late = task.status !== 'done' && due !== null && due.getTime() < today
 
@@ -137,6 +140,7 @@ function TaskCard({
 
   return (
     <motion.article
+      ref={self}
       drag
       // La carte revient d'elle-meme si elle est laissee hors d'une colonne.
       // Quand elle change de colonne, la mise a jour optimiste la redessine a
@@ -149,7 +153,9 @@ function TaskCard({
       whileDrag={{ scale: 1.03, boxShadow: '0 12px 28px -8px rgb(16 24 40 / 0.28)', zIndex: 40 }}
       onDragStart={() => {
         carried.current = true
-        onGrab()
+        // `offsetHeight` et non le rectangle : il ignore l'echelle de
+        // `whileDrag`, qui gonflerait l'emplacement de 3 %.
+        onGrab(self.current?.offsetHeight ?? 0)
       }}
       onDrag={(event) => {
         const point = pointerPosition(event)
@@ -311,8 +317,18 @@ export function TaskColumns({
     return midnight.getTime()
   })
 
-  const [dragging, setDragging] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<{ id: string; status: TaskStatus; height: number } | null>(
+    null,
+  )
   const [over, setOver] = useState<TaskStatus | null>(null)
+
+  const transition = useColumnTransition()
+
+  // La carte deposee n'arrive dans sa colonne qu'a la mise a jour du cache.
+  // D'ici la, l'emplacement qui l'attend reste ouvert.
+  const { awaiting, landedIn, height: landingHeight, land, reset } = useLanding<TaskStatus>(({ id, column }) =>
+    tasks.some((task) => task.id === id && task.status === column),
+  )
 
   // Rectangles des colonnes, releves au moment ou l'on en a besoin.
   //
@@ -348,6 +364,7 @@ export function TaskColumns({
     const target = columnAt(point)
     if (target === null || target === task.status) return
 
+    land(task.id, target, dragging?.height ?? 0)
     onMove(task, target)
   }
 
@@ -376,6 +393,11 @@ export function TaskColumns({
         const column = TASK_STATUS[status]
         const items = tasks.filter((task) => task.status === status)
 
+        // L'emplacement s'ouvre sous une carte portee au-dessus d'une autre
+        // colonne que la sienne, et reste ouvert jusqu'a ce qu'elle y arrive.
+        const hovered = dragging !== null && over === status && dragging.status !== status
+        const gapHeight = hovered ? dragging.height : landingHeight
+
         return (
           <section
             key={status}
@@ -387,7 +409,7 @@ export function TaskColumns({
               'flex w-[362px] shrink-0 flex-col gap-1 rounded-[12px] border bg-[#f3f4f4] p-1 transition-colors',
               // La bordure reste presente mais transparente : la colorer au
               // survol ne doit pas decaler la colonne d'un pixel.
-              over === status && dragging !== null ? 'border-brand' : 'border-transparent',
+              hovered ? 'border-brand' : 'border-transparent',
             )}
           >
             <header className="flex items-center gap-2.5 px-3 py-2">
@@ -442,24 +464,53 @@ export function TaskColumns({
                 />
               )}
 
-              {/* Pas d'animation de sortie : une carte qui change de colonne
-                  quitte cette liste pour l'autre, et la faire disparaitre en
-                  fondu donnait l'impression qu'on venait de la perdre. */}
-              {items.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  today={today}
-                  onOpen={() => onOpen(task.id)}
-                  onMove={(next) => onMove(task, next)}
-                  onGrab={() => setDragging(task.id)}
-                  onCarry={(point) => {
-                    const next = columnAt(point)
-                    setOver((current) => (current === next ? current : next))
-                  }}
-                  onRelease={(point) => release(task, point)}
-                />
-              ))}
+              {/* Chaque carte suit sa place (`layout`) : quand une carte arrive
+                  au milieu de la colonne, ses voisines glissent pour lui faire
+                  place au lieu de sauter.
+
+                  Celle qui part ne s'efface pas en fondu — ca donnait
+                  l'impression qu'on venait de la perdre. Elle devient
+                  invisible d'un coup, et c'est la place qu'elle laisse qui se
+                  referme : la colonne de depart se resserre au meme rythme que
+                  l'autre s'est allongee. */}
+              <AnimatePresence initial={false}>
+                {items.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    layout="position"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ height: 0, opacity: 0, transition: { ...transition, opacity: { duration: 0 } } }}
+                    transition={transition}
+                    // La carte portee passe au-dessus des colonnes voisines,
+                    // meme quand l'une d'elles anime ses propres cartes.
+                    style={{ position: 'relative', zIndex: dragging?.id === task.id ? 40 : undefined }}
+                  >
+                    <TaskCard
+                      task={task}
+                      today={today}
+                      onOpen={() => onOpen(task.id)}
+                      onMove={(next) => onMove(task, next)}
+                      onGrab={(height) => {
+                        reset()
+                        setDragging({ id: task.id, status: task.status, height })
+                      }}
+                      onCarry={(point) => {
+                        const next = columnAt(point)
+                        setOver((current) => (current === next ? current : next))
+                      }}
+                      onRelease={(point) => release(task, point)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              <DropGap
+                open={hovered || awaiting === status}
+                height={gapHeight}
+                instant={!hovered && landedIn === status}
+                spacing={4}
+              />
             </div>
 
             {onCreate !== undefined && (
