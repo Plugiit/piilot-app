@@ -11,6 +11,20 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.4.1] — Image arm64
+
+Cette version publie l'image Docker de Piilot pour les processeurs ARM, en plus des processeurs x86. Elle s'adresse à ceux qui hébergent Piilot sur un serveur ARM ou le font tourner sur un Mac Apple Silicon. L'application elle-même ne change pas.
+
+### Technique
+
+- L'image `ghcr.io/plugiit/piilot-app` est publiée pour `linux/amd64` et `linux/arm64`. Docker choisit seul la bonne architecture au téléchargement.
+- Le front, la compilation et les tests ne tournent qu'une fois par build, sur la machine de build ; Go compile directement pour chaque architecture. Seule l'image finale est construite par émulation, ce qui garde un temps de build proche de celui d'une seule architecture.
+- La CI construit désormais les deux architectures, pour qu'une image arm64 cassée se voie avant la release.
+
+### À savoir pour le déploiement
+
+- Aucune migration, aucune nouvelle variable d'environnement.
+
 ## [0.4.0] — Temps et budgets · 2026-10-02
 
 Cette version termine le pilotage du temps : chaque projet affiche où il en est de son budget, et le tableau de bord ne montre plus que des données réelles. Elle s'adresse aux administrateurs qui suivent la rentabilité des projets et la charge de l'équipe. C'est aussi la première version publiée sous licence libre.
