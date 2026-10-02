@@ -104,6 +104,8 @@ export interface CreateProjectValues {
   due_on?: string | null
   team_ids?: string[]
   service_ids?: string[]
+  /** Modele dont le projet recoit les jalons, les taches et les services. */
+  template_id?: string | null
 }
 
 /**
@@ -120,6 +122,8 @@ export function useCreateProject() {
     mutationFn: async (values: CreateProjectValues) =>
       unwrap(await api.POST('/api/v1/admin/projects', { body: values })),
     onSuccess: () => {
+      // Un modele a pu poser des jalons et des echeances : le planning les montre.
+      void queryClient.invalidateQueries({ queryKey: ['milestones'] })
       void queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
     },
   })
