@@ -11,6 +11,37 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+type AppReleaseCheck struct {
+	ID          bool       `json:"id"`
+	Version     string     `json:"version"`
+	Name        string     `json:"name"`
+	Url         string     `json:"url"`
+	PublishedAt *time.Time `json:"published_at"`
+	CheckedAt   time.Time  `json:"checked_at"`
+	Error       string     `json:"error"`
+}
+
+type AppUpdateRequest struct {
+	ID            uuid.UUID  `json:"id"`
+	RequestedBy   *uuid.UUID `json:"requested_by"`
+	FromVersion   string     `json:"from_version"`
+	TargetVersion string     `json:"target_version"`
+	Status        string     `json:"status"`
+	Step          string     `json:"step"`
+	Error         string     `json:"error"`
+	CreatedAt     time.Time  `json:"created_at"`
+	StartedAt     *time.Time `json:"started_at"`
+	FinishedAt    *time.Time `json:"finished_at"`
+}
+
+type AppUpdater struct {
+	ID       bool      `json:"id"`
+	Version  string    `json:"version"`
+	Target   string    `json:"target"`
+	Error    string    `json:"error"`
+	LastSeen time.Time `json:"last_seen"`
+}
+
 type Attachment struct {
 	ID          uuid.UUID  `json:"id"`
 	ProjectID   *uuid.UUID `json:"project_id"`

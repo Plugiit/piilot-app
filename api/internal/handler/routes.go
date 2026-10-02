@@ -22,6 +22,7 @@ type Deps struct {
 	SidebarApps   *SidebarApps
 	TimeEntries   *TimeEntries
 	TimeReports   *TimeReports
+	Updates       *Updates
 
 	Guard *middleware.Guard
 }
@@ -93,6 +94,11 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("admin", "team"))
 
 	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Projects.Dashboard)
+
+	// Mise a jour de l'application : admins seuls, par la permission
+	// system.update que la migration 000029 ne donne qu'a eux.
+	r.Get("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Status)
+	r.Post("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Request)
 
 	// Clients : le strict necessaire au champ « Client » du formulaire de
 	// projet — un menu deroulant, pas un ecran.

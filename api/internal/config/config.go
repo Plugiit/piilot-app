@@ -59,6 +59,12 @@ type Config struct {
 	// URL d'API figee dans le bundle. Vide en developpement, ou Vite sert le
 	// front et relaie /api vers l'API.
 	StaticDir string
+
+	// Verification des nouvelles versions, une fois toutes les quelques heures,
+	// aupres des releases GitHub du depot. Coupable pour une instance qui ne
+	// doit rien appeler au-dehors.
+	UpdateCheck      bool
+	UpdateRepository string
 }
 
 // Load lit la configuration depuis l'environnement et echoue si une valeur
@@ -83,6 +89,9 @@ func Load() (Config, error) {
 		FilesDir:        env("FILES_DIR", "./data/files"),
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
 		StaticDir:       os.Getenv("STATIC_DIR"),
+
+		UpdateCheck:      envBool("UPDATE_CHECK", true),
+		UpdateRepository: env("UPDATE_REPOSITORY", "Plugiit/piilot-app"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -101,6 +110,41 @@ func Load() (Config, error) {
 
 	if cfg.MaxUploadMiB < 1 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
+	}
+
+	return cfg, nil
+}
+
+// UpdaterConfig est la configuration de l'updater, le conteneur qui met
+// l'application a jour. Elle ne porte que ce dont il a besoin : la base, ou il
+// lit les demandes, et le socket Docker.
+type UpdaterConfig struct {
+	DatabaseURL string
+	LogLevel    string
+	// Socket du moteur Docker, monte dans le conteneur de l'updater.
+	DockerSocket string
+	// Service Compose a mettre a jour.
+	Service string
+	// Identifiant du conteneur de l'updater : Docker le donne comme nom
+	// d'hote, et il sert a retrouver le projet Compose.
+	Self string
+}
+
+// LoadUpdater lit la configuration de l'updater.
+func LoadUpdater() (UpdaterConfig, error) {
+	cfg := UpdaterConfig{
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		LogLevel:     env("LOG_LEVEL", "info"),
+		DockerSocket: env("DOCKER_SOCKET", "/var/run/docker.sock"),
+		Service:      env("UPDATER_SERVICE", "app"),
+		Self:         os.Getenv("HOSTNAME"),
+	}
+
+	if cfg.DatabaseURL == "" {
+		return UpdaterConfig{}, fmt.Errorf("DATABASE_URL est obligatoire")
+	}
+	if cfg.Self == "" {
+		return UpdaterConfig{}, fmt.Errorf("HOSTNAME est vide : l'updater doit tourner dans un conteneur Docker")
 	}
 
 	return cfg, nil

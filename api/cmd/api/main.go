@@ -124,6 +124,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
 		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
+		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 
@@ -142,6 +143,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// jamais dans le cycle d'une requete : c'est le seul endroit du projet qui
 	// sort vers un serveur tiers, et un ecran ne doit pas l'attendre.
 	repository.StartFaviconFetch(ctx, pool, files, log)
+
+	// Verification des nouvelles versions. Memes raisons que les logos : GitHub
+	// est un serveur tiers, un ecran ne l'attend pas. Les mises a jour, elles,
+	// sont executees par l'updater, un conteneur a part (cmd/updater).
+	if cfg.UpdateCheck {
+		repository.StartReleaseCheck(ctx, pool, cfg.UpdateRepository, log)
+	}
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
