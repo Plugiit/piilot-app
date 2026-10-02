@@ -7,12 +7,22 @@ name: Release
 # Le corps de la release est la section du CHANGELOG, relue avant le tag,
 # completee d'un pied de page : lien de comparaison, liste des commits et
 # informations de deploiement.
+#
+# L'image construite est publiee sur ghcr.io/plugiit/piilot-app, taguee
+# X.Y.Z et X.Y, plus `latest` hors pre-version. Les notes sont preparees
+# avant : un CHANGELOG incomplet arrete tout avant qu'une image parte.
 on:
   push:
     tags: ["v[0-9]*"]
 
 permissions:
   contents: write
+  packages: write
+
+# En minuscules : ghcr.io refuse les majuscules, et github.repository vaut
+# Plugiit/piilot-app.
+env:
+  IMAGE: ghcr.io/plugiit/piilot-app
 
 jobs:
   release:
@@ -32,19 +42,6 @@ jobs:
             echo "Le tag $GITHUB_REF_NAME ne correspond pas a VERSION ($expected)."
             exit 1
           fi
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Construit l'image (verifications incluses)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: production
-          push: false
-          build-args: |
-            SOURCE_COMMIT=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Prepare le titre et les notes
         id: notes
@@ -78,10 +75,46 @@ jobs:
                 "$previous" "$GITHUB_REF_NAME" "$repo_url" "$previous" "$GITHUB_REF_NAME"
             fi
             printf '**Vérifications** : image construite pour ce tag, lint, typage et tests passés.\n\n'
+            printf '**Image Docker** : `docker pull %s:%s`\n\n' "$IMAGE" "$version"
             printf '<details>\n<summary>%s commits dans cette version</summary>\n\n' "$count"
             head -n 300 commits.md
             printf '\n</details>\n'
           } >> notes.md
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Tags X.Y.Z et X.Y, `latest` seulement hors pre-version (1.0.0-rc.1
+      # ne remplace pas la derniere version stable).
+      - name: Calcule les tags de l'image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=Piilot
+            org.opencontainers.image.licenses=AGPL-3.0-only
+
+      - name: Construit et publie l'image (verifications incluses)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Publie la release GitHub
         env:
