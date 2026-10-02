@@ -11,6 +11,40 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.4.2] — Mise à jour depuis l'interface
+
+Cette version permet aux administrateurs de mettre Piilot à jour depuis l'application, sans passer par le serveur ni par un outil de déploiement. Elle change aussi la façon d'installer Piilot : l'image publiée est désormais tirée telle quelle au lieu d'être reconstruite sur le serveur.
+
+### Points forts
+
+- Bouton **Mettre à jour** pour les administrateurs, dès qu'une nouvelle version est publiée.
+- Mise à jour en une à deux minutes, avec retour automatique à la version précédente si la nouvelle ne démarre pas.
+- Bandeau proposant à tous de recharger la page quand une nouvelle version est en ligne.
+
+### Nouveautés
+
+#### Admin
+
+- **Mise à jour depuis l'interface** : quand une version plus récente existe, un bouton apparaît dans l'en-tête. Il présente les notes de version et les précautions à prendre, puis lance la mise à jour après confirmation. Son avancement s'affiche étape par étape. Réservé à la nouvelle permission `system.update`, accordée au seul rôle admin.
+
+#### Tous les espaces
+
+- **Nouvelle version en ligne** : un onglet resté ouvert pendant un déploiement affiche un bandeau qui propose de recharger la page. Il évite aussi les écrans qui ne se chargent plus après un déploiement.
+
+### Technique
+
+- Nouveau service **`updater`** dans `docker-compose.yml`, le seul conteneur à recevoir le socket Docker. Il n'ouvre aucun port et ne reçoit ses ordres que par la base : il tire la nouvelle image, recrée le conteneur de l'application à l'identique et revient à l'ancien si le nouveau ne répond pas à sa sonde de santé. Il ne dépend d'aucun outil de déploiement.
+- `docker-compose.yml` tire l'image `ghcr.io/plugiit/piilot-app` (`PIILOT_TAG`, `latest` par défaut) au lieu de la construire ; `docker-compose.build.yml` construit depuis les sources.
+- Vérification des nouvelles versions auprès des releases GitHub, toutes les 6 heures, en tâche de fond (`UPDATE_CHECK`, actif par défaut).
+- Routes `GET` et `POST /api/v1/admin/system/update`.
+
+### À savoir pour le déploiement
+
+- Migration `000029_app_updates`, appliquée au démarrage : crée les tables de suivi des versions et des mises à jour, et la permission `system.update`.
+- **Redéployer une fois** avec le nouveau `docker-compose.yml` : il ajoute le service `updater`, qui monte `/var/run/docker.sock`, et tire l'image au lieu de la construire. Les mises à jour suivantes pourront passer par le bouton.
+- Nouvelles variables facultatives : `PIILOT_TAG` (`latest` par défaut ; une version figée désactive la mise à jour depuis l'interface) et `UPDATE_CHECK` (`true` par défaut).
+- **Faire une sauvegarde avant chaque mise à jour** : le retour automatique remet l'ancienne version de l'application, pas l'ancien schéma de la base.
+
 ## [0.4.1] — Image arm64 · 2026-10-02
 
 Cette version publie l'image Docker de Piilot pour les processeurs ARM, en plus des processeurs x86. Elle s'adresse à ceux qui hébergent Piilot sur un serveur ARM ou le font tourner sur un Mac Apple Silicon. L'application elle-même ne change pas.
