@@ -154,7 +154,7 @@ export interface paths {
         };
         /**
          * Tableau de bord de l'agence
-         * @description Trois chiffres et leur variation sur trente jours, en une requete SQL. Exige projects.read.
+         * @description Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige projects.read.
          */
         get: operations["getAdminDashboard"];
         put?: never;
@@ -1525,6 +1525,11 @@ export interface components {
             /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
             hours_spent: number;
             /**
+             * @description Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues.
+             * @enum {string}
+             */
+            budget_state: "none" | "ok" | "warning" | "over";
+            /**
              * Format: date
              * @description Date sans heure, AAAA-MM-JJ
              */
@@ -1559,6 +1564,13 @@ export interface components {
             /** @description Avancement des taches par nature, cinq lignes au plus, les natures les plus portees devant. Vide tant qu'aucune tache n'existe. */
             task_progress: components["schemas"]["TaskProgress"][];
             time: components["schemas"]["TimeSummary"];
+            budget: components["schemas"]["BudgetAlerts"];
+            /** @description Projets en cours les plus avances dans leur budget, huit au plus, la part consommee la plus forte devant. Projets internes et sans heures vendues exclus. */
+            workload: components["schemas"]["ProjectLoad"][];
+            /** @description Membres de l'equipe (roles admin et team), ceux qui ont le plus saisi aujourd'hui devant. */
+            team: components["schemas"]["TeamDay"][];
+            /** @description Activite de l'annee civile en cours, precalculee. Un element par jour actif, dans l'ordre ; un jour absent est un jour sans activite. */
+            activity: components["schemas"]["DayActivity"][];
         };
         HealthLive: {
             /** @example ok */
@@ -1615,6 +1627,11 @@ export interface components {
             hours_sold: number;
             /** @description Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas. */
             hours_spent: number;
+            /**
+             * @description Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues.
+             * @enum {string}
+             */
+            budget_state: "none" | "ok" | "warning" | "over";
             /**
              * Format: date
              * @description Date sans heure, AAAA-MM-JJ
@@ -2667,6 +2684,52 @@ export interface components {
             page: number;
             page_size: number;
         };
+        /** @description Projets en cours (non livres, non internes) dont le budget derive. */
+        BudgetAlerts: {
+            /** @description 80 % du budget consomme ou plus, sans le depasser. */
+            warning: number;
+            /** @description Budget depasse. */
+            over: number;
+        };
+        /** @description Une barre du graphique « Charge par projet ». */
+        ProjectLoad: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            client_name: string;
+            hours_sold: number;
+            hours_spent: number;
+            /**
+             * @description Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues.
+             * @enum {string}
+             */
+            budget_state: "none" | "ok" | "warning" | "over";
+        };
+        /** @description Un membre de l'equipe et son temps saisi. */
+        TeamDay: {
+            person: components["schemas"]["Person"];
+            /** @description Minutes saisies aujourd'hui. */
+            today_minutes: number;
+            /** @description Dont minutes sur des projets clients. */
+            today_billable_minutes: number;
+            /** @description Minutes saisies depuis lundi, aujourd'hui compris. */
+            week_minutes: number;
+            /** @description Projet de la derniere saisie du jour, chaine vide sans saisie aujourd'hui. */
+            last_project: string;
+            /** @description Tache de la derniere saisie du jour, chaine vide quand elle n'en portait pas. */
+            last_task: string;
+        };
+        /** @description Une journee d'activite de l'agence. */
+        DayActivity: {
+            /** Format: date */
+            day: string;
+            /** @description Taches terminees ce jour-la. */
+            tasks: number;
+            /** @description Tickets ouverts ce jour-la. */
+            tickets: number;
+            /** @description Versions de livrables deposees ce jour-la. */
+            deliverables: number;
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -2960,6 +3023,9 @@ export interface operations {
                 search?: string;
                 status?: "cadrage" | "production" | "attente" | "livre";
                 client_id?: string;
+                /** @description Restreint aux projets en cours (non livres) dont le budget derive : 'warning' (80 % consomme ou plus), 'over' (depasse). Memes regles que les alertes du tableau de bord. */
+                budget?: "warning" | "over";
+                /** @description 'budget' trie sur la part du budget consommee ; les projets sans budget ferment la liste. */
                 sort?: "due" | "name" | "progress" | "budget";
                 dir?: "asc" | "desc";
             };

@@ -1,11 +1,14 @@
 import { Activity03Icon, InformationCircleIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
 import { PanelCard } from '@/components/panel-card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { dashboardQuery } from '@/features/projects/api'
 import { LIGHT_TOOLTIP } from '@/lib/tooltip'
 import { cn } from '@/lib/utils'
+import type { DayActivity as ApiDay } from '@/types/api'
 
 /**
  * Paliers d'intensite, du vide au plus soutenu.
@@ -26,27 +29,13 @@ const LEVELS = [
   'bg-[#ff782b]',
 ]
 
-/**
- * Palier d'une journee, d'apres son nombre d'activites.
- *
- * C'est la seule des deux fonctions de seuils qui survivra au branchement de
- * l'API : `spanOf` ne sert qu'a fabriquer des nombres en attendant. Elles se
- * lisent ensemble — leurs bornes sont les memes, dans l'autre sens.
- */
+/** Palier d'une journee, d'apres son nombre d'activites. */
 function levelOf(total: number) {
   if (total === 0) return 0
   if (total <= 2) return 1
   if (total <= 5) return 2
   if (total <= 9) return 3
   return 4
-}
-
-/** Fourchette d'activites d'un palier. */
-function spanOf(level: number) {
-  if (level <= 1) return { floor: 1, ceiling: 2 }
-  if (level === 2) return { floor: 3, ceiling: 5 }
-  if (level === 3) return { floor: 6, ceiling: 9 }
-  return { floor: 10, ceiling: 14 }
 }
 
 const MONTH_LABELS = Array.from({ length: 12 }, (_, month) =>
@@ -67,51 +56,36 @@ interface DayActivity {
   total: number
 }
 
-/**
- * Generateur pseudo-aleatoire deterministe (mulberry32).
- *
- * `Math.random` redistribuerait les intensites a chaque rendu et la grille
- * scintillerait au moindre re-rendu du tableau de bord. Une graine fixe donne
- * un motif stable, identique d'une session a l'autre.
- */
-function seeded(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
+/** Cle d'une journee, au format des dates de l'API (« AAAA-MM-JJ »). */
+function keyOf(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-/** Les douze mois de `year`, chacun portant une journee par jour reel. */
-function buildYear(year: number) {
-  const random = seeded(year)
+/**
+ * Les douze mois de `year`, chacun portant une journee par jour reel.
+ *
+ * L'API ne renvoie que les jours actifs : un jour absent est un jour vide, et
+ * c'est ici que le calendrier complet se reconstitue.
+ */
+function buildYear(year: number, activity: ApiDay[]) {
+  const byDay = new Map(activity.map((day) => [day.day, day]))
 
   return MONTH_LABELS.map((label, month) => ({
     label,
     // Le jour 0 du mois suivant est le dernier du mois courant : fevrier
     // compte donc 29 cases les annees bissextiles, sans table a maintenir.
-    days: Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index) => {
-      const draw = random()
-
-      // Un peu moins d'un tiers de journees vides, le reste reparti sur les
-      // quatre paliers : la grille respire sans paraitre eteinte.
-      const level = draw < 0.3 ? 0 : 1 + Math.min(3, Math.floor(((draw - 0.3) / 0.7) * 4))
-      const { floor, ceiling } = spanOf(level)
-      const total = level === 0 ? 0 : floor + Math.floor(random() * (ceiling - floor + 1))
-
-      // Les trois natures se partagent le total plutot que d'etre tirees
-      // separement : leur somme doit tomber juste, sinon le detail
-      // contredirait le nombre annonce au-dessus de lui.
-      const tasks = Math.round(total * (0.4 + random() * 0.3))
-      const tickets = Math.round((total - tasks) * random())
+    days: Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index): DayActivity => {
+      const found = byDay.get(keyOf(year, month, index + 1))
+      const tasks = found?.tasks ?? 0
+      const tickets = found?.tickets ?? 0
+      const deliverables = found?.deliverables ?? 0
 
       return {
         date: new Date(year, month, index + 1),
         tasks,
         tickets,
-        deliverables: total - tasks - tickets,
-        total,
+        deliverables,
+        total: tasks + tickets + deliverables,
       }
     }),
   }))
@@ -169,17 +143,21 @@ function DayCell({ day }: { day: DayActivity }) {
 }
 
 /**
- * Activite de l'annee, une case par jour.
+ * Activite de l'annee, une case par jour : taches terminees, tickets ouverts
+ * et versions de livrables deposees.
  *
  * Vit hors de `components/ui/`, reserve aux composants shadcn — voir la note
  * de `stat-card.tsx`.
  *
- * Les nombres sont figes : aucun agregat d'activite n'est encore calcule cote
- * API. Le calendrier, lui, est juste — le nombre de cases suit toujours le
- * nombre de jours du mois.
+ * Les nombres viennent d'une table precalculee par l'API, un compteur par
+ * jour tenu par declencheur : la carte ne coute aucun comptage.
  */
 export function ActivityHeatmap() {
-  const months = useMemo(() => buildYear(new Date().getFullYear()), [])
+  const { data } = useQuery(dashboardQuery)
+  const activity = data?.activity
+  // L'API renvoie l'annee civile en cours : la grille couvre la meme.
+  const year = new Date().getFullYear()
+  const months = useMemo(() => buildYear(year, activity ?? []), [year, activity])
 
   return (
     // Un seul fournisseur pour toute la grille : les 365 infobulles partagent
@@ -195,7 +173,7 @@ export function ActivityHeatmap() {
               <span className="sr-only">À propos de ce graphique</span>
             </TooltipTrigger>
             <TooltipContent className={LIGHT_TOOLTIP}>
-              Une case par jour : plus elle est soutenue, plus l'activité a été forte.
+              Une case par jour : tâches terminées, tickets ouverts et livrables déposés. Plus elle est soutenue, plus l'activité a été forte.
             </TooltipContent>
           </Tooltip>
         }

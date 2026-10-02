@@ -68,6 +68,15 @@ export type TaskProgress = components['schemas']['TaskProgress']
 /** Projet tel que la vue liste l'affiche. Contrat cible lui aussi. */
 export type Project = components['schemas']['Project']
 
+/** Etat du budget d'un projet : sans budget, sain, a surveiller, depasse. */
+export type BudgetState = Project['budget_state']
+
+/** Barres du graphique « Charge par projet », membres de « Equipe
+ *  aujourd'hui » et cases de « Activite par jour ». */
+export type ProjectLoad = components['schemas']['ProjectLoad']
+export type TeamDay = components['schemas']['TeamDay']
+export type DayActivity = components['schemas']['DayActivity']
+
 /** Enveloppe de pagination des listes de projets. */
 export type ProjectPage = components['schemas']['ProjectPage']
 

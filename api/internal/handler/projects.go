@@ -127,6 +127,12 @@ func (h *Projects) List(c fiber.Ctx) error {
 		}
 		filters.ClientID = &id
 	}
+	if budget := strings.TrimSpace(c.Query("budget")); budget != "" {
+		if !usecase.ValidBudgetFilter(budget) {
+			return domain.ErrValidation.WithDetails(map[string]any{"budget": "Valeur attendue : warning ou over"})
+		}
+		filters.Budget = &budget
+	}
 
 	page, err := h.svc.List(c.Context(), filters)
 	if err != nil {

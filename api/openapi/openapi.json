@@ -273,7 +273,7 @@
           "admin"
         ],
         "summary": "Tableau de bord de l'agence",
-        "description": "Trois chiffres et leur variation sur trente jours, en une requete SQL. Exige projects.read.",
+        "description": "Tout le tableau de bord en un appel : chiffres cles et leur variation sur trente jours, temps facturable, avancement des taches, alertes de budget, charge par projet, equipe de la semaine et activite de l'annee. Exige projects.read.",
         "operationId": "getAdminDashboard",
         "security": [
           {
@@ -363,6 +363,18 @@
             }
           },
           {
+            "name": "budget",
+            "in": "query",
+            "description": "Restreint aux projets en cours (non livres) dont le budget derive : 'warning' (80 % consomme ou plus), 'over' (depasse). Memes regles que les alertes du tableau de bord.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "warning",
+                "over"
+              ]
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "schema": {
@@ -374,7 +386,8 @@
                 "budget"
               ],
               "default": "due"
-            }
+            },
+            "description": "'budget' trie sur la part du budget consommee ; les projets sans budget ferment la liste."
           },
           {
             "name": "dir",
@@ -5319,6 +5332,7 @@
           "progress",
           "hours_sold",
           "hours_spent",
+          "budget_state",
           "tasks_total",
           "tasks_done",
           "team",
@@ -5374,6 +5388,16 @@
           "hours_spent": {
             "type": "number",
             "description": "Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas."
+          },
+          "budget_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "ok",
+              "warning",
+              "over"
+            ],
+            "description": "Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues."
           },
           "starts_on": {
             "type": [
@@ -5453,7 +5477,11 @@
           "clients",
           "hours_sold",
           "task_progress",
-          "time"
+          "time",
+          "budget",
+          "workload",
+          "team",
+          "activity"
         ],
         "properties": {
           "projects": {
@@ -5474,6 +5502,30 @@
           },
           "time": {
             "$ref": "#/components/schemas/TimeSummary"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetAlerts"
+          },
+          "workload": {
+            "type": "array",
+            "description": "Projets en cours les plus avances dans leur budget, huit au plus, la part consommee la plus forte devant. Projets internes et sans heures vendues exclus.",
+            "items": {
+              "$ref": "#/components/schemas/ProjectLoad"
+            }
+          },
+          "team": {
+            "type": "array",
+            "description": "Membres de l'equipe (roles admin et team), ceux qui ont le plus saisi aujourd'hui devant.",
+            "items": {
+              "$ref": "#/components/schemas/TeamDay"
+            }
+          },
+          "activity": {
+            "type": "array",
+            "description": "Activite de l'annee civile en cours, precalculee. Un element par jour actif, dans l'ordre ; un jour absent est un jour sans activite.",
+            "items": {
+              "$ref": "#/components/schemas/DayActivity"
+            }
           }
         }
       },
@@ -5574,6 +5626,7 @@
           "progress",
           "hours_sold",
           "hours_spent",
+          "budget_state",
           "tasks_total",
           "tasks_done",
           "team",
@@ -5636,6 +5689,16 @@
           "hours_spent": {
             "type": "number",
             "description": "Heures saisies. Vaut 0 tant que le module de saisie du temps n'existe pas."
+          },
+          "budget_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "ok",
+              "warning",
+              "over"
+            ],
+            "description": "Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues."
           },
           "starts_on": {
             "type": [
@@ -8778,6 +8841,129 @@
           },
           "page_size": {
             "type": "integer"
+          }
+        }
+      },
+      "BudgetAlerts": {
+        "type": "object",
+        "description": "Projets en cours (non livres, non internes) dont le budget derive.",
+        "required": [
+          "warning",
+          "over"
+        ],
+        "properties": {
+          "warning": {
+            "type": "integer",
+            "description": "80 % du budget consomme ou plus, sans le depasser."
+          },
+          "over": {
+            "type": "integer",
+            "description": "Budget depasse."
+          }
+        }
+      },
+      "ProjectLoad": {
+        "type": "object",
+        "description": "Une barre du graphique « Charge par projet ».",
+        "required": [
+          "id",
+          "name",
+          "client_name",
+          "hours_sold",
+          "hours_spent",
+          "budget_state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "hours_sold": {
+            "type": "number"
+          },
+          "hours_spent": {
+            "type": "number"
+          },
+          "budget_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "ok",
+              "warning",
+              "over"
+            ],
+            "description": "Etat du budget, derive des heures vendues et consommees. 'none' : projet interne ou sans heures vendues ; 'ok' : moins de 80 % consomme ; 'warning' : entre 80 % et la totalite ; 'over' : plus d'heures consommees que vendues."
+          }
+        }
+      },
+      "TeamDay": {
+        "type": "object",
+        "description": "Un membre de l'equipe et son temps saisi.",
+        "required": [
+          "person",
+          "today_minutes",
+          "today_billable_minutes",
+          "week_minutes",
+          "last_project",
+          "last_task"
+        ],
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "today_minutes": {
+            "type": "integer",
+            "description": "Minutes saisies aujourd'hui."
+          },
+          "today_billable_minutes": {
+            "type": "integer",
+            "description": "Dont minutes sur des projets clients."
+          },
+          "week_minutes": {
+            "type": "integer",
+            "description": "Minutes saisies depuis lundi, aujourd'hui compris."
+          },
+          "last_project": {
+            "type": "string",
+            "description": "Projet de la derniere saisie du jour, chaine vide sans saisie aujourd'hui."
+          },
+          "last_task": {
+            "type": "string",
+            "description": "Tache de la derniere saisie du jour, chaine vide quand elle n'en portait pas."
+          }
+        }
+      },
+      "DayActivity": {
+        "type": "object",
+        "description": "Une journee d'activite de l'agence.",
+        "required": [
+          "day",
+          "tasks",
+          "tickets",
+          "deliverables"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "tasks": {
+            "type": "integer",
+            "description": "Taches terminees ce jour-la."
+          },
+          "tickets": {
+            "type": "integer",
+            "description": "Tickets ouverts ce jour-la."
+          },
+          "deliverables": {
+            "type": "integer",
+            "description": "Versions de livrables deposees ce jour-la."
           }
         }
       }

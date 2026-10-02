@@ -10,6 +10,8 @@ export interface ProjectListParams {
   status?: ProjectStatus
   /** Client dont on ne veut que les projets. L'API l'accepte sous `client_id`. */
   clientId?: string
+  /** Projets dont le budget derive : a surveiller ou depasse. */
+  budget?: 'warning' | 'over'
   sort?: 'due' | 'name' | 'progress' | 'budget'
   dir?: 'asc' | 'desc'
 }
@@ -62,6 +64,7 @@ export function projectListQuery(params: ProjectListParams) {
               search: params.search,
               status: params.status,
               client_id: params.clientId,
+              budget: params.budget,
               sort: params.sort,
               dir: params.dir,
             },

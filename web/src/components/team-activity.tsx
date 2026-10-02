@@ -1,221 +1,172 @@
 import { UserGroupIcon } from '@hugeicons/core-free-icons'
+import { useQuery } from '@tanstack/react-query'
 
 import { PanelCard } from '@/components/panel-card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { dashboardQuery } from '@/features/projects/api'
+import { tintOf } from '@/features/projects/format'
+import { formatDuration } from '@/features/time/format'
+import { sessionQuery } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import type { TeamDay } from '@/types/api'
 
 /**
- * Etat de presence. Le vert dit « saisit du temps en ce moment », pas
- * « connecte » : c'est ce qu'un tableau de bord de suivi a besoin de montrer.
- *
- * Les teintes sont celles du graphique de charge et de l'agenda — deux verts
- * voisins sur la meme ligne de grille se remarquent aussitot.
+ * Pastille d'activite. Le vert dit « a saisi du temps aujourd'hui », pas
+ * « connecte » : Piilot ne suit pas les presences, et c'est la saisie qui dit
+ * qui a travaille sur quoi.
  */
-const PRESENCE = {
-  online: { label: 'En ligne', color: '#0db471' },
-  away: { label: 'Absent', color: '#eab308' },
-  offline: { label: 'Hors ligne', color: '#c4c4c4' },
-} as const
-
-type Presence = keyof typeof PRESENCE
+const ACTIVE_COLOR = '#0db471'
+const IDLE_COLOR = '#c4c4c4'
 
 /** Bleu de « facturable », le meme que dans la carte du temps. */
 const BILLABLE_COLOR = '#4956f4'
 
-/** Equipe figee : le module n'a pas encore de saisie de temps a lire. */
-const MEMBERS: {
-  name: string
-  initials: string
-  tint: string
-  task: string
-  /** Temps saisi aujourd'hui, en secondes. */
-  seconds: number
-  billable: number | null
-  presence: Presence
-  /** Sa ligne se detache : on se repere d'abord soi-meme dans une liste. */
-  self?: boolean
-}[] = [
-  {
-    name: 'Maxence M.',
-    initials: 'MM',
-    tint: '#e9dcb3',
-    task: 'API Go · authentification',
-    seconds: 3 * 3600 + 10 * 60 + 12,
-    billable: 92,
-    presence: 'online',
-    self: true,
-  },
-  {
-    name: 'Ugo L.',
-    initials: 'UL',
-    tint: '#cfd4c7',
-    task: 'Branding · Eric HDK',
-    seconds: 2 * 3600 + 15 * 60 + 45,
-    billable: 88,
-    presence: 'online',
-  },
-  {
-    name: 'Camille R.',
-    initials: 'CR',
-    tint: '#e0dad5',
-    task: 'Intégration maquettes',
-    seconds: 1 * 3600 + 45 * 60 + 30,
-    billable: 76,
-    presence: 'online',
-  },
-  {
-    name: 'Adrien B.',
-    initials: 'AB',
-    tint: '#dcd7e0',
-    task: 'Recette — Portail client',
-    seconds: 52 * 60 + 8,
-    billable: 41,
-    presence: 'away',
-  },
-  {
-    name: 'Théo B.',
-    initials: 'TB',
-    tint: '#e0e0e0',
-    task: 'Aucune saisie aujourd’hui',
-    seconds: 0,
-    billable: null,
-    presence: 'offline',
-  },
-]
+/** « Camille L. » : le prenom suffit a se reconnaitre, l'initiale a departager. */
+function shortName({ person }: TeamDay) {
+  const initial = person.lastname.trim().charAt(0)
 
-/** Poids de tri : qui travaille en ce moment se lit en premier. */
-const PRESENCE_RANK: Record<Presence, number> = { online: 0, away: 1, offline: 2 }
-
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-
-  return [hours, minutes, seconds % 60].map((part) => String(part).padStart(2, '0')).join(':')
+  return initial === '' ? person.firstname : `${person.firstname} ${initial}.`
 }
 
-export function TeamActivity() {
-  // Soi-meme en tete, puis les presents, puis le temps saisi : l'ordre de la
-  // base ferait descendre au milieu ceux qui travaillent en ce moment.
-  const members = [...MEMBERS].sort(
-    (a, b) =>
-      Number(b.self ?? false) - Number(a.self ?? false) ||
-      PRESENCE_RANK[a.presence] - PRESENCE_RANK[b.presence] ||
-      b.seconds - a.seconds,
-  )
+/** Ce sur quoi la personne a pointe en dernier aujourd'hui. */
+function lastWork(member: TeamDay) {
+  if (member.today_minutes === 0) return 'Aucune saisie aujourd’hui'
+  if (member.last_task === '') return member.last_project
 
-  const online = members.filter((member) => member.presence === 'online').length
+  return `${member.last_project} · ${member.last_task}`
+}
+
+function Row({ member, self }: { member: TeamDay; self: boolean }) {
+  const active = member.today_minutes > 0
+  const billable = active ? Math.round((member.today_billable_minutes / member.today_minutes) * 100) : null
+
+  return (
+    <li
+      className={cn(
+        'relative flex items-center justify-between gap-2 rounded-[8px] px-2 py-2.5 transition-colors hover:bg-[#f8f8f8]',
+        // Un filet plutot qu'un simple fond gris : sur une carte blanche, le
+        // #f8f8f8 seul ne se voyait pas.
+        self &&
+          'bg-[#f8f8f8] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[#ff782b] before:content-[""]',
+      )}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {/* Une journee sans saisie recule d'un cran : la liste se lit alors
+            de haut en bas comme de l'actif vers l'inactif. */}
+        <div className={cn('relative shrink-0', !active && 'opacity-55')}>
+          <Avatar className="size-9 rounded-[6px] after:rounded-[6px]">
+            {member.person.avatar_url != null && member.person.avatar_url !== '' && (
+              <AvatarImage src={member.person.avatar_url} alt="" className="rounded-[6px]" />
+            )}
+            <AvatarFallback
+              className="rounded-[6px] text-[12px] font-semibold text-[#0f172a]"
+              style={{ backgroundColor: tintOf(member.person.id) }}
+            >
+              {member.person.initials}
+            </AvatarFallback>
+          </Avatar>
+
+          <span
+            aria-label={active ? 'A saisi aujourd’hui' : 'Aucune saisie aujourd’hui'}
+            className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-white"
+            style={{ backgroundColor: active ? ACTIVE_COLOR : IDLE_COLOR }}
+          />
+        </div>
+
+        <div className="flex min-w-0 flex-col">
+          <p className="truncate text-[12px] font-semibold text-[#0f172a]">
+            {shortName(member)}
+            {self && <span className="font-normal text-[#64748b]"> · vous</span>}
+          </p>
+          <p className="truncate text-[12px] text-[#64748b]">{lastWork(member)}</p>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <p
+          className={cn(
+            'text-[12px] leading-none font-semibold tabular-nums',
+            active ? 'text-[#0f172a]' : 'text-[#a8a7ab]',
+          )}
+        >
+          {formatDuration(member.today_minutes)}
+          <span className="font-normal text-[#a8a7ab]">
+            {' '}
+            · {formatDuration(member.week_minutes)} sem.
+          </span>
+        </p>
+
+        {/* Une journee sans saisie n'a pas de part facturable a montrer. La
+            jauge se lit d'un coup d'oeil sur la colonne entiere, la ou le
+            chiffre nu se comparait mal d'une ligne a l'autre. */}
+        {billable !== null && (
+          <div className="flex items-center gap-1.5" title="Part facturable du jour">
+            <div aria-hidden className="h-1 w-10 overflow-hidden rounded-full bg-[#ebebeb]">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${billable}%`, backgroundColor: BILLABLE_COLOR }}
+              />
+            </div>
+
+            <p className="w-10 text-right text-[12px] leading-none font-medium whitespace-nowrap text-[#64748b] tabular-nums">
+              {billable} %
+            </p>
+          </div>
+        )}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * Equipe du jour : qui a saisi du temps, sur quoi, et sa charge de la semaine.
+ *
+ * Ni total d'heures ni part facturable d'ensemble : c'est le propos de la
+ * carte « Temps facturable ». Celle-ci repond a « qui travaille sur quoi », et
+ * le seul chiffre qu'elle avance de son cote est un decompte.
+ */
+export function TeamActivity() {
+  const { data, isPending } = useQuery(dashboardQuery)
+  const { data: session } = useQuery(sessionQuery)
+
+  // Soi-meme en tete, puis l'ordre de l'API : ceux qui ont le plus saisi
+  // aujourd'hui, puis sur la semaine.
+  const members = [...(data?.team ?? [])].sort(
+    (a, b) => Number(b.person.id === session?.id) - Number(a.person.id === session?.id),
+  )
+  const active = members.filter((member) => member.today_minutes > 0).length
 
   return (
     <PanelCard
       icon={UserGroupIcon}
       title="ÉQUIPE AUJOURD'HUI"
       action={
-        <div className="flex items-center gap-1.5">
-          <div
-            aria-hidden
-            className="size-1.5 shrink-0 rounded-full"
-            style={{ backgroundColor: PRESENCE.online.color }}
-          />
-          <p className="text-[12px] whitespace-nowrap text-[#64748b]">
-            {online} / {members.length} en ligne
-          </p>
-        </div>
+        !isPending && (
+          <div className="flex items-center gap-1.5">
+            <div aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: ACTIVE_COLOR }} />
+            <p className="text-[12px] whitespace-nowrap text-[#64748b]">
+              {active} / {members.length} ont saisi
+            </p>
+          </div>
+        )
       }
     >
-      {/* Ni total d'heures ni part facturable d'ensemble : c'est le propos de
-          la carte « Temps facturable », une ligne plus haut. Celle-ci repond a
-          « qui travaille sur quoi en ce moment », et le seul chiffre qu'elle
-          avance de son cote est un decompte de presences. */}
-      <ul className="flex flex-1 flex-col gap-1">
-        {members.map((member) => (
-          <li
-            key={member.name}
-            className={cn(
-              'relative flex items-center justify-between gap-2 rounded-[8px] px-2 py-2.5 transition-colors hover:bg-[#f8f8f8]',
-              // Un filet plutot qu'un simple fond gris : sur une carte
-              // blanche, le #f8f8f8 seul ne se voyait pas. La couleur est
-              // celle du jour choisi dans l'agenda.
-              member.self &&
-                'bg-[#f8f8f8] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[#ff782b] before:content-[""]',
-            )}
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <div
-                className={cn(
-                  'relative shrink-0',
-                  // Une journee sans saisie recule d'un cran : la liste se lit
-                  // alors de haut en bas comme de l'actif vers l'inactif.
-                  member.presence === 'offline' && 'opacity-55',
-                )}
-              >
-                {/* Le dessin exporte des photos. Des initiales tiennent lieu de
-                    portrait sans embarquer de visage ni dependre d'un fichier
-                    distant, et le carre arrondi du dessin l'emporte sur le rond
-                    de shadcn. */}
-                <Avatar className="size-9 rounded-[6px] after:rounded-[6px]">
-                  <AvatarFallback
-                    className="rounded-[6px] text-[12px] font-semibold text-[#0f172a]"
-                    style={{ backgroundColor: member.tint }}
-                  >
-                    {member.initials}
-                  </AvatarFallback>
-                </Avatar>
+      {isPending && <div className="h-[260px] animate-pulse rounded-[4px] bg-[#f2f2f2]" />}
 
-                <span
-                  aria-label={PRESENCE[member.presence].label}
-                  className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-white"
-                  style={{ backgroundColor: PRESENCE[member.presence].color }}
-                >
-                  {/* Le halo ne bat que pour un chronometre en marche : c'est
-                      la seule pastille qui dise quelque chose du present. */}
-                  {member.presence === 'online' && (
-                    <span
-                      aria-hidden
-                      className="absolute inset-0 rounded-full opacity-50 motion-safe:animate-ping"
-                      style={{ backgroundColor: PRESENCE.online.color }}
-                    />
-                  )}
-                </span>
-              </div>
+      {!isPending && members.length === 0 && (
+        <p className="py-6 text-center text-[13px] text-[#8d8d8d]">Aucun membre dans l’équipe.</p>
+      )}
 
-              <div className="flex min-w-0 flex-col">
-                <p className="truncate text-[12px] font-semibold text-[#0f172a]">{member.name}</p>
-                <p className="truncate text-[12px] text-[#64748b]">{member.task}</p>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <p
-                className={cn(
-                  'text-[12px] leading-none font-semibold tracking-[0.24px] tabular-nums',
-                  member.presence === 'offline' ? 'text-[#a8a7ab]' : 'text-[#0f172a]',
-                )}
-              >
-                {formatDuration(member.seconds)}
-              </p>
-
-              {/* Une journee sans saisie n'a pas de part facturable a montrer :
-                  le dessin garde la ligne et la rend invisible, on la retire.
-                  Le chiffre nu se comparait mal d'une ligne a l'autre ; la
-                  jauge se lit d'un coup d'oeil sur la colonne entiere. */}
-              {member.billable !== null && (
-                <div className="flex items-center gap-1.5">
-                  <div aria-hidden className="h-1 w-10 overflow-hidden rounded-full bg-[#ebebeb]">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${member.billable}%`, backgroundColor: BILLABLE_COLOR }}
-                    />
-                  </div>
-
-                  <p className="w-8 text-right text-[12px] leading-none font-medium text-[#64748b] tabular-nums">
-                    {member.billable} %
-                  </p>
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+      {/* Bornee en hauteur : l'equipe entiere tient dans la liste, mais la
+          carte partage sa ligne avec le graphique de charge et ne doit pas
+          l'etirer. */}
+      {!isPending && members.length > 0 && (
+        <ul className="flex max-h-[300px] flex-1 flex-col gap-1 overflow-y-auto">
+          {members.map((member) => (
+            <Row key={member.person.id} member={member} self={member.person.id === session?.id} />
+          ))}
+        </ul>
+      )}
     </PanelCard>
   )
 }

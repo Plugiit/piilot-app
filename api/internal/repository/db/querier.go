@@ -137,7 +137,7 @@ type Querier interface {
 	// clients d'une agence, quelques centaines de lignes) et qu'ils passent par
 	// les index partiels `deleted_at IS NULL`. Le jour ou ces tables grossissent,
 	// c'est un instantane quotidien qu'il faudra stocker, pas un index de plus.
-	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetDashboardStats(ctx context.Context, budgetWarning float64) (GetDashboardStatsRow, error)
 	// Un livrable et sa version courante, aux memes colonnes que la liste : le
 	// depot et la decision rendent la ligne telle que l'ecran la reaffiche.
 	GetDeliverable(ctx context.Context, id uuid.UUID) (GetDeliverableRow, error)
@@ -227,6 +227,9 @@ type Querier interface {
 	// que le scan Go refuserait dans un booleen. Le cast explicite est la pour
 	// sqlc, qui sans lui rend un `interface{}`.
 	ListCrmContacts(ctx context.Context, arg ListCrmContactsParams) ([]ListCrmContactsRow, error)
+	// Carte « Activite par jour » : une ligne par jour actif de la periode,
+	// precalculee par declencheur. Les jours sans ligne sont des jours vides.
+	ListDailyActivity(ctx context.Context, arg ListDailyActivityParams) ([]DailyActivity, error)
 	// Le fil complet d'un livrable, de la premiere version a la derniere : c'est
 	// la trace que le module existe pour garder.
 	ListDeliverableVersions(ctx context.Context, deliverableID uuid.UUID) ([]ListDeliverableVersionsRow, error)
@@ -283,6 +286,14 @@ type Querier interface {
 	ListPortalUsersOfClient(ctx context.Context, arg ListPortalUsersOfClientParams) ([]ListPortalUsersOfClientRow, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
+	// Graphique « Charge par projet » : les projets en cours les plus avances
+	// dans leur budget.
+	//
+	// Tri sur la part consommee, pas sur les heures : c'est la derive que le
+	// graphique doit montrer d'abord. Huit barres tiennent dans la demi-largeur
+	// du tableau de bord ; au-dela, la liste des projets triee par budget prend
+	// le relais. Lu sur les heures precalculees, aucune somme au rendu.
+	ListProjectWorkload(ctx context.Context) ([]ListProjectWorkloadRow, error)
 	// Liste paginee du back-office.
 	//
 	// Le nom du client est joint ici plutot que ramene par une seconde requete :
@@ -348,6 +359,16 @@ type Querier interface {
 	// lignes. Le handler renvoie le total a cote, pour que l'ecran puisse dire
 	// qu'il n'affiche pas tout.
 	ListTasksOfProject(ctx context.Context, arg ListTasksOfProjectParams) ([]Task, error)
+	// Carte « Equipe aujourd'hui » : ce que chaque membre a saisi aujourd'hui et
+	// depuis lundi, et sur quoi il a pointe en dernier.
+	//
+	// Une somme au rendu, contrairement a la regle du projet. Elle est admise
+	// parce qu'elle ne porte que sur la semaine en cours — quelques dizaines de
+	// saisies par personne — et passe par l'index (user_id, spent_on). Un
+	// precalcul par personne et par jour dupliquerait la table des saisies sans
+	// rien faire gagner a cette echelle.
+	// Derniere saisie du jour : ce qui dit « sur quoi il travaille ».
+	ListTeamDay(ctx context.Context, arg ListTeamDayParams) ([]ListTeamDayRow, error)
 	// Ce qui est arrive au ticket, dans le meme ordre.
 	ListTicketEvents(ctx context.Context, ticketID uuid.UUID) ([]ListTicketEventsRow, error)
 	// Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
