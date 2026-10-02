@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [0.4.2] — Mise à jour depuis l'interface
+## [0.4.2] — Mise à jour depuis l'interface · 2026-10-02
 
 Cette version permet aux administrateurs de mettre Piilot à jour depuis l'application, sans passer par le serveur ni par un outil de déploiement. Elle change aussi la façon d'installer Piilot : l'image publiée est désormais tirée telle quelle au lieu d'être reconstruite sur le serveur.
 
