@@ -11,6 +11,51 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.5.0] — Gestion des comptes
+
+Cette version met fin à la création des comptes en ligne de commande : les administrateurs invitent, gèrent et désactivent les comptes depuis Piilot, et règlent ce que chaque rôle permet. Chacun peut aussi retrouver l'accès à son compte après un mot de passe oublié.
+
+### Points forts
+
+- Invitation par e-mail : la personne choisit son mot de passe et arrive connectée dans son espace.
+- Mot de passe oublié, avec un lien à usage unique valable une heure.
+- Écran des rôles : les permissions de chaque rôle se règlent en quelques cases.
+- Un compte désactivé ou un rôle modifié prend effet immédiatement, sans attendre la reconnexion.
+
+### Nouveautés
+
+#### Admin
+
+- **Comptes et rôles** (Paramètres) : la liste des comptes de l'agence et du portail, avec leur rôle, leur client et leur dernière connexion, filtrable par rôle et par état.
+- **Inviter** : une adresse, un rôle (administrateur, équipe ou client, avec son client) et, si l'on veut, un nom. Le lien d'invitation, valable sept jours, part par e-mail et s'affiche aussi pour être copié.
+- **Invitations** : les invitations en attente ou expirées, à renvoyer avec un nouveau lien ou à annuler.
+- **Gérer un compte** : passer administrateur ou en équipe, désactiver (le compte est déconnecté de tous ses appareils et ne peut plus se connecter), réactiver, ou créer un lien de réinitialisation du mot de passe.
+- **Rôles** : la grille des permissions par rôle. Le rôle administrateur garde tout ; gérer les comptes, les rôles et les mises à jour reste réservé aux administrateurs ; le portail ne reçoit que les permissions du portail.
+
+#### Tous les espaces
+
+- **Activation du compte** : la page de l'invitation dit qui invite et pour quel rôle, puis demande le nom et un mot de passe de douze caractères au moins, avec une jauge pendant la saisie.
+- **Mot de passe oublié** : depuis la page de connexion, avec l'adresse déjà saisie. Le changement de mot de passe ferme toutes les sessions du compte et ramène à la connexion, adresse pré-remplie.
+- **Compte désactivé** : la connexion l'explique au lieu de répondre « identifiants incorrects ».
+
+### Améliorations
+
+- Les libellés des permissions et du rôle « Équipe » prennent leurs accents.
+
+### Technique
+
+- E-mails par n'importe quel serveur SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_SECURITY`), via une file d'attente en base et une tâche de fond, avec de nouvelles tentatives espacées. Les corps des e-mails sont effacés une fois partis : aucun lien valable ne reste en base.
+- Jetons d'invitation et de réinitialisation à usage unique, stockés hachés. Pages publiques bornées par adresse IP ; « mot de passe oublié » répond de la même façon que l'adresse existe ou non, et plafonne les demandes par compte.
+- La garde relit à chaque requête l'état et le rôle du compte en base : une désactivation ou un changement de rôle s'applique à la requête suivante.
+- Mailpit dans `docker-compose.dev.yml` pour lire les e-mails en développement.
+- Routes `/api/v1/admin/accounts`, `/api/v1/admin/roles` et, sans session, `/api/v1/auth/invitations/{token}` et `/api/v1/auth/password/…`.
+
+### À savoir pour le déploiement
+
+- Migration `000030_accounts`, appliquée au démarrage : désactivation des comptes, invitations, liens de réinitialisation et file d'envoi des e-mails.
+- Pour envoyer les e-mails, renseigner `SMTP_HOST` et `SMTP_FROM` (et les identifiants du fournisseur). Sans eux, tout fonctionne, mais les liens se transmettent à la main depuis l'écran des comptes.
+- `PUBLIC_BASE_URL` doit être l'adresse publique de l'application : c'est elle qui figure dans les liens des e-mails.
+
 ## [0.4.2] — Mise à jour depuis l'interface · 2026-10-02
 
 Cette version permet aux administrateurs de mettre Piilot à jour depuis l'application, sans passer par le serveur ni par un outil de déploiement. Elle change aussi la façon d'installer Piilot : l'image publiée est désormais tirée telle quelle au lieu d'être reconstruite sur le serveur.
