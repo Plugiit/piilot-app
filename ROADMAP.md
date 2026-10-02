@@ -171,13 +171,13 @@ feuille de calcul.
 
 **Nouveautés**
 
-- **Écran Comptes** : liste, création, changement de rôle, désactivation,
+- **Écran Comptes** ✅ : liste, création, changement de rôle, désactivation,
   réactivation. Désactiver révoque les sessions.
-- **Invitations par e-mail** : lien à usage unique, qui expire. La personne
+- **Invitations par e-mail** ✅ : lien à usage unique, qui expire. La personne
   invitée choisit son mot de passe.
-- **Mot de passe oublié** : jeton à usage unique, courte durée, limitation de
+- **Mot de passe oublié** ✅ : jeton à usage unique, courte durée, limitation de
   débit. Réponse identique que l'adresse existe ou non.
-- **Écran Rôles** : consulter et modifier les permissions de chaque rôle.
+- **Écran Rôles** ✅ : consulter et modifier les permissions de chaque rôle.
 
 **Technique**
 

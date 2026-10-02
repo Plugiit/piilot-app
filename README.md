@@ -156,7 +156,8 @@ La fiche client regroupe ses contacts, ses projets, son identité d'entreprise
 | Rapports de temps | ✅ En place |
 | Budgets et alertes de dépassement | ✅ En place |
 | CRM : interactions | 🚧 Écran réservé, pas encore développé |
-| Modèles de projet, gestion des comptes | 🚧 Écrans réservés, pas encore développés |
+| Comptes, invitations, rôles, mot de passe oublié | ✅ En place |
+| Modèles de projet | 🚧 Écran réservé, pas encore développé |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** | 🚧 Espace et connexion en place, écrans de suivi à venir |
 
@@ -448,7 +449,11 @@ conteneurs.
 
 ## Premier compte
 
-Une installation neuve n'a aucun compte. La commande `create-admin`, livrée
+Une installation neuve n'a aucun compte. Le premier se crée en ligne de
+commande ; tous les suivants s'invitent ensuite depuis Piilot (voir
+[Comptes et invitations](#comptes-et-invitations)).
+
+La commande `create-admin`, livrée
 dans l'image, crée un administrateur en posant les questions. Le mot de
 passe est masqué pendant la saisie et demandé deux fois.
 
@@ -535,6 +540,11 @@ que de la laisser répondre 500 à la première requête.
 | `SHUTDOWN_TIMEOUT` | `15s` | Délai laissé aux requêtes en cours à l'arrêt |
 | `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
 | `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub, toutes les 6 heures |
+| `SMTP_HOST` | *(vide)* | Serveur SMTP des e-mails (invitations, mot de passe oublié). Vide : aucun e-mail, les liens se copient depuis l'écran des comptes |
+| `SMTP_PORT` | `587` | Port du serveur SMTP |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | *(vide)* | Identifiants SMTP |
+| `SMTP_FROM` | *(vide)* | Expéditeur, `Piilot <piilot@votre-agence.fr>`. Obligatoire avec `SMTP_HOST` |
+| `SMTP_SECURITY` | `starttls` | `starttls` (port 587), `tls` (port 465) ou `none` (serveur local de test) |
 
 ### Fixées par l'image
 
@@ -573,6 +583,35 @@ Coolify) : `docker volume ls | grep piilot` le donne. Ces commandes se
 planifient avec cron, et les archives doivent partir hors du serveur.
 
 Une sauvegarde n'a de valeur que si sa restauration a été testée.
+
+### Comptes et invitations
+
+*Paramètres → Comptes et rôles* rassemble trois onglets :
+
+- **Comptes** : qui a accès à Piilot, avec quel rôle, et sa dernière
+  connexion. Un administrateur peut changer le rôle d'un compte, le
+  désactiver (il est déconnecté sur-le-champ et ne peut plus se connecter)
+  ou le réactiver, et créer un lien de réinitialisation de mot de passe.
+- **Invitations** : les invitations en attente ou expirées, à renvoyer ou à
+  annuler.
+- **Rôles** : ce que chaque rôle permet. Un droit retiré s'applique à la
+  requête suivante, sans attendre que la personne se reconnecte. Le rôle
+  `admin` garde toutes les permissions ; gérer les comptes, les rôles et les
+  mises à jour reste réservé aux administrateurs.
+
+**Inviter** : le bouton *Inviter* envoie un lien valable sept jours. La
+personne choisit son nom et son mot de passe, puis arrive connectée dans son
+espace. Pour un compte du portail, on désigne le client dont elle suivra les
+projets.
+
+**E-mails** : invitations et liens de réinitialisation partent par le serveur
+SMTP configuré (voir [Configuration](#configuration)), via une file d'attente
+en base, avec de nouvelles tentatives si le serveur ne répond pas. Sans SMTP,
+rien ne bloque : les liens s'affichent à l'écran, à transmettre soi-même, et
+la page « mot de passe oublié » oriente vers un administrateur.
+
+**Garde-fous** : un administrateur ne peut ni se désactiver ni changer son
+propre rôle, et il reste toujours au moins un administrateur actif.
 
 ### Mise à jour depuis l'interface
 
@@ -634,13 +673,15 @@ JSON structuré sur la sortie standard, lisibles dans Coolify ou avec
 Prérequis : Go 1.26, Node 24, Docker.
 
 ```bash
-make up        # Postgres + Redis en conteneurs (docker-compose.dev.yml)
+make up        # Postgres, Redis et Mailpit en conteneurs (docker-compose.dev.yml)
 make dev-api   # API sur :8080, rechargement à chaud
 make dev-web   # front sur :5173, proxy /api vers l'API
 ```
 
 Au premier lancement, copier `api/.env.example` en `api/.env` et y mettre un
-`JWT_SECRET` d'au moins 32 caractères. En développement, c'est Vite qui sert
+`JWT_SECRET` d'au moins 32 caractères. Mailpit intercepte les e-mails sans rien envoyer :
+ils se lisent sur http://localhost:8025 (dans `api/.env` : `SMTP_HOST=localhost`,
+`SMTP_PORT=1025`, `SMTP_SECURITY=none`, `SMTP_FROM=Piilot <piilot@example.fr>`). En développement, c'est Vite qui sert
 le front (`STATIC_DIR` reste vide).
 
 | Commande | Effet |
