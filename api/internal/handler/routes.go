@@ -25,6 +25,7 @@ type Deps struct {
 	Updates       *Updates
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
+	MyWork        *MyWork
 
 	Guard *middleware.Guard
 }
@@ -104,7 +105,12 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("admin", "team"))
 
-	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Projects.Dashboard)
+	r.Get("/dashboard", deps.Guard.RequirePermission("dashboard.read"), deps.Projects.Dashboard)
+
+	// « Mon travail » : l'accueil de l'equipe. Ce qui attend la personne
+	// connectee, dans tous ses projets — sous `projects.read`, comme les
+	// listes dont elle reprend les premieres lignes.
+	r.Get("/me/work", deps.Guard.RequirePermission("projects.read"), deps.MyWork.Get)
 
 	// Comptes et roles. La lecture est ouverte a qui porte users.read (l'equipe
 	// voit qui est dans Piilot) ; toute ecriture exige users.write ou
@@ -141,11 +147,15 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	crm.Post("/clients", deps.Guard.RequirePermission("clients.write"), deps.Clients.Create)
 	// Avant « /:id » : sans quoi le routeur prendrait « board » pour un
 	// identifiant de client.
-	crm.Get("/clients/board", deps.Guard.RequirePermission("clients.read"), deps.Clients.Board)
+	crm.Get("/clients/board", deps.Guard.RequirePermission("pipeline.read"), deps.Clients.Board)
 	crm.Get("/clients/:id", deps.Guard.RequirePermission("clients.read"), deps.Clients.Get)
 	crm.Patch("/clients/:id", deps.Guard.RequirePermission("clients.write"), deps.Clients.Update)
 	crm.Delete("/clients/:id", deps.Guard.RequirePermission("clients.write"), deps.Clients.Delete)
-	crm.Put("/clients/:id/status", deps.Guard.RequirePermission("clients.write"), deps.Clients.MoveStatus)
+	// Faire avancer un client dans le pipeline est un geste commercial : il
+	// demande de pouvoir modifier la fiche, et de suivre le pipeline.
+	crm.Put("/clients/:id/status",
+		deps.Guard.RequirePermission("clients.write"), deps.Guard.RequirePermission("pipeline.read"),
+		deps.Clients.MoveStatus)
 	crm.Get("/clients/:id/contacts", deps.Guard.RequirePermission("clients.read"), deps.Contacts.ListOfClient)
 	crm.Put("/clients/:id/primary-contact", deps.Guard.RequirePermission("clients.write"), deps.Clients.SetPrimaryContact)
 	// Avant « /contacts » sans parametre ? Non : chemin distinct, aucun conflit.
@@ -262,13 +272,13 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Temps passe.
 	//
 	// Pas de parametre de compte : chacun saisit et relit le sien, et
-	// l'identifiant vient de la session. Sous les droits des projets — pointer
-	// des heures est un geste du module, pas une permission a part.
+	// l'identifiant vient de la session. Sous `time.write`, la permission que
+	// l'ecran des roles propose pour ce geste.
 	temps := r.Group("/time-entries")
-	temps.Get("", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Sheet)
-	temps.Post("", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Create)
-	temps.Patch("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Update)
-	temps.Delete("/:id", deps.Guard.RequirePermission("projects.read"), deps.TimeEntries.Delete)
+	temps.Get("", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Sheet)
+	temps.Post("", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Create)
+	temps.Patch("/:id", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Update)
+	temps.Delete("/:id", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Delete)
 
 	// Rapports de temps : le temps de toute l'equipe, d'ou une permission a
 	// part. Lire les heures des autres n'est pas le geste de pointer les siennes.

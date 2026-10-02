@@ -127,7 +127,18 @@ func (h *Projects) List(c fiber.Ctx) error {
 		}
 		filters.ClientID = &id
 	}
-	if budget := strings.TrimSpace(c.Query("budget")); budget != "" {
+	seesBudget, err := middleware.Can(c, "budgets.read")
+	if err != nil {
+		return err
+	}
+
+	// Sans `budgets.read`, ni filtre ni tri sur le budget : l'un comme l'autre
+	// laisserait deviner les heures vendues par l'ordre des lignes.
+	if !seesBudget && filters.Sort == "budget" {
+		filters.Sort = "due"
+	}
+
+	if budget := strings.TrimSpace(c.Query("budget")); budget != "" && seesBudget {
 		if !usecase.ValidBudgetFilter(budget) {
 			return domain.ErrValidation.WithDetails(map[string]any{"budget": "Valeur attendue : warning ou over"})
 		}
@@ -137,6 +148,12 @@ func (h *Projects) List(c fiber.Ctx) error {
 	page, err := h.svc.List(c.Context(), filters)
 	if err != nil {
 		return err
+	}
+
+	if !seesBudget {
+		for i := range page.Items {
+			page.Items[i].HideBudget()
+		}
 	}
 
 	return c.JSON(page)
@@ -176,7 +193,7 @@ func (h *Projects) Get(c fiber.Ctx) error {
 		return err
 	}
 
-	return c.JSON(project)
+	return h.sendProject(c, fiber.StatusOK, project)
 }
 
 // Create cree un projet.
@@ -189,6 +206,12 @@ func (h *Projects) Create(c fiber.Ctx) error {
 	actor, ok := middleware.UserIDFrom(c)
 	if !ok {
 		return domain.ErrUnauthorized
+	}
+
+	if req.HoursSold != 0 {
+		if err := requireBudget(c); err != nil {
+			return err
+		}
 	}
 
 	in := usecase.CreateProjectInput{
@@ -241,7 +264,7 @@ func (h *Projects) Create(c fiber.Ctx) error {
 		return err
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(project)
+	return h.sendProject(c, fiber.StatusCreated, project)
 }
 
 // Update modifie un projet.
@@ -254,6 +277,12 @@ func (h *Projects) Update(c fiber.Ctx) error {
 	var req updateProjectRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return domain.ErrValidation.WithCause(err)
+	}
+
+	if req.HoursSold != nil {
+		if err := requireBudget(c); err != nil {
+			return err
+		}
 	}
 
 	in := usecase.UpdateProjectInput{
@@ -322,7 +351,39 @@ func (h *Projects) Update(c fiber.Ctx) error {
 		return err
 	}
 
-	return c.JSON(project)
+	return h.sendProject(c, fiber.StatusOK, project)
+}
+
+// requireBudget refuse de fixer les heures vendues sans `budgets.read`.
+//
+// Refus plutot qu'oubli silencieux du champ : un formulaire qui croirait avoir
+// enregistre un budget alors qu'il a ete ignore laisserait un projet faux.
+func requireBudget(c fiber.Ctx) error {
+	ok, err := middleware.Can(c, "budgets.read")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrForbidden.WithDetails(map[string]any{
+			"hours_sold": "Fixer le budget d'un projet demande la permission budgets.read",
+		})
+	}
+
+	return nil
+}
+
+// sendProject rend la fiche d'un projet, sans son budget pour qui n'a pas a
+// le voir.
+func (h *Projects) sendProject(c fiber.Ctx, status int, project usecase.ProjectDetail) error {
+	ok, err := middleware.Can(c, "budgets.read")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		project.HideBudget()
+	}
+
+	return c.Status(status).JSON(project)
 }
 
 // Delete efface un projet.
@@ -366,7 +427,7 @@ func (h *Projects) SetTeam(c fiber.Ctx) error {
 		return err
 	}
 
-	return c.JSON(project)
+	return h.sendProject(c, fiber.StatusOK, project)
 }
 
 // ListClients sert le champ « Client » du formulaire de projet.

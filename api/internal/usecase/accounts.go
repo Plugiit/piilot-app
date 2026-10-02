@@ -76,6 +76,7 @@ var permissionGroups = map[string]string{
 	"projects": "Projets", "tasks": "Tâches", "deliverables": "Livrables",
 	"tickets": "Tickets", "time": "Temps passé", "clients": "CRM",
 	"users": "Comptes", "roles": "Rôles", "system": "Système",
+	"dashboard": "Pilotage", "budgets": "Pilotage", "pipeline": "CRM",
 }
 
 // ClientRef designe le client d'un compte de portail.

@@ -219,6 +219,20 @@ var projectPriorities = map[string]struct{}{
 	"low": {}, "medium": {}, "high": {},
 }
 
+// HideBudget efface ce qu'un projet dit de son budget, pour qui n'a pas a le
+// connaitre. Les heures passees restent : c'est le travail de l'equipe, pas
+// une donnee commerciale. Les heures vendues et l'alerte, elles, en sont.
+func (p *ProjectListItem) HideBudget() {
+	p.HoursSold = 0
+	p.BudgetState = BudgetNone
+}
+
+// HideBudget : voir ProjectListItem.HideBudget.
+func (p *ProjectDetail) HideBudget() {
+	p.HoursSold = 0
+	p.BudgetState = BudgetNone
+}
+
 // BudgetWarningRatio est la part des heures vendues a partir de laquelle un
 // projet passe « a surveiller ». Au-dela de la totalite, il est en
 // depassement.

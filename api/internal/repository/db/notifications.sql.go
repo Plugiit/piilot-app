@@ -25,18 +25,20 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID
 }
 
 const createNotification = `-- name: CreateNotification :one
-INSERT INTO notifications (user_id, actor_id, kind, payload, task_id, project_id)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, actor_id, kind, payload, task_id, project_id, read_at, created_at
+INSERT INTO notifications (user_id, actor_id, kind, payload, task_id, project_id, ticket_id, deliverable_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, user_id, actor_id, kind, payload, task_id, project_id, read_at, created_at, ticket_id, deliverable_id
 `
 
 type CreateNotificationParams struct {
-	UserID    uuid.UUID  `json:"user_id"`
-	ActorID   *uuid.UUID `json:"actor_id"`
-	Kind      string     `json:"kind"`
-	Payload   []byte     `json:"payload"`
-	TaskID    *uuid.UUID `json:"task_id"`
-	ProjectID *uuid.UUID `json:"project_id"`
+	UserID        uuid.UUID  `json:"user_id"`
+	ActorID       *uuid.UUID `json:"actor_id"`
+	Kind          string     `json:"kind"`
+	Payload       []byte     `json:"payload"`
+	TaskID        *uuid.UUID `json:"task_id"`
+	ProjectID     *uuid.UUID `json:"project_id"`
+	TicketID      *uuid.UUID `json:"ticket_id"`
+	DeliverableID *uuid.UUID `json:"deliverable_id"`
 }
 
 func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
@@ -47,6 +49,8 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		arg.Payload,
 		arg.TaskID,
 		arg.ProjectID,
+		arg.TicketID,
+		arg.DeliverableID,
 	)
 	var i Notification
 	err := row.Scan(
@@ -59,8 +63,50 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.ProjectID,
 		&i.ReadAt,
 		&i.CreatedAt,
+		&i.TicketID,
+		&i.DeliverableID,
 	)
 	return i, err
+}
+
+const listDeliverableNotificationRecipients = `-- name: ListDeliverableNotificationRecipients :many
+SELECT DISTINCT u.id
+FROM users u
+JOIN deliverables d ON d.id = $1::uuid
+LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
+LEFT JOIN project_members pm ON pm.project_id = d.project_id AND pm.user_id = u.id
+WHERE u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+  AND u.role <> 'client'
+  AND u.id <> $2
+  AND (u.role = 'admin' OR pm.user_id IS NOT NULL OR u.id = v.submitted_by)
+`
+
+type ListDeliverableNotificationRecipientsParams struct {
+	DeliverableID uuid.UUID `json:"deliverable_id"`
+	ActorID       uuid.UUID `json:"actor_id"`
+}
+
+// Qui prevenir quand le client tranche un livrable : les administrateurs,
+// l'equipe du projet et la personne qui a depose la version.
+func (q *Queries) ListDeliverableNotificationRecipients(ctx context.Context, arg ListDeliverableNotificationRecipientsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listDeliverableNotificationRecipients, arg.DeliverableID, arg.ActorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNotificationRecipients = `-- name: ListNotificationRecipients :many
@@ -105,7 +151,7 @@ func (q *Queries) ListNotificationRecipients(ctx context.Context, arg ListNotifi
 
 const listNotifications = `-- name: ListNotifications :many
 SELECT
-    n.id, n.user_id, n.actor_id, n.kind, n.payload, n.task_id, n.project_id, n.read_at, n.created_at,
+    n.id, n.user_id, n.actor_id, n.kind, n.payload, n.task_id, n.project_id, n.read_at, n.created_at, n.ticket_id, n.deliverable_id,
     u.firstname  AS actor_firstname,
     u.lastname   AS actor_lastname,
     u.avatar_url AS actor_avatar_url
@@ -133,6 +179,8 @@ type ListNotificationsRow struct {
 	ProjectID      *uuid.UUID `json:"project_id"`
 	ReadAt         *time.Time `json:"read_at"`
 	CreatedAt      time.Time  `json:"created_at"`
+	TicketID       *uuid.UUID `json:"ticket_id"`
+	DeliverableID  *uuid.UUID `json:"deliverable_id"`
 	ActorFirstname *string    `json:"actor_firstname"`
 	ActorLastname  *string    `json:"actor_lastname"`
 	ActorAvatarUrl *string    `json:"actor_avatar_url"`
@@ -162,6 +210,8 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.ProjectID,
 			&i.ReadAt,
 			&i.CreatedAt,
+			&i.TicketID,
+			&i.DeliverableID,
 			&i.ActorFirstname,
 			&i.ActorLastname,
 			&i.ActorAvatarUrl,
@@ -169,6 +219,47 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketNotificationRecipients = `-- name: ListTicketNotificationRecipients :many
+SELECT DISTINCT u.id
+FROM users u
+JOIN tickets t ON t.id = $1::uuid
+WHERE u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+  AND u.role <> 'client'
+  AND u.id <> $2
+  AND (u.role = 'admin' OR u.id = t.assignee_id OR u.id = t.created_by)
+`
+
+type ListTicketNotificationRecipientsParams struct {
+	TicketID uuid.UUID `json:"ticket_id"`
+	ActorID  uuid.UUID `json:"actor_id"`
+}
+
+// Qui prevenir pour un geste pose sur un ticket : les administrateurs, la
+// personne qui le traite et celle qui l'a ouvert.
+//
+// Les comptes du portail sont ecartes : la cloche est un outil du
+// back-office, le client suit son ticket depuis le portail.
+func (q *Queries) ListTicketNotificationRecipients(ctx context.Context, arg ListTicketNotificationRecipientsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listTicketNotificationRecipients, arg.TicketID, arg.ActorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

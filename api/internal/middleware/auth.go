@@ -18,6 +18,10 @@ const AccessCookieName = "piilot_access"
 // claimsKey indexe les claims dans les locals de la requete.
 const claimsKey = "auth.claims"
 
+// guardKey indexe le garde lui-meme, pour que Can puisse interroger les
+// permissions depuis un handler sans qu'on lui passe le garde.
+const guardKey = "auth.guard"
+
 // PermissionChecker repond a « ce role detient-il cette permission » et a « ce
 // compte est-il toujours actif, avec quel role ».
 //
@@ -69,6 +73,7 @@ func (g *Guard) Authenticated(c fiber.Ctx) error {
 	current := *claims
 	current.Role = role
 	c.Locals(claimsKey, &current)
+	c.Locals(guardKey, g)
 
 	return c.Next()
 }
@@ -123,6 +128,30 @@ func (g *Guard) RequirePermission(permission string) fiber.Handler {
 
 		return c.Next()
 	}
+}
+
+// Can dit si l'appelant detient une permission, sans refuser la requete.
+//
+// Pour les ecrans dont une partie seulement depend d'un droit : la liste des
+// projets se lit avec `projects.read`, ses heures vendues avec `budgets.read`.
+// Refuser toute la liste pour un champ serait trop ; le montrer a tous, faux.
+func Can(c fiber.Ctx, permission string) (bool, error) {
+	claims, ok := ClaimsFrom(c)
+	if !ok {
+		return false, domain.ErrUnauthorized
+	}
+
+	g, ok := c.Locals(guardKey).(*Guard)
+	if !ok {
+		return false, domain.ErrUnauthorized
+	}
+
+	granted, err := g.permissions.HasPermission(c.Context(), claims.Role, permission)
+	if err != nil {
+		return false, domain.ErrInternal.WithCause(err)
+	}
+
+	return granted, nil
 }
 
 // ClaimsFrom lit les claims poses par Authenticated.

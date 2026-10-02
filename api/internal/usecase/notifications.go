@@ -30,6 +30,14 @@ const (
 	NotifyTaskCommented     = "task_commented"
 	NotifyTaskDueChanged    = "task_due_changed"
 	NotifyProjectCreated    = "project_created"
+
+	NotifyTicketCreated       = "ticket_created"
+	NotifyTicketAssigned      = "ticket_assigned"
+	NotifyTicketReplied       = "ticket_replied"
+	NotifyTicketStatusChanged = "ticket_status_changed"
+
+	NotifyDeliverableValidated = "deliverable_validated"
+	NotifyDeliverableFeedback  = "deliverable_feedback"
 )
 
 // Notification est une ligne du panneau.
@@ -42,9 +50,13 @@ type Notification struct {
 	Payload   map[string]any `json:"payload"`
 	TaskID    *uuid.UUID     `json:"task_id"`
 	ProjectID *uuid.UUID     `json:"project_id"`
-	Actor     *Person        `json:"actor"`
-	ReadAt    *time.Time     `json:"read_at"`
-	CreatedAt time.Time      `json:"created_at"`
+	// Ticket ou livrable vise, pour les notifications qui en parlent : l'ecran
+	// mene a la fiche du ticket, ou a la liste des livrables.
+	TicketID      *uuid.UUID `json:"ticket_id"`
+	DeliverableID *uuid.UUID `json:"deliverable_id"`
+	Actor         *Person    `json:"actor"`
+	ReadAt        *time.Time `json:"read_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // NotificationFeed est le contenu du panneau a son ouverture.
@@ -97,11 +109,13 @@ func (s *NotificationService) Feed(
 		_ = json.Unmarshal(row.Payload, &payload)
 
 		items = append(items, Notification{
-			ID:        row.ID,
-			Kind:      row.Kind,
-			Payload:   payload,
-			TaskID:    row.TaskID,
-			ProjectID: row.ProjectID,
+			ID:            row.ID,
+			Kind:          row.Kind,
+			Payload:       payload,
+			TaskID:        row.TaskID,
+			ProjectID:     row.ProjectID,
+			TicketID:      row.TicketID,
+			DeliverableID: row.DeliverableID,
 			Actor: personFromNullable(
 				row.ActorID, row.ActorFirstname, row.ActorLastname, row.ActorAvatarUrl,
 			),
@@ -161,12 +175,6 @@ type TaskEvent struct {
 // Prend les requetes en parametre pour s'executer dans la transaction de
 // l'appelant : la notification et le geste qu'elle annonce tombent ou
 // aboutissent ensemble.
-//
-// La diffusion, elle, part tout de suite, avant la fin de la transaction. Si
-// celle-ci echoue apres coup, un navigateur aura ete reveille pour rien : il
-// rechargera et ne verra rien de neuf. L'inverse — diffuser apres le commit —
-// demanderait de porter la liste des messages jusqu'apres la transaction, a
-// travers huit points d'appel, pour eviter un cas qui ne coute qu'une requete.
 func notifyTask(
 	ctx context.Context,
 	q *db.Queries,
@@ -187,29 +195,65 @@ func notifyTask(
 		recipients = found
 	}
 
-	if len(recipients) == 0 {
+	return deliver(ctx, q, bus, notice{
+		Kind:       event.Kind,
+		ActorID:    event.ActorID,
+		Payload:    event.Payload,
+		TaskID:     &event.TaskID,
+		ProjectID:  &event.ProjectID,
+		Recipients: recipients,
+	})
+}
+
+// notice est une notification prete a ecrire, quel que soit l'objet dont elle
+// parle.
+type notice struct {
+	Kind          string
+	ActorID       uuid.UUID
+	Payload       map[string]any
+	TaskID        *uuid.UUID
+	ProjectID     *uuid.UUID
+	TicketID      *uuid.UUID
+	DeliverableID *uuid.UUID
+	Recipients    []uuid.UUID
+}
+
+// deliver ecrit une ligne par destinataire et reveille leurs flux.
+//
+// La diffusion part tout de suite, avant la fin de la transaction. Si
+// celle-ci echoue apres coup, un navigateur aura ete reveille pour rien : il
+// rechargera et ne verra rien de neuf. L'inverse — diffuser apres le commit —
+// demanderait de porter la liste des messages jusqu'apres la transaction, a
+// travers chaque point d'appel, pour eviter un cas qui ne coute qu'une requete.
+func deliver(ctx context.Context, q *db.Queries, bus Bus, n notice) error {
+	if len(n.Recipients) == 0 {
 		return nil
 	}
 
-	payload, err := json.Marshal(event.Payload)
+	payload, err := json.Marshal(n.Payload)
 	if err != nil {
 		return fmt.Errorf("encodage de la notification : %w", err)
 	}
 
-	for _, userID := range recipients {
+	seen := make(map[uuid.UUID]bool, len(n.Recipients))
+
+	for _, userID := range n.Recipients {
 		// L'auteur n'est jamais prevenu de son propre geste, y compris quand
-		// les destinataires sont imposes.
-		if userID == event.ActorID {
+		// les destinataires sont imposes. Ni prevenu deux fois du meme.
+		if userID == n.ActorID || seen[userID] {
 			continue
 		}
+		seen[userID] = true
 
 		row, err := q.CreateNotification(ctx, db.CreateNotificationParams{
-			UserID:    userID,
-			ActorID:   &event.ActorID,
-			Kind:      event.Kind,
-			Payload:   payload,
-			TaskID:    &event.TaskID,
-			ProjectID: &event.ProjectID,
+			UserID:        userID,
+			ActorID:       &n.ActorID,
+			Kind:          n.Kind,
+			Payload:       payload,
+			TaskID:        n.TaskID,
+			ProjectID:     n.ProjectID,
+			TicketID:      n.TicketID,
+			DeliverableID: n.DeliverableID,
 		})
 		if err != nil {
 			return fmt.Errorf("ecriture de la notification : %w", err)

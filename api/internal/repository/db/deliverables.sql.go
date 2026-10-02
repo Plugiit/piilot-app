@@ -212,6 +212,29 @@ func (q *Queries) GetDeliverable(ctx context.Context, id uuid.UUID) (GetDelivera
 	return i, err
 }
 
+const getDeliverableNotice = `-- name: GetDeliverableNotice :one
+SELECT d.title, p.name AS project_name, coalesce(v.numero, 0)::integer AS numero
+FROM deliverables d
+JOIN projects p ON p.id = d.project_id
+LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
+WHERE d.id = $1
+`
+
+type GetDeliverableNoticeRow struct {
+	Title       string `json:"title"`
+	ProjectName string `json:"project_name"`
+	Numero      int32  `json:"numero"`
+}
+
+// De quoi ecrire la notification d'une decision : le titre, le projet et le
+// numero de la version tranchee, figes au moment du geste.
+func (q *Queries) GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error) {
+	row := q.db.QueryRow(ctx, getDeliverableNotice, id)
+	var i GetDeliverableNoticeRow
+	err := row.Scan(&i.Title, &i.ProjectName, &i.Numero)
+	return i, err
+}
+
 const listDeliverableVersions = `-- name: ListDeliverableVersions :many
 SELECT
     v.id,
