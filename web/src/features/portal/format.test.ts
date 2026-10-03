@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fileSize, since } from '@/features/portal/format'
+import { fileSize, portalTicketStatus, since } from '@/features/portal/format'
 
 const NOW = new Date('2026-10-03T12:00:00')
 
@@ -18,5 +18,14 @@ describe('fileSize', () => {
     expect(fileSize(900)).toBe('900 o')
     expect(fileSize(20_480)).toBe('20 Ko')
     expect(fileSize(3_670_016)).toBe('3,5 Mo')
+  })
+})
+
+describe('portalTicketStatus', () => {
+  it('regroupe les étapes internes en mots du client', () => {
+    expect(portalTicketStatus('backlog').label).toBe(portalTicketStatus('todo').label)
+    expect(portalTicketStatus('in_progress').label).toBe('En cours de traitement')
+    expect(portalTicketStatus('in_review').label).toBe('En cours de traitement')
+    expect(portalTicketStatus('done').label).toBe('Résolue')
   })
 })
