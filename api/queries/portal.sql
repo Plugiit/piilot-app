@@ -125,7 +125,7 @@ WHERE u.id = sqlc.arg('user_id')
 
 -- name: PortalGetFile :one
 -- Un fichier que l'appelant peut telecharger : partage sur un de ses projets,
--- ou porte par une version d'un de ses livrables.
+-- porte par une version d'un de ses livrables, ou joint a un de ses tickets.
 SELECT a.*
 FROM users u
 JOIN projects p ON p.client_id = u.client_id AND p.deleted_at IS NULL AND NOT p.is_internal
@@ -141,6 +141,11 @@ WHERE u.id = sqlc.arg('user_id')
           FROM deliverable_versions v
           JOIN deliverables d ON d.id = v.deliverable_id AND d.deleted_at IS NULL
           WHERE v.attachment_id = a.id AND d.project_id = p.id
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM tickets t
+          WHERE t.id = a.ticket_id AND t.project_id = p.id AND t.client_visible AND t.deleted_at IS NULL
       )
   )
 LIMIT 1;

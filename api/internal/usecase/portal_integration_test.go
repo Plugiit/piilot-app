@@ -63,7 +63,7 @@ func newPortal(t *testing.T, pool *pgxpool.Pool) (*usecase.PortalService, *useca
 	}
 	deliverables := usecase.NewDeliverableService(pool, nil)
 
-	return usecase.NewPortalService(pool, files, deliverables), deliverables, files
+	return usecase.NewPortalService(pool, files, 1<<20, deliverables, usecase.NewTicketService(pool, nil)), deliverables, files
 }
 
 // saveFile depose un fichier de projet, partage ou non.

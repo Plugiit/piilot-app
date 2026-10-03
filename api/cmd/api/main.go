@@ -114,6 +114,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// decision du client passe par les memes notifications et le meme journal.
 	deliverableService := usecase.NewDeliverableService(pool, notifyBus)
 	deliverableService.SetMail(cfg.PublicBaseURL, sender.Configured())
+	ticketService := usecase.NewTicketService(pool, notifyBus)
+	ticketService.SetMail(cfg.PublicBaseURL, sender.Configured())
 
 	clientService := usecase.NewClientService(pool)
 	contactService := usecase.NewContactService(pool)
@@ -134,9 +136,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Contacts: handler.NewContacts(contactService),
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
-		Tickets:       handler.NewTickets(usecase.NewTicketService(pool, notifyBus)),
+		Tickets:       handler.NewTickets(ticketService),
 		Deliverables:  handler.NewDeliverables(deliverableService),
-		Portal:        handler.NewPortal(usecase.NewPortalService(pool, files, deliverableService)),
+		Portal:        handler.NewPortal(usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)),
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),

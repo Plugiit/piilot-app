@@ -1,0 +1,5 @@
+{{define "content"}}<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Bonjour{{if .Firstname}} {{.Firstname}}{{end}},</p>
+<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">{{.Lead}}</p>
+{{if .Quote}}<p style="margin:0 0 16px 0;padding:10px 14px;border-left:3px solid #e3e4e6;background:#fafafa;font-size:14px;line-height:1.6;color:#4b4b4f;white-space:pre-line;">{{.Quote}}</p>{{end}}
+{{template "button" .}}
+<p style="margin:0;font-size:13px;line-height:1.6;color:#73757c;">{{.Footer}}</p>{{end}}

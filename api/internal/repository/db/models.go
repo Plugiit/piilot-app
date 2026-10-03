@@ -53,6 +53,7 @@ type Attachment struct {
 	CreatedAt        time.Time  `json:"created_at"`
 	TaskID           *uuid.UUID `json:"task_id"`
 	SharedWithClient bool       `json:"shared_with_client"`
+	TicketID         *uuid.UUID `json:"ticket_id"`
 }
 
 type Client struct {
@@ -402,19 +403,20 @@ type TaskService struct {
 }
 
 type Ticket struct {
-	ID          uuid.UUID  `json:"id"`
-	Numero      int64      `json:"numero"`
-	ProjectID   uuid.UUID  `json:"project_id"`
-	Subject     string     `json:"subject"`
-	Description string     `json:"description"`
-	Tracker     string     `json:"tracker"`
-	Status      string     `json:"status"`
-	Priority    string     `json:"priority"`
-	AssigneeID  *uuid.UUID `json:"assignee_id"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at"`
+	ID            uuid.UUID  `json:"id"`
+	Numero        int64      `json:"numero"`
+	ProjectID     uuid.UUID  `json:"project_id"`
+	Subject       string     `json:"subject"`
+	Description   string     `json:"description"`
+	Tracker       string     `json:"tracker"`
+	Status        string     `json:"status"`
+	Priority      string     `json:"priority"`
+	AssigneeID    *uuid.UUID `json:"assignee_id"`
+	CreatedBy     *uuid.UUID `json:"created_by"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at"`
+	ClientVisible bool       `json:"client_visible"`
 }
 
 type TicketEvent struct {

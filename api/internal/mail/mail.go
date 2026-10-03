@@ -64,6 +64,10 @@ type view struct {
 	Deliverable string
 	Version     int
 	IsFirst     bool
+
+	Lead   string
+	Quote  string
+	Footer string
 }
 
 // Invitation compose l'e-mail d'invitation.
@@ -129,6 +133,75 @@ func DeliverableSubmitted(to, firstname, projectName, deliverable string, versio
 		url)
 
 	return compose("deliverable_submitted", to, v, "deliverable_submitted.html", text)
+}
+
+// TicketToClient previent la personne qui a ouvert une demande : l'agence a
+// repondu, ou la demande a change de statut. `status` est le libelle du
+// nouveau statut, vide quand il n'a pas bouge ; `quote`, la reponse, vide
+// quand il n'y en a pas de publique.
+func TicketToClient(to, firstname string, numero int64, subject, quote, status, url string) (Message, error) {
+	ref := fmt.Sprintf("#%d « %s »", numero, subject)
+
+	var title, lead string
+	switch {
+	case quote != "" && status != "":
+		title = fmt.Sprintf("Réponse sur votre demande #%d", numero)
+		lead = fmt.Sprintf("L'agence a répondu à votre demande %s, qui passe au statut « %s ».", ref, status)
+	case quote != "":
+		title = fmt.Sprintf("Réponse sur votre demande #%d", numero)
+		lead = fmt.Sprintf("L'agence a répondu à votre demande %s.", ref)
+	default:
+		title = fmt.Sprintf("Votre demande #%d : %s", numero, strings.ToLower(status))
+		lead = fmt.Sprintf("Votre demande %s passe au statut « %s ».", ref, status)
+	}
+
+	v := view{
+		Subject:   title + " — " + subject,
+		Title:     title,
+		Action:    "Voir la demande",
+		URL:       url,
+		Firstname: firstname,
+		Lead:      lead,
+		Quote:     quote,
+		Footer:    "Vous pouvez répondre directement depuis votre espace client.",
+	}
+
+	text := fmt.Sprintf("Bonjour%s,\n\n%s\n%s\nVoir la demande et répondre :\n\n%s\n",
+		prefixed(firstname), lead, ifElse(quote != "", "\n« "+quote+" »\n", ""), url)
+
+	return compose("ticket_client", to, v, "ticket.html", text)
+}
+
+// TicketToTeam previent l'agence d'une demande deposee dans le portail, ou de
+// la reponse d'un client.
+func TicketToTeam(to, firstname string, created bool, numero int64, subject, project, client, author, quote, url string) (Message, error) {
+	ref := fmt.Sprintf("#%d « %s »", numero, subject)
+	who := ifElse(author != "", author+" ("+client+")", client)
+
+	var title, lead string
+	if created {
+		title = fmt.Sprintf("Nouvelle demande #%d de %s", numero, client)
+		lead = fmt.Sprintf("%s a ouvert la demande %s sur le projet %s.", who, ref, project)
+	} else {
+		title = fmt.Sprintf("Réponse du client sur #%d", numero)
+		lead = fmt.Sprintf("%s a répondu sur la demande %s.", who, ref)
+	}
+
+	v := view{
+		Subject:   title + " — " + subject,
+		Title:     title,
+		Action:    "Ouvrir le ticket",
+		URL:       url,
+		Firstname: firstname,
+		Lead:      lead,
+		Quote:     quote,
+		Footer:    "Répondez depuis Piilot : le client voit votre réponse dans son espace et la reçoit par e-mail.",
+	}
+
+	text := fmt.Sprintf("Bonjour%s,\n\n%s\n%s\nOuvrir le ticket :\n\n%s\n",
+		prefixed(firstname), lead, ifElse(quote != "", "\n« "+quote+" »\n", ""), url)
+
+	return compose("ticket_team", to, v, "ticket.html", text)
 }
 
 func compose(kind, to string, v view, content, text string) (Message, error) {

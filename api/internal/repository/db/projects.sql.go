@@ -171,7 +171,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 const createProjectFile = `-- name: CreateProjectFile :one
 INSERT INTO attachments (project_id, filename, content_type, size_bytes, storage_key, uploaded_by)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client
+RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id
 `
 
 type CreateProjectFileParams struct {
@@ -204,6 +204,7 @@ func (q *Queries) CreateProjectFile(ctx context.Context, arg CreateProjectFilePa
 		&i.CreatedAt,
 		&i.TaskID,
 		&i.SharedWithClient,
+		&i.TicketID,
 	)
 	return i, err
 }
@@ -211,7 +212,7 @@ func (q *Queries) CreateProjectFile(ctx context.Context, arg CreateProjectFilePa
 const createTaskFile = `-- name: CreateTaskFile :one
 INSERT INTO attachments (task_id, filename, content_type, size_bytes, storage_key, uploaded_by)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client
+RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id
 `
 
 type CreateTaskFileParams struct {
@@ -244,12 +245,13 @@ func (q *Queries) CreateTaskFile(ctx context.Context, arg CreateTaskFileParams) 
 		&i.CreatedAt,
 		&i.TaskID,
 		&i.SharedWithClient,
+		&i.TicketID,
 	)
 	return i, err
 }
 
 const deleteAttachment = `-- name: DeleteAttachment :one
-DELETE FROM attachments WHERE id = $1 RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client
+DELETE FROM attachments WHERE id = $1 RETURNING id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id
 `
 
 // Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
@@ -268,12 +270,13 @@ func (q *Queries) DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachmen
 		&i.CreatedAt,
 		&i.TaskID,
 		&i.SharedWithClient,
+		&i.TicketID,
 	)
 	return i, err
 }
 
 const getAttachment = `-- name: GetAttachment :one
-SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client FROM attachments WHERE id = $1
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id FROM attachments WHERE id = $1
 `
 
 // Une piece jointe se lit par son seul identifiant, quel que soit son
@@ -293,6 +296,7 @@ func (q *Queries) GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, 
 		&i.CreatedAt,
 		&i.TaskID,
 		&i.SharedWithClient,
+		&i.TicketID,
 	)
 	return i, err
 }
@@ -584,7 +588,7 @@ func (q *Queries) ListMembersOfProjects(ctx context.Context, projectIds []uuid.U
 }
 
 const listProjectFiles = `-- name: ListProjectFiles :many
-SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client FROM attachments WHERE project_id = $1 ORDER BY created_at DESC
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id FROM attachments WHERE project_id = $1 ORDER BY created_at DESC
 `
 
 // Pieces jointes d'un projet, la derniere deposee en premier.
@@ -608,6 +612,7 @@ func (q *Queries) ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([
 			&i.CreatedAt,
 			&i.TaskID,
 			&i.SharedWithClient,
+			&i.TicketID,
 		); err != nil {
 			return nil, err
 		}
@@ -827,7 +832,7 @@ func (q *Queries) ListServicesOfProjects(ctx context.Context, projectIds []uuid.
 }
 
 const listTaskFiles = `-- name: ListTaskFiles :many
-SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client FROM attachments
+SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id FROM attachments
 WHERE task_id = ANY($1::uuid[])
 ORDER BY task_id, created_at DESC
 `
@@ -853,6 +858,7 @@ func (q *Queries) ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Att
 			&i.CreatedAt,
 			&i.TaskID,
 			&i.SharedWithClient,
+			&i.TicketID,
 		); err != nil {
 			return nil, err
 		}

@@ -214,12 +214,12 @@ LIMIT sqlc.arg('page_size');
 WITH nouveau AS (
     INSERT INTO tickets (
         project_id, subject, description, tracker, status, priority,
-        assignee_id, created_by
+        assignee_id, created_by, client_visible
     )
     VALUES (
         sqlc.arg('project_id'), sqlc.arg('subject'), sqlc.arg('description'),
         sqlc.arg('tracker'), sqlc.arg('status'), sqlc.arg('priority'),
-        sqlc.narg('assignee_id'), sqlc.narg('created_by')
+        sqlc.narg('assignee_id'), sqlc.narg('created_by'), sqlc.arg('client_visible')
     )
     RETURNING *
 )
@@ -248,6 +248,7 @@ SELECT
     t.numero,
     t.subject,
     t.description,
+    t.client_visible,
     t.tracker,
     t.status,
     t.priority,
