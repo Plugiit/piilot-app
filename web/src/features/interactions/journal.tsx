@@ -77,7 +77,16 @@ function eventSentence(item: Interaction): string {
  * La date vaut maintenant par defaut, mais se corrige : on note souvent un
  * appel apres coup.
  */
-export function InteractionForm({ clientId }: { clientId: string }) {
+export function InteractionForm({
+  clientId,
+  autoFocus = false,
+  onSaved,
+}: {
+  clientId: string
+  autoFocus?: boolean
+  /** Appele apres l'enregistrement : la fenetre d'ajout se referme. */
+  onSaved?: () => void
+}) {
   const [kind, setKind] = useState<InteractionValues['kind']>('note')
   const [body, setBody] = useState('')
   const [when, setWhen] = useState(nowLocal)
@@ -110,6 +119,7 @@ export function InteractionForm({ clientId }: { clientId: string }) {
           setWhen(nowLocal())
           setWhenEdited(false)
           toast.success(`${INTERACTION_KIND[kind].label} ajouté${kind === 'note' ? 'e' : ''} au journal`)
+          onSaved?.()
         },
         onError: (err) => toast.error(err instanceof HttpError ? err.message : 'Enregistrement impossible'),
       },
@@ -166,6 +176,7 @@ export function InteractionForm({ clientId }: { clientId: string }) {
 
       <Textarea
         rows={2}
+        autoFocus={autoFocus}
         value={body}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={(event) => {
