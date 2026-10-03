@@ -4,7 +4,8 @@ import { z } from 'zod'
 
 import { FilterMenu, type Option } from '@/components/filter-menu'
 import { PageFrame } from '@/components/layout/page-frame'
-import { InteractionForm, InteractionList } from '@/features/interactions/journal'
+import { InteractionList } from '@/features/interactions/journal'
+import { NewInteractionDialog } from '@/features/interactions/new-interaction-dialog'
 import { clientListQuery } from '@/features/projects/api'
 import { can } from '@/lib/auth'
 
@@ -49,6 +50,8 @@ function InteractionsPage() {
   return (
     <PageFrame title="Interactions">
       <div className="flex min-h-full flex-col gap-4 p-4">
+        {/* Les filtres a gauche lisent le journal ; l'ajout, a droite, y ecrit.
+            Deux gestes, deux places. */}
         <div className="flex flex-wrap items-center gap-2">
           <FilterMenu
             name="Client"
@@ -64,17 +67,15 @@ function InteractionsPage() {
             options={SOURCES}
             onChange={(value) => setFilter({ source: value as 'manual' | 'events' | undefined })}
           />
+
+          {can(user, 'clients.write') && (
+            <div className="ml-auto">
+              <NewInteractionDialog />
+            </div>
+          )}
         </div>
 
         <div className="grid max-w-[960px] gap-4">
-          {/* On note depuis l'ecran global une fois le client choisi : une
-              interaction appartient toujours a un client. */}
-          {search.client !== undefined && can(user, 'clients.write') && (
-            <section className="rounded-[12px] border border-[#e8e8e9] bg-white p-3">
-              <InteractionForm clientId={search.client} />
-            </section>
-          )}
-
           <section className="rounded-[12px] border border-[#e8e8e9] bg-white px-3 py-1">
             <InteractionList clientId={search.client} source={search.source} showClient={search.client === undefined} />
           </section>
