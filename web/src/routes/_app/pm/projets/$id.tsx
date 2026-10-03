@@ -12,6 +12,7 @@ import {
   Mail01Icon,
   MoreHorizontalIcon,
   Settings02Icon,
+  Share08Icon,
   StarIcon,
   Ticket02Icon,
 } from '@hugeicons/core-free-icons'
@@ -40,6 +41,7 @@ import {
   projectDetailQuery,
   fileUrl,
   useDeleteProjectFile,
+  useShareProjectFile,
   useToggleFavorite,
   useUpdateProject,
   useUploadProjectFile,
@@ -235,6 +237,7 @@ function Attachments({ project }: { project: ProjectDetail }) {
   const input = useRef<HTMLInputElement>(null)
   const upload = useUploadProjectFile(project.id)
   const remove = useDeleteProjectFile(project.id)
+  const share = useShareProjectFile(project.id)
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -249,6 +252,36 @@ function Attachments({ project }: { project: ProjectDetail }) {
           </a>
           <span aria-hidden className="size-1 rounded-full bg-[#d0d1d3]" />
           <span className="text-[14px] text-[#73757c]">{formatSize(file.size_bytes)}</span>
+          {/* Interne par defaut : partage, le fichier apparait dans le portail
+              du client. La pastille le dit sans survol. */}
+          <button
+            type="button"
+            aria-pressed={file.shared_with_client}
+            title={file.shared_with_client ? 'Visible dans le portail client — cliquer pour le reprendre' : 'Interne — cliquer pour le partager avec le client'}
+            disabled={share.isPending}
+            onClick={() =>
+              share.mutate(
+                { fileId: file.id, shared: !file.shared_with_client },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      file.shared_with_client
+                        ? `« ${file.filename} » n’est plus visible du client`
+                        : `« ${file.filename} » est visible dans le portail client`,
+                    ),
+                },
+              )
+            }
+            className={cn(
+              'flex cursor-pointer items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors',
+              file.shared_with_client
+                ? 'border-[#afe3ca] bg-[#dcf7ea] text-[#006f1f]'
+                : 'border-[#e8e8e9] text-[#8d8d8d] hover:border-[#d0d1d3] hover:text-[#1b1b1b]',
+            )}
+          >
+            <HugeiconsIcon icon={Share08Icon} size={11} strokeWidth={1.8} />
+            {file.shared_with_client ? 'Partagé' : 'Interne'}
+          </button>
           <button
             type="button"
             aria-label={`Supprimer ${file.filename}`}
