@@ -251,3 +251,11 @@ export type TemplateTask = components['schemas']['TemplateTask']
 /** Journal de la relation client. */
 export type Interaction = components['schemas']['Interaction']
 export type InteractionKind = Interaction['kind']
+
+/** Portail client. */
+export type PortalProject = components['schemas']['PortalProject']
+export type PortalProjectDetail = components['schemas']['PortalProjectDetail']
+export type PortalDeliverable = components['schemas']['PortalDeliverable']
+export type PortalDeliverableDetail = components['schemas']['PortalDeliverableDetail']
+export type PortalVersion = components['schemas']['PortalVersion']
+export type PortalFile = components['schemas']['PortalFile']

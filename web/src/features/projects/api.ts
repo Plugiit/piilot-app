@@ -274,6 +274,27 @@ export function useDeleteProjectFile(projectId: string) {
 }
 
 /**
+ * Partage un fichier de projet avec le client, ou le reprend. Interne par
+ * defaut : un fichier n'apparait dans le portail que quand on le decide.
+ */
+export function useShareProjectFile(projectId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ fileId, shared }: { fileId: string; shared: boolean }) =>
+      unwrap(
+        await api.PATCH('/api/v1/admin/files/{id}', {
+          params: { path: { id: fileId } },
+          body: { shared_with_client: shared },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) })
+    },
+  })
+}
+
+/**
  * Adresse de telechargement d'une piece jointe.
  *
  * Commune aux projets et aux taches : l'endpoint l'est aussi, une piece jointe

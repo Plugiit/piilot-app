@@ -847,7 +847,11 @@ export interface paths {
         delete: operations["deleteAdminFile"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Partager un fichier avec le client
+         * @description Un fichier de projet est interne par defaut ; partage, il apparait dans le portail du client. Les pieces jointes de taches restent internes. Exige projects.write.
+         */
+        patch: operations["shareFile"];
         trace?: never;
     };
     "/api/v1/admin/tasks/{id}/files": {
@@ -1985,6 +1989,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes projets
+         * @description Les projets du client de l'appelant, avec leur prochain jalon et leur derniere activite. Les projets internes n'y figurent pas. Exige projects.read.
+         */
+        get: operations["listPortalProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Un projet
+         * @description Jalons, livrables soumis et fichiers partages. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige projects.read.
+         */
+        get: operations["getPortalProject"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/deliverables/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Un livrable
+         * @description Le livrable et le fil de ses versions. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige deliverables.read.
+         */
+        get: operations["getPortalDeliverable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/deliverables/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Repondre sur un livrable
+         * @description Valide la version courante ou demande des retours, qui exigent un commentaire. L'equipe du projet est notifiee. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige deliverables.validate.
+         */
+        post: operations["decidePortalDeliverable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Telecharger un fichier
+         * @description Un fichier partage sur un projet du client, ou porte par une version d'un de ses livrables. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige projects.read.
+         */
+        get: operations["downloadPortalFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2592,6 +2696,8 @@ export interface components {
             size_bytes: number;
             /** Format: date-time */
             created_at: string;
+            /** @description Visible dans le portail client. Faux par defaut. */
+            shared_with_client: boolean;
         };
         /** @description Mise a jour partielle du compte appelant. Une cle absente laisse la valeur en place. Ni le role ni l'etat du compte n'y figurent : ce sont des droits, ils se changent depuis l'administration des comptes. */
         UpdateProfileRequest: {
@@ -3745,6 +3851,109 @@ export interface components {
             occurred_at?: string | null;
             /** Format: uuid */
             project_id?: string | null;
+        };
+        PortalMilestoneRef: {
+            title: string;
+            /** Format: date */
+            due_on: string | null;
+        };
+        PortalProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            progress: number;
+            /** Format: date */
+            starts_on: string | null;
+            /** Format: date */
+            due_on: string | null;
+            /** @description Livrables qui attendent la reponse du client. */
+            deliverables_pending: number;
+            next_milestone: components["schemas"]["PortalMilestoneRef"] | null;
+            /** Format: date-time */
+            last_activity_at: string;
+        };
+        PortalProjectList: {
+            items: components["schemas"]["PortalProject"][];
+        };
+        PortalDeliverable: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            /** @enum {string} */
+            status: "en_attente" | "valide" | "retours";
+            version: number;
+            url: string;
+            /** Format: uuid */
+            file_id: string | null;
+            /** Format: date-time */
+            submitted_at: string;
+            /** Format: date-time */
+            decided_at: string | null;
+            feedback: string;
+            milestone: string | null;
+        };
+        PortalFile: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            content_type: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PortalProjectDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            client_name: string;
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre";
+            progress: number;
+            /** Format: date */
+            starts_on: string | null;
+            /** Format: date */
+            due_on: string | null;
+            deliverables_pending: number;
+            /** @description Sous chaque jalon, les seuls livrables soumis. */
+            milestones: components["schemas"]["Milestone"][];
+            /** @description Livrables soumis : un brouillon n'est jamais montre. */
+            deliverables: components["schemas"]["PortalDeliverable"][];
+            /** @description Fichiers explicitement partages par l'agence. */
+            files: components["schemas"]["PortalFile"][];
+        };
+        PortalVersion: {
+            numero: number;
+            url: string;
+            /** Format: uuid */
+            file_id: string | null;
+            /** Format: date-time */
+            submitted_at: string;
+            /** @description Prenom de la personne qui a depose la version. */
+            submitted_by: string;
+            /** @enum {string} */
+            decision: "en_attente" | "valide" | "retours";
+            /** Format: date-time */
+            decided_at: string | null;
+            decided_by: string;
+            feedback: string;
+        };
+        PortalDeliverableDetail: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            project: components["schemas"]["DeliverableRef"];
+            milestone: string | null;
+            /** @enum {string} */
+            status: "en_attente" | "valide" | "retours";
+            /** @description De la plus recente a la plus ancienne. */
+            versions: components["schemas"]["PortalVersion"][];
         };
     };
     responses: {
@@ -5281,6 +5490,36 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    shareFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    shared_with_client: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Partage modifie */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
     uploadAdminTaskFile: {
         parameters: {
             query?: never;
@@ -6483,6 +6722,15 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Cette version a deja recu une reponse */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             422: components["responses"]["ValidationFailed"];
         };
     };
@@ -7469,6 +7717,146 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listPortalProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalProjectList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getPortalProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPortalDeliverable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Livrable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDeliverableDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    decidePortalDeliverable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "valide" | "retours";
+                    feedback?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Reponse enregistree */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDeliverableDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Cette version a deja recu une reponse */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    downloadPortalFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contenu du fichier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }
