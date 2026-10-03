@@ -41,8 +41,8 @@ deviennent des critères de sortie de la V1.
 | ✅ Livrée | 0.5.0 | Gestion des comptes | Admin | Création, invitations, rôles, mot de passe oublié |
 | ✅ Livrée | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |
 | ✅ Livrée | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
-| 📍 Actuelle | **0.8.0** | Portail : suivi | Client | Projets, jalons, validation des livrables |
-| ⏳ À venir | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
+| ✅ Livrée | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
+| 📍 Actuelle | **0.9.0** | Portail : tickets | Client | Dépôt et suivi des tickets |
 | ⏳ À venir | 1.0.0 | V1 | Tous | Recette et critères de sortie |
 <!-- /roadmap:table -->
 
