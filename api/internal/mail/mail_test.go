@@ -66,3 +66,25 @@ func TestValidateRefuseUnExpediteurInvalide(t *testing.T) {
 		t.Errorf("SMTP non configure : %v", err)
 	}
 }
+
+func TestDeliverableSubmittedDitLaVersion(t *testing.T) {
+	first, err := DeliverableSubmitted("c@example.fr", "Inès", "Refonte <Iris>", "Maquettes", 1, "https://p.test/client/livrables/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(first.Subject, "Nouveau livrable") || strings.Contains(first.Text, "version 1") {
+		t.Errorf("premiere version : %q / %q", first.Subject, first.Text)
+	}
+	if strings.Contains(first.HTML, "<Iris>") {
+		t.Error("le nom du projet n'est pas echappe")
+	}
+
+	second, err := DeliverableSubmitted("c@example.fr", "", "Refonte", "Maquettes", 2, "https://p.test/client/livrables/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(second.Subject, "Nouvelle version") || !strings.Contains(second.Text, "version 2") ||
+		!strings.Contains(second.Text, "https://p.test/client/livrables/x") {
+		t.Errorf("seconde version : %q / %q", second.Subject, second.Text)
+	}
+}

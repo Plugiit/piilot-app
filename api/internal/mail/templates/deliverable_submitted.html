@@ -1,0 +1,5 @@
+{{define "content"}}<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Bonjour{{if .Firstname}} {{.Firstname}}{{end}},</p>
+<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">{{if .IsFirst}}Un nouveau livrable vous attend{{else}}Une nouvelle version vous attend{{end}} pour le projet {{.ProjectName}} : <strong>{{.Deliverable}}</strong>{{if not .IsFirst}}, version {{.Version}}{{end}}.</p>
+<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Consultez-le dans votre espace client, puis validez-le ou dites-nous ce qui doit changer.</p>
+{{template "button" .}}
+<p style="margin:0;font-size:13px;line-height:1.6;color:#73757c;">Vous recevez cet e-mail parce que vous suivez les projets de votre entreprise dans Piilot.</p>{{end}}

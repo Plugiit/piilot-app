@@ -31,6 +31,7 @@ type ProjectService interface {
 	AddFile(ctx context.Context, projectID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
 	OpenFile(ctx context.Context, fileID uuid.UUID) (usecase.Attachment, io.ReadCloser, error)
 	DeleteFile(ctx context.Context, fileID uuid.UUID) error
+	ShareFile(ctx context.Context, fileID uuid.UUID, shared bool) error
 	SetFavorite(ctx context.Context, projectID, userID uuid.UUID, on bool) error
 	ListFavorites(ctx context.Context, viewer uuid.UUID) ([]usecase.ProjectShortcut, error)
 	ListClients(ctx context.Context, search *string, page, pageSize int) ([]usecase.ClientItem, error)
@@ -611,6 +612,30 @@ func (h *Projects) DownloadFile(c fiber.Ctx) error {
 	c.Set(fiber.HeaderContentDisposition, contentDisposition(file.Filename))
 
 	return c.SendStream(content, int(file.SizeBytes))
+}
+
+// ShareFile partage un fichier de projet avec le client, ou le reprend.
+func (h *Projects) ShareFile(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var body struct {
+		SharedWithClient *bool `json:"shared_with_client"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+	if body.SharedWithClient == nil {
+		return domain.ErrValidation.WithDetails(map[string]any{"shared_with_client": "Valeur attendue : true ou false"})
+	}
+
+	if err := h.svc.ShareFile(c.Context(), id, *body.SharedWithClient); err != nil {
+		return err
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // DeleteFile efface une piece jointe.

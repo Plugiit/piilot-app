@@ -130,7 +130,7 @@ type Querier interface {
 	// La clause sur `decision` rend la requete rejouable sans degat : une decision
 	// deja prise ne se reecrit pas, et l'appelant lit zero ligne touchee plutot que
 	// d'ecraser la date et l'auteur d'origine.
-	DecideDeliverableVersion(ctx context.Context, arg DecideDeliverableVersionParams) error
+	DecideDeliverableVersion(ctx context.Context, arg DecideDeliverableVersionParams) (int64, error)
 	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
 	// effacer le fichier du disque dans la foulee.
 	DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
@@ -397,6 +397,9 @@ type Querier interface {
 	// taches sont toujours les siennes — celles de toute l'agence noieraient le
 	// calendrier.
 	ListPlanning(ctx context.Context, arg ListPlanningParams) ([]ListPlanningRow, error)
+	// Les comptes du portail a prevenir pour un projet : ceux de son client,
+	// actifs. Les projets internes n'ont pas de client a prevenir.
+	ListPortalRecipientsOfProject(ctx context.Context, projectID uuid.UUID) ([]ListPortalRecipientsOfProjectRow, error)
 	// Comptes de portail rattaches au client. La colonne existe, l'ecran qui la
 	// remplit non : la fiche la montre pour que le jour ou on rattachera quelqu'un,
 	// ce soit visible.
@@ -609,6 +612,30 @@ type Querier interface {
 	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
 	// Le numero suivant, sous le verrou pose juste avant.
 	NextDeliverableVersionNumero(ctx context.Context, deliverableID uuid.UUID) (int32, error)
+	// Un livrable soumis d'un projet du client de l'appelant.
+	PortalGetDeliverable(ctx context.Context, arg PortalGetDeliverableParams) (PortalGetDeliverableRow, error)
+	// Un fichier que l'appelant peut telecharger : partage sur un de ses projets,
+	// ou porte par une version d'un de ses livrables.
+	PortalGetFile(ctx context.Context, arg PortalGetFileParams) (Attachment, error)
+	// Un projet du client de l'appelant. Aucune ligne s'il appartient a un autre.
+	PortalGetProject(ctx context.Context, arg PortalGetProjectParams) (PortalGetProjectRow, error)
+	// Les livrables soumis d'un projet. Un brouillon — rien encore de depose —
+	// ne regarde pas le client.
+	PortalListDeliverables(ctx context.Context, projectID uuid.UUID) ([]PortalListDeliverablesRow, error)
+	// Portail client.
+	//
+	// Chaque requete part de l'appelant : son compte, son role client, son client.
+	// L'isolation tient dans le SQL et non dans le code qui l'appelle — un
+	// identifiant de projet ou de livrable venu d'un autre client ne rend aucune
+	// ligne, exactement comme un identifiant qui n'existe pas.
+	//
+	// Les projets internes et les projets supprimes n'existent pas pour le portail.
+	// Les projets du client de l'appelant, les plus recemment actifs d'abord, avec
+	// leur prochain jalon et leur derniere activite. Les compteurs viennent des
+	// declencheurs ; les deux LATERAL sont bornes a une ligne par projet.
+	PortalListProjects(ctx context.Context, userID uuid.UUID) ([]PortalListProjectsRow, error)
+	// Les fichiers que l'agence a choisi de partager. Interne par defaut.
+	PortalListSharedFiles(ctx context.Context, projectID *uuid.UUID) ([]PortalListSharedFilesRow, error)
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
@@ -641,6 +668,9 @@ type Querier interface {
 	// Passage rate : on garde la derniere version connue, on note l'erreur.
 	SaveReleaseCheckError(ctx context.Context, error string) error
 	SaveUpdaterHeartbeat(ctx context.Context, arg SaveUpdaterHeartbeatParams) error
+	// Partage un fichier de projet avec le client, ou le reprend. Les pieces
+	// jointes de taches restent internes : le portail ne montre pas les taches.
+	SetAttachmentShared(ctx context.Context, arg SetAttachmentSharedParams) (int64, error)
 	// La version qui vient d'etre soumise devient celle que l'ecran montre.
 	SetDeliverableCurrentVersion(ctx context.Context, arg SetDeliverableCurrentVersionParams) error
 	// Rattache un livrable a un jalon de son propre projet, ou le detache. Le

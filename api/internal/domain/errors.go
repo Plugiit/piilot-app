@@ -46,6 +46,14 @@ func (e *Error) WithCause(err error) *Error {
 	return &clone
 }
 
+// WithMessage clone l'erreur avec un message propre au cas : le code reste
+// celui sur lequel les clients branchent, la phrase dit ce qui s'est passe.
+func (e *Error) WithMessage(message string) *Error {
+	clone := *e
+	clone.Message = message
+	return &clone
+}
+
 // WithDetails attache des details structures (erreurs de validation par champ).
 func (e *Error) WithDetails(details map[string]any) *Error {
 	clone := *e

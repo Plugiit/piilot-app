@@ -23,6 +23,10 @@
     {
       "name": "admin",
       "description": "Back-office, roles internes uniquement"
+    },
+    {
+      "name": "client",
+      "description": "Portail client : role client uniquement, isole par le client de l'appelant"
     }
   ],
   "paths": {
@@ -2637,6 +2641,65 @@
             "$ref": "#/components/responses/NotFound"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Partager un fichier avec le client",
+        "description": "Un fichier de projet est interne par defaut ; partage, il apparait dans le portail du client. Les pieces jointes de taches restent internes. Exige projects.write.",
+        "operationId": "shareFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "shared_with_client"
+                ],
+                "properties": {
+                  "shared_with_client": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Partage modifie"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
       }
     },
     "/api/v1/admin/tasks/{id}/files": {
@@ -4902,6 +4965,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Cette version a deja recu une reponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -6894,6 +6967,266 @@
           }
         }
       }
+    },
+    "/api/v1/client/projects": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Mes projets",
+        "description": "Les projets du client de l'appelant, avec leur prochain jalon et leur derniere activite. Les projets internes n'y figurent pas. Exige projects.read.",
+        "operationId": "listPortalProjects",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/client/projects/{id}": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Un projet",
+        "description": "Jalons, livrables soumis et fichiers partages. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige projects.read.",
+        "operationId": "getPortalProject",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/client/deliverables/{id}": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Un livrable",
+        "description": "Le livrable et le fil de ses versions. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige deliverables.read.",
+        "operationId": "getPortalDeliverable",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Livrable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalDeliverableDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/client/deliverables/{id}/decision": {
+      "post": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Repondre sur un livrable",
+        "description": "Valide la version courante ou demande des retours, qui exigent un commentaire. L'equipe du projet est notifiee. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige deliverables.validate.",
+        "operationId": "decidePortalDeliverable",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision"
+                ],
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "valide",
+                      "retours"
+                    ]
+                  },
+                  "feedback": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reponse enregistree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalDeliverableDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Cette version a deja recu une reponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/client/files/{id}": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Telecharger un fichier",
+        "description": "Un fichier partage sur un projet du client, ou porte par une version d'un de ses livrables. Isole par le client de l'appelant : un identifiant d'un autre client rend 404, comme un identifiant inconnu. Exige projects.read.",
+        "operationId": "downloadPortalFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contenu du fichier",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8667,7 +9000,8 @@
           "filename",
           "content_type",
           "size_bytes",
-          "created_at"
+          "created_at",
+          "shared_with_client"
         ],
         "properties": {
           "id": {
@@ -8688,6 +9022,10 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "shared_with_client": {
+            "type": "boolean",
+            "description": "Visible dans le portail client. Faux par defaut."
           }
         }
       },
@@ -12307,6 +12645,373 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          }
+        }
+      },
+      "PortalMilestoneRef": {
+        "type": "object",
+        "required": [
+          "title",
+          "due_on"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "PortalProject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "status",
+          "progress",
+          "starts_on",
+          "due_on",
+          "deliverables_pending",
+          "next_milestone",
+          "last_activity_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "deliverables_pending": {
+            "type": "integer",
+            "description": "Livrables qui attendent la reponse du client."
+          },
+          "next_milestone": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalMilestoneRef"
+              }
+            ],
+            "nullable": true
+          },
+          "last_activity_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PortalProjectList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalProject"
+            }
+          }
+        }
+      },
+      "PortalDeliverable": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "version",
+          "url",
+          "file_id",
+          "submitted_at",
+          "decided_at",
+          "feedback",
+          "milestone"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "en_attente",
+              "valide",
+              "retours"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "milestone": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PortalFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PortalProjectDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "client_name",
+          "status",
+          "progress",
+          "starts_on",
+          "due_on",
+          "deliverables_pending",
+          "milestones",
+          "deliverables",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre"
+            ]
+          },
+          "progress": {
+            "type": "integer"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "deliverables_pending": {
+            "type": "integer"
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Milestone"
+            },
+            "description": "Sous chaque jalon, les seuls livrables soumis."
+          },
+          "deliverables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalDeliverable"
+            },
+            "description": "Livrables soumis : un brouillon n'est jamais montre."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalFile"
+            },
+            "description": "Fichiers explicitement partages par l'agence."
+          }
+        }
+      },
+      "PortalVersion": {
+        "type": "object",
+        "required": [
+          "numero",
+          "url",
+          "file_id",
+          "submitted_at",
+          "submitted_by",
+          "decision",
+          "decided_at",
+          "decided_by",
+          "feedback"
+        ],
+        "properties": {
+          "numero": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "submitted_by": {
+            "type": "string",
+            "description": "Prenom de la personne qui a depose la version."
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "en_attente",
+              "valide",
+              "retours"
+            ]
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "feedback": {
+            "type": "string"
+          }
+        }
+      },
+      "PortalDeliverableDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "project",
+          "milestone",
+          "status",
+          "versions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "milestone": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "en_attente",
+              "valide",
+              "retours"
+            ]
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalVersion"
+            },
+            "description": "De la plus recente a la plus ancienne."
           }
         }
       }

@@ -59,6 +59,11 @@ type view struct {
 	Firstname  string
 	Inviter    string
 	ClientName string
+
+	ProjectName string
+	Deliverable string
+	Version     int
+	IsFirst     bool
 }
 
 // Invitation compose l'e-mail d'invitation.
@@ -98,6 +103,32 @@ func PasswordReset(to, firstname, url string, expires time.Time) (Message, error
 		prefixed(firstname), url, v.Expires)
 
 	return compose("password_reset", to, v, "password_reset.html", text)
+}
+
+// DeliverableSubmitted previent un compte du portail qu'un livrable attend sa
+// reponse : un nouveau livrable, ou une nouvelle version apres des retours.
+func DeliverableSubmitted(to, firstname, projectName, deliverable string, version int, url string) (Message, error) {
+	first := version <= 1
+	v := view{
+		Subject:     ifElse(first, "Nouveau livrable à valider : ", "Nouvelle version à valider : ") + deliverable,
+		Title:       ifElse(first, "Un livrable vous attend", "Une nouvelle version vous attend"),
+		Action:      "Voir le livrable",
+		URL:         url,
+		Firstname:   firstname,
+		ProjectName: projectName,
+		Deliverable: deliverable,
+		Version:     version,
+		IsFirst:     first,
+	}
+
+	text := fmt.Sprintf("Bonjour%s,\n\n%s pour le projet %s : « %s »%s.\n\nConsultez-le dans votre espace client, puis validez-le ou dites-nous ce qui doit changer :\n\n%s\n",
+		prefixed(firstname),
+		ifElse(first, "Un nouveau livrable vous attend", "Une nouvelle version vous attend"),
+		projectName, deliverable,
+		ifElse(first, "", fmt.Sprintf(", version %d", version)),
+		url)
+
+	return compose("deliverable_submitted", to, v, "deliverable_submitted.html", text)
 }
 
 func compose(kind, to string, v view, content, text string) (Message, error) {

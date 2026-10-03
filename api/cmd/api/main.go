@@ -110,6 +110,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 	notificationService := usecase.NewNotificationService(pool, notifyBus)
 
 	taskService := usecase.NewTaskService(pool, files, cfg.MaxUploadMiB*(1<<20), notifyBus)
+	// Un seul service des livrables pour le back-office et le portail : la
+	// decision du client passe par les memes notifications et le meme journal.
+	deliverableService := usecase.NewDeliverableService(pool, notifyBus)
+	deliverableService.SetMail(cfg.PublicBaseURL, sender.Configured())
 
 	clientService := usecase.NewClientService(pool)
 	contactService := usecase.NewContactService(pool)
@@ -131,7 +135,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
 		Tickets:       handler.NewTickets(usecase.NewTicketService(pool, notifyBus)),
-		Deliverables:  handler.NewDeliverables(usecase.NewDeliverableService(pool, notifyBus)),
+		Deliverables:  handler.NewDeliverables(deliverableService),
+		Portal:        handler.NewPortal(usecase.NewPortalService(pool, files, deliverableService)),
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
