@@ -147,8 +147,9 @@ les reprendre une à une.
 
 L'agence dépose un livrable (maquette, prototype, recette), qui est ensuite
 validé ou renvoyé avec des retours. Chaque nouvelle soumission crée une
-version, et l'historique est conservé. La validation par le client lui-même
-arrivera avec le portail.
+version, et l'historique est conservé. Le client valide ou renvoie ses
+retours lui-même, depuis son portail ; l'agence peut aussi enregistrer une
+réponse reçue ailleurs.
 
 ![Livrables](docs/images/livrables.jpg)
 
@@ -181,6 +182,31 @@ créé, livrable validé, ticket ouvert. L'écran *Interactions* montre le même
 fil pour tous les clients.
 
 ![Journal d'un client](docs/images/journal-client.jpg)
+
+### Portail client
+
+L'espace des clients de l'agence, pensé d'abord pour le téléphone. Chaque
+client y suit ses projets — avancement, prochaine étape, dernière activité —
+et voit d'emblée ce qui attend sa réponse.
+
+![Portail client](docs/images/portail-accueil.jpg)
+
+La page d'un projet montre ses étapes, ses livrables et les documents que
+l'agence a choisi de partager : un fichier de projet est interne tant qu'on ne
+le partage pas d'un clic. Sur un livrable, le client ouvre la version, la
+valide ou demande des retours en disant ce qui doit changer ; l'équipe du
+projet est notifiée aussitôt, et le client reçoit un e-mail à chaque nouvelle
+version.
+
+<p>
+  <img src="docs/images/portail-projet-mobile.jpg" alt="Projet dans le portail, sur mobile" width="300">
+  <img src="docs/images/portail-livrable-mobile.jpg" alt="Validation d'un livrable, sur mobile" width="300">
+</p>
+
+Le portail a son API, `/api/v1/client/*`, réservée au rôle `client` et isolée
+par le client de l'appelant dans chaque requête SQL : un identifiant qui
+appartient à un autre client répond « introuvable », comme un identifiant qui
+n'existe pas. Des tests d'isolation tournent à chaque intégration continue.
 
 ### Et aussi
 
@@ -216,7 +242,8 @@ fil pour tous les clients.
 | Modèles de projet | ✅ En place |
 | Jalons et planning | ✅ En place |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
-| **Portail client** | 🚧 Espace et connexion en place, écrans de suivi à venir |
+| **Portail client** : suivi des projets, validation des livrables, documents partagés | ✅ En place |
+| **Portail client** : tickets | 🚧 À venir (0.9.0) |
 
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.

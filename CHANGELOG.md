@@ -11,6 +11,42 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.8.0] — Portail client : suivi · 2026-10-03
+
+Cette version ouvre le portail aux clients de l'agence : ils suivent leurs projets, consultent les documents partagés et valident un livrable — ou disent ce qui doit changer — sans e-mail ni appel, y compris depuis leur téléphone.
+
+### Points forts
+
+- Mes projets : avancement, prochaine étape et livrables à valider, d'un coup d'œil.
+- Validation des livrables dans le portail, avec retours écrits et historique des versions.
+- Documents partagés fichier par fichier : un fichier de projet reste interne par défaut.
+- Une API du portail isolée par client dans chaque requête SQL, sous tests d'isolation.
+
+### Nouveautés
+
+#### Client
+
+- **Mes projets** : chaque projet avec son statut, son avancement, sa prochaine étape et sa dernière activité. Un bandeau en tête rassemble les livrables qui attendent une réponse.
+- **Projet** : les livrables à valider d'abord, puis les étapes du projet, les autres livrables et les documents partagés à télécharger.
+- **Livrable** : ouvrir la version, la valider d'un geste ou demander des retours en écrivant ce qui doit changer. Les versions précédentes restent lisibles, avec leurs réponses.
+- **E-mail à chaque version** : un nouveau livrable ou une nouvelle version à valider part par e-mail, avec le lien direct vers la page.
+- **Nouvelle présentation du portail**, pensée pour le téléphone : une barre en haut et deux entrées, Mes projets et Support.
+
+#### Admin et Team
+
+- **Partager un fichier avec le client** : sur la fiche projet, chaque fichier porte une pastille « Interne » ou « Partagé », qui se bascule d'un clic.
+- La réponse du client notifie l'équipe du projet (déjà en place depuis la 0.6.0) et s'inscrit au journal du client quand il valide.
+
+### Corrections
+
+- Une seconde réponse sur une version déjà tranchée était acceptée en silence et notifiait l'équipe une nouvelle fois : elle est maintenant refusée.
+
+### Technique
+
+- API `/api/v1/client/*`, réservée au rôle `client` : chaque requête part du compte de l'appelant et de son client. Un identifiant d'un autre client rend 404, comme un identifiant inconnu ; un brouillon et un fichier interne ne sortent jamais.
+- Tests d'isolation dans la suite d'intégration (exécutée par la CI) et tests de garde sur les routes : un compte interne n'entre pas dans le portail, un compte client n'entre pas dans le back-office.
+- Migration `000033` : colonne `attachments.shared_with_client`, index des projets par client pour le portail.
+
 ## [0.7.0] — Projets et CRM avancés · 2026-10-02
 
 Cette version donne aux projets leurs étapes et à la relation client sa mémoire : des jalons reliés aux livrables, un planning qui les montre, des modèles pour démarrer un projet en un geste, et un journal par client qui se remplit en partie tout seul.
