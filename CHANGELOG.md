@@ -11,6 +11,38 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.0] — Portail client : tickets · 2026-10-03
+
+Cette version fait passer le support client par Piilot plutôt que par la boîte mail : le client dépose sa demande dans son portail, suit la conversation avec l'agence, et chacun est prévenu par e-mail de ce que l'autre écrit.
+
+### Points forts
+
+- Nouvelle demande depuis le portail : projet, nature, description, priorité, captures d'écran.
+- Une conversation par demande, comme une messagerie, avec les changements de statut.
+- E-mails dans les deux sens : nouvelle demande et réponse du client pour l'agence, réponse et statut pour le client.
+- Les notes internes de l'équipe ne sortent jamais du back-office.
+
+### Nouveautés
+
+#### Client
+
+- **Support** : les demandes en cours et les demandes résolues ou fermées, chacune avec son statut et sa dernière mise à jour.
+- **Nouvelle demande** : le projet concerné, la nature (un problème, une évolution, une question), un titre, une description guidée, la priorité (basse, normale ou haute) et jusqu'à dix pièces jointes.
+- **Conversation** : les messages de l'agence et du client en fil, les changements de statut en mots simples (reçue, en cours de traitement, prête à être mise en ligne, résolue, fermée), la réponse et l'ajout de fichiers depuis la même page.
+- **E-mails** : une réponse publique de l'agence ou un changement de statut part par e-mail à la personne qui a ouvert la demande, avec le lien direct.
+
+#### Admin et Team
+
+- **Demandes du portail** : un ticket ouvert par un client porte la pastille « Visible du client », montre ses pièces jointes, et le rédacteur rappelle si une réponse part chez le client.
+- **E-mails** : une nouvelle demande ou une réponse du client part par e-mail à la personne qui traite le ticket, ou aux administrateurs tant que personne ne l'a pris. Les notifications dans l'application suivent comme pour les autres tickets.
+
+### Technique
+
+- Routes `/api/v1/client/tickets*` réservées au rôle `client`, isolées par le client de l'appelant. La requête des messages écarte elle-même les notes internes ; seuls les changements de statut sont exposés, en regroupant les étapes internes.
+- Les urgences et criticités se décident côté agence : le portail n'accepte que les priorités basse, normale et haute.
+- Migration `000034` : `tickets.client_visible` (les tickets déjà ouverts par un compte client le deviennent), `attachments.ticket_id`.
+- Tests d'isolation dans la suite d'intégration : notes internes absentes du fil et des e-mails, tickets internes et tickets d'un autre client introuvables, pièces jointes protégées.
+
 ## [0.8.0] — Portail client : suivi · 2026-10-03
 
 Cette version ouvre le portail aux clients de l'agence : ils suivent leurs projets, consultent les documents partagés et valident un livrable — ou disent ce qui doit changer — sans e-mail ni appel, y compris depuis leur téléphone.

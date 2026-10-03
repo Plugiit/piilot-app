@@ -203,6 +203,20 @@ version.
   <img src="docs/images/portail-livrable-mobile.jpg" alt="Validation d'un livrable, sur mobile" width="300">
 </p>
 
+Le **support** passe aussi par le portail. Le client dépose une demande —
+un problème, une évolution, une question — sur l'un de ses projets, avec ses
+captures d'écran, puis suit la conversation avec l'agence comme dans une
+messagerie. Chaque réponse part dans les deux sens par e-mail : l'agence est
+prévenue d'une nouvelle demande et des réponses du client, le client des
+réponses de l'agence et des changements de statut. Les notes internes de
+l'équipe ne quittent jamais le back-office, ni dans le portail ni dans un
+e-mail ; les tickets que l'agence ouvre pour elle-même restent internes.
+
+<p>
+  <img src="docs/images/support-demande-mobile.jpg" alt="Nouvelle demande, sur mobile" width="300">
+  <img src="docs/images/support-fil-mobile.jpg" alt="Conversation sur une demande, sur mobile" width="300">
+</p>
+
 Le portail a son API, `/api/v1/client/*`, réservée au rôle `client` et isolée
 par le client de l'appelant dans chaque requête SQL : un identifiant qui
 appartient à un autre client répond « introuvable », comme un identifiant qui
@@ -243,7 +257,7 @@ n'existe pas. Des tests d'isolation tournent à chaque intégration continue.
 | Jalons et planning | ✅ En place |
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** : suivi des projets, validation des livrables, documents partagés | ✅ En place |
-| **Portail client** : tickets | 🚧 À venir (0.9.0) |
+| **Portail client** : support et tickets | ✅ En place |
 
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
