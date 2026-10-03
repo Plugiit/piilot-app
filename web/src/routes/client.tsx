@@ -1,12 +1,11 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { FolderKanban, LifeBuoy } from 'lucide-react'
 
-import { AppShell, type NavItem } from '@/components/layout/app-shell'
+import { PortalShell, type PortalNavItem } from '@/components/layout/portal-shell'
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
 
-const NAV: NavItem[] = [
-  { to: '/client', label: 'Mes projets', icon: FolderKanban },
-  { to: '/client/tickets', label: 'Support', icon: LifeBuoy },
+const NAV: PortalNavItem[] = [
+  { to: '/client', label: 'Mes projets' },
+  { to: '/client/tickets', label: 'Support' },
 ]
 
 /**
@@ -42,8 +41,8 @@ function ClientLayout() {
   const { user } = Route.useRouteContext()
 
   return (
-    <AppShell nav={NAV} user={user} area="Espace client">
+    <PortalShell nav={NAV} user={user}>
       <Outlet />
-    </AppShell>
+    </PortalShell>
   )
 }
