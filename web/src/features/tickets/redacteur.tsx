@@ -185,7 +185,11 @@ export function TicketRedacteur({ ticket }: { ticket: TicketDetail }) {
         />
 
         <span className="pr-2 pb-2 text-[12px] text-[#a2a3a7]">
-          {interne ? 'Visible par l’agence seule' : 'Visible par le client'}
+          {interne
+            ? 'Visible par l’agence seule'
+            : ticket.client_visible
+              ? 'Visible par le client, qui la reçoit par e-mail'
+              : 'Ticket interne : le client ne le voit pas'}
         </span>
       </div>
 
