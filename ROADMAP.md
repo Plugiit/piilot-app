@@ -246,19 +246,19 @@ et le pipeline commercial se gère en kanban.
 
 **Nouveautés**
 
-- **Mes projets** : statut, avancement, prochains jalons, dernière activité.
-- **Projet** : jalons, livrables et fichiers explicitement partagés. Un
+- **Mes projets** ✅ : statut, avancement, prochains jalons, dernière activité.
+- **Projet** ✅ : jalons, livrables et fichiers explicitement partagés. Un
   fichier est interne par défaut.
-- **Validation des livrables** : consulter, approuver ou demander des
-  retours. Notifications à l'équipe, au client à chaque version.
+- **Validation des livrables** ✅ : consulter, approuver ou demander des
+  retours. Notifications à l'équipe, e-mail au client à chaque version.
 
 **Technique**
 
-- API dédiée `/api/v1/client/*`, isolée par le client de l'appelant, côté
+- API dédiée `/api/v1/client/*` ✅, isolée par le client de l'appelant, côté
   SQL. Tests d'isolation bloquants en CI : un compte client ne lit, ne
   modifie et ne devine jamais une donnée d'un autre client.
 
-**Qualité** : utilisable sur mobile.
+**Qualité** : utilisable sur mobile ✅.
 
 **Terminé quand** : un client pilote a validé un livrable réel dans le
 portail.
