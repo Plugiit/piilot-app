@@ -168,7 +168,7 @@ SET current_version_id = sqlc.arg('version_id'),
     updated_at = now()
 WHERE id = sqlc.arg('id');
 
--- name: DecideDeliverableVersion :exec
+-- name: DecideDeliverableVersion :execrows
 -- Enregistre la reponse du client sur une version precise.
 --
 -- La clause sur `decision` rend la requete rejouable sans degat : une decision

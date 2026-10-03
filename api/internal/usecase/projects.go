@@ -131,6 +131,9 @@ type Attachment struct {
 	ContentType string    `json:"content_type"`
 	SizeBytes   int64     `json:"size_bytes"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Visible dans le portail client. Faux par defaut : un fichier de projet
+	// est interne tant qu'on ne le partage pas.
+	SharedWithClient bool `json:"shared_with_client"`
 }
 
 // ClientItem est une entree du champ « Client » du formulaire de projet.
@@ -473,11 +476,12 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 	files := make([]Attachment, 0, len(stored))
 	for _, f := range stored {
 		files = append(files, Attachment{
-			ID:          f.ID,
-			Filename:    f.Filename,
-			ContentType: f.ContentType,
-			SizeBytes:   f.SizeBytes,
-			CreatedAt:   f.CreatedAt,
+			ID:               f.ID,
+			Filename:         f.Filename,
+			ContentType:      f.ContentType,
+			SizeBytes:        f.SizeBytes,
+			CreatedAt:        f.CreatedAt,
+			SharedWithClient: f.SharedWithClient,
 		})
 	}
 
@@ -1370,6 +1374,19 @@ func (s *ProjectService) SetFavorite(ctx context.Context, projectID, userID uuid
 		ProjectID: projectID,
 	}); err != nil {
 		return fmt.Errorf("retrait du favori : %w", err)
+	}
+
+	return nil
+}
+
+// ShareFile partage un fichier de projet avec le client, ou le reprend.
+func (s *ProjectService) ShareFile(ctx context.Context, fileID uuid.UUID, shared bool) error {
+	n, err := s.q.SetAttachmentShared(ctx, db.SetAttachmentSharedParams{ID: fileID, Shared: shared})
+	if err != nil {
+		return fmt.Errorf("partage du fichier : %w", err)
+	}
+	if n == 0 {
+		return domain.ErrNotFound
 	}
 
 	return nil

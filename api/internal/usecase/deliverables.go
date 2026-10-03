@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/plugiit/piilot-app/api/internal/domain"
+	mailer "github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/repository/db"
 )
 
@@ -102,10 +103,55 @@ type DeliverableService struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 	bus  Bus
+
+	// Adresse publique de l'application et envoi des e-mails : le client est
+	// prevenu par e-mail de chaque version qui attend sa reponse.
+	baseURL     string
+	mailEnabled bool
 }
 
 func NewDeliverableService(pool *pgxpool.Pool, bus Bus) *DeliverableService {
 	return &DeliverableService{pool: pool, q: db.New(pool), bus: bus}
+}
+
+// SetMail active l'e-mail au client a chaque version deposee.
+func (s *DeliverableService) SetMail(baseURL string, enabled bool) {
+	s.baseURL = strings.TrimRight(baseURL, "/")
+	s.mailEnabled = enabled
+}
+
+// notifyClient met en file un e-mail pour chaque compte du portail du projet :
+// une version attend leur reponse. Dans la transaction du depot.
+func (s *DeliverableService) notifyClient(ctx context.Context, q *db.Queries, deliverableID uuid.UUID) error {
+	if !s.mailEnabled {
+		return nil
+	}
+
+	locked, err := q.LockDeliverable(ctx, deliverableID)
+	if err != nil {
+		return fmt.Errorf("lecture du livrable : %w", err)
+	}
+	info, err := q.GetDeliverableNotice(ctx, deliverableID)
+	if err != nil {
+		return fmt.Errorf("lecture du livrable : %w", err)
+	}
+	recipients, err := q.ListPortalRecipientsOfProject(ctx, locked.ProjectID)
+	if err != nil {
+		return fmt.Errorf("lecture des comptes du portail : %w", err)
+	}
+
+	url := fmt.Sprintf("%s/client/livrables/%s", s.baseURL, deliverableID)
+	for _, r := range recipients {
+		msg, err := mailer.DeliverableSubmitted(r.Email, r.Firstname, info.ProjectName, info.Title, int(info.Numero), url)
+		if err != nil {
+			return err
+		}
+		if err := enqueue(ctx, q, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // personOfDeliverable compose une personne a partir des colonnes d'une jointure
@@ -282,6 +328,10 @@ func (s *DeliverableService) Create(
 		return DeliverableItem{}, err
 	}
 
+	if err := s.notifyClient(ctx, q, id); err != nil {
+		return DeliverableItem{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return DeliverableItem{}, fmt.Errorf("validation de la transaction : %w", err)
 	}
@@ -320,6 +370,10 @@ func (s *DeliverableService) Submit(
 	}
 
 	if err := submitVersion(ctx, q, deliverableID, url, submittedBy); err != nil {
+		return DeliverableItem{}, err
+	}
+
+	if err := s.notifyClient(ctx, q, deliverableID); err != nil {
 		return DeliverableItem{}, err
 	}
 
@@ -409,7 +463,7 @@ func (s *DeliverableService) Decide(
 		})
 	}
 
-	err = q.DecideDeliverableVersion(ctx, db.DecideDeliverableVersionParams{
+	decided, err := q.DecideDeliverableVersion(ctx, db.DecideDeliverableVersionParams{
 		ID:        *locked.CurrentVersionID,
 		Decision:  decision,
 		DecidedBy: decidedBy,
@@ -417,6 +471,12 @@ func (s *DeliverableService) Decide(
 	})
 	if err != nil {
 		return DeliverableItem{}, fmt.Errorf("decision : %w", err)
+	}
+
+	// La version a deja recu sa reponse : la reecrire effacerait la trace, et
+	// laisser passer en silence notifierait l'equipe une seconde fois.
+	if decided == 0 {
+		return DeliverableItem{}, domain.ErrConflict.WithMessage("Cette version a déjà reçu une réponse")
 	}
 
 	if err := q.TouchDeliverable(ctx, deliverableID); err != nil {

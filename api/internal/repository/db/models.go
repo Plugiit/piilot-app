@@ -43,15 +43,16 @@ type AppUpdater struct {
 }
 
 type Attachment struct {
-	ID          uuid.UUID  `json:"id"`
-	ProjectID   *uuid.UUID `json:"project_id"`
-	Filename    string     `json:"filename"`
-	ContentType string     `json:"content_type"`
-	SizeBytes   int64      `json:"size_bytes"`
-	StorageKey  string     `json:"storage_key"`
-	UploadedBy  *uuid.UUID `json:"uploaded_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	TaskID      *uuid.UUID `json:"task_id"`
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        *uuid.UUID `json:"project_id"`
+	Filename         string     `json:"filename"`
+	ContentType      string     `json:"content_type"`
+	SizeBytes        int64      `json:"size_bytes"`
+	StorageKey       string     `json:"storage_key"`
+	UploadedBy       *uuid.UUID `json:"uploaded_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	SharedWithClient bool       `json:"shared_with_client"`
 }
 
 type Client struct {

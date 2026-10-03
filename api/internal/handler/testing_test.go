@@ -29,6 +29,8 @@ type stubPermissions struct {
 	granted bool
 	// inactive simule un compte desactive depuis l'emission de son jeton.
 	inactive bool
+	// role est le role relu en base ; admin quand il n'est pas precise.
+	role string
 }
 
 func (s stubPermissions) HasPermission(context.Context, string, string) (bool, error) {
@@ -36,7 +38,10 @@ func (s stubPermissions) HasPermission(context.Context, string, string) (bool, e
 }
 
 func (s stubPermissions) ActiveRole(context.Context, uuid.UUID) (string, bool, error) {
-	return "admin", !s.inactive, nil
+	if s.role == "" {
+		return "admin", !s.inactive, nil
+	}
+	return s.role, !s.inactive, nil
 }
 
 // stubAuth remplace le service d'authentification. Le champ meCalled permet de

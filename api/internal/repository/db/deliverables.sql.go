@@ -106,7 +106,7 @@ func (q *Queries) CreateDeliverableVersion(ctx context.Context, arg CreateDelive
 	return id, err
 }
 
-const decideDeliverableVersion = `-- name: DecideDeliverableVersion :exec
+const decideDeliverableVersion = `-- name: DecideDeliverableVersion :execrows
 UPDATE deliverable_versions
 SET decision   = $1,
     decided_at = now(),
@@ -127,14 +127,17 @@ type DecideDeliverableVersionParams struct {
 // La clause sur `decision` rend la requete rejouable sans degat : une decision
 // deja prise ne se reecrit pas, et l'appelant lit zero ligne touchee plutot que
 // d'ecraser la date et l'auteur d'origine.
-func (q *Queries) DecideDeliverableVersion(ctx context.Context, arg DecideDeliverableVersionParams) error {
-	_, err := q.db.Exec(ctx, decideDeliverableVersion,
+func (q *Queries) DecideDeliverableVersion(ctx context.Context, arg DecideDeliverableVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, decideDeliverableVersion,
 		arg.Decision,
 		arg.DecidedBy,
 		arg.Feedback,
 		arg.ID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getDeliverable = `-- name: GetDeliverable :one

@@ -29,6 +29,7 @@ type Deps struct {
 	Milestones    *Milestones
 	Templates     *ProjectTemplates
 	Interactions  *Interactions
+	Portal        *Portal
 
 	Guard *middleware.Guard
 }
@@ -51,6 +52,23 @@ func Register(app *fiber.App, deps Deps) {
 
 	registerAuthRoutes(v1.Group("/auth"), deps)
 	registerAdminRoutes(v1.Group("/admin"), deps)
+	registerClientRoutes(v1.Group("/client"), deps)
+}
+
+// registerClientRoutes monte le portail client.
+//
+// Le groupe n'admet que le role client : un compte de l'agence lit les memes
+// donnees depuis le back-office, avec ses propres droits. Chaque endpoint
+// filtre ensuite sur le client de l'appelant, dans le SQL — une permission dit
+// ce qu'un client peut faire, jamais sur quoi.
+func registerClientRoutes(r fiber.Router, deps Deps) {
+	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("client"))
+
+	r.Get("/projects", deps.Guard.RequirePermission("projects.read"), deps.Portal.Projects)
+	r.Get("/projects/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.Project)
+	r.Get("/deliverables/:id", deps.Guard.RequirePermission("deliverables.read"), deps.Portal.Deliverable)
+	r.Post("/deliverables/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Portal.Decide)
+	r.Get("/files/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.DownloadFile)
 }
 
 // registerAuthRoutes monte les endpoints publics d'authentification.
@@ -204,6 +222,8 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	files := r.Group("/files")
 	files.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.DownloadFile)
 	files.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.DeleteFile)
+	// Partager un fichier avec le client : il apparait dans son portail.
+	files.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.ShareFile)
 
 	// Le tableau des taches est une vue du projet, sa creation aussi : les deux
 	// vivent sous le projet parce que c'est lui qui les porte a l'ecran.

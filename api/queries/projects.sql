@@ -302,3 +302,9 @@ DELETE FROM project_services WHERE project_id = sqlc.arg('project_id');
 INSERT INTO project_services (project_id, service_id)
 VALUES (sqlc.arg('project_id'), sqlc.arg('service_id'))
 ON CONFLICT DO NOTHING;
+
+-- name: SetAttachmentShared :execrows
+-- Partage un fichier de projet avec le client, ou le reprend. Les pieces
+-- jointes de taches restent internes : le portail ne montre pas les taches.
+UPDATE attachments SET shared_with_client = sqlc.arg('shared')
+WHERE id = sqlc.arg('id') AND project_id IS NOT NULL;
