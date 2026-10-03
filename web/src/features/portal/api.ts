@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { api, apiUrl, unwrap } from '@/lib/api'
+import { api, apiUrl, postFile, unwrap } from '@/lib/api'
+import type { PortalFile } from '@/types/api'
 
 /**
  * Le portail lit `/api/v1/client/*` : des endpoints a lui, isoles cote serveur
@@ -11,6 +12,8 @@ export const portalKeys = {
   projects: () => [...portalKeys.all, 'projects'] as const,
   project: (id: string) => [...portalKeys.all, 'project', id] as const,
   deliverable: (id: string) => [...portalKeys.all, 'deliverable', id] as const,
+  tickets: (state: 'open' | 'closed', page: number) => [...portalKeys.all, 'tickets', state, page] as const,
+  ticket: (id: string) => [...portalKeys.all, 'ticket', id] as const,
 }
 
 export const portalProjectsQuery = queryOptions({
@@ -58,4 +61,78 @@ export function useDecide(deliverableId: string) {
 /** Adresse de telechargement d'un fichier du portail. */
 export function portalFileUrl(id: string): string {
   return apiUrl(`/api/v1/client/files/${id}`)
+}
+
+/** Les demandes du client, ouvertes ou closes. */
+export function portalTicketsQuery(state: 'open' | 'closed', page: number) {
+  return queryOptions({
+    queryKey: portalKeys.tickets(state, page),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/v1/client/tickets', { params: { query: { state, page } } })),
+  })
+}
+
+export function portalTicketQuery(id: string) {
+  return queryOptions({
+    queryKey: portalKeys.ticket(id),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/v1/client/tickets/{id}', { params: { path: { id } } })),
+  })
+}
+
+export interface NewTicketValues {
+  project_id: string
+  tracker: 'anomalie' | 'evolution' | 'assistance'
+  priority: 'low' | 'normal' | 'high'
+  subject: string
+  description: string
+}
+
+/**
+ * Depose une demande, puis ses pieces jointes une a une. Une piece jointe qui
+ * echoue ne fait pas tomber la demande : elle est deja partie, et le client
+ * le saura par le message d'erreur.
+ */
+export function useCreateTicket() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ values, files }: { values: NewTicketValues; files: File[] }) => {
+      const ticket = unwrap(await api.POST('/api/v1/client/tickets', { body: values }))
+      const failed: string[] = []
+      for (const file of files) {
+        try {
+          await postFile<PortalFile>(`/api/v1/client/tickets/${ticket.id}/files`, 'file', file)
+        } catch {
+          failed.push(file.name)
+        }
+      }
+      return { ticket, failed }
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [...portalKeys.all, 'tickets'] }),
+  })
+}
+
+export function useReplyTicket(ticketId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (body: string) =>
+      unwrap(
+        await api.POST('/api/v1/client/tickets/{id}/messages', { params: { path: { id: ticketId } }, body: { body } }),
+      ),
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(portalKeys.ticket(ticketId), ticket)
+      void queryClient.invalidateQueries({ queryKey: [...portalKeys.all, 'tickets'] })
+    },
+  })
+}
+
+export function useAttachToTicket(ticketId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (file: File) => postFile<PortalFile>(`/api/v1/client/tickets/${ticketId}/files`, 'file', file),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: portalKeys.ticket(ticketId) }),
+  })
 }
