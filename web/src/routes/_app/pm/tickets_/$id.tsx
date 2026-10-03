@@ -1,15 +1,18 @@
 import {
+  Attachment02Icon,
   Building03Icon,
   Calendar03Icon,
   Note01Icon,
   UserMultipleIcon,
 } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { PageFrame } from '@/components/layout/page-frame'
 import { PanelCard } from '@/components/panel-card'
+import { fileUrl } from '@/features/projects/api'
 import { Avatars, StatusPill } from '@/features/projects/ui'
 import { ticketDetailQuery } from '@/features/tickets/api'
 import {
@@ -159,6 +162,15 @@ function TicketDetailPage() {
                   color={priority.pill.text}
                   pill={priority.pill}
                 />
+                {/* Ce qui n'est pas note interne parvient au client : autant
+                    le savoir avant d'ecrire. */}
+                {data.client_visible && (
+                  <StatusPill
+                    label="Visible du client"
+                    color="#ff782b"
+                    pill={{ bg: '#fff2ea', border: '#ffd9c2', text: '#b84a0c' }}
+                  />
+                )}
               </div>
 
               <p className="text-[12.5px] text-[#73757c]">
@@ -171,6 +183,22 @@ function TicketDetailPage() {
                 <p className="max-w-[72ch] border-t border-[#e0e1e2] pt-3 text-[14px] leading-[1.6] whitespace-pre-wrap text-[#4f5059]">
                   {data.description}
                 </p>
+              )}
+
+              {data.files.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {data.files.map((file) => (
+                    <li key={file.id}>
+                      <a
+                        href={fileUrl(file.id)}
+                        className="flex items-center gap-1.5 rounded-[8px] border border-[#e0e1e2] bg-white px-2 py-1 text-[13px] text-[#1b1b1b] hover:bg-[#fafafa]"
+                      >
+                        <HugeiconsIcon icon={Attachment02Icon} size={14} strokeWidth={1.6} className="text-[#73757c]" />
+                        {file.filename}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               )}
             </header>
 

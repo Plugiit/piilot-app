@@ -2089,6 +2089,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes demandes
+         * @description Les demandes du client, les plus recemment mises a jour d'abord. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.read.
+         */
+        get: operations["listPortalTickets"];
+        put?: never;
+        /**
+         * Deposer une demande
+         * @description Sur un projet du client. Priorite restreinte a low, normal ou high. L'agence est prevenue par notification et par e-mail. Exige tickets.write.
+         */
+        post: operations["createPortalTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/tickets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Une demande
+         * @description La demande et son fil public. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.read.
+         */
+        get: operations["getPortalTicket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/tickets/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Repondre sur une demande
+         * @description Jamais interne, sans changement de statut. L'agence est prevenue par notification et par e-mail. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.write.
+         */
+        post: operations["replyPortalTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/tickets/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Joindre un fichier
+         * @description Au plus dix pieces jointes par demande. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.write.
+         */
+        post: operations["attachPortalTicketFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3032,6 +3116,10 @@ export interface components {
             reporter: components["schemas"]["TicketPerson"] | null;
             /** @description Registre fusionne et trie du plus ancien au plus recent. */
             entries: components["schemas"]["TicketEntry"][];
+            /** @description Visible du client dans son portail : le ticket vient de lui. */
+            client_visible: boolean;
+            /** @description Pieces jointes deposees avec la demande. */
+            files: components["schemas"]["Attachment"][];
         };
         /** @description Une entree a inscrire au registre. Les changements sont facultatifs mais au meme endroit que le message : repondre et faire avancer un ticket sont un seul geste. Seuls les changements reels sont journalises. */
         PostTicketMessage: {
@@ -3954,6 +4042,66 @@ export interface components {
             status: "en_attente" | "valide" | "retours";
             /** @description De la plus recente a la plus ancienne. */
             versions: components["schemas"]["PortalVersion"][];
+        };
+        PortalTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            numero: number;
+            subject: string;
+            /** @enum {string} */
+            tracker: "anomalie" | "evolution" | "assistance";
+            /** @enum {string} */
+            status: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+            /** @enum {string} */
+            priority: "low" | "normal" | "high" | "urgent" | "critical";
+            project: components["schemas"]["DeliverableRef"];
+            open: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        PortalTicketPage: {
+            items: components["schemas"]["PortalTicket"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        PortalTicketEntry: {
+            /** @enum {string} */
+            kind: "message" | "status";
+            /** Format: date-time */
+            at: string;
+            /** @description Prenom de l'auteur ; vide pour un changement de statut. */
+            author: string;
+            from_agency: boolean;
+            body: string;
+            /** @description Nouveau statut, pour un changement. */
+            status: string;
+        };
+        PortalTicketDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            numero: number;
+            subject: string;
+            description: string;
+            /** @enum {string} */
+            tracker: "anomalie" | "evolution" | "assistance";
+            /** @enum {string} */
+            status: "backlog" | "todo" | "in_progress" | "in_review" | "ready_to_deploy" | "done" | "annule";
+            /** @enum {string} */
+            priority: "low" | "normal" | "high" | "urgent" | "critical";
+            open: boolean;
+            project: components["schemas"]["DeliverableRef"];
+            reporter: string;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Messages publics et changements de statut visibles. Les notes internes n'y figurent jamais. */
+            entries: components["schemas"]["PortalTicketEntry"][];
+            files: components["schemas"]["PortalFile"][];
         };
     };
     responses: {
@@ -7857,6 +8005,158 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPortalTickets: {
+        parameters: {
+            query?: {
+                state?: "open" | "closed";
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demandes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalTicketPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createPortalTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    project_id: string;
+                    /** @enum {string} */
+                    tracker: "anomalie" | "evolution" | "assistance";
+                    /** @enum {string} */
+                    priority?: "low" | "normal" | "high";
+                    subject: string;
+                    description: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Demande deposee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalTicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getPortalTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalTicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    replyPortalTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Reponse ajoutee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalTicketDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    attachPortalTicketFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Fichier joint */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalFile"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
 }
