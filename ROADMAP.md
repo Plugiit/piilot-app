@@ -269,15 +269,16 @@ portail.
 
 **Nouveautés**
 
-- **Dépôt de ticket** : projet, type (anomalie, évolution, assistance),
-  description, pièces jointes. Priorité restreinte.
-- **Suivi** : fil de discussion avec les réponses. Les messages internes de
+- **Dépôt de ticket** ✅ : projet, type (anomalie, évolution, assistance),
+  description, pièces jointes. Priorité restreinte (basse, normale, haute).
+- **Suivi** ✅ : fil de discussion avec les réponses. Les messages internes de
   l'équipe ne sont jamais exposés.
-- **E-mails bidirectionnels** : nouveau ticket, réponse, changement de statut.
+- **E-mails bidirectionnels** ✅ : nouveau ticket, réponse, changement de statut.
 
 **Technique**
 
-- Isolation : les messages internes restent invisibles, test bloquant.
+- Isolation ✅ : les messages internes restent invisibles, test bloquant. Les
+  tickets ouverts par l'agence pour elle-même restent internes.
 
 **Terminé quand** : le support client passe entièrement par le portail pendant
 deux semaines.
