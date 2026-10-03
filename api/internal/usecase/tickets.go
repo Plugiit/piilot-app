@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/plugiit/piilot-app/api/internal/domain"
+	mailer "github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/repository/db"
 )
 
@@ -98,10 +99,100 @@ type TicketService struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 	bus  Bus
+
+	// E-mails du portail : au client quand l'agence repond, a l'agence quand
+	// le client ecrit.
+	baseURL     string
+	mailEnabled bool
 }
 
 func NewTicketService(pool *pgxpool.Pool, bus Bus) *TicketService {
 	return &TicketService{pool: pool, q: db.New(pool), bus: bus}
+}
+
+// SetMail active les e-mails des tickets du portail.
+func (s *TicketService) SetMail(baseURL string, enabled bool) {
+	s.baseURL = strings.TrimRight(baseURL, "/")
+	s.mailEnabled = enabled
+}
+
+// PortalTicketStatus est le statut d'un ticket dans les mots du client. Les
+// etapes internes de l'agence s'y regroupent : « a faire » et « en attente »
+// disent la meme chose a qui attend une reponse.
+func PortalTicketStatus(status string) string {
+	switch status {
+	case "backlog", "todo":
+		return "Reçue"
+	case "in_progress", "in_review":
+		return "En cours de traitement"
+	case "ready_to_deploy":
+		return "Prête à être mise en ligne"
+	case "done":
+		return "Résolue"
+	case "annule":
+		return "Fermée"
+	default:
+		return status
+	}
+}
+
+// mailClient previent la personne du portail qui a ouvert le ticket : une
+// reponse publique, un changement de statut visible, ou les deux.
+func (s *TicketService) mailClient(ctx context.Context, q *db.Queries, ticketID uuid.UUID, quote, status string) error {
+	if !s.mailEnabled || (quote == "" && status == "") {
+		return nil
+	}
+
+	info, err := q.GetTicketMailContext(ctx, ticketID)
+	if err != nil {
+		return fmt.Errorf("lecture du ticket : %w", err)
+	}
+	if !info.ClientVisible || !info.ReporterIsActiveClient || info.ReporterEmail == nil {
+		return nil
+	}
+
+	msg, err := mailer.TicketToClient(
+		*info.ReporterEmail, firstnameOf(info.ReporterFirstname), info.Numero, info.Subject,
+		excerpt(quote), status, fmt.Sprintf("%s/client/tickets/%s", s.baseURL, ticketID),
+	)
+	if err != nil {
+		return err
+	}
+
+	return enqueue(ctx, q, msg)
+}
+
+// mailTeam previent l'agence d'une demande deposee dans le portail, ou de la
+// reponse d'un client.
+func (s *TicketService) mailTeam(ctx context.Context, q *db.Queries, ticketID uuid.UUID, created bool, author, quote string) error {
+	if !s.mailEnabled {
+		return nil
+	}
+
+	info, err := q.GetTicketMailContext(ctx, ticketID)
+	if err != nil {
+		return fmt.Errorf("lecture du ticket : %w", err)
+	}
+	recipients, err := q.ListTicketTeamMailRecipients(ctx, ticketID)
+	if err != nil {
+		return fmt.Errorf("destinataires de l'agence : %w", err)
+	}
+
+	url := fmt.Sprintf("%s/pm/tickets/%s", s.baseURL, ticketID)
+	for _, r := range recipients {
+		msg, err := mailer.TicketToTeam(
+			r.Email, r.Firstname, created, info.Numero, info.Subject, info.ProjectName, info.ClientName,
+			author, excerpt(quote), url,
+		)
+		if err != nil {
+			return err
+		}
+		if err := enqueue(ctx, q, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ListAssignedTo renvoie une page des tickets confies a quelqu'un.
@@ -362,6 +453,10 @@ type CreateTicketInput struct {
 	AssigneeID *uuid.UUID
 	// Qui depose. Vient de la session.
 	CreatedBy *uuid.UUID
+	// Depose depuis le portail : le ticket est visible du client, et l'agence
+	// en est prevenue par e-mail. AuthorName nomme la personne dans l'e-mail.
+	FromPortal bool
+	AuthorName string
 }
 
 // Create depose un ticket et le rend sous la forme qu'affiche la liste.
@@ -399,14 +494,15 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 	q := s.q.WithTx(tx)
 
 	row, err := q.CreateTicket(ctx, db.CreateTicketParams{
-		ProjectID:   in.ProjectID,
-		Subject:     subject,
-		Description: strings.TrimSpace(in.Description),
-		Tracker:     in.Tracker,
-		Status:      "backlog",
-		Priority:    in.Priority,
-		AssigneeID:  in.AssigneeID,
-		CreatedBy:   in.CreatedBy,
+		ProjectID:     in.ProjectID,
+		Subject:       subject,
+		Description:   strings.TrimSpace(in.Description),
+		Tracker:       in.Tracker,
+		Status:        "backlog",
+		Priority:      in.Priority,
+		AssigneeID:    in.AssigneeID,
+		CreatedBy:     in.CreatedBy,
+		ClientVisible: in.FromPortal,
 	})
 	if err != nil {
 		return TicketItem{}, fmt.Errorf("creation du ticket : %w", err)
@@ -428,6 +524,12 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 		"numero": row.Numero, "title": row.Subject,
 	}); err != nil {
 		return TicketItem{}, err
+	}
+
+	if in.FromPortal {
+		if err := s.mailTeam(ctx, q, row.ID, true, in.AuthorName, strings.TrimSpace(in.Description)); err != nil {
+			return TicketItem{}, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -486,6 +588,11 @@ type TicketDetail struct {
 	Description string         `json:"description"`
 	Client      *TicketProject `json:"client"`
 	Reporter    *TicketPerson  `json:"reporter"`
+	// Visible du client dans son portail : le ticket vient de lui, et ce qui
+	// n'est pas note interne lui parvient.
+	ClientVisible bool `json:"client_visible"`
+	// Pieces jointes deposees avec la demande.
+	Files []Attachment `json:"files"`
 	// Le registre, deja fusionne et trie du plus ancien au plus recent.
 	Entries []TicketEntry `json:"entries"`
 }
@@ -558,6 +665,18 @@ func (s *TicketService) Get(ctx context.Context, id uuid.UUID) (TicketDetail, er
 	}
 
 	detail.Entries = entries
+	detail.ClientVisible = row.ClientVisible
+
+	files, err := s.q.ListTicketFiles(ctx, &id)
+	if err != nil {
+		return TicketDetail{}, fmt.Errorf("pieces jointes du ticket : %w", err)
+	}
+	detail.Files = make([]Attachment, 0, len(files))
+	for _, f := range files {
+		detail.Files = append(detail.Files, Attachment{
+			ID: f.ID, Filename: f.Filename, ContentType: f.ContentType, SizeBytes: f.SizeBytes, CreatedAt: f.CreatedAt,
+		})
+	}
 
 	return detail, nil
 }
@@ -643,6 +762,11 @@ type PostMessageInput struct {
 	// touche pas a l'assignation ».
 	ChangeAssignee bool
 	NewAssigneeID  *uuid.UUID
+
+	// Ecrit depuis le portail : l'agence est prevenue par e-mail. Sinon, le
+	// client l'est d'une reponse publique ou d'un statut qui change a ses yeux.
+	FromClient bool
+	AuthorName string
 }
 
 // nameOfAssignee compose le nom porte par les colonnes de la jointure a gauche.
@@ -780,6 +904,24 @@ func (s *TicketService) PostMessage(
 		apresStatus = apres.Status
 		if apres.AssigneeID != nil && (avant.AssigneeID == nil || *avant.AssigneeID != *apres.AssigneeID) {
 			nouvelAssigne = apres.AssigneeID
+		}
+	}
+
+	if in.FromClient {
+		if err := s.mailTeam(ctx, q, ticketID, false, in.AuthorName, body); err != nil {
+			return TicketDetail{}, err
+		}
+	} else {
+		quote := body
+		if in.IsInternal {
+			quote = ""
+		}
+		status := ""
+		if PortalTicketStatus(apresStatus) != PortalTicketStatus(avant.Status) {
+			status = PortalTicketStatus(apresStatus)
+		}
+		if err := s.mailClient(ctx, q, ticketID, quote, status); err != nil {
+			return TicketDetail{}, err
 		}
 	}
 

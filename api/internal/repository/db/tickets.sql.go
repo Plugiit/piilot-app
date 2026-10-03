@@ -94,14 +94,14 @@ const createTicket = `-- name: CreateTicket :one
 WITH nouveau AS (
     INSERT INTO tickets (
         project_id, subject, description, tracker, status, priority,
-        assignee_id, created_by
+        assignee_id, created_by, client_visible
     )
     VALUES (
         $1, $2, $3,
         $4, $5, $6,
-        $7, $8
+        $7, $8, $9
     )
-    RETURNING id, numero, project_id, subject, description, tracker, status, priority, assignee_id, created_by, created_at, updated_at, deleted_at
+    RETURNING id, numero, project_id, subject, description, tracker, status, priority, assignee_id, created_by, created_at, updated_at, deleted_at, client_visible
 )
 SELECT
     n.id,
@@ -119,14 +119,15 @@ JOIN projects p ON p.id = n.project_id
 `
 
 type CreateTicketParams struct {
-	ProjectID   uuid.UUID  `json:"project_id"`
-	Subject     string     `json:"subject"`
-	Description string     `json:"description"`
-	Tracker     string     `json:"tracker"`
-	Status      string     `json:"status"`
-	Priority    string     `json:"priority"`
-	AssigneeID  *uuid.UUID `json:"assignee_id"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
+	ProjectID     uuid.UUID  `json:"project_id"`
+	Subject       string     `json:"subject"`
+	Description   string     `json:"description"`
+	Tracker       string     `json:"tracker"`
+	Status        string     `json:"status"`
+	Priority      string     `json:"priority"`
+	AssigneeID    *uuid.UUID `json:"assignee_id"`
+	CreatedBy     *uuid.UUID `json:"created_by"`
+	ClientVisible bool       `json:"client_visible"`
 }
 
 type CreateTicketRow struct {
@@ -159,6 +160,7 @@ func (q *Queries) CreateTicket(ctx context.Context, arg CreateTicketParams) (Cre
 		arg.Priority,
 		arg.AssigneeID,
 		arg.CreatedBy,
+		arg.ClientVisible,
 	)
 	var i CreateTicketRow
 	err := row.Scan(
@@ -249,6 +251,7 @@ SELECT
     t.numero,
     t.subject,
     t.description,
+    t.client_visible,
     t.tracker,
     t.status,
     t.priority,
@@ -279,6 +282,7 @@ type GetTicketRow struct {
 	Numero            int64      `json:"numero"`
 	Subject           string     `json:"subject"`
 	Description       string     `json:"description"`
+	ClientVisible     bool       `json:"client_visible"`
 	Tracker           string     `json:"tracker"`
 	Status            string     `json:"status"`
 	Priority          string     `json:"priority"`
@@ -311,6 +315,7 @@ func (q *Queries) GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, er
 		&i.Numero,
 		&i.Subject,
 		&i.Description,
+		&i.ClientVisible,
 		&i.Tracker,
 		&i.Status,
 		&i.Priority,

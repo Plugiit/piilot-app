@@ -120,11 +120,22 @@ type PortalDeliverableDetail struct {
 type PortalService struct {
 	q            *db.Queries
 	files        storage.Store
+	maxFile      int64
 	deliverables *DeliverableService
+	tickets      *TicketService
 }
 
-func NewPortalService(pool *pgxpool.Pool, files storage.Store, deliverables *DeliverableService) *PortalService {
-	return &PortalService{q: db.New(pool), files: files, deliverables: deliverables}
+// NewPortalService construit le service. Les livrables et les tickets passent
+// par les services du back-office : une reponse du client suit les memes
+// notifications, le meme journal et les memes e-mails que celle de l'agence.
+func NewPortalService(
+	pool *pgxpool.Pool,
+	files storage.Store,
+	maxFile int64,
+	deliverables *DeliverableService,
+	tickets *TicketService,
+) *PortalService {
+	return &PortalService{q: db.New(pool), files: files, maxFile: maxFile, deliverables: deliverables, tickets: tickets}
 }
 
 // Projects rend les projets du client de l'appelant.

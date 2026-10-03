@@ -69,6 +69,14 @@ func registerClientRoutes(r fiber.Router, deps Deps) {
 	r.Get("/deliverables/:id", deps.Guard.RequirePermission("deliverables.read"), deps.Portal.Deliverable)
 	r.Post("/deliverables/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Portal.Decide)
 	r.Get("/files/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.DownloadFile)
+
+	// Support : les demandes du client. Les notes internes de l'equipe n'en
+	// sortent jamais, la requete les ecarte elle-meme.
+	r.Get("/tickets", deps.Guard.RequirePermission("tickets.read"), deps.Portal.Tickets)
+	r.Post("/tickets", deps.Guard.RequirePermission("tickets.write"), deps.Portal.CreateTicket)
+	r.Get("/tickets/:id", deps.Guard.RequirePermission("tickets.read"), deps.Portal.Ticket)
+	r.Post("/tickets/:id/messages", deps.Guard.RequirePermission("tickets.write"), deps.Portal.Reply)
+	r.Post("/tickets/:id/files", deps.Guard.RequirePermission("tickets.write"), deps.Portal.AttachToTicket)
 }
 
 // registerAuthRoutes monte les endpoints publics d'authentification.

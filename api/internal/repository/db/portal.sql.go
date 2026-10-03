@@ -104,7 +104,7 @@ func (q *Queries) PortalGetDeliverable(ctx context.Context, arg PortalGetDeliver
 }
 
 const portalGetFile = `-- name: PortalGetFile :one
-SELECT a.id, a.project_id, a.filename, a.content_type, a.size_bytes, a.storage_key, a.uploaded_by, a.created_at, a.task_id, a.shared_with_client
+SELECT a.id, a.project_id, a.filename, a.content_type, a.size_bytes, a.storage_key, a.uploaded_by, a.created_at, a.task_id, a.shared_with_client, a.ticket_id
 FROM users u
 JOIN projects p ON p.client_id = u.client_id AND p.deleted_at IS NULL AND NOT p.is_internal
 JOIN attachments a ON a.id = $1
@@ -120,6 +120,11 @@ WHERE u.id = $2
           JOIN deliverables d ON d.id = v.deliverable_id AND d.deleted_at IS NULL
           WHERE v.attachment_id = a.id AND d.project_id = p.id
       )
+      OR EXISTS (
+          SELECT 1
+          FROM tickets t
+          WHERE t.id = a.ticket_id AND t.project_id = p.id AND t.client_visible AND t.deleted_at IS NULL
+      )
   )
 LIMIT 1
 `
@@ -130,7 +135,7 @@ type PortalGetFileParams struct {
 }
 
 // Un fichier que l'appelant peut telecharger : partage sur un de ses projets,
-// ou porte par une version d'un de ses livrables.
+// porte par une version d'un de ses livrables, ou joint a un de ses tickets.
 func (q *Queries) PortalGetFile(ctx context.Context, arg PortalGetFileParams) (Attachment, error) {
 	row := q.db.QueryRow(ctx, portalGetFile, arg.FileID, arg.UserID)
 	var i Attachment
@@ -145,6 +150,7 @@ func (q *Queries) PortalGetFile(ctx context.Context, arg PortalGetFileParams) (A
 		&i.CreatedAt,
 		&i.TaskID,
 		&i.SharedWithClient,
+		&i.TicketID,
 	)
 	return i, err
 }

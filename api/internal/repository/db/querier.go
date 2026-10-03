@@ -73,6 +73,7 @@ type Querier interface {
 	// Total de chaque colonne du kanban, filtres compris.
 	CountTasksByStatus(ctx context.Context, arg CountTasksByStatusParams) ([]CountTasksByStatusRow, error)
 	CountTasksOfProjectByStatus(ctx context.Context, projectID uuid.UUID) ([]CountTasksOfProjectByStatusRow, error)
+	CountTicketFiles(ctx context.Context, ticketID *uuid.UUID) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAssignedToParams) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
@@ -120,6 +121,7 @@ type Querier interface {
 	CreateTicket(ctx context.Context, arg CreateTicketParams) (CreateTicketRow, error)
 	// Inscrit un changement au journal.
 	CreateTicketEvent(ctx context.Context, arg CreateTicketEventParams) (CreateTicketEventRow, error)
+	CreateTicketFile(ctx context.Context, arg CreateTicketFileParams) (Attachment, error)
 	// Inscrit un message au registre.
 	CreateTicketMessage(ctx context.Context, arg CreateTicketMessageParams) (CreateTicketMessageRow, error)
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (uuid.UUID, error)
@@ -240,6 +242,9 @@ type Querier interface {
 	// ramener par jointure multiplierait l'en-tete par le nombre de lignes du
 	// registre.
 	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
+	// De quoi ecrire les e-mails d'un ticket : son numero, son sujet, son projet,
+	// et la personne du portail qui l'a ouvert, si elle est toujours active.
+	GetTicketMailContext(ctx context.Context, ticketID uuid.UUID) (GetTicketMailContextRow, error)
 	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (GetTimeEntryRow, error)
 	GetUpdater(ctx context.Context) (AppUpdater, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -515,6 +520,7 @@ type Querier interface {
 	ListTemplateTasks(ctx context.Context, templateID uuid.UUID) ([]ProjectTemplateTask, error)
 	// Ce qui est arrive au ticket, dans le meme ordre.
 	ListTicketEvents(ctx context.Context, ticketID uuid.UUID) ([]ListTicketEventsRow, error)
+	ListTicketFiles(ctx context.Context, ticketID *uuid.UUID) ([]Attachment, error)
 	// Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
 	ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]ListTicketMessagesRow, error)
 	// Qui prevenir pour un geste pose sur un ticket : les administrateurs, la
@@ -523,6 +529,9 @@ type Querier interface {
 	// Les comptes du portail sont ecartes : la cloche est un outil du
 	// back-office, le client suit son ticket depuis le portail.
 	ListTicketNotificationRecipients(ctx context.Context, arg ListTicketNotificationRecipientsParams) ([]uuid.UUID, error)
+	// Qui prevenir par e-mail cote agence : la personne qui traite le ticket, ou
+	// les administrateurs tant que personne ne l'a pris.
+	ListTicketTeamMailRecipients(ctx context.Context, ticketID uuid.UUID) ([]ListTicketTeamMailRecipientsRow, error)
 	// Tickets.
 	//
 	// Les trois vues de l'ecran — tableau, kanban par projet, kanban par statut —
@@ -612,13 +621,15 @@ type Querier interface {
 	MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error)
 	// Le numero suivant, sous le verrou pose juste avant.
 	NextDeliverableVersionNumero(ctx context.Context, deliverableID uuid.UUID) (int32, error)
+	PortalCountTickets(ctx context.Context, arg PortalCountTicketsParams) (int64, error)
 	// Un livrable soumis d'un projet du client de l'appelant.
 	PortalGetDeliverable(ctx context.Context, arg PortalGetDeliverableParams) (PortalGetDeliverableRow, error)
 	// Un fichier que l'appelant peut telecharger : partage sur un de ses projets,
-	// ou porte par une version d'un de ses livrables.
+	// porte par une version d'un de ses livrables, ou joint a un de ses tickets.
 	PortalGetFile(ctx context.Context, arg PortalGetFileParams) (Attachment, error)
 	// Un projet du client de l'appelant. Aucune ligne s'il appartient a un autre.
 	PortalGetProject(ctx context.Context, arg PortalGetProjectParams) (PortalGetProjectRow, error)
+	PortalGetTicket(ctx context.Context, arg PortalGetTicketParams) (PortalGetTicketRow, error)
 	// Les livrables soumis d'un projet. Un brouillon — rien encore de depose —
 	// ne regarde pas le client.
 	PortalListDeliverables(ctx context.Context, projectID uuid.UUID) ([]PortalListDeliverablesRow, error)
@@ -636,6 +647,20 @@ type Querier interface {
 	PortalListProjects(ctx context.Context, userID uuid.UUID) ([]PortalListProjectsRow, error)
 	// Les fichiers que l'agence a choisi de partager. Interne par defaut.
 	PortalListSharedFiles(ctx context.Context, projectID *uuid.UUID) ([]PortalListSharedFilesRow, error)
+	// Les messages publics d'un ticket. Les notes internes n'en sortent pas.
+	PortalListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]PortalListTicketMessagesRow, error)
+	// Les changements de statut, seuls : qui traite le ticket ou sa priorite
+	// interne ne regardent pas le client.
+	PortalListTicketStatusEvents(ctx context.Context, ticketID uuid.UUID) ([]PortalListTicketStatusEventsRow, error)
+	// Portail client : tickets.
+	//
+	// Meme regle que le reste du portail : chaque requete de lecture part de
+	// l'appelant et de son client. Un ticket interne a l'agence, ou celui d'un
+	// autre client, ne rend aucune ligne.
+	//
+	// Les notes internes ne sortent jamais d'ici : la requete des messages les
+	// ecarte elle-meme, plutot que de compter sur le code qui l'appelle.
+	PortalListTickets(ctx context.Context, arg PortalListTicketsParams) ([]PortalListTicketsRow, error)
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
@@ -697,6 +722,7 @@ type Querier interface {
 	// et qui efface le fichier qu'elle designait, sans quoi le magasin garderait
 	// tous les logos jamais deposes.
 	SetSidebarAppLogo(ctx context.Context, arg SetSidebarAppLogoParams) (SetSidebarAppLogoRow, error)
+	SetTicketClientVisible(ctx context.Context, id uuid.UUID) error
 	SetUpdateRequestStep(ctx context.Context, arg SetUpdateRequestStepParams) error
 	SetUserRole(ctx context.Context, arg SetUserRoleParams) error
 	// Vrai quand la cle designe encore le logo d'une app vivante : c'est ce qui

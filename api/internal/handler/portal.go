@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/gofiber/fiber/v3"
@@ -20,6 +21,12 @@ type PortalService interface {
 	Deliverable(ctx context.Context, userID, deliverableID uuid.UUID) (usecase.PortalDeliverableDetail, error)
 	Decide(ctx context.Context, userID, deliverableID uuid.UUID, decision, feedback string) (usecase.PortalDeliverableDetail, error)
 	OpenFile(ctx context.Context, userID, fileID uuid.UUID) (usecase.Attachment, io.ReadCloser, error)
+
+	Tickets(ctx context.Context, userID uuid.UUID, open *bool, page int) (usecase.PortalTicketPage, error)
+	Ticket(ctx context.Context, userID, ticketID uuid.UUID) (usecase.PortalTicketDetail, error)
+	CreateTicket(ctx context.Context, userID uuid.UUID, in usecase.PortalTicketInput) (usecase.PortalTicketDetail, error)
+	Reply(ctx context.Context, userID, ticketID uuid.UUID, body string) (usecase.PortalTicketDetail, error)
+	AttachToTicket(ctx context.Context, userID, ticketID uuid.UUID, filename, contentType string, content io.Reader) (usecase.PortalFile, error)
 }
 
 // Portal porte les endpoints du portail client.
@@ -145,4 +152,140 @@ func (h *Portal) DownloadFile(c fiber.Ctx) error {
 	c.Set(fiber.HeaderContentDisposition, contentDisposition(file.Filename))
 
 	return c.SendStream(content, int(file.SizeBytes))
+}
+
+// Tickets sert « Support » : les demandes du client, ouvertes ou closes.
+func (h *Portal) Tickets(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+
+	var open *bool
+	switch c.Query("state") {
+	case "open":
+		v := true
+		open = &v
+	case "closed":
+		v := false
+		open = &v
+	case "":
+	default:
+		return domain.ErrValidation.WithDetails(map[string]any{"state": "Valeur attendue : open ou closed"})
+	}
+
+	page, err := h.svc.Tickets(c.Context(), userID, open, queryInt(c, "page", 1))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(page)
+}
+
+// Ticket sert une demande et son fil public.
+func (h *Portal) Ticket(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	ticket, err := h.svc.Ticket(c.Context(), userID, id)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(ticket)
+}
+
+// CreateTicket depose une demande.
+func (h *Portal) CreateTicket(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+
+	var body struct {
+		ProjectID   string `json:"project_id"`
+		Tracker     string `json:"tracker"`
+		Priority    string `json:"priority"`
+		Subject     string `json:"subject"`
+		Description string `json:"description"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	projectID, err := uuid.Parse(body.ProjectID)
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{"project_id": "Choisissez un de vos projets"})
+	}
+
+	ticket, err := h.svc.CreateTicket(c.Context(), userID, usecase.PortalTicketInput{
+		ProjectID: projectID, Tracker: body.Tracker, Priority: body.Priority,
+		Subject: body.Subject, Description: body.Description,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(ticket)
+}
+
+// Reply ajoute la reponse du client au fil.
+func (h *Portal) Reply(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var body struct {
+		Body string `json:"body"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	ticket, err := h.svc.Reply(c.Context(), userID, id, body.Body)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(ticket)
+}
+
+// AttachToTicket recoit une piece jointe d'une demande.
+func (h *Portal) AttachToTicket(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{"file": "Aucun fichier reçu sous le champ « file »"})
+	}
+	content, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("lecture du fichier envoye : %w", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	file, err := h.svc.AttachToTicket(c.Context(), userID, id, header.Filename, header.Header.Get("Content-Type"), content)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(file)
 }

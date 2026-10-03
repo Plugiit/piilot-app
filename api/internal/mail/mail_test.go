@@ -88,3 +88,36 @@ func TestDeliverableSubmittedDitLaVersion(t *testing.T) {
 		t.Errorf("seconde version : %q / %q", second.Subject, second.Text)
 	}
 }
+
+func TestTicketToClientDitReponseEtStatut(t *testing.T) {
+	both, err := TicketToClient("c@example.fr", "Inès", 47, "Formulaire <cassé>", "C'est corrigé.", "Résolue", "https://p.test/client/tickets/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(both.Subject, "#47") || !strings.Contains(both.Text, "C'est corrigé.") || !strings.Contains(both.Text, "« Résolue »") {
+		t.Errorf("reponse et statut : %q / %q", both.Subject, both.Text)
+	}
+	if strings.Contains(both.HTML, "<cassé>") {
+		t.Error("le sujet n'est pas echappe")
+	}
+
+	status, err := TicketToClient("c@example.fr", "", 47, "Formulaire", "", "Résolue", "https://p.test/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(status.Subject, "résolue") || strings.Contains(status.Text, "«  »") {
+		t.Errorf("statut seul : %q / %q", status.Subject, status.Text)
+	}
+}
+
+func TestTicketToTeamNommeLeClient(t *testing.T) {
+	msg, err := TicketToTeam("a@example.fr", "Léa", true, 12, "Erreur 500", "Refonte", "Atelier Iris", "Inès", "La page plante.", "https://p.test/pm/tickets/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Nouvelle demande #12 de Atelier Iris", "Inès (Atelier Iris)", "La page plante.", "https://p.test/pm/tickets/x"} {
+		if !strings.Contains(msg.Subject+msg.Text, want) {
+			t.Errorf("sans %q : %q / %q", want, msg.Subject, msg.Text)
+		}
+	}
+}

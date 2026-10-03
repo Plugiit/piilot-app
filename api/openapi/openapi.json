@@ -7227,6 +7227,330 @@
           }
         }
       }
+    },
+    "/api/v1/client/tickets": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Mes demandes",
+        "description": "Les demandes du client, les plus recemment mises a jour d'abord. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.read.",
+        "operationId": "listPortalTickets",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Demandes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalTicketPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Deposer une demande",
+        "description": "Sur un projet du client. Priorite restreinte a low, normal ou high. L'agence est prevenue par notification et par e-mail. Exige tickets.write.",
+        "operationId": "createPortalTicket",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "tracker",
+                  "subject",
+                  "description"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tracker": {
+                    "type": "string",
+                    "enum": [
+                      "anomalie",
+                      "evolution",
+                      "assistance"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high"
+                    ]
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Demande deposee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalTicketDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/client/tickets/{id}": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Une demande",
+        "description": "La demande et son fil public. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.read.",
+        "operationId": "getPortalTicket",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Demande",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalTicketDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/client/tickets/{id}/messages": {
+      "post": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Repondre sur une demande",
+        "description": "Jamais interne, sans changement de statut. L'agence est prevenue par notification et par e-mail. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.write.",
+        "operationId": "replyPortalTicket",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reponse ajoutee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalTicketDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/client/tickets/{id}/files": {
+      "post": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Joindre un fichier",
+        "description": "Au plus dix pieces jointes par demande. Isole par le client de l'appelant ; les tickets internes a l'agence n'y figurent pas. Exige tickets.write.",
+        "operationId": "attachPortalTicketFile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fichier joint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalFile"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10089,7 +10413,9 @@
               "description",
               "client",
               "reporter",
-              "entries"
+              "entries",
+              "client_visible",
+              "files"
             ],
             "properties": {
               "description": {
@@ -10117,6 +10443,17 @@
                   "$ref": "#/components/schemas/TicketEntry"
                 },
                 "description": "Registre fusionne et trie du plus ancien au plus recent."
+              },
+              "client_visible": {
+                "type": "boolean",
+                "description": "Visible du client dans son portail : le ticket vient de lui."
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Attachment"
+                },
+                "description": "Pieces jointes deposees avec la demande."
               }
             }
           }
@@ -13012,6 +13349,233 @@
               "$ref": "#/components/schemas/PortalVersion"
             },
             "description": "De la plus recente a la plus ancienne."
+          }
+        }
+      },
+      "PortalTicket": {
+        "type": "object",
+        "required": [
+          "id",
+          "numero",
+          "subject",
+          "tracker",
+          "status",
+          "priority",
+          "project",
+          "open",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "tracker": {
+            "type": "string",
+            "enum": [
+              "anomalie",
+              "evolution",
+              "assistance"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "in_progress",
+              "in_review",
+              "ready_to_deploy",
+              "done",
+              "annule"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent",
+              "critical"
+            ]
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PortalTicketPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalTicket"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "PortalTicketEntry": {
+        "type": "object",
+        "required": [
+          "kind",
+          "at",
+          "author",
+          "from_agency",
+          "body",
+          "status"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "message",
+              "status"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "type": "string",
+            "description": "Prenom de l'auteur ; vide pour un changement de statut."
+          },
+          "from_agency": {
+            "type": "boolean"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Nouveau statut, pour un changement."
+          }
+        }
+      },
+      "PortalTicketDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "numero",
+          "subject",
+          "description",
+          "tracker",
+          "status",
+          "priority",
+          "open",
+          "project",
+          "reporter",
+          "created_at",
+          "entries",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tracker": {
+            "type": "string",
+            "enum": [
+              "anomalie",
+              "evolution",
+              "assistance"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "in_progress",
+              "in_review",
+              "ready_to_deploy",
+              "done",
+              "annule"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent",
+              "critical"
+            ]
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "reporter": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalTicketEntry"
+            },
+            "description": "Messages publics et changements de statut visibles. Les notes internes n'y figurent jamais."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalFile"
+            }
           }
         }
       }
