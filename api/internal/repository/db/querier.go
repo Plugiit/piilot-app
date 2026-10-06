@@ -87,6 +87,10 @@ type Querier interface {
 	// `client_id` peut etre nul : le contact est alors libre, en attente d'une
 	// entreprise.
 	CreateContact(ctx context.Context, arg CreateContactParams) (Contact, error)
+	// Inscription depuis l'ecran CRM, avec l'identite complete du client.
+	// Distincte de CreateClient, qui sert la creation a la volee depuis le
+	// formulaire de projet, ou seul le nom est connu.
+	CreateCrmClient(ctx context.Context, arg CreateCrmClientParams) (Client, error)
 	// Le livrable nait sans version : c'est la soumission qui lui en donne une.
 	CreateDeliverable(ctx context.Context, arg CreateDeliverableParams) (uuid.UUID, error)
 	CreateDeliverableVersion(ctx context.Context, arg CreateDeliverableVersionParams) (uuid.UUID, error)
@@ -171,6 +175,9 @@ type Querier interface {
 	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
 	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
 	GetClientByName(ctx context.Context, name string) (Client, error)
+	// Un SIRET designe un seul etablissement : deux clients qui le partagent sont
+	// un doublon.
+	GetClientBySiret(ctx context.Context, siret string) (Client, error)
 	GetClientName(ctx context.Context, id uuid.UUID) (string, error)
 	GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error)
 	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs

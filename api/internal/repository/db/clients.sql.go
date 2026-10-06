@@ -67,7 +67,7 @@ func (q *Queries) CountProjectsOfClient(ctx context.Context, clientID uuid.UUID)
 const createClient = `-- name: CreateClient :one
 INSERT INTO clients (name)
 VALUES ($1)
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at
 `
 
 // Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
@@ -95,12 +95,92 @@ func (q *Queries) CreateClient(ctx context.Context, name string) (Client, error)
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
+	)
+	return i, err
+}
+
+const createCrmClient = `-- name: CreateCrmClient :one
+INSERT INTO clients (
+    name, kind, legal_name, legal_form, siret, vat_number,
+    phone, address, postal_code, city, country, registry_checked_at
+)
+VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11,
+    CASE WHEN $12::boolean THEN now() END
+)
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at
+`
+
+type CreateCrmClientParams struct {
+	Name            string `json:"name"`
+	Kind            string `json:"kind"`
+	LegalName       string `json:"legal_name"`
+	LegalForm       string `json:"legal_form"`
+	Siret           string `json:"siret"`
+	VatNumber       string `json:"vat_number"`
+	Phone           string `json:"phone"`
+	Address         string `json:"address"`
+	PostalCode      string `json:"postal_code"`
+	City            string `json:"city"`
+	Country         string `json:"country"`
+	RegistryChecked bool   `json:"registry_checked"`
+}
+
+// Inscription depuis l'ecran CRM, avec l'identite complete du client.
+// Distincte de CreateClient, qui sert la creation a la volee depuis le
+// formulaire de projet, ou seul le nom est connu.
+func (q *Queries) CreateCrmClient(ctx context.Context, arg CreateCrmClientParams) (Client, error) {
+	row := q.db.QueryRow(ctx, createCrmClient,
+		arg.Name,
+		arg.Kind,
+		arg.LegalName,
+		arg.LegalForm,
+		arg.Siret,
+		arg.VatNumber,
+		arg.Phone,
+		arg.Address,
+		arg.PostalCode,
+		arg.City,
+		arg.Country,
+		arg.RegistryChecked,
+	)
+	var i Client
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ProjectsActive,
+		&i.PortalUsers,
+		&i.PrimaryContactID,
+		&i.Status,
+		&i.AccountManagerID,
+		&i.Website,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+		&i.Siret,
+		&i.VatNumber,
+		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 	)
 	return i, err
 }
 
 const getClientByID = `-- name: GetClientByID :one
-SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at FROM clients
+SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at FROM clients
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -127,12 +207,16 @@ func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (Client, erro
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 	)
 	return i, err
 }
 
 const getClientByName = `-- name: GetClientByName :one
-SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at FROM clients
+SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at FROM clients
 WHERE lower(name) = lower($1::text) AND deleted_at IS NULL
 `
 
@@ -161,13 +245,56 @@ func (q *Queries) GetClientByName(ctx context.Context, name string) (Client, err
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
+	)
+	return i, err
+}
+
+const getClientBySiret = `-- name: GetClientBySiret :one
+SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at FROM clients
+WHERE siret = $1::text AND siret <> '' AND deleted_at IS NULL
+LIMIT 1
+`
+
+// Un SIRET designe un seul etablissement : deux clients qui le partagent sont
+// un doublon.
+func (q *Queries) GetClientBySiret(ctx context.Context, siret string) (Client, error) {
+	row := q.db.QueryRow(ctx, getClientBySiret, siret)
+	var i Client
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ProjectsActive,
+		&i.PortalUsers,
+		&i.PrimaryContactID,
+		&i.Status,
+		&i.AccountManagerID,
+		&i.Website,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+		&i.Siret,
+		&i.VatNumber,
+		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 	)
 	return i, err
 }
 
 const getCrmClient = `-- name: GetCrmClient :one
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at, c.kind, c.legal_name, c.legal_form, c.registry_checked_at,
     ct.id                      AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -187,34 +314,38 @@ WHERE c.id = $1 AND c.deleted_at IS NULL
 `
 
 type GetCrmClientRow struct {
-	ID               uuid.UUID  `json:"id"`
-	Name             string     `json:"name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	ProjectsActive   int32      `json:"projects_active"`
-	PortalUsers      int32      `json:"portal_users"`
-	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
-	Status           string     `json:"status"`
-	AccountManagerID *uuid.UUID `json:"account_manager_id"`
-	Website          string     `json:"website"`
-	Phone            string     `json:"phone"`
-	Address          string     `json:"address"`
-	PostalCode       string     `json:"postal_code"`
-	City             string     `json:"city"`
-	Country          string     `json:"country"`
-	Siret            string     `json:"siret"`
-	VatNumber        string     `json:"vat_number"`
-	StatusChangedAt  time.Time  `json:"status_changed_at"`
-	ContactID        *uuid.UUID `json:"contact_id"`
-	ContactFirstname string     `json:"contact_firstname"`
-	ContactLastname  string     `json:"contact_lastname"`
-	ContactRole      string     `json:"contact_role"`
-	ContactEmail     *string    `json:"contact_email"`
-	ManagerFirstname *string    `json:"manager_firstname"`
-	ManagerLastname  *string    `json:"manager_lastname"`
-	ManagerAvatarUrl *string    `json:"manager_avatar_url"`
-	ContactsCount    int64      `json:"contacts_count"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
+	ContactID         *uuid.UUID `json:"contact_id"`
+	ContactFirstname  string     `json:"contact_firstname"`
+	ContactLastname   string     `json:"contact_lastname"`
+	ContactRole       string     `json:"contact_role"`
+	ContactEmail      *string    `json:"contact_email"`
+	ManagerFirstname  *string    `json:"manager_firstname"`
+	ManagerLastname   *string    `json:"manager_lastname"`
+	ManagerAvatarUrl  *string    `json:"manager_avatar_url"`
+	ContactsCount     int64      `json:"contacts_count"`
 }
 
 // Fiche d'un client : son en-tete, avec le contact principal et les compteurs
@@ -242,6 +373,10 @@ func (q *Queries) GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientR
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 		&i.ContactID,
 		&i.ContactFirstname,
 		&i.ContactLastname,
@@ -257,7 +392,7 @@ func (q *Queries) GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientR
 
 const listClients = `-- name: ListClients :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at, c.kind, c.legal_name, c.legal_form, c.registry_checked_at,
     btrim(coalesce(ct.firstname, '') || ' ' || coalesce(ct.lastname, '')) AS contact_name,
     coalesce(ct.role, '')                                                 AS contact_role
 FROM clients c
@@ -275,27 +410,31 @@ type ListClientsParams struct {
 }
 
 type ListClientsRow struct {
-	ID               uuid.UUID  `json:"id"`
-	Name             string     `json:"name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	ProjectsActive   int32      `json:"projects_active"`
-	PortalUsers      int32      `json:"portal_users"`
-	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
-	Status           string     `json:"status"`
-	AccountManagerID *uuid.UUID `json:"account_manager_id"`
-	Website          string     `json:"website"`
-	Phone            string     `json:"phone"`
-	Address          string     `json:"address"`
-	PostalCode       string     `json:"postal_code"`
-	City             string     `json:"city"`
-	Country          string     `json:"country"`
-	Siret            string     `json:"siret"`
-	VatNumber        string     `json:"vat_number"`
-	StatusChangedAt  time.Time  `json:"status_changed_at"`
-	ContactName      string     `json:"contact_name"`
-	ContactRole      string     `json:"contact_role"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
+	ContactName       string     `json:"contact_name"`
+	ContactRole       string     `json:"contact_role"`
 }
 
 // Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
@@ -333,6 +472,10 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 			&i.Siret,
 			&i.VatNumber,
 			&i.StatusChangedAt,
+			&i.Kind,
+			&i.LegalName,
+			&i.LegalForm,
+			&i.RegistryCheckedAt,
 			&i.ContactName,
 			&i.ContactRole,
 		); err != nil {
@@ -348,7 +491,7 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 
 const listClientsBoard = `-- name: ListClientsBoard :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at, c.kind, c.legal_name, c.legal_form, c.registry_checked_at,
     ct.id                      AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -382,34 +525,38 @@ type ListClientsBoardParams struct {
 }
 
 type ListClientsBoardRow struct {
-	ID               uuid.UUID  `json:"id"`
-	Name             string     `json:"name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	ProjectsActive   int32      `json:"projects_active"`
-	PortalUsers      int32      `json:"portal_users"`
-	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
-	Status           string     `json:"status"`
-	AccountManagerID *uuid.UUID `json:"account_manager_id"`
-	Website          string     `json:"website"`
-	Phone            string     `json:"phone"`
-	Address          string     `json:"address"`
-	PostalCode       string     `json:"postal_code"`
-	City             string     `json:"city"`
-	Country          string     `json:"country"`
-	Siret            string     `json:"siret"`
-	VatNumber        string     `json:"vat_number"`
-	StatusChangedAt  time.Time  `json:"status_changed_at"`
-	ContactID        *uuid.UUID `json:"contact_id"`
-	ContactFirstname string     `json:"contact_firstname"`
-	ContactLastname  string     `json:"contact_lastname"`
-	ContactRole      string     `json:"contact_role"`
-	ContactEmail     *string    `json:"contact_email"`
-	ManagerFirstname *string    `json:"manager_firstname"`
-	ManagerLastname  *string    `json:"manager_lastname"`
-	ManagerAvatarUrl *string    `json:"manager_avatar_url"`
-	ContactsCount    int64      `json:"contacts_count"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
+	ContactID         *uuid.UUID `json:"contact_id"`
+	ContactFirstname  string     `json:"contact_firstname"`
+	ContactLastname   string     `json:"contact_lastname"`
+	ContactRole       string     `json:"contact_role"`
+	ContactEmail      *string    `json:"contact_email"`
+	ManagerFirstname  *string    `json:"manager_firstname"`
+	ManagerLastname   *string    `json:"manager_lastname"`
+	ManagerAvatarUrl  *string    `json:"manager_avatar_url"`
+	ContactsCount     int64      `json:"contacts_count"`
 }
 
 // Toutes les cartes du kanban, tous statuts confondus.
@@ -445,6 +592,10 @@ func (q *Queries) ListClientsBoard(ctx context.Context, arg ListClientsBoardPara
 			&i.Siret,
 			&i.VatNumber,
 			&i.StatusChangedAt,
+			&i.Kind,
+			&i.LegalName,
+			&i.LegalForm,
+			&i.RegistryCheckedAt,
 			&i.ContactID,
 			&i.ContactFirstname,
 			&i.ContactLastname,
@@ -467,7 +618,7 @@ func (q *Queries) ListClientsBoard(ctx context.Context, arg ListClientsBoardPara
 
 const listCrmClients = `-- name: ListCrmClients :many
 SELECT
-    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at,
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at, c.kind, c.legal_name, c.legal_form, c.registry_checked_at,
     ct.id                 AS contact_id,
     coalesce(ct.firstname, '') AS contact_firstname,
     coalesce(ct.lastname, '')  AS contact_lastname,
@@ -524,34 +675,38 @@ type ListCrmClientsParams struct {
 }
 
 type ListCrmClientsRow struct {
-	ID               uuid.UUID  `json:"id"`
-	Name             string     `json:"name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	ProjectsActive   int32      `json:"projects_active"`
-	PortalUsers      int32      `json:"portal_users"`
-	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
-	Status           string     `json:"status"`
-	AccountManagerID *uuid.UUID `json:"account_manager_id"`
-	Website          string     `json:"website"`
-	Phone            string     `json:"phone"`
-	Address          string     `json:"address"`
-	PostalCode       string     `json:"postal_code"`
-	City             string     `json:"city"`
-	Country          string     `json:"country"`
-	Siret            string     `json:"siret"`
-	VatNumber        string     `json:"vat_number"`
-	StatusChangedAt  time.Time  `json:"status_changed_at"`
-	ContactID        *uuid.UUID `json:"contact_id"`
-	ContactFirstname string     `json:"contact_firstname"`
-	ContactLastname  string     `json:"contact_lastname"`
-	ContactRole      string     `json:"contact_role"`
-	ContactEmail     *string    `json:"contact_email"`
-	ManagerFirstname *string    `json:"manager_firstname"`
-	ManagerLastname  *string    `json:"manager_lastname"`
-	ManagerAvatarUrl *string    `json:"manager_avatar_url"`
-	ContactsCount    int64      `json:"contacts_count"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
+	ContactID         *uuid.UUID `json:"contact_id"`
+	ContactFirstname  string     `json:"contact_firstname"`
+	ContactLastname   string     `json:"contact_lastname"`
+	ContactRole       string     `json:"contact_role"`
+	ContactEmail      *string    `json:"contact_email"`
+	ManagerFirstname  *string    `json:"manager_firstname"`
+	ManagerLastname   *string    `json:"manager_lastname"`
+	ManagerAvatarUrl  *string    `json:"manager_avatar_url"`
+	ContactsCount     int64      `json:"contacts_count"`
 }
 
 // Liste paginee de l'ecran CRM.
@@ -602,6 +757,10 @@ func (q *Queries) ListCrmClients(ctx context.Context, arg ListCrmClientsParams) 
 			&i.Siret,
 			&i.VatNumber,
 			&i.StatusChangedAt,
+			&i.Kind,
+			&i.LegalName,
+			&i.LegalForm,
+			&i.RegistryCheckedAt,
 			&i.ContactID,
 			&i.ContactFirstname,
 			&i.ContactLastname,
@@ -728,7 +887,7 @@ UPDATE clients
 SET status = $1,
     updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at
 `
 
 type MoveClientStatusParams struct {
@@ -762,6 +921,10 @@ func (q *Queries) MoveClientStatus(ctx context.Context, arg MoveClientStatusPara
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 	)
 	return i, err
 }
@@ -793,11 +956,22 @@ SET name               = $1,
     postal_code        = $7,
     city               = $8,
     country            = $9,
-    siret              = $10,
-    vat_number         = $11,
+    kind               = $10,
+    legal_name         = $11,
+    legal_form         = $12,
+    -- La date de verification ne vaut que pour le numero verifie : elle est
+    -- reposee par une nouvelle verification, et tombe si le SIRET change
+    -- sans elle. A droite du SET, ` + "`" + `siret` + "`" + ` est encore l'ancienne valeur.
+    registry_checked_at = CASE
+        WHEN $13::boolean THEN now()
+        WHEN siret IS DISTINCT FROM $14 THEN NULL
+        ELSE registry_checked_at
+    END,
+    siret              = $14,
+    vat_number         = $15,
     updated_at         = now()
-WHERE id = $12 AND deleted_at IS NULL
-RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at
+WHERE id = $16 AND deleted_at IS NULL
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at
 `
 
 type UpdateClientParams struct {
@@ -810,6 +984,10 @@ type UpdateClientParams struct {
 	PostalCode       string     `json:"postal_code"`
 	City             string     `json:"city"`
 	Country          string     `json:"country"`
+	Kind             string     `json:"kind"`
+	LegalName        string     `json:"legal_name"`
+	LegalForm        string     `json:"legal_form"`
+	RegistryChecked  bool       `json:"registry_checked"`
 	Siret            string     `json:"siret"`
 	VatNumber        string     `json:"vat_number"`
 	ID               uuid.UUID  `json:"id"`
@@ -829,6 +1007,10 @@ func (q *Queries) UpdateClient(ctx context.Context, arg UpdateClientParams) (Cli
 		arg.PostalCode,
 		arg.City,
 		arg.Country,
+		arg.Kind,
+		arg.LegalName,
+		arg.LegalForm,
+		arg.RegistryChecked,
 		arg.Siret,
 		arg.VatNumber,
 		arg.ID,
@@ -854,6 +1036,10 @@ func (q *Queries) UpdateClient(ctx context.Context, arg UpdateClientParams) (Cli
 		&i.Siret,
 		&i.VatNumber,
 		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
 	)
 	return i, err
 }
