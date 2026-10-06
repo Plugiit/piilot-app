@@ -123,6 +123,15 @@ func (u *Updater) Update(ctx context.Context, target docker.Container, step func
 		return err
 	}
 
+	// L'image en cours se lit avant le tirage : celui-ci lui retire son
+	// etiquette, et avec le stockage containerd de Docker, une image sans
+	// etiquette ne se lit plus par son identifiant, meme quand un conteneur
+	// l'utilise encore.
+	current, err := u.Docker.InspectImage(ctx, target.Image)
+	if err != nil {
+		return fmt.Errorf("lecture de l'image en cours : %w", err)
+	}
+
 	step("Téléchargement de " + ref)
 	if err := u.Docker.Pull(ctx, repository, tag); err != nil {
 		return err
@@ -134,11 +143,6 @@ func (u *Updater) Update(ctx context.Context, target docker.Container, step func
 	}
 	if fresh.ID == target.Image {
 		return fmt.Errorf("%w (%s) : l'image est-elle epinglee sur une version ?", ErrUpToDate, ref)
-	}
-
-	current, err := u.Docker.InspectImage(ctx, target.Image)
-	if err != nil {
-		return fmt.Errorf("lecture de l'image en cours : %w", err)
 	}
 
 	body, extra, err := createBody(target, current, ref)
