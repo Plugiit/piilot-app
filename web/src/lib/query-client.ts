@@ -1,6 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 
 import { HttpError } from '@/lib/api'
+import { reportMaintenance } from '@/lib/maintenance'
 
 /**
  * Statuts qui justifient une nouvelle tentative.
@@ -34,13 +35,17 @@ export function createQueryClient(onUnauthorized: () => void) {
   //
   // Les deux caches sont couverts : une lecture qui expire et un enregistrement
   // qui expire meritent la meme issue.
-  function reportUnauthorized(error: unknown) {
+  //
+  // Une maintenance se signale de la meme facon : l'ecran qui la couvre
+  // remplace les messages d'erreur de chaque requete.
+  function report(error: unknown) {
     if (error instanceof HttpError && error.isUnauthorized) onUnauthorized()
+    reportMaintenance(error)
   }
 
   return new QueryClient({
-    queryCache: new QueryCache({ onError: reportUnauthorized }),
-    mutationCache: new MutationCache({ onError: reportUnauthorized }),
+    queryCache: new QueryCache({ onError: report }),
+    mutationCache: new MutationCache({ onError: report }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,

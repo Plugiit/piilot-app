@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { toast } from 'sonner'
 
+import { MaintenanceScreen } from '@/features/system/maintenance-screen'
 import { createQueryClient } from '@/lib/query-client'
 import { routeTree } from './routeTree.gen'
 
@@ -72,6 +73,10 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      {/* Hors du routeur : une page dont le chargement echoue remplace toute
+          la mise en page par son ecran d'erreur, et l'ecran de maintenance
+          disparaitrait avec elle — justement quand il doit s'afficher. */}
+      <MaintenanceScreen />
     </QueryClientProvider>
   </StrictMode>,
 )
