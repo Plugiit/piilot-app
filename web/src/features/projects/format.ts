@@ -116,6 +116,25 @@ export const PROJECT_STATUS: Record<
     color: '#c4c4c4',
     pill: { bg: '#f3f4f4', border: '#e8e8e9', text: '#1b1b1b' },
   },
+  hebergement: {
+    label: 'Hébergement',
+    color: '#8b6cf0',
+    pill: { bg: '#f3f0fe', border: '#e2dafc', text: '#5b3fc4' },
+  },
+}
+
+/**
+ * Un projet en hebergement est livre depuis longtemps et vit sans echeance :
+ * ni date a tenir ni avancement a suivre. Les ecrans taisent les deux plutot
+ * que d'afficher une echeance passee et un avancement fige.
+ */
+export function tracksSchedule(status: ProjectStatus): boolean {
+  return status !== 'hebergement'
+}
+
+/** Projet sorti de la production : livre, ou heberge depuis. */
+export function isDelivered(status: ProjectStatus): boolean {
+  return status === 'livre' || status === 'hebergement'
 }
 
 /**
@@ -185,6 +204,7 @@ export const PROJECT_STATUS_ORDER: ProjectStatus[] = [
   'production',
   'attente',
   'livre',
+  'hebergement',
 ]
 
 /**

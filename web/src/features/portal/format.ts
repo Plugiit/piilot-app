@@ -10,6 +10,7 @@ export const PORTAL_PROJECT_STATUS: Record<PortalProject['status'], { label: str
   production: { ...PROJECT_STATUS.production, label: 'En production' },
   attente: { ...PROJECT_STATUS.attente, label: 'En attente de votre retour' },
   livre: { ...PROJECT_STATUS.livre, label: 'Livré' },
+  hebergement: { ...PROJECT_STATUS.hebergement, label: 'Hébergé par l’agence' },
 }
 
 export const PORTAL_DELIVERABLE_STATUS: Record<

@@ -2282,7 +2282,7 @@ export interface components {
             client_id: string;
             client_name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
             progress: number;
             /** @description Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none. */
@@ -2394,7 +2394,7 @@ export interface components {
             client_id: string;
             client_name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             /** @description Avancement declare par l'equipe, distinct du rapport des taches faites */
             progress: number;
             /** @description Vaut 0 pour qui n'a pas budgets.read, et budget_state vaut alors none. */
@@ -2444,7 +2444,7 @@ export interface components {
             id: string;
             name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
         };
         /** @description Raccourcis du compte appelant. Bornee a vingt entrees et sans pagination : une liste de navigation qui aurait une page 2 ne serait plus un raccourci. */
         ProjectShortcutList: {
@@ -2696,7 +2696,7 @@ export interface components {
             client_id?: string | null;
             client_name?: string;
             /** @enum {string} */
-            status?: "cadrage" | "production" | "attente" | "livre";
+            status?: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress?: number;
             hours_sold?: number;
             /**
@@ -2737,7 +2737,7 @@ export interface components {
             /** Format: uuid */
             client_id?: string;
             /** @enum {string} */
-            status?: "cadrage" | "production" | "attente" | "livre";
+            status?: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress?: number;
             hours_sold?: number;
             /**
@@ -2992,7 +2992,7 @@ export interface components {
             id: string;
             name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress: number;
             /** Format: date */
             due_on: string | null;
@@ -3865,7 +3865,7 @@ export interface components {
             name: string;
             client_name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress: number;
             /** Format: date */
             due_on: string | null;
@@ -4048,7 +4048,7 @@ export interface components {
             name: string;
             description: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress: number;
             /** Format: date */
             starts_on: string | null;
@@ -4098,7 +4098,7 @@ export interface components {
             description: string;
             client_name: string;
             /** @enum {string} */
-            status: "cadrage" | "production" | "attente" | "livre";
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
             progress: number;
             /** Format: date */
             starts_on: string | null;
@@ -4916,7 +4916,7 @@ export interface operations {
                 page_size?: number;
                 /** @description Recherche partielle sur le nom */
                 search?: string;
-                status?: "cadrage" | "production" | "attente" | "livre";
+                status?: "cadrage" | "production" | "attente" | "livre" | "hebergement";
                 client_id?: string;
                 /** @description Restreint aux projets en cours (non livres) dont le budget derive : 'warning' (80 % consomme ou plus), 'over' (depasse). Memes regles que les alertes du tableau de bord. */
                 budget?: "warning" | "over";
