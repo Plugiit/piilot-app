@@ -11,6 +11,32 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.3] — Nouvelles versions détectées · 2026-10-06
+
+Cette version fait apparaître une nouvelle version de Piilot le jour même de sa sortie, sur toutes les installations, sans rien configurer côté GitHub.
+
+### Points forts
+
+- Vérification des nouvelles versions tous les quarts d'heure, au lieu de toutes les six heures.
+- « Rechercher une mise à jour » dans le menu du compte, pour vérifier sans attendre.
+- Une nouvelle version s'annonce dans la cloche des admins.
+
+### Nouveautés
+
+#### Admin
+
+- **Rechercher une mise à jour** (menu du compte, en bas du rail) : la réponse arrive en quelques secondes — « Piilot est à jour », ou « Piilot 0.9.4 est disponible » avec le bouton « Mettre à jour » dans l'en-tête.
+- **Annonce dans la cloche** : chaque admin est prévenu d'une nouvelle version, une seule fois.
+- **Bouton de l'en-tête** : il apparaît dans les deux minutes qui suivent la détection d'une version.
+
+### Technique
+
+- Chaque instance interroge GitHub elle-même, en requête conditionnelle : quand rien n'a changé, GitHub répond 304, ce qui ne compte pas dans sa limite d'appels. Aucun webhook à configurer, donc valable pour toute installation auto-hébergée.
+- `UPDATE_CHECK_INTERVAL` règle l'intervalle (15 minutes par défaut, 5 au minimum) ; `UPDATE_CHECK=false` coupe toujours tout appel.
+- `POST /api/v1/admin/system/update/check` : la vérification part de la tâche de fond, dans les quinze secondes, jamais pendant la requête.
+- Migration `000035` : empreinte de la dernière réponse, demande de vérification, dernière version annoncée.
+- Les instances en 0.9.2 ou avant vérifient encore toutes les six heures : un Redeploy les met sur ce nouveau rythme.
+
 ## [0.9.2] — Un domaine par rôle · 2026-10-06
 
 Cette version corrige le passage d'un domaine à l'autre en multi-domaines : un administrateur fait désormais tout son travail sur le domaine d'administration, sans jamais en changer.
