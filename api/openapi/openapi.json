@@ -973,6 +973,42 @@
         }
       }
     },
+    "/api/v1/admin/system/update/check": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Verifier les versions maintenant",
+        "description": "Demande une verification immediate des nouvelles versions. GitHub n'est pas appele pendant la requete : la tache de fond le fait dans les quinze secondes, l'ecran relit l'etat. Exige system.update.",
+        "operationId": "requestUpdateCheck",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Verification demandee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
     "/api/v1/admin/projects": {
       "get": {
         "tags": [
@@ -9446,7 +9482,8 @@
               "ticket_replied",
               "ticket_status_changed",
               "deliverable_validated",
-              "deliverable_feedback"
+              "deliverable_feedback",
+              "update_available"
             ]
           },
           "payload": {
@@ -11637,7 +11674,8 @@
           "checked_at",
           "check_error",
           "last_request",
-          "in_progress"
+          "in_progress",
+          "check_pending"
         ],
         "properties": {
           "current_version": {
@@ -11694,6 +11732,10 @@
           "in_progress": {
             "type": "boolean",
             "description": "Une mise a jour est en route : le bouton est remplace par son suivi."
+          },
+          "check_pending": {
+            "type": "boolean",
+            "description": "Une verification demandee par un admin attend la tache de fond, qui la fait dans les quinze secondes."
           }
         }
       },

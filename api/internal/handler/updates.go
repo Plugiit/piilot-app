@@ -15,6 +15,7 @@ import (
 type UpdateService interface {
 	Status(ctx context.Context) (usecase.UpdateStatus, error)
 	Request(ctx context.Context, actor uuid.UUID) (usecase.UpdateStatus, error)
+	RequestCheck(ctx context.Context) (usecase.UpdateStatus, error)
 }
 
 // Updates porte la mise a jour de l'application depuis l'interface.
@@ -47,6 +48,17 @@ func (h *Updates) Request(c fiber.Ctx) error {
 	}
 
 	status, err := h.svc.Request(c.Context(), actor)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusAccepted).JSON(status)
+}
+
+// Check demande une verification immediate des versions. 202 : la tache de
+// fond la fait dans les quinze secondes, l'ecran relit l'etat.
+func (h *Updates) Check(c fiber.Ctx) error {
+	status, err := h.svc.RequestCheck(c.Context())
 	if err != nil {
 		return err
 	}

@@ -72,6 +72,9 @@ type UpdateStatus struct {
 	UpdaterError string     `json:"updater_error"`
 	CheckEnabled bool       `json:"check_enabled"`
 	CheckedAt    *time.Time `json:"checked_at"`
+	// Un admin a demande une verification, que la tache de fond fera dans les
+	// quinze secondes : l'ecran relit l'etat d'ici la.
+	CheckPending bool `json:"check_pending"`
 	// Erreur du dernier passage de verification, vide quand il a abouti.
 	CheckError  string             `json:"check_error"`
 	LastRequest *UpdateRequestInfo `json:"last_request"`
@@ -110,8 +113,13 @@ func (s *UpdateService) statusAt(ctx context.Context, now time.Time) (UpdateStat
 	case err != nil:
 		return UpdateStatus{}, fmt.Errorf("lecture de la derniere version : %w", err)
 	default:
-		checkedAt := check.CheckedAt
-		status.CheckedAt = &checkedAt
+		// Une demande arrivee avant tout passage porte une date factice : elle
+		// ne dit pas qu'une verification a eu lieu.
+		if check.CheckedAt.After(time.Unix(0, 0)) {
+			checkedAt := check.CheckedAt
+			status.CheckedAt = &checkedAt
+		}
+		status.CheckPending = check.CheckRequestedAt != nil
 		status.CheckError = check.Error
 		if check.Version != "" {
 			status.Latest = &ReleaseInfo{
@@ -156,6 +164,23 @@ func (s *UpdateService) statusAt(ctx context.Context, now time.Time) (UpdateStat
 	}
 
 	return status, nil
+}
+
+// RequestCheck demande une verification immediate des versions. Elle part de la
+// tache de fond, dans les quinze secondes : GitHub n'est jamais appele pendant la
+// requete.
+func (s *UpdateService) RequestCheck(ctx context.Context) (UpdateStatus, error) {
+	if !s.checkEnabled {
+		return UpdateStatus{}, domain.ErrValidation.WithMessage(
+			"La vérification des versions est désactivée sur cette instance (UPDATE_CHECK=false)",
+		)
+	}
+
+	if err := s.q.RequestReleaseCheck(ctx); err != nil {
+		return UpdateStatus{}, fmt.Errorf("demande de verification : %w", err)
+	}
+
+	return s.Status(ctx)
 }
 
 // Request enregistre une demande de mise a jour vers la derniere version.

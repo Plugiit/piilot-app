@@ -38,6 +38,10 @@ const (
 
 	NotifyDeliverableValidated = "deliverable_validated"
 	NotifyDeliverableFeedback  = "deliverable_feedback"
+
+	// Ecrite par la tache de verification des versions, pour ceux qui peuvent
+	// installer la mise a jour.
+	NotifyUpdateAvailable = "update_available"
 )
 
 // Notification est une ligne du panneau.
