@@ -588,6 +588,9 @@ type Querier interface {
 	// L'ecran montre une journee ou une semaine : les deux bornes disent laquelle,
 	// et la meme requete sert les deux.
 	ListTimeEntries(ctx context.Context, arg ListTimeEntriesParams) ([]ListTimeEntriesRow, error)
+	// Qui prevenir d'une nouvelle version : les comptes actifs qui peuvent
+	// l'installer.
+	ListUpdateRecipients(ctx context.Context) ([]uuid.UUID, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
@@ -610,6 +613,7 @@ type Querier interface {
 	// Le destinataire est dans la clause : sans lui, connaitre un identifiant
 	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
+	MarkReleaseNotified(ctx context.Context, notifiedVersion string) error
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
 	// Deplacement d'une carte du kanban. Distincte de UpdateClient : glisser une
@@ -669,6 +673,8 @@ type Querier interface {
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
 	RenewInvitation(ctx context.Context, arg RenewInvitationParams) (Invitation, error)
+	// Un admin demande une verification immediate ; la tache de fond la fera.
+	RequestReleaseCheck(ctx context.Context) error
 	// Repasse le logo en automatique.
 	//
 	// Efface le logo courant et rouvre la recuperation : le job exige un logo nul,
@@ -689,7 +695,8 @@ type Querier interface {
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
 	RoleHasPermission(ctx context.Context, arg RoleHasPermissionParams) (bool, error)
-	// Resultat d'un passage reussi : la version vue remplace la precedente.
+	// Resultat d'un passage reussi : la version vue remplace la precedente, avec
+	// l'empreinte de la reponse pour le passage suivant.
 	SaveReleaseCheck(ctx context.Context, arg SaveReleaseCheckParams) error
 	// Passage rate : on garde la derniere version connue, on note l'erreur.
 	SaveReleaseCheckError(ctx context.Context, error string) error
@@ -787,6 +794,8 @@ type Querier interface {
 	// mentir le total ou le detail.
 	TimeReportTotals(ctx context.Context, arg TimeReportTotalsParams) (TimeReportTotalsRow, error)
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
+	// GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
+	TouchReleaseCheck(ctx context.Context) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
 	// Modification de la fiche. Les compteurs n'y sont pas — ils sont tenus par

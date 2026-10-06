@@ -12,13 +12,16 @@ import (
 )
 
 type AppReleaseCheck struct {
-	ID          bool       `json:"id"`
-	Version     string     `json:"version"`
-	Name        string     `json:"name"`
-	Url         string     `json:"url"`
-	PublishedAt *time.Time `json:"published_at"`
-	CheckedAt   time.Time  `json:"checked_at"`
-	Error       string     `json:"error"`
+	ID               bool       `json:"id"`
+	Version          string     `json:"version"`
+	Name             string     `json:"name"`
+	Url              string     `json:"url"`
+	PublishedAt      *time.Time `json:"published_at"`
+	CheckedAt        time.Time  `json:"checked_at"`
+	Error            string     `json:"error"`
+	Etag             string     `json:"etag"`
+	CheckRequestedAt *time.Time `json:"check_requested_at"`
+	NotifiedVersion  string     `json:"notified_version"`
 }
 
 type AppUpdateRequest struct {

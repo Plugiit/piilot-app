@@ -116,7 +116,7 @@ func (q *Queries) GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRe
 }
 
 const getReleaseCheck = `-- name: GetReleaseCheck :one
-SELECT id, version, name, url, published_at, checked_at, error FROM app_release_check WHERE id
+SELECT id, version, name, url, published_at, checked_at, error, etag, check_requested_at, notified_version FROM app_release_check WHERE id
 `
 
 func (q *Queries) GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error) {
@@ -130,6 +130,9 @@ func (q *Queries) GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error) 
 		&i.PublishedAt,
 		&i.CheckedAt,
 		&i.Error,
+		&i.Etag,
+		&i.CheckRequestedAt,
+		&i.NotifiedVersion,
 	)
 	return i, err
 }
@@ -151,16 +154,71 @@ func (q *Queries) GetUpdater(ctx context.Context) (AppUpdater, error) {
 	return i, err
 }
 
+const listUpdateRecipients = `-- name: ListUpdateRecipients :many
+SELECT u.id
+FROM users u
+JOIN roles r ON r.code = u.role
+JOIN role_permissions rp ON rp.role_id = r.id
+JOIN permissions p ON p.id = rp.permission_id AND p.code = 'system.update'
+WHERE u.deleted_at IS NULL AND u.disabled_at IS NULL
+LIMIT 50
+`
+
+// Qui prevenir d'une nouvelle version : les comptes actifs qui peuvent
+// l'installer.
+func (q *Queries) ListUpdateRecipients(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUpdateRecipients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markReleaseNotified = `-- name: MarkReleaseNotified :exec
+UPDATE app_release_check SET notified_version = $1 WHERE id
+`
+
+func (q *Queries) MarkReleaseNotified(ctx context.Context, notifiedVersion string) error {
+	_, err := q.db.Exec(ctx, markReleaseNotified, notifiedVersion)
+	return err
+}
+
+const requestReleaseCheck = `-- name: RequestReleaseCheck :exec
+INSERT INTO app_release_check (id, checked_at, check_requested_at)
+VALUES (true, 'epoch', now())
+ON CONFLICT (id) DO UPDATE SET check_requested_at = now()
+`
+
+// Un admin demande une verification immediate ; la tache de fond la fera.
+func (q *Queries) RequestReleaseCheck(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, requestReleaseCheck)
+	return err
+}
+
 const saveReleaseCheck = `-- name: SaveReleaseCheck :exec
-INSERT INTO app_release_check (id, version, name, url, published_at, checked_at, error)
-VALUES (true, $1, $2, $3, $4, now(), '')
+INSERT INTO app_release_check (id, version, name, url, published_at, etag, checked_at, error)
+VALUES (true, $1, $2, $3, $4, $5, now(), '')
 ON CONFLICT (id) DO UPDATE SET
-    version      = EXCLUDED.version,
-    name         = EXCLUDED.name,
-    url          = EXCLUDED.url,
-    published_at = EXCLUDED.published_at,
-    checked_at   = now(),
-    error        = ''
+    version            = EXCLUDED.version,
+    name               = EXCLUDED.name,
+    url                = EXCLUDED.url,
+    published_at       = EXCLUDED.published_at,
+    etag               = EXCLUDED.etag,
+    checked_at         = now(),
+    error              = '',
+    check_requested_at = NULL
 `
 
 type SaveReleaseCheckParams struct {
@@ -168,15 +226,18 @@ type SaveReleaseCheckParams struct {
 	Name        string     `json:"name"`
 	Url         string     `json:"url"`
 	PublishedAt *time.Time `json:"published_at"`
+	Etag        string     `json:"etag"`
 }
 
-// Resultat d'un passage reussi : la version vue remplace la precedente.
+// Resultat d'un passage reussi : la version vue remplace la precedente, avec
+// l'empreinte de la reponse pour le passage suivant.
 func (q *Queries) SaveReleaseCheck(ctx context.Context, arg SaveReleaseCheckParams) error {
 	_, err := q.db.Exec(ctx, saveReleaseCheck,
 		arg.Version,
 		arg.Name,
 		arg.Url,
 		arg.PublishedAt,
+		arg.Etag,
 	)
 	return err
 }
@@ -184,7 +245,7 @@ func (q *Queries) SaveReleaseCheck(ctx context.Context, arg SaveReleaseCheckPara
 const saveReleaseCheckError = `-- name: SaveReleaseCheckError :exec
 INSERT INTO app_release_check (id, checked_at, error)
 VALUES (true, now(), $1)
-ON CONFLICT (id) DO UPDATE SET checked_at = now(), error = EXCLUDED.error
+ON CONFLICT (id) DO UPDATE SET checked_at = now(), error = EXCLUDED.error, check_requested_at = NULL
 `
 
 // Passage rate : on garde la derniere version connue, on note l'erreur.
@@ -259,4 +320,14 @@ func (q *Queries) StartPendingUpdateRequest(ctx context.Context) (AppUpdateReque
 		&i.FinishedAt,
 	)
 	return i, err
+}
+
+const touchReleaseCheck = `-- name: TouchReleaseCheck :exec
+UPDATE app_release_check SET checked_at = now(), error = '', check_requested_at = NULL WHERE id
+`
+
+// GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
+func (q *Queries) TouchReleaseCheck(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, touchReleaseCheck)
+	return err
 }
