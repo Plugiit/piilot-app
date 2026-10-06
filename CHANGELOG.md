@@ -11,6 +11,26 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.4] — Agenda et finitions · 2026-10-06
+
+Cette version remet l'agenda sur le tableau de bord, cette fois avec les vraies échéances, et soigne plusieurs écrans du quotidien.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Agenda du tableau de bord** : le panneau de droite revient. Il montre la semaine du jour choisi avec les jalons et les échéances des projets, et ses propres tâches, filtrables ; un point marque les jours chargés, et chaque entrée mène au projet, à ses jalons ou à la tâche. Il se replie toujours depuis l'en-tête.
+- **Client d'un nouveau projet** : une liste déroulante des clients, avec recherche, remplace le champ texte. Un client absent se crée depuis la même liste, marqué « nouveau ».
+
+### Améliorations
+
+- Les chiffres de « Mon travail » prennent la carte du tableau de bord.
+- Sans photo de profil, le bas du rail affiche les initiales du compte sur fond orange.
+
+### Corrections
+
+- La fenêtre de création de projet défile : sur un écran de 900 px de haut, le bouton de création restait hors d'atteinte.
+
 ## [0.9.3] — Nouvelles versions détectées · 2026-10-06
 
 Cette version fait apparaître une nouvelle version de Piilot le jour même de sa sortie, sur toutes les installations, sans rien configurer côté GitHub.
