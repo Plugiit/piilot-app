@@ -269,7 +269,7 @@ fichier `VERSION` à chaque release : il indique toujours la version en cours.
 Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 
 <!-- roadmap:readme -->
-**Version actuelle : `0.9.2`** — détail de chaque release dans [ROADMAP.md](ROADMAP.md).
+**Version actuelle : `0.9.3`** — détail de chaque release dans [ROADMAP.md](ROADMAP.md).
 
 | Statut | Version | Nom | Espace | Objectif |
 |---|---|---|---|---|
@@ -281,7 +281,7 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 0.6.0 | Espace team | Team | « Mon travail », navigation par droits, notifications |
 | ✅ Livrée | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
 | ✅ Livrée | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
-| 📍 Actuelle (`0.9.2`) | **0.9.0** | Portail : tickets | Client | Dépôt et suivi des tickets |
+| 📍 Actuelle (`0.9.3`) | **0.9.0** | Portail : tickets | Client | Dépôt et suivi des tickets |
 | ⏳ À venir | 1.0.0 | V1 | Tous | Recette et critères de sortie |
 <!-- /roadmap:readme -->
 
