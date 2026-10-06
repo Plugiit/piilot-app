@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/select'
 import { useUpdateClient } from '@/features/clients/api'
 import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
+import { normalizeSiret } from '@/features/clients/registry'
+import { LegalNameCheck, RegistryStatus, useRegistry } from '@/features/clients/registry-status'
 import { peopleQuery } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
 import type { CrmClientDetail, Person } from '@/types/api'
@@ -61,6 +63,8 @@ const schema = z.object({
   country: z.string().trim(),
   siret: z.string().trim(),
   vat_number: z.string().trim(),
+  legal_name: z.string().trim(),
+  legal_form: z.string().trim(),
 })
 
 type Values = z.infer<typeof schema>
@@ -93,7 +97,6 @@ export function EditClientDialog({
   const update = useUpdateClient()
 
   const { data: people } = useQuery({ ...peopleQuery, enabled: open })
-
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -108,8 +111,24 @@ export function EditClientDialog({
       country: client.country,
       siret: client.siret,
       vat_number: client.vat_number,
+      legal_name: client.legal_name,
+      legal_form: client.legal_form,
     },
   })
+
+  const professional = client.kind === 'professionnel'
+
+  // Le registre n'est interroge que pour un SIRET qu'on vient de changer, ou
+  // qui n'a jamais ete verifie : rouvrir une fiche verifiee ne le sollicite
+  // pas a chaque fois.
+  const siret = useWatch({ control: form.control, name: 'siret' })
+  const legalName = useWatch({ control: form.control, name: 'legal_name' })
+  const changedSiret = normalizeSiret(siret) !== client.siret || client.registry_checked_at === null
+  const registry = useRegistry(open && professional && changedSiret ? siret : '')
+  const official =
+    registry.state === 'found' && registry.company != null && !registry.company.hidden
+      ? registry.company.legalName
+      : ''
 
   function submit(values: Values) {
     update.mutate(
@@ -117,6 +136,11 @@ export function EditClientDialog({
         id: client.id,
         values: {
           ...values,
+          kind: client.kind,
+          siret: normalizeSiret(values.siret),
+          // Un SIRET retrouve au registre se date ; celui deja verifie garde
+          // sa date tant qu'il ne change pas, ce dont le serveur s'occupe.
+          registry_checked: registry.state === 'found' && changedSiret,
           account_manager_id:
             values.account_manager_id === NON_ASSIGNE ? null : values.account_manager_id,
         },
@@ -170,6 +194,8 @@ export function EditClientDialog({
             country: client.country,
             siret: client.siret,
             vat_number: client.vat_number,
+            legal_name: client.legal_name,
+            legal_form: client.legal_form,
           })
         }
       }}
@@ -192,7 +218,7 @@ export function EditClientDialog({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom du client</FormLabel>
+                    <FormLabel>{professional ? 'Nom d’usage' : 'Nom du client'}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -354,21 +380,62 @@ export function EditClientDialog({
               </div>
             </Section>
 
-            <Section title="Identifiants légaux">
-              <div className="grid gap-3 sm:grid-cols-2">
+            {/* Un particulier n'a ni SIRET ni raison sociale : la section
+                n'a rien a lui montrer. */}
+            {professional && (
+              <Section title="Identifiants légaux">
                 <FormField
                   control={form.control}
-                  name="siret"
+                  name="legal_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>SIRET</FormLabel>
+                      <FormLabel>Raison sociale</FormLabel>
                       <FormControl>
-                        <Input inputMode="numeric" placeholder="123 456 789 00011" {...field} />
+                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
+                      <LegalNameCheck
+                        value={legalName}
+                        official={official}
+                        onAdopt={(name) => form.setValue('legal_name', name, { shouldDirty: true })}
+                      />
                     </FormItem>
                   )}
                 />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="siret"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SIRET</FormLabel>
+                        <FormControl>
+                          <Input inputMode="numeric" placeholder="552 032 534 00646" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="legal_form"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Forme juridique</FormLabel>
+                        <FormControl>
+                          <Input placeholder="SAS, SARL…" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {registry.state !== 'idle' && (
+                  <RegistryStatus siret={registry.siret} state={registry.state} company={registry.company} />
+                )}
 
                 <FormField
                   control={form.control}
@@ -377,21 +444,18 @@ export function EditClientDialog({
                     <FormItem>
                       <FormLabel>N° de TVA</FormLabel>
                       <FormControl>
-                        <Input placeholder="FR12345678900" {...field} />
+                        <Input placeholder="Déduit du SIRET si vide" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              {/* Sous le groupe et non sous un champ : dans une grille a deux
-                  colonnes, une note attachee a une seule cellule allonge celle-ci
-                  et decale sa voisine. */}
-              <p className="text-[13px] text-[#73757c]">
-                Saisis aussi sur l'ancienne plateforme, qui porte la facturation.
-              </p>
-            </Section>
+                <p className="text-[13px] text-[#73757c]">
+                  Saisis aussi sur l'ancienne plateforme, qui porte la facturation.
+                </p>
+              </Section>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

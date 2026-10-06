@@ -1,11 +1,13 @@
 import {
   Building03Icon,
+  CheckmarkCircle02Icon,
   Comment01Icon,
   Contact01Icon,
   Folder01Icon,
   Globe02Icon,
   Mail01Icon,
   SmartPhone01Icon,
+  UserIcon,
   UserMultipleIcon,
   UserStar01Icon,
 } from '@hugeicons/core-free-icons'
@@ -107,11 +109,14 @@ function Line({
   label,
   value,
   href,
+  badge,
 }: {
   icon: typeof Globe02Icon
   label: string
   value: string
   href?: string
+  /** Mention posee a cote de la valeur, comme la verification d'un SIRET. */
+  badge?: ReactNode
 }) {
   return (
     <div className="flex items-start gap-2.5 py-2">
@@ -135,7 +140,10 @@ function Line({
             {value}
           </a>
         ) : (
-          <span className="truncate text-[14px] text-[#111]">{value}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[14px] text-[#111]">{value}</span>
+            {badge}
+          </span>
         )}
       </div>
     </div>
@@ -179,6 +187,9 @@ function ClientDetailPage() {
                 {client.name}
               </h1>
               <StatusPill label={status.label} color={status.color} pill={status.pill} />
+              <span className="rounded-full bg-[#f3f3f4] px-2 py-0.5 text-[12px] text-[#5c5e66]">
+                {client.kind === 'particulier' ? 'Particulier' : 'Professionnel'}
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -330,9 +341,20 @@ function ClientDetailPage() {
             )}
           </PanelCard>
 
-          <PanelCard icon={Building03Icon} title="ENTREPRISE">
+          {/* Un particulier n'a que des coordonnees : ni raison sociale, ni
+              SIRET, ni TVA. */}
+          <PanelCard
+            icon={client.kind === 'particulier' ? UserIcon : Building03Icon}
+            title={client.kind === 'particulier' ? 'COORDONNÉES' : 'ENTREPRISE'}
+          >
             <div className="grid gap-x-4 sm:grid-cols-2">
-              <Line icon={Globe02Icon} label="Site web" value={client.website} href={client.website} />
+              {client.kind === 'professionnel' && (
+                <>
+                  <Line icon={Building03Icon} label="Raison sociale" value={client.legal_name} />
+                  <Line icon={Building03Icon} label="Forme juridique" value={client.legal_form} />
+                  <Line icon={Globe02Icon} label="Site web" value={client.website} href={client.website} />
+                </>
+              )}
               <Line
                 icon={SmartPhone01Icon}
                 label="Téléphone"
@@ -346,8 +368,27 @@ function ClientDetailPage() {
                   .filter((part) => part !== '')
                   .join(', ')}
               />
-              <Line icon={UserStar01Icon} label="SIRET" value={client.siret} />
-              <Line icon={UserStar01Icon} label="N° de TVA" value={client.vat_number} />
+              {client.kind === 'professionnel' && (
+                <>
+                  <Line
+                    icon={UserStar01Icon}
+                    label="SIRET"
+                    value={client.siret}
+                    badge={
+                      client.registry_checked_at !== null && (
+                        <span
+                          title={`Retrouvé au registre des entreprises le ${DATE_FORMAT.format(new Date(client.registry_checked_at))}`}
+                          className="flex shrink-0 items-center gap-1 rounded-full bg-[#f2faf4] px-2 py-0.5 text-[11px] text-[#1d6b3a]"
+                        >
+                          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} strokeWidth={2} />
+                          Vérifié
+                        </span>
+                      )
+                    }
+                  />
+                  <Line icon={UserStar01Icon} label="N° de TVA" value={client.vat_number} />
+                </>
+              )}
             </div>
           </PanelCard>
 
