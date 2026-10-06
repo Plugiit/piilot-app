@@ -69,6 +69,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "L'instance s'arrete (status `draining`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthLive"
+                }
+              }
+            }
           }
         }
       }
@@ -8032,20 +8042,28 @@
         "required": [
           "status",
           "version",
-          "commit"
+          "commit",
+          "started_at"
         ],
         "properties": {
           "status": {
             "type": "string",
-            "examples": [
-              "ok"
-            ]
+            "enum": [
+              "ok",
+              "draining"
+            ],
+            "description": "`draining` : l'instance s'arrete et finit ses requetes ; la passerelle ne lui en envoie plus."
           },
           "version": {
             "type": "string"
           },
           "commit": {
             "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Demarrage de l'instance. Entre deux instances saines, la passerelle choisit la plus recente."
           }
         }
       },

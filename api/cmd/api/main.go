@@ -128,8 +128,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Secure: !cfg.IsDevelopment(),
 	}
 
+	health := handler.NewHealth(pool, rdb, handler.BuildInfo{Version: version, Commit: commit})
+
 	handler.Register(app, handler.Deps{
-		Health:   handler.NewHealth(pool, rdb, handler.BuildInfo{Version: version, Commit: commit}),
+		Health:   health,
 		Auth:     handler.NewAuth(authService, cookies, repository.NewRateLimiter(rdb), log),
 		Projects: handler.NewProjects(projectService),
 		Tasks:    handler.NewTasks(taskService),
@@ -202,8 +204,15 @@ func run(cfg config.Config, log *slog.Logger) error {
 		}
 		return nil
 	case <-ctx.Done():
-		log.Info("arret demande, fermeture en cours", "timeout", cfg.ShutdownTimeout)
+		log.Info("arret demande, fermeture en cours", "drain", cfg.DrainDelay, "timeout", cfg.ShutdownTimeout)
 	}
+
+	// Avant de fermer, l'instance se declare en arret et continue de servir :
+	// la passerelle, qui la sonde chaque seconde, a le temps de l'ecarter et
+	// d'envoyer les nouvelles requetes a l'autre instance. Fermer d'emblee
+	// ferait echouer celles qui arrivent entre la fermeture et ce constat.
+	health.Drain()
+	time.Sleep(cfg.DrainDelay)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
