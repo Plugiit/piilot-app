@@ -182,7 +182,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	}
 
 	if cfg.UpdateCheck {
-		repository.StartReleaseCheck(ctx, pool, cfg.UpdateRepository, log)
+		repository.StartReleaseCheck(ctx, pool, cfg.UpdateRepository, version, cfg.UpdateCheckInterval, log)
 	}
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le

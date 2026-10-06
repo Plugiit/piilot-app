@@ -2,6 +2,7 @@ package updates
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,11 +44,36 @@ func TestLatestReleaseLitLeTagSansLePrefixe(t *testing.T) {
 	c := New()
 	c.githubAPI = srv.URL
 
-	got, err := c.LatestRelease(context.Background(), "Plugiit/piilot-app")
+	got, _, err := c.LatestRelease(context.Background(), "Plugiit/piilot-app", "")
 	if err != nil {
 		t.Fatalf("LatestRelease : %v", err)
 	}
 	if got.Version != "0.5.0" || got.URL != "https://example.test/r" || got.PublishedAt == nil {
 		t.Errorf("release = %+v", got)
+	}
+}
+
+func TestLatestReleaseRenvoieLEmpreinteEtComprendLe304(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") == `"abc"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"abc"`)
+		_, _ = w.Write([]byte(`{"tag_name":"v0.9.3","name":"x","html_url":"u"}`))
+	}))
+	defer srv.Close()
+
+	c := New()
+	c.githubAPI = srv.URL
+
+	got, etag, err := c.LatestRelease(context.Background(), "Plugiit/piilot-app", "")
+	if err != nil || got.Version != "0.9.3" || etag != `"abc"` {
+		t.Fatalf("premier appel : %+v %q %v", got, etag, err)
+	}
+
+	_, etag, err = c.LatestRelease(context.Background(), "Plugiit/piilot-app", etag)
+	if !errors.Is(err, ErrNotModified) || etag != `"abc"` {
+		t.Fatalf("second appel : %q %v, attendu ErrNotModified", etag, err)
 	}
 }

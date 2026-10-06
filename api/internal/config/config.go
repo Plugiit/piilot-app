@@ -69,8 +69,9 @@ type Config struct {
 	// Verification des nouvelles versions, une fois toutes les quelques heures,
 	// aupres des releases GitHub du depot. Coupable pour une instance qui ne
 	// doit rien appeler au-dehors.
-	UpdateCheck      bool
-	UpdateRepository string
+	UpdateCheck         bool
+	UpdateRepository    string
+	UpdateCheckInterval time.Duration
 
 	// Serveur SMTP des e-mails (invitations, mot de passe oublie). Facultatif :
 	// sans lui, les liens se copient depuis l'ecran des comptes.
@@ -107,6 +108,9 @@ func Load() (Config, error) {
 
 		UpdateCheck:      envBool("UPDATE_CHECK", true),
 		UpdateRepository: env("UPDATE_REPOSITORY", "Plugiit/piilot-app"),
+		// Un quart d'heure par defaut : les requetes sont conditionnelles, un
+		// « rien de nouveau » ne coute rien a GitHub.
+		UpdateCheckInterval: envDuration("UPDATE_CHECK_INTERVAL", 15*time.Minute),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
 		SMTPPort:     envInt("SMTP_PORT", 587),
@@ -145,6 +149,10 @@ func Load() (Config, error) {
 	if sp.Enabled() {
 		// Le cookie de session doit valoir sur les quatre domaines.
 		cfg.CookieDomain = sp.CookieDomain
+	}
+
+	if cfg.UpdateCheckInterval < 5*time.Minute {
+		return Config{}, fmt.Errorf("UPDATE_CHECK_INTERVAL vaut au moins 5m (actuel : %s)", cfg.UpdateCheckInterval)
 	}
 
 	if cfg.MaxUploadMiB < 1 {
