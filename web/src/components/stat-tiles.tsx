@@ -2,6 +2,7 @@ import { ArrowDownRight01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-i
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 
+import { StatCard } from '@/components/stat-card'
 import { dashboardQuery } from '@/features/projects/api'
 import { cn } from '@/lib/utils'
 import type { DashboardMetric } from '@/types/api'
@@ -36,42 +37,39 @@ function StatTile({
   const rising = change !== null && change >= 0
 
   return (
-    <div className="border-surface-sunken bg-surface flex min-w-px flex-1 flex-col gap-0.5 overflow-clip rounded-[12px] border p-0.5">
-      <div className="flex w-full flex-col gap-1 rounded-[10px] bg-white p-2">
-        <p className="w-full text-sm leading-[1.5] text-[#111]">{label}</p>
-        <p className="w-full text-xl leading-[1.4] font-semibold text-[#111] tabular-nums">
-          {loading || metric === undefined ? '—' : format(metric.value)}
-        </p>
-      </div>
+    <StatCard
+      label={label}
+      value={loading || metric === undefined ? '—' : format(metric.value)}
+      footer={
+        <>
+          <p className="min-w-px flex-1 text-xs leading-[1.5] text-[#111]">
+            {/* Sans periode precedente, il n'y a rien a comparer : le dire vaut
+                mieux qu'afficher une progression depuis zero, qui serait toujours
+                spectaculaire et jamais informative. */}
+            {change === null ? 'Pas encore de comparaison' : 'Que le mois dernier'}
+          </p>
 
-      <div className="bg-surface flex w-full items-center justify-center gap-2.5 px-2 py-1.5">
-        <p className="min-w-px flex-1 text-xs leading-[1.5] text-[#111]">
-          {/* Sans periode precedente, il n'y a rien a comparer : le dire vaut
-              mieux qu'afficher une progression depuis zero, qui serait toujours
-              spectaculaire et jamais informative. */}
-          {change === null ? 'Pas encore de comparaison' : 'Que le mois dernier'}
-        </p>
-
-        {change !== null && (
-          <div className="flex shrink-0 items-center gap-1">
-            <HugeiconsIcon
-              icon={rising ? ArrowUpRight01Icon : ArrowDownRight01Icon}
-              size={12}
-              strokeWidth={2}
-              className={rising ? 'text-[#006f1f]' : 'text-[#ff4345]'}
-            />
-            <p
-              className={cn(
-                'text-xs leading-[1.5] whitespace-nowrap tabular-nums',
-                rising ? 'text-[#006f1f]' : 'text-[#ff4345]',
-              )}
-            >
-              {PERCENT.format(change)} %
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+          {change !== null && (
+            <div className="flex shrink-0 items-center gap-1">
+              <HugeiconsIcon
+                icon={rising ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+                size={12}
+                strokeWidth={2}
+                className={rising ? 'text-[#006f1f]' : 'text-[#ff4345]'}
+              />
+              <p
+                className={cn(
+                  'text-xs leading-[1.5] whitespace-nowrap tabular-nums',
+                  rising ? 'text-[#006f1f]' : 'text-[#ff4345]',
+                )}
+              >
+                {PERCENT.format(change)} %
+              </p>
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }
 
