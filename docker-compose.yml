@@ -68,6 +68,8 @@ services:
       # proposer la mise a jour aux admins. false pour une instance qui ne
       # doit rien appeler au-dehors.
       UPDATE_CHECK: ${UPDATE_CHECK:-true}
+      # Intervalle entre deux verifications (5m au minimum).
+      UPDATE_CHECK_INTERVAL: ${UPDATE_CHECK_INTERVAL:-15m}
 
       # --- E-mails ----------------------------------------------------------
       # Serveur SMTP des invitations et du mot de passe oublie. Facultatif :
