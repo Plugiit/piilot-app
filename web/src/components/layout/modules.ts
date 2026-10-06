@@ -201,7 +201,12 @@ export function useActiveModule(): AppModule | undefined {
  * montrer pour le refuser au clic, c'est encombrer l'espace de chacun avec les
  * outils des autres.
  */
-export function menuFor(module: AppModule, permissions: readonly string[]): MenuGroup[] {
+export function menuFor(
+  module: AppModule,
+  permissions: readonly string[],
+  /** Destinations a taire quand meme : celles d'un domaine hors de portee. */
+  hidden: (to: string) => boolean = () => false,
+): MenuGroup[] {
   const allowed = (permission?: string) => permission === undefined || permissions.includes(permission)
 
   return module.menu
@@ -209,9 +214,9 @@ export function menuFor(module: AppModule, permissions: readonly string[]): Menu
       ...group,
       items: group.items.flatMap((item): MenuItem[] => {
         if (!allowed(item.permission)) return []
-        if (item.children === undefined) return [item]
+        if (item.children === undefined) return hidden(item.to) ? [] : [item]
 
-        const children = item.children.filter((leaf) => allowed(leaf.permission))
+        const children = item.children.filter((leaf) => allowed(leaf.permission) && !hidden(leaf.to))
         if (children.length === 0) return []
 
         // Une seule sous-entree : l'entree mene directement a elle, sans menu

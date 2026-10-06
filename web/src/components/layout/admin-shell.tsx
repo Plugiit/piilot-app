@@ -31,7 +31,7 @@ import type { SidebarApp } from '@/types/api'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
-import { logout, sessionQuery } from '@/lib/auth'
+import { logout, outOfReach, sessionQuery } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -42,7 +42,9 @@ import type { User } from '@/types/api'
  * les logos Notion, Slack ou Drive — ils viennent du fichier de design.
  */
 type RailMark =
-  | { icon: IconSvgElement; label: string; to: string }
+  // `entry` remplace `to` comme cible du lien quand l'entree du module est
+  // hors de portee : `to` reste l'identite du module, pour l'allumer.
+  | { icon: IconSvgElement; label: string; to: string; entry?: string }
   | { src: string; alt: string; width: number; height: number; href?: string }
   // Application tenue en base : son logo quand il y en a un, sa pastille
   // sinon. Elle porte son adresse, comme les marques a `href`.
@@ -71,9 +73,23 @@ interface RailGroup {
  */
 function useRail(): RailGroup[] {
   const { data } = useQuery(sidebarAppListQuery())
+  const { data: session } = useQuery(sessionQuery)
   const apps = data?.items ?? []
 
-  const groups: RailGroup[] = [{ label: 'Menu', navigable: true, marks: [...MODULES] }]
+  // Un module dont tout releve d'un domaine hors de portee — les parametres,
+  // pour l'equipe, quand l'administration a son domaine — ne s'affiche pas :
+  // il renverrait aussitot ailleurs.
+  // Un module dont seule l'entree est hors de portee — le tableau de bord, en
+  // tete du module projets — mene a sa premiere destination accessible.
+  const modules = MODULES.flatMap((module) => {
+    if (!outOfReach(session, module.to)) return [module]
+
+    const [first] = menuFor(module, session?.permissions ?? [], (to) => outOfReach(session, to))
+      .flatMap((group) => group.items)
+      .flatMap(destinationsOf)
+    return first === undefined ? [] : [{ ...module, entry: first }]
+  })
+  const groups: RailGroup[] = [{ label: 'Menu', navigable: true, marks: modules }]
 
   if (apps.length > 0) {
     groups.push({
@@ -221,7 +237,7 @@ function Rail({ footer, scope }: { footer: ReactNode; scope: string }) {
                   return (
                     <Link
                       key={position}
-                      to={mark.to}
+                      to={mark.entry ?? mark.to}
                       aria-label={mark.label}
                       title={mark.label}
                       // TanStack Router pose `aria-current="page"` des qu'un
@@ -602,7 +618,10 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
   // Le module tel que ce compte le voit : sans les ecrans qu'il ne peut pas
   // ouvrir. La destination active se cherche dans ce menu-la, sans quoi une
   // entree masquee pourrait encore gagner.
-  const activeModule = module && { ...module, menu: menuFor(module, session?.permissions ?? []) }
+  const activeModule = module && {
+    ...module,
+    menu: menuFor(module, session?.permissions ?? [], (to) => outOfReach(session, to)),
+  }
   const transition = useSlideTransition()
 
   const pathname = useRouterState({ select: (state) => state.location.pathname })
