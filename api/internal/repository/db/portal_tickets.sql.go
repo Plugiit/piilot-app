@@ -151,7 +151,7 @@ func (q *Queries) ListTicketFiles(ctx context.Context, ticketID *uuid.UUID) ([]A
 }
 
 const listTicketTeamMailRecipients = `-- name: ListTicketTeamMailRecipients :many
-SELECT u.email, u.firstname
+SELECT u.email, u.firstname, u.role
 FROM tickets t
 JOIN users u ON (
     (t.assignee_id IS NOT NULL AND u.id = t.assignee_id)
@@ -166,10 +166,12 @@ LIMIT 20
 type ListTicketTeamMailRecipientsRow struct {
 	Email     string `json:"email"`
 	Firstname string `json:"firstname"`
+	Role      string `json:"role"`
 }
 
 // Qui prevenir par e-mail cote agence : la personne qui traite le ticket, ou
-// les administrateurs tant que personne ne l'a pris.
+// les administrateurs tant que personne ne l'a pris. Le role dit vers quel
+// domaine pointer le lien, quand chaque espace a le sien.
 func (q *Queries) ListTicketTeamMailRecipients(ctx context.Context, ticketID uuid.UUID) ([]ListTicketTeamMailRecipientsRow, error) {
 	rows, err := q.db.Query(ctx, listTicketTeamMailRecipients, ticketID)
 	if err != nil {
@@ -179,7 +181,7 @@ func (q *Queries) ListTicketTeamMailRecipients(ctx context.Context, ticketID uui
 	items := []ListTicketTeamMailRecipientsRow{}
 	for rows.Next() {
 		var i ListTicketTeamMailRecipientsRow
-		if err := rows.Scan(&i.Email, &i.Firstname); err != nil {
+		if err := rows.Scan(&i.Email, &i.Firstname, &i.Role); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

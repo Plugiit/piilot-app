@@ -44,7 +44,7 @@ func newTicketPortal(t *testing.T, pool *pgxpool.Pool) (*usecase.PortalService, 
 	t.Helper()
 	_, deliverables, files := newPortal(t, pool)
 	tickets := usecase.NewTicketService(pool, nil)
-	tickets.SetMail("https://piilot.test", "https://piilot.test", true)
+	tickets.SetMail("https://piilot.test", "https://piilot.test", "https://piilot.test", true)
 
 	return usecase.NewPortalService(pool, files, 1<<20, deliverables, tickets), tickets
 }
