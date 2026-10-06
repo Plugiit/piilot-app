@@ -171,7 +171,9 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[520px]">
+      {/* Plafonnee a la hauteur de l'ecran : le formulaire est long, et sur un
+          portable le bouton de creation sortait du cadre sans defiler. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Nouveau projet</DialogTitle>
           <DialogDescription>
