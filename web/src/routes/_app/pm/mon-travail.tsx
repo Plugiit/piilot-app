@@ -13,6 +13,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { DashboardCard } from '@/components/dashboard-card'
+import { StatCard } from '@/components/stat-card'
 import { PageFrame } from '@/components/layout/page-frame'
 import { myWorkQuery } from '@/features/my-work/api'
 import {
@@ -122,36 +123,40 @@ function MyWorkPage() {
  */
 function Summary({ work, canLogTime }: { work: MyWork; canLogTime: boolean }) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       <Figure
         label="En retard"
         value={String(work.tasks_overdue)}
-        hint={work.tasks_overdue === 0 ? 'Rien en retard' : 'tâche' + (work.tasks_overdue > 1 ? 's' : '') + ' à rattraper'}
+        hint={work.tasks_overdue === 0 ? 'Rien en retard' : 'Tâche' + (work.tasks_overdue > 1 ? 's' : '') + ' à rattraper'}
         tone={work.tasks_overdue > 0 ? 'alert' : undefined}
         href="#taches"
       />
       <Figure
         label="Tâches ouvertes"
         value={String(work.tasks_total)}
-        hint="assignées à vous"
+        hint="Assignées à vous"
         href="#taches"
       />
       <Figure
         label="Tickets"
         value={String(work.tickets_total)}
-        hint={work.tickets_total === 0 ? 'Aucun ticket ouvert' : 'à traiter'}
+        hint={work.tickets_total === 0 ? 'Aucun ticket ouvert' : 'À traiter'}
         href="#tickets"
       />
       <Figure
         label="Cette semaine"
         value={formatDuration(work.week_minutes)}
-        hint={canLogTime ? 'Voir ma semaine' : 'saisies'}
+        hint={canLogTime ? 'Voir ma semaine' : 'Temps saisi depuis lundi'}
         to={canLogTime ? '/pm/temps/saisie' : undefined}
       />
     </div>
   )
 }
 
+/**
+ * Chiffre du bandeau : la carte du tableau de bord, rendue cliquable. Le lien
+ * enveloppe la carte sans rien lui ajouter, sinon un leger relief au survol.
+ */
 function Figure({
   label,
   value,
@@ -168,22 +173,16 @@ function Figure({
   to?: '/pm/temps/saisie'
 }) {
   const body = (
-    <>
-      <span className="text-[13px] text-[#73757c]">{label}</span>
-      <span
-        className={cn(
-          'text-[22px] leading-[1.3] font-semibold tabular-nums',
-          tone === 'alert' ? 'text-[#e5484d]' : 'text-[#111]',
-        )}
-      >
-        {value}
-      </span>
-      <span className="text-[12px] text-[#8d8d8d]">{hint}</span>
-    </>
+    <StatCard
+      label={label}
+      value={value}
+      tone={tone}
+      footer={<p className="min-w-px flex-1 text-xs leading-[1.5] text-[#111]">{hint}</p>}
+      className="h-full transition-shadow group-hover:shadow-[0_6px_18px_-10px_rgb(16_24_40/0.25)]"
+    />
   )
 
-  const className =
-    'flex flex-col gap-0.5 rounded-[12px] border border-[#ebebeb] bg-white px-3 py-2.5 transition-colors hover:bg-[#fafafa]'
+  const className = 'group flex rounded-[12px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
   if (to !== undefined) {
     return (
