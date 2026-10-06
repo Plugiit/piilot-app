@@ -24,6 +24,7 @@ import (
 	"github.com/plugiit/piilot-app/api/internal/middleware"
 	"github.com/plugiit/piilot-app/api/internal/repository"
 	"github.com/plugiit/piilot-app/api/internal/security"
+	"github.com/plugiit/piilot-app/api/internal/spaces"
 	"github.com/plugiit/piilot-app/api/internal/storage"
 	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
@@ -101,7 +102,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	}
 	// Liens des e-mails (invitations, reinitialisations) : adresse publique de
 	// l'application, et envoi actif seulement avec un serveur SMTP.
-	authService.SetLinks(cfg.PublicBaseURL, sender.Configured())
+	authService.SetLinks(cfg.URLFor(spaces.Auth), sender.Configured())
 
 	projectService := usecase.NewProjectService(pool, files, cfg.MaxUploadMiB*(1<<20))
 	// Le bus porte les notifications jusqu'aux flux ouverts ; le service les
@@ -113,9 +114,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Un seul service des livrables pour le back-office et le portail : la
 	// decision du client passe par les memes notifications et le meme journal.
 	deliverableService := usecase.NewDeliverableService(pool, notifyBus)
-	deliverableService.SetMail(cfg.PublicBaseURL, sender.Configured())
+	deliverableService.SetMail(cfg.URLFor(spaces.Client), sender.Configured())
 	ticketService := usecase.NewTicketService(pool, notifyBus)
-	ticketService.SetMail(cfg.PublicBaseURL, sender.Configured())
+	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), sender.Configured())
 
 	clientService := usecase.NewClientService(pool)
 	contactService := usecase.NewContactService(pool)
@@ -143,7 +144,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
 		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
-		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.PublicBaseURL, sender.Configured())),
+		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.URLFor(spaces.Auth), sender.Configured())),
 		AuthLinks:     handler.NewAuthLinks(authService, cookies, repository.NewRateLimiter(rdb), log),
 		MyWork:        handler.NewMyWork(usecase.NewMyWorkService(pool)),
 		Milestones:    handler.NewMilestones(usecase.NewMilestoneService(pool)),
@@ -155,7 +156,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	// Le front, en dernier : il ne recoit que ce qu'aucune route d'API n'a pris.
 	if cfg.StaticDir != "" {
-		if err := handler.RegisterSPA(app, cfg.StaticDir); err != nil {
+		if err := handler.RegisterSPA(app, cfg.StaticDir, cfg.Spaces); err != nil {
 			return err
 		}
 	}
@@ -241,7 +242,7 @@ func newApp(cfg config.Config, log *slog.Logger) *fiber.App {
 	// credentials, et une liste d'origines explicite — un wildcard est refuse
 	// par les navigateurs des que AllowCredentials est actif.
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.AdminOrigins,
+		AllowOrigins:     allowedOrigins(cfg),
 		AllowMethods:     middleware.AllowedMethods,
 		AllowHeaders:     []string{fiber.HeaderContentType, fiber.HeaderAccept, "X-Requested-With"},
 		AllowCredentials: true,
@@ -259,4 +260,16 @@ func newLogger() *slog.Logger {
 	}
 
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+}
+
+// allowedOrigins : les origines de l'admin, plus les quatre domaines en mode
+// multi-domaines. Chaque domaine sert son front et l'API, donc ses appels
+// sont de meme origine ; les ajouter couvre un appel d'un espace vers un
+// autre sans rien ouvrir hors de l'application.
+func allowedOrigins(cfg config.Config) []string {
+	origins := append([]string{}, cfg.AdminOrigins...)
+	if cfg.Spaces.Enabled() {
+		origins = append(origins, cfg.Spaces.AuthURL, cfg.Spaces.TeamURL, cfg.Spaces.AdminURL, cfg.Spaces.ClientURL)
+	}
+	return origins
 }
