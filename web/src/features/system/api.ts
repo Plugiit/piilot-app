@@ -18,11 +18,41 @@ export const systemKeys = {
 export const updateStatusQuery = queryOptions({
   queryKey: systemKeys.update,
   queryFn: async () => unwrap(await api.GET('/api/v1/admin/system/update')),
-  refetchInterval: (query) => (query.state.data?.in_progress === true ? 5_000 : 10 * 60_000),
+  // Toutes les trois secondes le temps qu'une verification demandee aboutisse,
+  // cinq pendant une installation, deux minutes sinon : une version detectee
+  // par la tache de fond apparait vite, et l'etat se lit en base, sans appel
+  // a GitHub.
+  refetchInterval: (query) =>
+    query.state.data?.check_pending === true ? 3_000 : query.state.data?.in_progress === true ? 5_000 : 2 * 60_000,
   // Pendant le redeploiement, le serveur disparait quelques instants : une
   // erreur passagere ne doit pas faire disparaitre l'etat affiche.
   retry: 3,
 })
+
+/**
+ * Demande une verification immediate des versions, puis attend son resultat.
+ *
+ * La verification part de la tache de fond, dans les quinze secondes : on relit l'etat
+ * jusqu'a ce qu'elle soit faite, pour dire au clic « a jour » ou « disponible ».
+ */
+export function useCheckForUpdate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (): Promise<UpdateStatus> => {
+      let status = unwrap(await api.POST('/api/v1/admin/system/update/check'))
+      const deadline = Date.now() + 90_000
+
+      while (status.check_pending && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 3_000))
+        status = unwrap(await api.GET('/api/v1/admin/system/update'))
+      }
+
+      return status
+    },
+    onSuccess: (status) => queryClient.setQueryData(systemKeys.update, status),
+  })
+}
 
 /** Lance la mise a jour vers la derniere version. */
 export function useRequestUpdate() {
