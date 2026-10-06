@@ -160,6 +160,7 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// system.update que la migration 000029 ne donne qu'a eux.
 	r.Get("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Status)
 	r.Post("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Request)
+	r.Post("/system/update/check", deps.Guard.RequirePermission("system.update"), deps.Updates.Check)
 
 	// Clients : le strict necessaire au champ « Client » du formulaire de
 	// projet — un menu deroulant, pas un ecran.
