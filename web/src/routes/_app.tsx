@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { AdminShell } from '@/components/layout/admin-shell'
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
-import { spaceOfPath, spacesEnabled } from '@/lib/spaces'
+import { backOfficeOf, currentSpace, spaceOfPath, spacesEnabled, spaceUrl } from '@/lib/spaces'
 
 /**
  * Back-office de l'agence.
@@ -35,10 +35,23 @@ export const Route = createFileRoute('/_app')({
       throw redirect({ to: homeFor(user) })
     }
 
-    // L'administration a son domaine a part : seuls les administrateurs y
-    // entrent. L'equipe repart vers son accueil.
-    if (spacesEnabled() && spaceOfPath(location.pathname) === 'admin' && user.role !== 'admin') {
-      throw redirect({ to: homeFor(user) })
+    if (spacesEnabled()) {
+      // Chaque role a le domaine de son back-office : un administrateur fait
+      // tout son travail sur celui de l'administration, l'equipe sur le sien.
+      // Arrive sur l'autre, on repart sur le bon, a la meme adresse.
+      const home = backOfficeOf(user.role)
+      const current = currentSpace()
+      const adminOnly = spaceOfPath(location.pathname) === 'admin'
+
+      if (current !== null && current !== home) {
+        const path = home === 'team' && adminOnly ? homeFor(user) : `${location.pathname}${location.searchStr}`
+        throw redirect({ href: `${spaceUrl(home)}${path}` })
+      }
+
+      // Les ecrans d'administration n'existent pas pour l'equipe.
+      if (adminOnly && user.role !== 'admin') {
+        throw redirect({ to: homeFor(user) })
+      }
     }
 
     return { user }

@@ -38,14 +38,18 @@ export function spacesEnabled(): boolean {
 }
 
 /**
- * Espace d'une adresse de l'application. `null` pour ce qui vaut partout : la
- * racine, que chaque espace redirige vers son accueil, et le compte.
+ * Espace d'une adresse de l'application.
+ *
+ * `team` designe le back-office en general : il se sert sur le domaine de
+ * l'equipe comme sur celui de l'administration, ou les administrateurs font
+ * tout leur travail. `admin` designe les seuls ecrans d'administration — le
+ * tableau de bord de l'agence et les parametres. `null` pour la racine, que
+ * chaque domaine redirige vers son accueil.
  */
 export function spaceOfPath(path: string): Space | null {
   const under = (prefix: string) => path === prefix || path.startsWith(`${prefix}/`)
 
   if (path === '/' || path === '') return null
-  if (under('/compte')) return null
   if (under('/login') || under('/invitation') || under('/mot-de-passe-oublie') || under('/reinitialiser')) return 'auth'
   if (under('/client')) return 'client'
   // Le tableau de bord de l'agence est la racine du module PM : seule
@@ -55,6 +59,11 @@ export function spaceOfPath(path: string): Space | null {
   return 'team'
 }
 
+/** Domaine du back-office pour un role : l'administration pour un admin. */
+export function backOfficeOf(role: string): Space {
+  return role === 'admin' ? 'admin' : 'team'
+}
+
 /** Espace du domaine courant, ou `null` hors des domaines configures. */
 export function currentSpace(spaces: SpaceUrls | null = SPACES, origin: string = globalThis.location?.origin ?? ''): Space | null {
   if (spaces === null) return null
@@ -62,13 +71,23 @@ export function currentSpace(spaces: SpaceUrls | null = SPACES, origin: string =
   return (Object.keys(spaces) as Space[]).find((space) => spaces[space] === origin) ?? null
 }
 
+/** Origine d'un espace, en mode multi-domaines. */
+export function spaceUrl(space: Space, spaces: SpaceUrls | null = SPACES): string | null {
+  return spaces === null ? null : spaces[space]
+}
+
 /**
- * Adresse absolue vers laquelle partir quand `path` n'appartient pas a
- * l'espace du domaine courant, ou `null` quand on y est deja.
+ * Adresse absolue vers laquelle partir quand `path` n'appartient pas au
+ * domaine courant, ou `null` quand on y est deja.
+ *
+ * `role` vient de la session quand elle est connue : un administrateur va
+ * droit sur son domaine, sans passer par celui de l'equipe. Inconnue — avant
+ * la connexion —, le back-office se rejoint par le domaine de l'equipe.
  */
 export function crossSpaceUrl(
   path: string,
   search = '',
+  role?: string,
   spaces: SpaceUrls | null = SPACES,
   origin: string = globalThis.location?.origin ?? '',
 ): string | null {
@@ -77,12 +96,26 @@ export function crossSpaceUrl(
   const current = currentSpace(spaces, origin)
   if (current === null) return null
 
-  let target = spaceOfPath(path)
-  if (target === null) {
-    // Le compte n'a pas sa place dans le portail ni sur la connexion.
-    if (path.startsWith('/compte') && (current === 'auth' || current === 'client')) target = 'team'
-    else return null
+  const wanted = spaceOfPath(path)
+  if (wanted === null) return null
+
+  // Un client n'a pas de back-office : la garde de celui-ci le renvoie a son
+  // portail, qui le menera ensuite sur son domaine.
+  if (role === 'client' && (wanted === 'team' || wanted === 'admin')) return null
+
+  let target: Space
+  if (wanted === 'team') {
+    if (role !== undefined) target = backOfficeOf(role)
+    else if (current === 'team' || current === 'admin') return null
+    else target = 'team'
+  } else if (wanted === 'admin' && role !== undefined && role !== 'admin') {
+    // L'equipe n'a pas d'administration a rejoindre : la garde du
+    // back-office la renvoie a son accueil, sur son domaine.
+    return null
+  } else {
+    target = wanted
   }
+
   if (target === current) return null
 
   return `${spaces[target]}${path}${search}`

@@ -1,10 +1,11 @@
-import type { QueryClient } from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
 
 import { ErrorState } from '@/components/layout/error-state'
 import { Toaster } from '@/components/ui/sonner'
 import { VersionBanner } from '@/features/system/version-banner'
+import { sessionQuery } from '@/lib/auth'
 import { crossSpaceUrl } from '@/lib/spaces'
 
 /**
@@ -22,8 +23,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   // courant — un lien vers les parametres depuis l'equipe, la deconnexion —
   // repart sur le domaine de destination. Le serveur fait de meme pour une
   // adresse ouverte directement. En mono-domaine, rien ne se passe.
-  beforeLoad: ({ location }) => {
-    const target = crossSpaceUrl(location.pathname, location.searchStr)
+  //
+  // Le role vient de la session deja en cache, sans la redemander : apres la
+  // connexion, un administrateur va droit sur son domaine.
+  beforeLoad: ({ context, location }) => {
+    const role = context.queryClient.getQueryData(sessionQuery.queryKey)?.role
+    const target = crossSpaceUrl(location.pathname, location.searchStr, role)
     if (target !== null) throw redirect({ href: target })
   },
   component: RootLayout,
@@ -39,10 +44,12 @@ function RootLayout() {
   // repasse pas par le `beforeLoad` racine. Chaque adresse atteinte est donc
   // reverifiee ici, et le domaine change s'il le faut.
   const location = useRouterState({ select: (state) => state.location })
+  const queryClient = useQueryClient()
   useEffect(() => {
-    const target = crossSpaceUrl(location.pathname, location.searchStr)
+    const role = queryClient.getQueryData(sessionQuery.queryKey)?.role
+    const target = crossSpaceUrl(location.pathname, location.searchStr, role)
     if (target !== null) window.location.replace(target)
-  }, [location.pathname, location.searchStr])
+  }, [location.pathname, location.searchStr, queryClient])
 
   return (
     <>
