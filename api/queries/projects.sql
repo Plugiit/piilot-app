@@ -28,7 +28,7 @@ WHERE p.deleted_at IS NULL
   -- Les projets livres sont ecartes, comme dans les alertes du tableau de
   -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
   AND (sqlc.narg('budget')::text IS NULL OR (
-        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+        NOT p.is_internal AND p.status NOT IN ('livre', 'hebergement') AND p.hours_sold > 0 AND (
             (sqlc.narg('budget')::text = 'over' AND p.hours_spent > p.hours_sold)
          OR (sqlc.narg('budget')::text = 'warning'
              AND p.hours_spent <= p.hours_sold
@@ -71,7 +71,7 @@ WHERE p.deleted_at IS NULL
   -- Les projets livres sont ecartes, comme dans les alertes du tableau de
   -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
   AND (sqlc.narg('budget')::text IS NULL OR (
-        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+        NOT p.is_internal AND p.status NOT IN ('livre', 'hebergement') AND p.hours_sold > 0 AND (
             (sqlc.narg('budget')::text = 'over' AND p.hours_spent > p.hours_sold)
          OR (sqlc.narg('budget')::text = 'warning'
              AND p.hours_spent <= p.hours_sold
@@ -210,10 +210,10 @@ SELECT
     -- de chaque carte (voir budgetStateOf). Un projet livre n'alerte plus : ce
     -- qui est consomme l'est, il n'y a plus rien a prevenir.
     (SELECT count(*) FROM projects
-     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+     WHERE deleted_at IS NULL AND NOT is_internal AND status NOT IN ('livre', 'hebergement')
        AND hours_sold > 0 AND hours_spent > hours_sold)                            AS budget_over,
     (SELECT count(*) FROM projects
-     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+     WHERE deleted_at IS NULL AND NOT is_internal AND status NOT IN ('livre', 'hebergement')
        AND hours_sold > 0 AND hours_spent <= hours_sold
        AND hours_spent >= hours_sold * sqlc.arg('budget_warning')::numeric)        AS budget_warning;
 
