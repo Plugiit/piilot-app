@@ -111,6 +111,8 @@ export type CrmClientBoard = components['schemas']['CrmClientBoard']
 
 /** Etape du pipeline commercial, tiree de la spec plutot que reecrite. */
 export type ClientStatus = NonNullable<CrmClient['status']>
+export type ClientKind = CrmClient['kind']
+export type CreateClientRequest = components['schemas']['CreateClientRequest']
 
 /** Tout ce que la fiche d'un client affiche, en un appel. */
 export type CrmClientDetail = components['schemas']['CrmClientDetail']

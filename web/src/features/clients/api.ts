@@ -1,7 +1,7 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api, unwrap } from '@/lib/api'
-import type { ClientStatus, CrmClient } from '@/types/api'
+import type { ClientKind, ClientStatus, CreateClientRequest, CrmClient } from '@/types/api'
 
 /** Cles de cache du module CRM. */
 export const clientKeys = {
@@ -63,13 +63,11 @@ export function clientListQuery(params: CrmClientParams) {
 /**
  * Ce que le formulaire de creation envoie.
  *
- * `contact_id` designe un contact libre a adopter, ou vaut null quand le
- * client naît sans interlocuteur.
+ * Un particulier vient avec la personne qu'il est (`person`), qui devient son
+ * contact principal. Un professionnel vient avec son SIRET, et `contact_id`
+ * designe le contact libre qu'il adopte, ou vaut null.
  */
-export interface CreateClientValues {
-  name: string
-  contact_id?: string | null
-}
+export type CreateClientValues = CreateClientRequest
 
 /**
  * Inscription d'un client.
@@ -120,6 +118,11 @@ export interface UpdateClientValues {
   country?: string
   siret?: string
   vat_number?: string
+  kind?: ClientKind
+  legal_name?: string
+  legal_form?: string
+  /** L'ecran vient de retrouver le SIRET au registre. */
+  registry_checked?: boolean
 }
 
 /** Construit le corps de modification a partir d'un client, champs inchanges. */
@@ -136,6 +139,9 @@ export function valuesOfClient(client: CrmClient): UpdateClientValues {
     country: client.country,
     siret: client.siret,
     vat_number: client.vat_number,
+    kind: client.kind,
+    legal_name: client.legal_name,
+    legal_form: client.legal_form,
   }
 }
 
