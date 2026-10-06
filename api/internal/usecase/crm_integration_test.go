@@ -15,6 +15,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"strings"
@@ -76,6 +77,56 @@ func dropClient(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) {
 	})
 }
 
+// pro decrit un professionnel au SIRET valide et unique : la creation l'exige,
+// et refuse deux clients sur le meme etablissement.
+func pro(name string) usecase.CreateClientInput {
+	return usecase.CreateClientInput{
+		Name: name,
+		Identity: usecase.ClientIdentity{
+			Kind:      usecase.ClientProfessionnel,
+			LegalName: name,
+			Siret:     randomSiret(),
+		},
+	}
+}
+
+func adopting(in usecase.CreateClientInput, contactID uuid.UUID) usecase.CreateClientInput {
+	in.ContactID = &contactID
+	return in
+}
+
+// randomSiret tire treize chiffres et calcule la cle de Luhn du quatorzieme.
+func randomSiret() string {
+	digits := make([]int, 14)
+	for i := range 13 {
+		digits[i] = rand.IntN(10)
+	}
+
+	for check := range 10 {
+		digits[13] = check
+		sum := 0
+		for i, d := range digits {
+			if (14-i)%2 == 0 {
+				d *= 2
+				if d > 9 {
+					d -= 9
+				}
+			}
+			sum += d
+		}
+		if sum%10 == 0 {
+			break
+		}
+	}
+
+	var b strings.Builder
+	for _, d := range digits {
+		b.WriteByte(byte('0' + d))
+	}
+
+	return b.String()
+}
+
 func dropContact(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) {
 	t.Helper()
 
@@ -97,7 +148,7 @@ func TestCreateClientRefuseUnNomDejaPris(t *testing.T) {
 
 	name := uniqueName("Client")
 
-	first, err := clients.Create(ctx, usecase.CreateClientInput{Name: name})
+	first, err := clients.Create(ctx, pro(name))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -105,7 +156,7 @@ func TestCreateClientRefuseUnNomDejaPris(t *testing.T) {
 
 	// Casse differente : l'index unique porte sur lower(name), le doublon doit
 	// etre reconnu malgre la majuscule.
-	_, err = clients.Create(ctx, usecase.CreateClientInput{Name: strings.ToUpper(name)})
+	_, err = clients.Create(ctx, pro(strings.ToUpper(name)))
 	if err == nil {
 		t.Fatal("un second client du meme nom a ete cree")
 	}
@@ -130,10 +181,7 @@ func TestContactLibreEstAdopteParUnSeulClient(t *testing.T) {
 		t.Fatalf("un contact cree sans client devrait etre libre, client_id = %v", contact.ClientID)
 	}
 
-	first, err := clients.Create(ctx, usecase.CreateClientInput{
-		Name:      uniqueName("Adoptant"),
-		ContactID: &contact.ID,
-	})
+	first, err := clients.Create(ctx, adopting(pro(uniqueName("Adoptant")), contact.ID))
 	if err != nil {
 		t.Fatalf("creation du client adoptant : %v", err)
 	}
@@ -145,10 +193,7 @@ func TestContactLibreEstAdopteParUnSeulClient(t *testing.T) {
 
 	// Le meme contact ne peut pas etre repris : la prise de possession s'ecrit
 	// `WHERE client_id IS NULL` et ne joue donc qu'une fois.
-	_, err = clients.Create(ctx, usecase.CreateClientInput{
-		Name:      uniqueName("Rival"),
-		ContactID: &contact.ID,
-	})
+	_, err = clients.Create(ctx, adopting(pro(uniqueName("Rival")), contact.ID))
 	if err == nil {
 		t.Fatal("un second client a pris un contact deja rattache")
 	}
@@ -158,13 +203,13 @@ func TestContactPrincipalDoitAppartenirAuClient(t *testing.T) {
 	clients, contacts, pool := newCRM(t)
 	ctx := context.Background()
 
-	owner, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Proprietaire")})
+	owner, err := clients.Create(ctx, pro(uniqueName("Proprietaire")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
 	dropClient(t, pool, owner.ID)
 
-	other, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Autre")})
+	other, err := clients.Create(ctx, pro(uniqueName("Autre")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -193,7 +238,7 @@ func TestSupprimerUnContactRetireSaDesignation(t *testing.T) {
 	clients, contacts, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Designation")})
+	client, err := clients.Create(ctx, pro(uniqueName("Designation")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -231,7 +276,7 @@ func TestRenommerUnClientAvecSonPropreNom(t *testing.T) {
 
 	name := uniqueName("Stable")
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: name})
+	client, err := clients.Create(ctx, pro(name))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -251,7 +296,7 @@ func TestCompteurDeComptesPortail(t *testing.T) {
 	clients, _, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Portail")})
+	client, err := clients.Create(ctx, pro(uniqueName("Portail")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -305,7 +350,7 @@ func TestSupprimerUnClientQuiPorteDesProjets(t *testing.T) {
 	clients, _, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("AvecProjet")})
+	client, err := clients.Create(ctx, pro(uniqueName("AvecProjet")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -343,7 +388,7 @@ func TestSupprimerUnClientEmporteSesContacts(t *testing.T) {
 	clients, contacts, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Vide")})
+	client, err := clients.Create(ctx, pro(uniqueName("Vide")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -383,7 +428,7 @@ func TestDeuxContactsNePartagentPasUneAdresseChezUnClient(t *testing.T) {
 	clients, contacts, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Doublon")})
+	client, err := clients.Create(ctx, pro(uniqueName("Doublon")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -425,7 +470,7 @@ func TestDeplacerUnClientDansLePipeline(t *testing.T) {
 	clients, _, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Pipeline")})
+	client, err := clients.Create(ctx, pro(uniqueName("Pipeline")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
@@ -453,18 +498,22 @@ func TestDeplacerUneCarteNEffacePasLesCoordonnees(t *testing.T) {
 	clients, _, pool := newCRM(t)
 	ctx := context.Background()
 
-	client, err := clients.Create(ctx, usecase.CreateClientInput{Name: uniqueName("Coordonnees")})
+	client, err := clients.Create(ctx, pro(uniqueName("Coordonnees")))
 	if err != nil {
 		t.Fatalf("creation : %v", err)
 	}
 	dropClient(t, pool, client.ID)
 
+	siret := randomSiret()
 	if _, err := clients.Update(ctx, client.ID, usecase.UpdateClientInput{
 		Name:    client.Name,
 		Status:  "actif",
 		Website: "https://exemple.fr",
-		City:    "Lille",
-		Siret:   "12345678900011",
+		Identity: usecase.ClientIdentity{
+			City:      "Lille",
+			Siret:     siret,
+			LegalName: client.Name,
+		},
 	}); err != nil {
 		t.Fatalf("modification : %v", err)
 	}
@@ -483,7 +532,132 @@ func TestDeplacerUneCarteNEffacePasLesCoordonnees(t *testing.T) {
 	if after.Status != "veille" {
 		t.Errorf("statut attendu « veille », recu %q", after.Status)
 	}
-	if after.Website != "https://exemple.fr" || after.City != "Lille" || after.Siret != "12345678900011" {
+	if after.Website != "https://exemple.fr" || after.City != "Lille" || after.Siret != siret {
 		t.Errorf("les coordonnees ont ete perdues : %+v", after.CrmClientItem)
+	}
+}
+
+func TestUnParticulierSInscritAvecSonContactPrincipal(t *testing.T) {
+	clients, _, pool := newCRM(t)
+	ctx := context.Background()
+
+	lastname := uniqueName("Martin")
+	client, err := clients.Create(ctx, usecase.CreateClientInput{
+		Identity: usecase.ClientIdentity{
+			Kind:       usecase.ClientParticulier,
+			Address:    "12 rue des Lilas",
+			PostalCode: "59000",
+			City:       "Lille",
+			// Un particulier n'a pas de SIRET : ce qui arrive est ignore.
+			Siret:           "55203253400646",
+			RegistryChecked: true,
+		},
+		Person: usecase.NewContactInput{Firstname: "Camille", Lastname: lastname, Email: "camille@example.fr", Phone: "+33612345678"},
+	})
+	if err != nil {
+		t.Fatalf("creation : %v", err)
+	}
+	dropClient(t, pool, client.ID)
+
+	if client.Name != "Camille "+lastname {
+		t.Errorf("nom : %q", client.Name)
+	}
+	if client.Kind != usecase.ClientParticulier || client.Siret != "" || client.RegistryCheckedAt != nil {
+		t.Errorf("identite : %+v", client)
+	}
+	if client.Phone != "+33612345678" || client.City != "Lille" {
+		t.Errorf("coordonnees : %+v", client)
+	}
+	if client.PrimaryContact == nil || client.PrimaryContact.Lastname != lastname {
+		t.Fatalf("contact principal : %+v", client.PrimaryContact)
+	}
+
+	detail, err := clients.Get(ctx, client.ID)
+	if err != nil {
+		t.Fatalf("lecture : %v", err)
+	}
+	if detail.ContactsCount != 1 || detail.PrimaryContact == nil {
+		t.Errorf("fiche : %d contact(s), principal %+v", detail.ContactsCount, detail.PrimaryContact)
+	}
+}
+
+func TestUnParticulierSansNomEstRefuse(t *testing.T) {
+	clients, _, _ := newCRM(t)
+
+	_, err := clients.Create(context.Background(), usecase.CreateClientInput{
+		Identity: usecase.ClientIdentity{Kind: usecase.ClientParticulier},
+		Person:   usecase.NewContactInput{Firstname: "Camille"},
+	})
+
+	var derr *domain.Error
+	if !errors.As(err, &derr) || derr.Code != domain.ErrValidation.Code || derr.Details["lastname"] == nil {
+		t.Fatalf("attendu un refus sur le nom, recu %v", err)
+	}
+}
+
+func TestUnProfessionnelExigeUnSiretValideEtUnique(t *testing.T) {
+	clients, _, pool := newCRM(t)
+	ctx := context.Background()
+
+	var derr *domain.Error
+
+	_, err := clients.Create(ctx, usecase.CreateClientInput{
+		Identity: usecase.ClientIdentity{Kind: usecase.ClientProfessionnel, LegalName: uniqueName("Sans SIRET")},
+	})
+	if !errors.As(err, &derr) || derr.Details["siret"] == nil {
+		t.Fatalf("SIRET absent accepte : %v", err)
+	}
+
+	_, err = clients.Create(ctx, usecase.CreateClientInput{
+		Identity: usecase.ClientIdentity{Kind: usecase.ClientProfessionnel, LegalName: uniqueName("Cle fausse"), Siret: "55203253400647"},
+	})
+	if !errors.As(err, &derr) || derr.Details["siret"] == nil {
+		t.Fatalf("SIRET a la cle fausse accepte : %v", err)
+	}
+
+	in := pro(uniqueName("Registre"))
+	in.Name = ""
+	in.Identity.Siret = in.Identity.Siret[:9] + " " + in.Identity.Siret[9:]
+	in.Identity.LegalForm = "SAS, société par actions simplifiée"
+	in.Identity.RegistryChecked = true
+
+	first, err := clients.Create(ctx, in)
+	if err != nil {
+		t.Fatalf("creation : %v", err)
+	}
+	dropClient(t, pool, first.ID)
+
+	// Le nom d'usage reprend la raison sociale, le SIRET perd ses espaces et
+	// le numero de TVA se deduit du SIREN.
+	if first.Name != in.Identity.LegalName || len(first.Siret) != 14 {
+		t.Errorf("identite : %+v", first)
+	}
+	if !strings.HasPrefix(first.VatNumber, "FR") || !strings.HasSuffix(first.VatNumber, first.Siret[:9]) {
+		t.Errorf("TVA : %q", first.VatNumber)
+	}
+	if first.RegistryCheckedAt == nil {
+		t.Error("la verification au registre n'a pas ete datee")
+	}
+
+	dup := pro(uniqueName("Doublon"))
+	dup.Identity.Siret = first.Siret
+	_, err = clients.Create(ctx, dup)
+	if !errors.As(err, &derr) || derr.Code != domain.ErrConflict.Code || derr.Details["siret"] == nil {
+		t.Fatalf("doublon de SIRET accepte : %v", err)
+	}
+
+	// Garder le SIRET garde la date ; en changer sans verifier l'efface.
+	update := usecase.UpdateClientInput{Name: first.Name, Status: "lead", Identity: usecase.ClientIdentity{
+		Kind: usecase.ClientProfessionnel, LegalName: first.LegalName, Siret: first.Siret,
+	}}
+	kept, err := clients.Update(ctx, first.ID, update)
+	if err != nil || kept.RegistryCheckedAt == nil {
+		t.Fatalf("date perdue sans changement de SIRET : %v, %+v", err, kept.RegistryCheckedAt)
+	}
+
+	update.Identity.Siret = randomSiret()
+	changed, err := clients.Update(ctx, first.ID, update)
+	if err != nil || changed.RegistryCheckedAt != nil {
+		t.Fatalf("date gardee pour un autre SIRET : %v, %+v", err, changed.RegistryCheckedAt)
 	}
 }

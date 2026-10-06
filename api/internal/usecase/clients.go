@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -49,6 +50,16 @@ type CrmClientItem struct {
 	Country    string `json:"country"`
 	Siret      string `json:"siret"`
 	VatNumber  string `json:"vat_number"`
+	// Particulier ou professionnel. Un particulier n'a ni SIRET, ni raison
+	// sociale, ni forme juridique : ces champs restent vides.
+	Kind string `json:"kind"`
+	// Raison sociale et forme juridique, telles que le registre les donne.
+	// `name` reste le nom d'usage.
+	LegalName string `json:"legal_name"`
+	LegalForm string `json:"legal_form"`
+	// Date a laquelle le SIRET a ete retrouve au registre ; nulle s'il ne
+	// l'a jamais ete, ou s'il a change depuis.
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
 	// Agregats lus en base, jamais recomptes ici : ce sont des colonnes tenues
 	// par declencheur.
 	ProjectsActive int       `json:"projects_active"`
@@ -146,22 +157,26 @@ func (s *ClientService) List(ctx context.Context, f CrmClientFilters) (CrmClient
 	items := make([]CrmClientItem, 0, len(rows))
 	for _, row := range rows {
 		item := CrmClientItem{
-			ID:              row.ID,
-			Name:            row.Name,
-			Status:          row.Status,
-			ContactsCount:   int(row.ContactsCount),
-			Website:         row.Website,
-			Phone:           row.Phone,
-			Address:         row.Address,
-			PostalCode:      row.PostalCode,
-			City:            row.City,
-			Country:         row.Country,
-			Siret:           row.Siret,
-			VatNumber:       row.VatNumber,
-			ProjectsActive:  int(row.ProjectsActive),
-			PortalUsers:     int(row.PortalUsers),
-			CreatedAt:       row.CreatedAt,
-			StatusChangedAt: row.StatusChangedAt,
+			ID:                row.ID,
+			Name:              row.Name,
+			Status:            row.Status,
+			ContactsCount:     int(row.ContactsCount),
+			Website:           row.Website,
+			Phone:             row.Phone,
+			Address:           row.Address,
+			PostalCode:        row.PostalCode,
+			City:              row.City,
+			Country:           row.Country,
+			Siret:             row.Siret,
+			VatNumber:         row.VatNumber,
+			Kind:              row.Kind,
+			LegalName:         row.LegalName,
+			LegalForm:         row.LegalForm,
+			RegistryCheckedAt: row.RegistryCheckedAt,
+			ProjectsActive:    int(row.ProjectsActive),
+			PortalUsers:       int(row.PortalUsers),
+			CreatedAt:         row.CreatedAt,
+			StatusChangedAt:   row.StatusChangedAt,
 		}
 
 		// Les jointures sont a gauche : sans contact principal ni chargé de
@@ -193,23 +208,163 @@ func (s *ClientService) List(ctx context.Context, f CrmClientFilters) (CrmClient
 	}, nil
 }
 
+// Types de client.
+const (
+	ClientParticulier   = "particulier"
+	ClientProfessionnel = "professionnel"
+)
+
+// ClientIdentity porte ce qui distingue un particulier d'un professionnel, et
+// ou le joindre. Commune a la creation et a la modification.
+type ClientIdentity struct {
+	Kind       string
+	LegalName  string
+	LegalForm  string
+	Siret      string
+	VatNumber  string
+	Phone      string
+	Address    string
+	PostalCode string
+	City       string
+	Country    string
+	// RegistryChecked : l'ecran vient de retrouver ce SIRET au registre.
+	//
+	// C'est le navigateur qui interroge le registre, pas le serveur — aucun
+	// appel externe pendant une requete. Le serveur le croit sur parole : la
+	// date ne sert qu'a l'equipe, qui saisit elle-meme ses clients.
+	RegistryChecked bool
+}
+
+// NewContactInput est la personne qu'un particulier designe : elle devient
+// son contact principal.
+type NewContactInput struct {
+	Firstname string
+	Lastname  string
+	Email     string
+	Phone     string
+}
+
 // CreateClientInput decrit un client a creer.
 //
-// Le contact est facultatif et se designe par identifiant, parmi les contacts
-// libres : creer une personne se fait depuis l'ecran Contacts, pas ici. Un
-// formulaire qui sait a la fois choisir et creer finit par faire les deux mal.
+// Un professionnel peut adopter un contact libre, designe par identifiant :
+// ses interlocuteurs se gerent depuis l'ecran Contacts. Un particulier, lui,
+// est la personne meme — elle se saisit avec lui et devient son contact
+// principal.
 type CreateClientInput struct {
 	Name      string
 	ContactID *uuid.UUID
+	Identity  ClientIdentity
+	Person    NewContactInput
 }
 
-// Create inscrit un client, et adopte le contact libre qu'on lui designe.
+// normalize range l'identite d'un client et dit ce qui ne va pas.
+//
+// `requireSiret` vaut a la creation : un professionnel s'inscrit avec son
+// SIRET. A la modification, les clients inscrits avant que le SIRET ne soit
+// demande doivent rester enregistrables sans lui.
+func (id *ClientIdentity) normalize(requireSiret bool) map[string]any {
+	trim := func(v *string) { *v = strings.TrimSpace(*v) }
+	for _, v := range []*string{&id.LegalName, &id.LegalForm, &id.VatNumber, &id.Phone, &id.Address, &id.PostalCode, &id.City, &id.Country} {
+		trim(v)
+	}
+	id.Siret = normalizeSiret(id.Siret)
+	id.VatNumber = strings.ToUpper(strings.ReplaceAll(id.VatNumber, " ", ""))
+
+	if id.Kind == "" {
+		id.Kind = ClientProfessionnel
+	}
+
+	errs := map[string]any{}
+
+	switch id.Kind {
+	case ClientParticulier:
+		// Une personne n'a rien de tout cela : des valeurs laissees par un
+		// passage en professionnel ne doivent pas lui rester.
+		id.LegalName, id.LegalForm, id.Siret, id.VatNumber = "", "", "", ""
+		id.RegistryChecked = false
+
+	case ClientProfessionnel:
+		switch {
+		case id.Siret == "" && requireSiret:
+			errs["siret"] = "Le SIRET est requis pour un professionnel"
+		case id.Siret != "" && !validSiret(id.Siret):
+			errs["siret"] = "SIRET invalide : quatorze chiffres, dont une clé de contrôle"
+		}
+		if id.Siret == "" {
+			id.RegistryChecked = false
+		}
+		// Le numero de TVA francais se deduit du SIREN : le demander, c'est
+		// offrir une occasion de faute de frappe.
+		if id.VatNumber == "" && id.Siret != "" && validSiret(id.Siret) {
+			id.VatNumber = vatOfSiren(id.Siret[:9])
+		}
+
+	default:
+		errs["kind"] = "Type de client inconnu"
+	}
+
+	return errs
+}
+
+// Create inscrit un client.
+//
+// Un particulier s'inscrit avec la personne qu'il est, qui devient son
+// contact principal ; un professionnel avec son SIRET, et le contact libre
+// qu'on lui designe le cas echeant.
 func (s *ClientService) Create(ctx context.Context, in CreateClientInput) (CrmClientItem, error) {
+	identity := in.Identity
+	errs := identity.normalize(true)
+
+	person := NewContactInput{
+		Firstname: strings.TrimSpace(in.Person.Firstname),
+		Lastname:  strings.TrimSpace(in.Person.Lastname),
+		Email:     strings.TrimSpace(in.Person.Email),
+		Phone:     strings.TrimSpace(in.Person.Phone),
+	}
+
 	name := strings.TrimSpace(in.Name)
-	if name == "" {
-		return CrmClientItem{}, domain.ErrValidation.WithDetails(map[string]any{
-			"name": "Le nom du client est requis",
-		})
+
+	switch identity.Kind {
+	case ClientParticulier:
+		if person.Firstname == "" {
+			errs["firstname"] = "Le prénom est requis"
+		}
+		if person.Lastname == "" {
+			errs["lastname"] = "Le nom est requis"
+		}
+		if person.Email != "" {
+			if _, err := mail.ParseAddress(person.Email); err != nil {
+				errs["email"] = "Adresse e-mail invalide"
+			}
+		}
+		// Un particulier porte son propre nom : c'est celui que les listes
+		// afficheront.
+		if name == "" {
+			name = strings.TrimSpace(person.Firstname + " " + person.Lastname)
+		}
+		// Il se joint au numero de la personne.
+		if identity.Phone == "" {
+			identity.Phone = person.Phone
+		}
+		// La personne est saisie ici : il n'y a pas de contact libre a adopter.
+		in.ContactID = nil
+
+	case ClientProfessionnel:
+		if identity.LegalName == "" {
+			errs["legal_name"] = "La raison sociale est requise"
+		}
+		// Le nom d'usage est facultatif : a defaut, c'est la raison sociale.
+		if name == "" {
+			name = identity.LegalName
+		}
+	}
+
+	if name == "" && len(errs) == 0 {
+		errs["name"] = "Le nom du client est requis"
+	}
+
+	if len(errs) > 0 {
+		return CrmClientItem{}, domain.ErrValidation.WithDetails(errs)
 	}
 
 	// Recherche prealable pour rendre un message utile plutot que de laisser
@@ -224,6 +379,16 @@ func (s *ClientService) Create(ctx context.Context, in CreateClientInput) (CrmCl
 		return CrmClientItem{}, fmt.Errorf("recherche du client : %w", err)
 	}
 
+	if identity.Siret != "" {
+		if existing, err := s.q.GetClientBySiret(ctx, identity.Siret); err == nil {
+			return CrmClientItem{}, domain.ErrConflict.WithDetails(map[string]any{
+				"siret": fmt.Sprintf("Ce SIRET est déjà celui de « %s »", existing.Name),
+			})
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return CrmClientItem{}, fmt.Errorf("recherche du SIRET : %w", err)
+		}
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return CrmClientItem{}, fmt.Errorf("ouverture de la transaction : %w", err)
@@ -232,7 +397,20 @@ func (s *ClientService) Create(ctx context.Context, in CreateClientInput) (CrmCl
 
 	qtx := s.q.WithTx(tx)
 
-	client, err := qtx.CreateClient(ctx, name)
+	client, err := qtx.CreateCrmClient(ctx, db.CreateCrmClientParams{
+		Name:            name,
+		Kind:            identity.Kind,
+		LegalName:       identity.LegalName,
+		LegalForm:       identity.LegalForm,
+		Siret:           identity.Siret,
+		VatNumber:       identity.VatNumber,
+		Phone:           identity.Phone,
+		Address:         identity.Address,
+		PostalCode:      identity.PostalCode,
+		City:            identity.City,
+		Country:         identity.Country,
+		RegistryChecked: identity.RegistryChecked,
+	})
 	if err != nil {
 		if isUniqueViolation(err) {
 			return CrmClientItem{}, domain.ErrConflict.WithDetails(map[string]any{
@@ -244,6 +422,40 @@ func (s *ClientService) Create(ctx context.Context, in CreateClientInput) (CrmCl
 	}
 
 	item := itemOfClient(client)
+
+	if identity.Kind == ClientParticulier {
+		var email *string
+		if person.Email != "" {
+			email = &person.Email
+		}
+
+		contact, err := qtx.CreateContact(ctx, db.CreateContactParams{
+			ClientID:  &client.ID,
+			Firstname: person.Firstname,
+			Lastname:  person.Lastname,
+			Email:     email,
+			Phone:     person.Phone,
+		})
+		if err != nil {
+			return CrmClientItem{}, fmt.Errorf("creation du contact : %w", err)
+		}
+
+		if err := qtx.SetPrimaryContact(ctx, db.SetPrimaryContactParams{
+			ClientID:  client.ID,
+			ContactID: &contact.ID,
+		}); err != nil {
+			return CrmClientItem{}, fmt.Errorf("designation du contact principal : %w", err)
+		}
+
+		item.ContactsCount = 1
+		item.PrimaryContact = &ContactRef{
+			ID:        contact.ID,
+			Firstname: contact.Firstname,
+			Lastname:  contact.Lastname,
+			Role:      contact.Role,
+			Email:     contact.Email,
+		}
+	}
 
 	if in.ContactID != nil {
 		// Le rattachement ne touche que les contacts libres : zero ligne
@@ -365,22 +577,26 @@ func (s *ClientService) Get(ctx context.Context, id uuid.UUID) (CrmClientDetail,
 
 	detail := CrmClientDetail{
 		CrmClientItem: CrmClientItem{
-			ID:              row.ID,
-			Name:            row.Name,
-			Status:          row.Status,
-			ContactsCount:   int(row.ContactsCount),
-			Website:         row.Website,
-			Phone:           row.Phone,
-			Address:         row.Address,
-			PostalCode:      row.PostalCode,
-			City:            row.City,
-			Country:         row.Country,
-			Siret:           row.Siret,
-			VatNumber:       row.VatNumber,
-			ProjectsActive:  int(row.ProjectsActive),
-			PortalUsers:     int(row.PortalUsers),
-			CreatedAt:       row.CreatedAt,
-			StatusChangedAt: row.StatusChangedAt,
+			ID:                row.ID,
+			Name:              row.Name,
+			Status:            row.Status,
+			ContactsCount:     int(row.ContactsCount),
+			Website:           row.Website,
+			Phone:             row.Phone,
+			Address:           row.Address,
+			PostalCode:        row.PostalCode,
+			City:              row.City,
+			Country:           row.Country,
+			Siret:             row.Siret,
+			VatNumber:         row.VatNumber,
+			Kind:              row.Kind,
+			LegalName:         row.LegalName,
+			LegalForm:         row.LegalForm,
+			RegistryCheckedAt: row.RegistryCheckedAt,
+			ProjectsActive:    int(row.ProjectsActive),
+			PortalUsers:       int(row.PortalUsers),
+			CreatedAt:         row.CreatedAt,
+			StatusChangedAt:   row.StatusChangedAt,
 		},
 	}
 
@@ -495,13 +711,7 @@ type UpdateClientInput struct {
 	Status           string
 	AccountManagerID *uuid.UUID
 	Website          string
-	Phone            string
-	Address          string
-	PostalCode       string
-	City             string
-	Country          string
-	Siret            string
-	VatNumber        string
+	Identity         ClientIdentity
 }
 
 // Update modifie la fiche d'un client.
@@ -511,6 +721,11 @@ func (s *ClientService) Update(ctx context.Context, id uuid.UUID, in UpdateClien
 		return CrmClientItem{}, domain.ErrValidation.WithDetails(map[string]any{
 			"name": "Le nom du client est requis",
 		})
+	}
+
+	identity := in.Identity
+	if errs := identity.normalize(false); len(errs) > 0 {
+		return CrmClientItem{}, domain.ErrValidation.WithDetails(errs)
 	}
 
 	if in.Status == "" {
@@ -561,13 +776,17 @@ func (s *ClientService) Update(ctx context.Context, id uuid.UUID, in UpdateClien
 		Status:           in.Status,
 		AccountManagerID: in.AccountManagerID,
 		Website:          strings.TrimSpace(in.Website),
-		Phone:            strings.TrimSpace(in.Phone),
-		Address:          strings.TrimSpace(in.Address),
-		PostalCode:       strings.TrimSpace(in.PostalCode),
-		City:             strings.TrimSpace(in.City),
-		Country:          strings.TrimSpace(in.Country),
-		Siret:            strings.TrimSpace(in.Siret),
-		VatNumber:        strings.TrimSpace(in.VatNumber),
+		Phone:            identity.Phone,
+		Address:          identity.Address,
+		PostalCode:       identity.PostalCode,
+		City:             identity.City,
+		Country:          identity.Country,
+		Siret:            identity.Siret,
+		VatNumber:        identity.VatNumber,
+		Kind:             identity.Kind,
+		LegalName:        identity.LegalName,
+		LegalForm:        identity.LegalForm,
+		RegistryChecked:  identity.RegistryChecked,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -613,21 +832,25 @@ func (s *ClientService) MoveStatus(ctx context.Context, id uuid.UUID, status str
 // touche, et l'ecran relit la liste.
 func itemOfClient(row db.Client) CrmClientItem {
 	return CrmClientItem{
-		ID:              row.ID,
-		Name:            row.Name,
-		Status:          row.Status,
-		Website:         row.Website,
-		Phone:           row.Phone,
-		Address:         row.Address,
-		PostalCode:      row.PostalCode,
-		City:            row.City,
-		Country:         row.Country,
-		Siret:           row.Siret,
-		VatNumber:       row.VatNumber,
-		ProjectsActive:  int(row.ProjectsActive),
-		PortalUsers:     int(row.PortalUsers),
-		CreatedAt:       row.CreatedAt,
-		StatusChangedAt: row.StatusChangedAt,
+		ID:                row.ID,
+		Name:              row.Name,
+		Status:            row.Status,
+		Website:           row.Website,
+		Phone:             row.Phone,
+		Address:           row.Address,
+		PostalCode:        row.PostalCode,
+		City:              row.City,
+		Country:           row.Country,
+		Siret:             row.Siret,
+		VatNumber:         row.VatNumber,
+		Kind:              row.Kind,
+		LegalName:         row.LegalName,
+		LegalForm:         row.LegalForm,
+		RegistryCheckedAt: row.RegistryCheckedAt,
+		ProjectsActive:    int(row.ProjectsActive),
+		PortalUsers:       int(row.PortalUsers),
+		CreatedAt:         row.CreatedAt,
+		StatusChangedAt:   row.StatusChangedAt,
 	}
 }
 
@@ -741,22 +964,26 @@ func (s *ClientService) Board(ctx context.Context, f CrmClientFilters) (CrmClien
 	board.Items = make([]CrmClientItem, 0, len(rows))
 	for _, row := range rows {
 		item := CrmClientItem{
-			ID:              row.ID,
-			Name:            row.Name,
-			Status:          row.Status,
-			ContactsCount:   int(row.ContactsCount),
-			Website:         row.Website,
-			Phone:           row.Phone,
-			Address:         row.Address,
-			PostalCode:      row.PostalCode,
-			City:            row.City,
-			Country:         row.Country,
-			Siret:           row.Siret,
-			VatNumber:       row.VatNumber,
-			ProjectsActive:  int(row.ProjectsActive),
-			PortalUsers:     int(row.PortalUsers),
-			CreatedAt:       row.CreatedAt,
-			StatusChangedAt: row.StatusChangedAt,
+			ID:                row.ID,
+			Name:              row.Name,
+			Status:            row.Status,
+			ContactsCount:     int(row.ContactsCount),
+			Website:           row.Website,
+			Phone:             row.Phone,
+			Address:           row.Address,
+			PostalCode:        row.PostalCode,
+			City:              row.City,
+			Country:           row.Country,
+			Siret:             row.Siret,
+			VatNumber:         row.VatNumber,
+			Kind:              row.Kind,
+			LegalName:         row.LegalName,
+			LegalForm:         row.LegalForm,
+			RegistryCheckedAt: row.RegistryCheckedAt,
+			ProjectsActive:    int(row.ProjectsActive),
+			PortalUsers:       int(row.PortalUsers),
+			CreatedAt:         row.CreatedAt,
+			StatusChangedAt:   row.StatusChangedAt,
 		}
 
 		if row.ContactID != nil {
