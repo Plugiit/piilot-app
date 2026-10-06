@@ -3,7 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useId, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -35,7 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { clientListQuery, peopleQuery, useCreateProject } from '@/features/projects/api'
+import { ClientSelect } from '@/features/clients/client-select'
+import { peopleQuery, useCreateProject } from '@/features/projects/api'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, tintOf } from '@/features/projects/format'
 import { ServicesPicker } from '@/features/services/tag'
 import { templateListQuery } from '@/features/templates/api'
@@ -53,7 +54,11 @@ import type { ProjectStatus } from '@/types/api'
  */
 const schema = z.object({
   name: z.string().trim().min(1, 'Le nom du projet est requis'),
-  client_name: z.string().trim().min(1, 'Un projet appartient à un client'),
+  // Un client existant (son identifiant) ou un nouveau (son nom seul).
+  client: z
+    .object({ id: z.string().nullable(), name: z.string() })
+    .nullable()
+    .refine((value) => value !== null && value.name.trim() !== '', 'Un projet appartient à un client'),
   status: z.enum(['cadrage', 'production', 'attente', 'livre']),
   hours_sold: z
     .string()
@@ -73,9 +78,8 @@ type Values = z.infer<typeof schema>
 /**
  * Creation d'un projet.
  *
- * Le client se saisit au clavier, avec les clients connus en suggestion : un
- * nom deja pris est reutilise cote serveur, un nom inconnu cree le client. Ce
- * detour evite un ecran de gestion des clients que le CRM apportera.
+ * Le client se choisit dans la liste, avec recherche. Un nom qui n'y figure
+ * pas se cree avec le projet, depuis la meme liste.
  */
 /**
  * `trigger` permet a la carte pointillee de la liste d'ouvrir ce meme dialogue.
@@ -84,9 +88,7 @@ type Values = z.infer<typeof schema>
 export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const listId = useId()
 
-  const { data: clients } = useQuery({ ...clientListQuery(), enabled: open })
   const { data: session } = useQuery(sessionQuery)
   const seesBudget = can(session, 'budgets.read')
   const { data: people } = useQuery({ ...peopleQuery, enabled: open })
@@ -99,7 +101,7 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
-      client_name: '',
+      client: null,
       status: 'cadrage',
       hours_sold: '',
       due_on: '',
@@ -113,7 +115,9 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
     create.mutate(
       {
         name: values.name,
-        client_name: values.client_name,
+        ...(values.client?.id != null
+          ? { client_id: values.client.id }
+          : { client_name: values.client?.name.trim() ?? '' }),
         status: values.status,
         hours_sold: values.hours_sold === '' ? 0 : Number(values.hours_sold),
         due_on: values.due_on === '' ? null : values.due_on,
@@ -144,7 +148,7 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
             }
 
             if (error.details.client !== undefined) {
-              form.setError('client_name', { message: String(error.details.client) })
+              form.setError('client', { message: String(error.details.client) })
             }
 
             return
@@ -231,20 +235,19 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
 
             <FormField
               control={form.control}
-              name="client_name"
-              render={({ field }) => (
+              name="client"
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Client</FormLabel>
                   <FormControl>
-                    <Input list={listId} placeholder="Nom du client" {...field} />
+                    <ClientSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      invalid={fieldState.error !== undefined}
+                    />
                   </FormControl>
-                  <datalist id={listId}>
-                    {(clients?.items ?? []).map((client) => (
-                      <option key={client.id} value={client.name} />
-                    ))}
-                  </datalist>
                   <FormDescription>
-                    Un client inconnu est créé avec le projet.
+                    Choisissez un client, ou tapez un nouveau nom pour le créer avec le projet.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
