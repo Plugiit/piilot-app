@@ -7,6 +7,10 @@
 # l'exposer. Lie a 127.0.0.1 : l'application parle HTTP en clair, un reverse
 # proxy (Caddy, nginx, Traefik) doit terminer le TLS devant elle — les cookies
 # de session sont Secure en production et ne transitent pas sans HTTPS.
+#
+# Le port se publie sur « app », la passerelle, et jamais sur « server » : une
+# application qui publie un port ne peut pas tourner en deux exemplaires, et
+# l'updater devrait alors l'arreter avant de demarrer la nouvelle version.
 services:
   app:
     ports:

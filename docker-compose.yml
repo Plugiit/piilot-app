@@ -15,6 +15,11 @@
 # Le domaine se regle dans Coolify, sur le service « app » : Configuration >
 # General > Domains, sous la forme https://piilot.example.fr:8080 — le :8080
 # designe le port interne vers lequel Traefik route, pas le port public.
+#
+# « app » est la passerelle : elle recoit tout le trafic et le transmet a
+# l'application proprement dite, le service « server ». C'est ce qui permet a
+# l'updater de remplacer « server » sans coupure — la passerelle, elle, ne
+# s'arrete jamais.
 
 # L'application tourne sur l'image publiee a chaque release, et non sur un
 # build fait sur le serveur : deploiement plus rapide, meme image partout, et
@@ -26,14 +31,37 @@
 # fige la version (l'updater n'a alors rien a mettre a jour).
 
 services:
+  # Passerelle : le seul service expose. Elle sonde les instances de
+  # « server » chaque seconde et n'envoie le trafic qu'a une instance saine —
+  # la plus recente pendant une mise a jour. Sans instance pendant plus de
+  # quelques secondes, elle sert une page de maintenance qui se recharge
+  # seule. Elle ne lit ni la base ni les secrets, et n'est mise a jour qu'au
+  # redeploiement de la pile : c'est la piece qui ne doit pas s'arreter.
   app:
+    image: ${PIILOT_IMAGE:-ghcr.io/plugiit/piilot-app}:${PIILOT_TAG:-latest}
+    restart: unless-stopped
+    entrypoint: ["/app/gateway"]
+    environment:
+      # Declare a Coolify que le service ecoute sur 8080 : Traefik y route le
+      # domaine attribue. La passerelle ne lit pas cette variable.
+      SERVICE_URL_APP_8080: ${SERVICE_URL_APP_8080}
+      UPSTREAM: server:8080
+    depends_on:
+      server:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/gateway"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # L'application : API et front. Elle n'est jamais exposee directement, tout
+  # passe par la passerelle. C'est ce service que l'updater remplace.
+  server:
     image: ${PIILOT_IMAGE:-ghcr.io/plugiit/piilot-app}:${PIILOT_TAG:-latest}
     restart: unless-stopped
     environment:
       # --- Exposition -------------------------------------------------------
-      # Declare a Coolify que le service ecoute sur 8080 : Traefik y route le
-      # domaine attribue. L'API ne lit pas cette variable.
-      SERVICE_URL_APP_8080: ${SERVICE_URL_APP_8080}
       # URL publique de l'application, sans le port interne.
       PUBLIC_BASE_URL: ${SERVICE_URL_APP}
       # Origines CORS. Le front etant servi par la meme image, CORS ne
@@ -89,6 +117,9 @@ services:
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
       WRITE_TIMEOUT: ${WRITE_TIMEOUT:-30s}
       SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-15s}
+      # A l'arret, l'instance se declare en arret et sert encore ce temps-la,
+      # que la passerelle l'ecarte avant qu'elle ne ferme ses connexions.
+      DRAIN_DELAY: ${DRAIN_DELAY:-5s}
 
       # --- Dependances ------------------------------------------------------
       # Construites a partir des identifiants que Coolify genere pour les
@@ -112,8 +143,10 @@ services:
       retries: 3
 
   # Met l'application a jour quand un admin le demande depuis l'interface : tire
-  # la nouvelle image et recree le conteneur « app », en revenant a l'ancien si
-  # le nouveau ne demarre pas.
+  # la nouvelle image et demarre un nouveau conteneur « server » a cote de
+  # l'ancien, qui ne s'arrete qu'une fois le nouveau sain. La passerelle bascule
+  # le trafic de l'un a l'autre : pas de coupure. Si le nouveau ne demarre pas,
+  # il est supprime et l'ancien n'a jamais cesse de servir.
   #
   # C'est le seul conteneur qui recoit le socket Docker — l'application,
   # exposee sur Internet, ne l'a jamais. Il n'ouvre aucun port et ne recoit
@@ -130,6 +163,7 @@ services:
     environment:
       DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-piilot}?sslmode=disable
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      UPDATER_SERVICE: server
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:

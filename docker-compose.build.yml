@@ -7,10 +7,13 @@
 # de version plus recente, la mise a jour depuis l'interface echouera avec un
 # message clair. On met a jour en reconstruisant.
 services:
-  app:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
+    image: piilot-app:local
+
+  app:
     image: piilot-app:local
 
   updater:
