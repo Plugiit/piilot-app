@@ -8,6 +8,7 @@ package updates
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,28 +41,47 @@ func New() *Client {
 	}
 }
 
-// LatestRelease rend la derniere version stable du depot `owner/name`.
+// NewWithAPI pointe le client vers une autre API que GitHub : un faux serveur,
+// dans les tests.
+func NewWithAPI(base string) *Client {
+	c := New()
+	c.githubAPI = base
+	return c
+}
+
+// ErrNotModified : rien n'a change depuis la reponse dont l'empreinte a ete
+// fournie. GitHub ne compte pas ces reponses dans sa limite d'appels, ce qui
+// permet de verifier souvent sans risque d'etre bloque.
+var ErrNotModified = errors.New("aucune nouvelle version depuis le dernier passage")
+
+// LatestRelease rend la derniere release publiee du depot et l'empreinte
+// (ETag) de la reponse.
 //
-// L'endpoint « latest » de GitHub ignore les pre-versions (1.0.0-rc.1) et les
-// brouillons : une instance de production ne doit pas se voir proposer une
-// version que l'equipe n'a pas declaree stable.
-func (c *Client) LatestRelease(ctx context.Context, repository string) (Release, error) {
+// `etag` est celle du passage precedent, ou vide : GitHub repond alors 304
+// quand rien n'a change, et la methode rend ErrNotModified.
+func (c *Client) LatestRelease(ctx context.Context, repository, etag string) (Release, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.githubAPI+"/repos/"+repository+"/releases/latest", nil)
 	if err != nil {
-		return Release{}, fmt.Errorf("requete GitHub : %w", err)
+		return Release{}, "", fmt.Errorf("requete GitHub : %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "piilot-update-check")
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
 
 	res, err := c.http.Do(req)
 	if err != nil {
-		return Release{}, fmt.Errorf("appel GitHub : %w", err)
+		return Release{}, "", fmt.Errorf("appel GitHub : %w", err)
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusNotModified {
+		return Release{}, etag, ErrNotModified
+	}
 	if res.StatusCode != http.StatusOK {
-		return Release{}, fmt.Errorf("GitHub a repondu %d", res.StatusCode)
+		return Release{}, "", fmt.Errorf("GitHub a repondu %d", res.StatusCode)
 	}
 
 	var body struct {
@@ -71,15 +91,15 @@ func (c *Client) LatestRelease(ctx context.Context, repository string) (Release,
 		PublishedAt *time.Time `json:"published_at"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&body); err != nil {
-		return Release{}, fmt.Errorf("reponse GitHub illisible : %w", err)
+		return Release{}, "", fmt.Errorf("reponse GitHub illisible : %w", err)
 	}
 
 	version := strings.TrimPrefix(body.TagName, "v")
 	if _, ok := parse(version); !ok {
-		return Release{}, fmt.Errorf("tag GitHub inattendu : %q", body.TagName)
+		return Release{}, "", fmt.Errorf("tag GitHub inattendu : %q", body.TagName)
 	}
 
-	return Release{Version: version, Name: body.Name, URL: body.HTMLURL, PublishedAt: body.PublishedAt}, nil
+	return Release{Version: version, Name: body.Name, URL: body.HTMLURL, PublishedAt: body.PublishedAt}, res.Header.Get("ETag"), nil
 }
 
 // Newer dit si `candidate` est une version strictement posterieure a `current`.
