@@ -83,8 +83,48 @@ func (h *Clients) List(c fiber.Ctx) error {
 // `contact_id` designe un contact libre a adopter. Facultatif : on inscrit
 // souvent une entreprise avant de savoir a qui l'on parlera.
 type createClientRequest struct {
+	clientIdentityRequest
 	Name      string  `json:"name"`
 	ContactID *string `json:"contact_id"`
+	// La personne qu'est un particulier. Ignoree pour un professionnel.
+	Person *struct {
+		Firstname string `json:"firstname"`
+		Lastname  string `json:"lastname"`
+		Email     string `json:"email"`
+		Phone     string `json:"phone"`
+	} `json:"person"`
+}
+
+// clientIdentityRequest regroupe les champs d'identite communs a la creation
+// et a la modification.
+type clientIdentityRequest struct {
+	Kind            string `json:"kind"`
+	LegalName       string `json:"legal_name"`
+	LegalForm       string `json:"legal_form"`
+	Siret           string `json:"siret"`
+	VatNumber       string `json:"vat_number"`
+	Phone           string `json:"phone"`
+	Address         string `json:"address"`
+	PostalCode      string `json:"postal_code"`
+	City            string `json:"city"`
+	Country         string `json:"country"`
+	RegistryChecked bool   `json:"registry_checked"`
+}
+
+func (r clientIdentityRequest) identity() usecase.ClientIdentity {
+	return usecase.ClientIdentity{
+		Kind:            r.Kind,
+		LegalName:       r.LegalName,
+		LegalForm:       r.LegalForm,
+		Siret:           r.Siret,
+		VatNumber:       r.VatNumber,
+		Phone:           r.Phone,
+		Address:         r.Address,
+		PostalCode:      r.PostalCode,
+		City:            r.City,
+		Country:         r.Country,
+		RegistryChecked: r.RegistryChecked,
+	}
 }
 
 // Create inscrit un client.
@@ -94,7 +134,15 @@ func (h *Clients) Create(c fiber.Ctx) error {
 		return domain.ErrValidation.WithCause(err)
 	}
 
-	in := usecase.CreateClientInput{Name: req.Name}
+	in := usecase.CreateClientInput{Name: req.Name, Identity: req.identity()}
+	if req.Person != nil {
+		in.Person = usecase.NewContactInput{
+			Firstname: req.Person.Firstname,
+			Lastname:  req.Person.Lastname,
+			Email:     req.Person.Email,
+			Phone:     req.Person.Phone,
+		}
+	}
 
 	if req.ContactID != nil && strings.TrimSpace(*req.ContactID) != "" {
 		id, err := uuid.Parse(strings.TrimSpace(*req.ContactID))
@@ -175,17 +223,11 @@ func (h *Clients) Get(c fiber.Ctx) error {
 // Tous les champs voyagent ensemble : la requete les ecrit tous, et n'en
 // envoyer qu'une partie effacerait le reste.
 type updateClientRequest struct {
+	clientIdentityRequest
 	Name             string  `json:"name"`
 	Status           string  `json:"status"`
 	AccountManagerID *string `json:"account_manager_id"`
 	Website          string  `json:"website"`
-	Phone            string  `json:"phone"`
-	Address          string  `json:"address"`
-	PostalCode       string  `json:"postal_code"`
-	City             string  `json:"city"`
-	Country          string  `json:"country"`
-	Siret            string  `json:"siret"`
-	VatNumber        string  `json:"vat_number"`
 }
 
 // Update renomme un client.
@@ -201,16 +243,10 @@ func (h *Clients) Update(c fiber.Ctx) error {
 	}
 
 	in := usecase.UpdateClientInput{
-		Name:       req.Name,
-		Status:     req.Status,
-		Website:    req.Website,
-		Phone:      req.Phone,
-		Address:    req.Address,
-		PostalCode: req.PostalCode,
-		City:       req.City,
-		Country:    req.Country,
-		Siret:      req.Siret,
-		VatNumber:  req.VatNumber,
+		Name:     req.Name,
+		Status:   req.Status,
+		Website:  req.Website,
+		Identity: req.identity(),
 	}
 
 	if req.AccountManagerID != nil && strings.TrimSpace(*req.AccountManagerID) != "" {

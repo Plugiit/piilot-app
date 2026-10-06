@@ -8378,7 +8378,11 @@
           "city",
           "country",
           "siret",
-          "vat_number"
+          "vat_number",
+          "kind",
+          "legal_name",
+          "legal_form",
+          "registry_checked_at"
         ],
         "properties": {
           "id": {
@@ -8464,6 +8468,30 @@
           },
           "vat_number": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "particulier",
+              "professionnel"
+            ],
+            "description": "Particulier (une personne, sans SIRET) ou professionnel (une entreprise)."
+          },
+          "legal_name": {
+            "type": "string",
+            "description": "Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier."
+          },
+          "legal_form": {
+            "type": "string",
+            "description": "Forme juridique en clair. Vide pour un particulier."
+          },
+          "registry_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Date à laquelle le SIRET a été retrouvé au registre ; nulle s'il ne l'a jamais été ou a changé depuis."
           }
         }
       },
@@ -8497,14 +8525,14 @@
       },
       "CreateClientRequest": {
         "type": "object",
-        "description": "Corps de creation d'un client. `contact_id` designe un contact libre a adopter — creer une personne se fait depuis l'ecran Contacts.",
+        "description": "Corps de creation d'un client. Un particulier se saisit avec la personne qu'il est (`person`), qui devient son contact principal ; un professionnel avec son SIRET, et peut adopter un contact libre (`contact_id`).",
         "required": [
-          "name"
+          "kind"
         ],
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "description": "Nom d'usage. Facultatif : à défaut, la raison sociale d'un professionnel, ou le prénom et le nom d'un particulier."
           },
           "contact_id": {
             "type": [
@@ -8512,6 +8540,71 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "particulier",
+              "professionnel"
+            ],
+            "description": "Particulier (une personne, sans SIRET) ou professionnel (une entreprise)."
+          },
+          "legal_name": {
+            "type": "string",
+            "description": "Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier."
+          },
+          "legal_form": {
+            "type": "string",
+            "description": "Forme juridique en clair. Vide pour un particulier."
+          },
+          "siret": {
+            "type": "string",
+            "description": "Quatorze chiffres, espaces tolérés. Requis à la création d'un professionnel."
+          },
+          "vat_number": {
+            "type": "string",
+            "description": "Déduit du SIREN quand il est laissé vide."
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "postal_code": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "registry_checked": {
+            "type": "boolean",
+            "description": "L'écran vient de retrouver ce SIRET au registre : la date de vérification est posée."
+          },
+          "person": {
+            "type": "object",
+            "description": "La personne qu'est un particulier : elle devient son contact principal. Ignorée pour un professionnel.",
+            "properties": {
+              "firstname": {
+                "type": "string"
+              },
+              "lastname": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "firstname",
+              "lastname"
+            ]
           }
         }
       },
@@ -9900,7 +9993,11 @@
           "city",
           "country",
           "siret",
-          "vat_number"
+          "vat_number",
+          "kind",
+          "legal_name",
+          "legal_form",
+          "registry_checked_at"
         ],
         "properties": {
           "id": {
@@ -10001,6 +10098,30 @@
           },
           "vat_number": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "particulier",
+              "professionnel"
+            ],
+            "description": "Particulier (une personne, sans SIRET) ou professionnel (une entreprise)."
+          },
+          "legal_name": {
+            "type": "string",
+            "description": "Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier."
+          },
+          "legal_form": {
+            "type": "string",
+            "description": "Forme juridique en clair. Vide pour un particulier."
+          },
+          "registry_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Date à laquelle le SIRET a été retrouvé au registre ; nulle s'il ne l'a jamais été ou a changé depuis."
           }
         }
       },
@@ -10056,6 +10177,26 @@
           },
           "vat_number": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "particulier",
+              "professionnel"
+            ],
+            "description": "Particulier (une personne, sans SIRET) ou professionnel (une entreprise)."
+          },
+          "legal_name": {
+            "type": "string",
+            "description": "Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier."
+          },
+          "legal_form": {
+            "type": "string",
+            "description": "Forme juridique en clair. Vide pour un particulier."
+          },
+          "registry_checked": {
+            "type": "boolean",
+            "description": "L'écran vient de retrouver ce SIRET au registre : la date de vérification est posée."
           }
         }
       },
