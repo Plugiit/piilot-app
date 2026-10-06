@@ -56,7 +56,10 @@ export function PhoneField({
       >
         <SelectTrigger
           aria-label="Indicatif du pays"
-          className={cn('w-[104px] shrink-0', className)}
+          // La largeur passe apres l'habillage de l'appelant : un `w-full`
+          // venu de lui (comme CHAMP) l'ecrasait, et le selecteur prenait
+          // toute la ligne en ecrasant le champ du numero.
+          className={cn(className, 'w-[104px] shrink-0')}
         >
           <SelectValue>
             <span className="flex items-center gap-1.5">
@@ -92,7 +95,7 @@ export function PhoneField({
 
           onChange(digits === '' ? '' : country.dial + digits)
         }}
-        className={className}
+        className={cn(className, 'min-w-0 flex-1')}
       />
     </div>
   )
