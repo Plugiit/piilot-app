@@ -4,7 +4,7 @@ import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { AnimatePresence, motion, type Transition } from 'framer-motion'
-import { LogOut, Settings } from 'lucide-react'
+import { LogOut, RefreshCw, Settings } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import accountMarkUrl from '@/assets/sidebar/rail-bottom.png'
@@ -31,6 +31,8 @@ import type { SidebarApp } from '@/types/api'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
+import { useCheckForUpdate } from '@/features/system/api'
+import { HttpError } from '@/lib/api'
 import { logout, outOfReach, sessionQuery } from '@/lib/auth'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -338,6 +340,8 @@ function AccountButton({ user }: { user: User }) {
           </Link>
         </DropdownMenuItem>
 
+        <CheckForUpdateItem />
+
         <DropdownMenuSeparator />
 
         <DropdownMenuItem variant="destructive" onSelect={() => void handleLogout()}>
@@ -346,6 +350,52 @@ function AccountButton({ user }: { user: User }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * « Rechercher une mise a jour », pour qui peut l'installer.
+ *
+ * La tache de fond verifie d'elle-meme tous les quarts d'heure ; ce bouton
+ * sert le jour d'une sortie, quand on sait qu'une version vient de paraitre.
+ * Le resultat arrive en toast : a jour, ou disponible — et le bouton de
+ * l'en-tete apparait alors.
+ */
+function CheckForUpdateItem() {
+  const { data: session } = useQuery(sessionQuery)
+  const check = useCheckForUpdate()
+
+  if (session?.permissions.includes('system.update') !== true) return null
+
+  return (
+    <DropdownMenuItem
+      disabled={check.isPending}
+      onSelect={(event) => {
+        event.preventDefault()
+        const pending = toast.loading('Recherche d’une mise à jour…')
+        check.mutate(undefined, {
+          onSuccess: (status) => {
+            toast.dismiss(pending)
+            if (status.update_available && status.latest !== null) {
+              toast.success(`Piilot ${status.latest.version} est disponible : le bouton « Mettre à jour » est dans l’en-tête.`)
+            } else if (status.check_error !== '') {
+              toast.error(`Vérification impossible : ${status.check_error}`)
+            } else if (status.check_pending) {
+              toast.info('La vérification prend plus de temps que prévu. Le bouton apparaîtra s’il y a une mise à jour.')
+            } else {
+              toast.success(`Piilot est à jour (${status.current_version}).`)
+            }
+          },
+          onError: (error) => {
+            toast.dismiss(pending)
+            toast.error(error instanceof HttpError ? error.message : 'Vérification impossible')
+          },
+        })
+      }}
+    >
+      <RefreshCw className={cn(check.isPending && 'animate-spin')} />
+      {check.isPending ? 'Recherche…' : 'Rechercher une mise à jour'}
+    </DropdownMenuItem>
   )
 }
 

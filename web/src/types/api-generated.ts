@@ -413,6 +413,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system/update/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verifier les versions maintenant
+         * @description Demande une verification immediate des nouvelles versions. GitHub n'est pas appele pendant la requete : la tache de fond le fait dans les quinze secondes, l'ecran relit l'etat. Exige system.update.
+         */
+        post: operations["requestUpdateCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/projects": {
         parameters: {
             query?: never;
@@ -2810,7 +2830,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback";
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available";
             /** @description De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message. */
             payload: {
                 [key: string]: unknown;
@@ -3564,6 +3584,8 @@ export interface components {
             last_request: components["schemas"]["UpdateRequestInfo"] | null;
             /** @description Une mise a jour est en route : le bouton est remplace par son suivi. */
             in_progress: boolean;
+            /** @description Une verification demandee par un admin attend la tache de fond, qui la fait dans les quinze secondes. */
+            check_pending: boolean;
         };
         /** @description Client auquel un compte de portail est rattache. */
         ClientRef: {
@@ -4778,6 +4800,29 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    requestUpdateCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verification demandee */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     listAdminProjects: {
