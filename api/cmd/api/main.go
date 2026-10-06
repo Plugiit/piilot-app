@@ -236,6 +236,21 @@ func newApp(cfg config.Config, log *slog.Logger) *fiber.App {
 		// marge pour l'enveloppe multipart. Sans ce reglage, Fiber refuserait
 		// a 4 Mo par defaut, bien avant la limite annoncee a l'utilisateur.
 		BodyLimit: int(cfg.MaxUploadMiB+1) * (1 << 20),
+		// L'application est toujours derriere un proxy : la passerelle de
+		// Piilot, celui de Coolify, ou celui que l'on met devant. L'adresse
+		// de l'appelant se lit donc dans X-Forwarded-For, mais seulement
+		// quand la requete vient d'un reseau prive — un appelant direct ne
+		// peut pas s'inventer une adresse pour echapper a la limite de
+		// tentatives de connexion.
+		TrustProxy: true,
+		TrustProxyConfig: fiber.TrustProxyConfig{
+			Loopback: true,
+			Private:  true,
+		},
+		ProxyHeader: fiber.HeaderXForwardedFor,
+		// X-Forwarded-For porte une liste : la premiere adresse valide est
+		// celle de l'appelant.
+		EnableIPValidation: true,
 	})
 
 	app.Use(requestid.New())
