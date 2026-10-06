@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/plugiit/piilot-app/api/internal/spaces"
 )
 
 // Env identifie l'environnement d'execution.
@@ -37,6 +39,10 @@ type Config struct {
 	RefreshTTL    time.Duration
 	CookieDomain  string
 	PublicBaseURL string
+
+	// Spaces donne a chaque espace — connexion, equipe, administration,
+	// portail client — son propre domaine. Vide, tout tient sur un seul.
+	Spaces spaces.Spaces
 
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
@@ -128,6 +134,19 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SMTP_FROM est obligatoire quand SMTP_HOST est renseigne")
 	}
 
+	sp, err := spaces.Parse(
+		os.Getenv("AUTH_URL"), os.Getenv("TEAM_URL"), os.Getenv("ADMIN_URL"), os.Getenv("CLIENT_URL"),
+		cfg.CookieDomain,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Spaces = sp
+	if sp.Enabled() {
+		// Le cookie de session doit valoir sur les quatre domaines.
+		cfg.CookieDomain = sp.CookieDomain
+	}
+
 	if cfg.MaxUploadMiB < 1 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
 	}
@@ -171,6 +190,15 @@ func LoadUpdater() (UpdaterConfig, error) {
 }
 
 // IsDevelopment indique si l'API tourne en local (logs verbeux, CORS permissif).
+// URLFor rend l'adresse publique d'un espace : son domaine en mode
+// multi-domaines, PUBLIC_BASE_URL sinon. Sert aux liens des e-mails.
+func (c Config) URLFor(space string) string {
+	if c.Spaces.Enabled() {
+		return c.Spaces.URL(space)
+	}
+	return c.PublicBaseURL
+}
+
 func (c Config) IsDevelopment() bool { return c.Env == EnvDevelopment }
 
 // IsProduction indique si l'API tourne en production (cookies Secure, logs JSON).
