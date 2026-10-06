@@ -41,6 +41,15 @@ services:
       ADMIN_ORIGINS: ${SERVICE_URL_APP}
       # Vide = cookie lie au seul domaine de l'app, le reglage le plus etroit.
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Un domaine par espace (facultatif). Vides, tout tient sur le domaine de
+      # l'app. Renseignes — tous les quatre, sous un meme parent comme
+      # https://team.agence.fr —, chaque espace a le sien : connexion, travail
+      # de l'equipe, administration, portail client. Les quatre domaines
+      # s'ajoutent aussi dans Coolify, sur le service « app » (voir README).
+      AUTH_URL: ${AUTH_URL:-}
+      TEAM_URL: ${TEAM_URL:-}
+      ADMIN_URL: ${ADMIN_URL:-}
+      CLIENT_URL: ${CLIENT_URL:-}
 
       # --- Application ------------------------------------------------------
       APP_ENV: ${APP_ENV:-production}
