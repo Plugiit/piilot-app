@@ -351,14 +351,18 @@ Autres options : `--skip-checks` (ne relance pas `make check`), `--no-push`
 ## Architecture
 
 ```
-                 ┌──────────────────────────── conteneur app ─┐
-  navigateur ──▶ │  binaire Go (Fiber v3)                     │
-     HTTPS       │   ├── /api/v1/*     API JSON               │──▶ PostgreSQL 17
-  (Traefik ou    │   ├── /health/*     sondes                 │
-   reverse       │   ├── /openapi.json contrat de l'API       │──▶ Redis 8
-   proxy)        │   └── /*            front React (fichiers) │
-                 └────────────────────────────────────────────┘
+                 ┌─ app ─────────┐     ┌──────────────────────────── server ─┐
+  navigateur ──▶ │  passerelle   │ ──▶ │  binaire Go (Fiber v3)              │
+     HTTPS       │  (ne s'arrête │     │   ├── /api/v1/*     API JSON        │──▶ PostgreSQL 17
+  (Traefik ou    │   jamais)     │     │   ├── /health/*     sondes          │
+   reverse       └───────────────┘     │   ├── /openapi.json contrat         │──▶ Redis 8
+   proxy)                              │   └── /*            front React     │
+                                       └─────────────────────────────────────┘
 ```
+
+**La passerelle** (`app`) est le seul service exposé. Elle transmet chaque
+requête à une instance saine du serveur, et c'est elle qui rend les mises à
+jour invisibles : voir [Mise à jour sans coupure](#mise-à-jour-sans-coupure).
 
 **Une seule image.** Le binaire Go sert l'API et le build du front. Front et
 API partagent la même origine : pas de CORS, pas d'URL d'API figée dans le
@@ -402,8 +406,8 @@ tire l'image publiée, génère les secrets et les expose dans son interface. **
 | Build Pack | **Docker Compose** |
 | Docker Compose Location | `/docker-compose.yml` |
 
-Coolify lit le fichier et crée quatre services : `app`, `updater`, `postgres`
-et `redis`.
+Coolify lit le fichier et crée cinq services : `app` (la passerelle),
+`server` (l'application), `updater`, `postgres` et `redis`.
 
 **2. Attribuer le domaine**
 
@@ -556,7 +560,7 @@ dans l'image, crée un administrateur en posant les questions. Le mot de
 passe est masqué pendant la saisie et demandé deux fois.
 
 **Sous Coolify** : ouvrir la ressource, onglet *Terminal*, choisir le
-conteneur `app`, puis taper :
+conteneur `server`, puis taper :
 
 ```sh
 create-admin
@@ -580,7 +584,7 @@ Compte créé
 **Hors Coolify** :
 
 ```bash
-docker compose exec app create-admin
+docker compose exec server create-admin
 ```
 
 **En développement**, contre la base locale : `make create-admin`.
@@ -637,6 +641,7 @@ que de la laisser répondre 500 à la première requête.
 | `REFRESH_TOKEN_TTL` | `720h` | Durée d'une session sans reconnexion (30 jours) |
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
 | `SHUTDOWN_TIMEOUT` | `15s` | Délai laissé aux requêtes en cours à l'arrêt |
+| `DRAIN_DELAY` | `5s` | À l'arrêt, temps pendant lequel l'instance se déclare en arrêt et sert encore, que la passerelle l'écarte sans faire échouer de requête |
 | `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
 | `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub |
 | `UPDATE_CHECK_INTERVAL` | `15m` | Intervalle entre deux vérifications, 5 minutes au minimum |
@@ -758,16 +763,61 @@ importe.
 
 1. L'admin confirme : l'application enregistre une demande en base.
 2. L'updater la prend dans les dix secondes, tire la nouvelle image depuis
-   `ghcr.io`, arrête l'application et la recrée à l'identique sur la nouvelle
-   image (variables, volumes, réseaux, étiquettes).
+   `ghcr.io` et démarre un second conteneur `server` sur la nouvelle image, à
+   l'identique (variables, volumes, réseaux, étiquettes), **à côté** de
+   l'ancien.
 3. Il attend que la nouvelle version réponde à sa sonde de santé. Si elle ne
-   démarre pas, il remet l'ancienne en route.
+   démarre pas, il la supprime : l'ancienne n'a jamais cessé de servir.
+4. La passerelle bascule le trafic vers la nouvelle version, puis l'updater
+   arrête l'ancienne.
+
+#### Mise à jour sans coupure
+
+La passerelle (`app`) se place devant l'application et ne s'arrête jamais.
+Elle sonde chaque seconde les instances de `server` et n'envoie le trafic
+qu'à une instance saine — la plus récente quand deux tournent ensemble.
+
+- **Bascule.** La nouvelle version reçoit le trafic dès qu'elle est saine.
+  L'ancienne, au signal d'arrêt, se déclare en arrêt et sert encore
+  `DRAIN_DELAY` (5 s) : la passerelle l'écarte avant qu'elle ne ferme ses
+  connexions, et ses requêtes en cours se terminent.
+- **Relance.** Une requête qui n'a pas pu joindre une instance — connexion
+  refusée, rien n'est parti — est renvoyée à une autre. Une requête déjà
+  transmise ne se rejoue jamais : elle a pu être traitée.
+- **Attente.** Sans instance saine, une requête attend jusqu'à 15 s
+  (`HOLD_TIMEOUT` de la passerelle) qu'il y en ait une.
+- **Maintenance.** Au-delà, la passerelle sert une page « Mise à jour en
+  cours » qui se recharge d'elle-même, et un `503 MAINTENANCE` aux appels
+  d'API ; un onglet déjà ouvert affiche le même écran. Ce cas ne se produit
+  pas pendant une mise à jour : seulement si le serveur tombe, ou à un
+  redéploiement de toute la pile.
+- **Onglets ouverts.** Un onglet chargé avant la mise à jour qui demande un
+  morceau du front disparu se recharge de lui-même sur la nouvelle version.
+
+Rien ne dépend de Coolify ni de Traefik : la bascule a lieu dans la
+passerelle, quel que soit le proxy devant elle.
+
+**Règle pour les migrations.** Pendant la bascule, l'ancienne version tourne
+quelques secondes sur le schéma de la nouvelle. Une migration ajoute
+(table, colonne nullable ou avec défaut, index) mais ne supprime ni ne
+renomme dans la même version : une colonne à retirer cesse d'être lue dans
+une version, et disparaît dans la suivante.
+
+**Ce qui coupe encore.** Le *Redeploy* de Coolify ou un `docker compose up`
+qui recrée la pile (passerelle comprise), une mise à jour de Postgres ou de
+Redis, un redémarrage du serveur. La mise à jour courante se fait depuis
+l'interface.
+
+**Installations antérieures à la passerelle.** Le passage à la passerelle
+change la composition de la pile : il se fait une fois, par un *Redeploy*
+(ou `git pull && docker compose up -d --remove-orphans`), avec une courte
+coupure. Les mises à jour suivantes sont sans coupure.
 
 **Sécurité.** L'updater est le seul conteneur qui reçoit le socket Docker,
 c'est-à-dire un accès équivalent à root sur le serveur. L'application, exposée
 sur Internet, ne l'a jamais. L'updater n'ouvre aucun port et ne reçoit d'ordre
 que par la base, et il ne sait faire qu'une chose : mettre à jour le service
-`app` de son projet vers l'image publiée. Pour se passer de la mise à jour
+`server` de son projet vers l'image publiée. Pour se passer de la mise à jour
 depuis l'interface, retirer le service `updater` : rien d'autre ne change.
 
 À savoir :
@@ -780,9 +830,9 @@ depuis l'interface, retirer le service `updater` : rien d'autre ne change.
   introuvable…).
 - `PIILOT_TAG` doit suivre les versions : `latest`, ou `0.4` pour les seuls
   correctifs. Avec une version figée (`0.4.1`), l'updater n'a rien à tirer.
-- L'updater lui-même passe sur la nouvelle image au prochain
-  `docker compose up` ou *Redeploy* : il change rarement, et ne peut pas se
-  remplacer pendant qu'il travaille.
+- L'updater et la passerelle passent sur la nouvelle image au prochain
+  `docker compose up` ou *Redeploy* : ils changent rarement, et ne peuvent
+  pas se remplacer sans s'interrompre.
 - Chaque instance vérifie elle-même les nouvelles versions, tous les quarts
   d'heure (`UPDATE_CHECK_INTERVAL`), sans rien à configurer côté GitHub. Les
   requêtes sont conditionnelles : quand rien n'a changé, GitHub répond 304,
@@ -798,13 +848,14 @@ depuis l'interface, retirer le service `updater` : rien d'autre ne change.
 
 | Route | Réponse | Usage |
 |---|---|---|
-| `/health/live` | 200 dès que le processus répond | `HEALTHCHECK` du conteneur. Ne touche aucune dépendance : redémarrer l'API ne réparerait pas une base injoignable |
+| `/health/live` | 200 dès que le processus répond, 503 quand il s'arrête | `HEALTHCHECK` du conteneur et sonde de la passerelle. Ne touche aucune dépendance : redémarrer l'API ne réparerait pas une base injoignable |
+| `/health/gateway` | Toujours 200 ; `ready` dit si une instance peut servir | Sonde de la passerelle elle-même, et de la page de maintenance |
 | `/health/ready` | 200 seulement si Postgres **et** Redis répondent | Supervision (Uptime Kuma…) |
 
 ### Logs
 
 JSON structuré sur la sortie standard, lisibles dans Coolify ou avec
-`docker compose logs -f app`.
+`docker compose logs -f server` (la passerelle : `app`).
 
 ## Développement
 
@@ -852,6 +903,7 @@ api/                        API Go
 ├── cmd/api/                point d'entrée
 ├── cmd/seed/               création de comptes (create-admin, seed)
 ├── cmd/updater/            mise à jour de l'application (service updater)
+├── cmd/gateway/            passerelle devant l'application (service app)
 ├── internal/               config, domaine, handlers, usecases, repository…
 ├── migrations/             SQL versionné, embarqué dans le binaire
 ├── queries/                requêtes SQL (source de sqlc)
@@ -864,7 +916,7 @@ scripts/release.sh          publication d'une version
 scripts/roadmap.sh          statut des releases, recalculé depuis VERSION
 docs/images/                captures du README
 Dockerfile                  image unique : front + API
-docker-compose.yml          déploiement : app, updater, Postgres, Redis (image ghcr.io)
+docker-compose.yml          déploiement : passerelle, serveur, updater, Postgres, Redis
 docker-compose.build.yml    construction de l'image depuis les sources
 docker-compose.selfhost.yml publication du port hors Coolify
 docker-compose.dev.yml      Postgres + Redis pour le développement
