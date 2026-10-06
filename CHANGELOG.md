@@ -11,6 +11,32 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.1] — Un domaine par espace · 2026-10-06
+
+Cette version permet de donner à chaque espace de Piilot son propre domaine — connexion, équipe, administration, portail client — et rend l'ajout d'une interaction CRM plus évident.
+
+### Points forts
+
+- Un domaine par espace, au choix : `auth`, `team`, `admin` et `client`, avec une seule connexion pour tous.
+- Ajout d'une interaction depuis un bouton dédié, en deux temps : le client, puis ce qui s'est dit.
+
+### Nouveautés
+
+#### Tous les espaces
+
+- **Un domaine par espace** (facultatif) : avec `AUTH_URL`, `TEAM_URL`, `ADMIN_URL` et `CLIENT_URL`, la connexion, le travail de l'équipe, l'administration et le portail ont chacun leur domaine. Une adresse ouverte sur le mauvais domaine est renvoyée vers le bon, et les e-mails pointent vers le domaine de leur espace. Sans ces variables, tout reste sur un seul domaine.
+
+#### Admin et Team
+
+- **Ajouter une interaction** (CRM › Interactions) : un bouton à droite, séparé des filtres, ouvre une fenêtre qui demande d'abord le client, cherché par son nom, puis affiche le formulaire seul. Sa hauteur s'anime d'une étape à l'autre.
+- **Administration réservée aux administrateurs** en multi-domaines : l'équipe arrive sur « Mon travail » et ne voit plus les paramètres ; les référentiels (services, modèles de projet) se modifient depuis l'administration.
+
+### Technique
+
+- Les quatre domaines partagent un domaine parent, sur lequel se pose le cookie de session : `COOKIE_DOMAIN` s'en déduit. L'API refuse au démarrage une configuration incomplète, sans parent commun ou en double.
+- Le serveur écrit les domaines dans une balise meta d'`index.html` ; le front s'en sert pour changer de domaine quand une navigation quitte l'espace courant.
+- Avec Coolify : renseigner les quatre variables et lister les quatre domaines sur le service `app` (voir le README).
+
 ## [0.9.0] — Portail client : tickets · 2026-10-03
 
 Cette version fait passer le support client par Piilot plutôt que par la boîte mail : le client dépose sa demande dans son portail, suit la conversation avec l'agence, et chacun est prévenu par e-mail de ce que l'autre écrit.
