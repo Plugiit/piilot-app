@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api, postFile, unwrap } from '@/lib/api'
+import { spaceOfPath, spacesEnabled } from '@/lib/spaces'
 import type { User } from '@/types/api'
 
 /**
@@ -64,7 +65,21 @@ export function can(user: Pick<User, 'permissions'> | undefined, permission: str
 export function homeFor(user: User): '/pm' | '/pm/mon-travail' | '/client' {
   if (!isInternal(user)) return '/client'
 
+  // Quand l'administration a son domaine, seul un administrateur y entre : un
+  // membre de l'equipe qui lirait le tableau de bord commence quand meme par
+  // son travail.
+  if (spacesEnabled() && user.role !== 'admin') return '/pm/mon-travail'
+
   return can(user, 'dashboard.read') ? '/pm' : '/pm/mon-travail'
+}
+
+/**
+ * Vrai quand une adresse est hors de portee du compte parce qu'elle releve du
+ * domaine d'administration, reserve aux administrateurs. Sert a ne pas
+ * proposer dans le menu ce qui renverrait aussitot ailleurs.
+ */
+export function outOfReach(user: Pick<User, 'role'> | undefined, to: string): boolean {
+  return spacesEnabled() && user?.role !== 'admin' && spaceOfPath(to) === 'admin'
 }
 
 /**

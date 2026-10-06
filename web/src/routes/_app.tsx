@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { AdminShell } from '@/components/layout/admin-shell'
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
+import { spaceOfPath, spacesEnabled } from '@/lib/spaces'
 
 /**
  * Back-office de l'agence.
@@ -31,6 +32,12 @@ export const Route = createFileRoute('/_app')({
     }
 
     if (!isInternal(user)) {
+      throw redirect({ to: homeFor(user) })
+    }
+
+    // L'administration a son domaine a part : seuls les administrateurs y
+    // entrent. L'equipe repart vers son accueil.
+    if (spacesEnabled() && spaceOfPath(location.pathname) === 'admin' && user.role !== 'admin') {
       throw redirect({ to: homeFor(user) })
     }
 
