@@ -33,6 +33,29 @@ INSERT INTO clients (name)
 VALUES ($1)
 RETURNING *;
 
+-- name: CreateCrmClient :one
+-- Inscription depuis l'ecran CRM, avec l'identite complete du client.
+-- Distincte de CreateClient, qui sert la creation a la volee depuis le
+-- formulaire de projet, ou seul le nom est connu.
+INSERT INTO clients (
+    name, kind, legal_name, legal_form, siret, vat_number,
+    phone, address, postal_code, city, country, registry_checked_at
+)
+VALUES (
+    sqlc.arg('name'), sqlc.arg('kind'), sqlc.arg('legal_name'), sqlc.arg('legal_form'),
+    sqlc.arg('siret'), sqlc.arg('vat_number'), sqlc.arg('phone'), sqlc.arg('address'),
+    sqlc.arg('postal_code'), sqlc.arg('city'), sqlc.arg('country'),
+    CASE WHEN sqlc.arg('registry_checked')::boolean THEN now() END
+)
+RETURNING *;
+
+-- name: GetClientBySiret :one
+-- Un SIRET designe un seul etablissement : deux clients qui le partagent sont
+-- un doublon.
+SELECT * FROM clients
+WHERE siret = sqlc.arg('siret')::text AND siret <> '' AND deleted_at IS NULL
+LIMIT 1;
+
 -- name: ListCrmClients :many
 -- Liste paginee de l'ecran CRM.
 --
@@ -162,6 +185,17 @@ SET name               = sqlc.arg('name'),
     postal_code        = sqlc.arg('postal_code'),
     city               = sqlc.arg('city'),
     country            = sqlc.arg('country'),
+    kind               = sqlc.arg('kind'),
+    legal_name         = sqlc.arg('legal_name'),
+    legal_form         = sqlc.arg('legal_form'),
+    -- La date de verification ne vaut que pour le numero verifie : elle est
+    -- reposee par une nouvelle verification, et tombe si le SIRET change
+    -- sans elle. A droite du SET, `siret` est encore l'ancienne valeur.
+    registry_checked_at = CASE
+        WHEN sqlc.arg('registry_checked')::boolean THEN now()
+        WHEN siret IS DISTINCT FROM sqlc.arg('siret') THEN NULL
+        ELSE registry_checked_at
+    END,
     siret              = sqlc.arg('siret'),
     vat_number         = sqlc.arg('vat_number'),
     updated_at         = now()

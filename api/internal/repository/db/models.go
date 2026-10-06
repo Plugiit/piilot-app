@@ -60,25 +60,29 @@ type Attachment struct {
 }
 
 type Client struct {
-	ID               uuid.UUID  `json:"id"`
-	Name             string     `json:"name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
-	ProjectsActive   int32      `json:"projects_active"`
-	PortalUsers      int32      `json:"portal_users"`
-	PrimaryContactID *uuid.UUID `json:"primary_contact_id"`
-	Status           string     `json:"status"`
-	AccountManagerID *uuid.UUID `json:"account_manager_id"`
-	Website          string     `json:"website"`
-	Phone            string     `json:"phone"`
-	Address          string     `json:"address"`
-	PostalCode       string     `json:"postal_code"`
-	City             string     `json:"city"`
-	Country          string     `json:"country"`
-	Siret            string     `json:"siret"`
-	VatNumber        string     `json:"vat_number"`
-	StatusChangedAt  time.Time  `json:"status_changed_at"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
 }
 
 type ClientInteraction struct {
