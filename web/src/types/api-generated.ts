@@ -2487,6 +2487,20 @@ export interface components {
             country: string;
             siret: string;
             vat_number: string;
+            /**
+             * @description Particulier (une personne, sans SIRET) ou professionnel (une entreprise).
+             * @enum {string}
+             */
+            kind: "particulier" | "professionnel";
+            /** @description Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier. */
+            legal_name: string;
+            /** @description Forme juridique en clair. Vide pour un particulier. */
+            legal_form: string;
+            /**
+             * Format: date-time
+             * @description Date à laquelle le SIRET a été retrouvé au registre ; nulle s'il ne l'a jamais été ou a changé depuis.
+             */
+            registry_checked_at: string | null;
         };
         /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
         CrmClientPage: {
@@ -2496,11 +2510,39 @@ export interface components {
             page: number;
             page_size: number;
         };
-        /** @description Corps de creation d'un client. `contact_id` designe un contact libre a adopter — creer une personne se fait depuis l'ecran Contacts. */
+        /** @description Corps de creation d'un client. Un particulier se saisit avec la personne qu'il est (`person`), qui devient son contact principal ; un professionnel avec son SIRET, et peut adopter un contact libre (`contact_id`). */
         CreateClientRequest: {
-            name: string;
+            /** @description Nom d'usage. Facultatif : à défaut, la raison sociale d'un professionnel, ou le prénom et le nom d'un particulier. */
+            name?: string;
             /** Format: uuid */
             contact_id?: string | null;
+            /**
+             * @description Particulier (une personne, sans SIRET) ou professionnel (une entreprise).
+             * @enum {string}
+             */
+            kind: "particulier" | "professionnel";
+            /** @description Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier. */
+            legal_name?: string;
+            /** @description Forme juridique en clair. Vide pour un particulier. */
+            legal_form?: string;
+            /** @description Quatorze chiffres, espaces tolérés. Requis à la création d'un professionnel. */
+            siret?: string;
+            /** @description Déduit du SIREN quand il est laissé vide. */
+            vat_number?: string;
+            phone?: string;
+            address?: string;
+            postal_code?: string;
+            city?: string;
+            country?: string;
+            /** @description L'écran vient de retrouver ce SIRET au registre : la date de vérification est posée. */
+            registry_checked?: boolean;
+            /** @description La personne qu'est un particulier : elle devient son contact principal. Ignorée pour un professionnel. */
+            person?: {
+                firstname: string;
+                lastname: string;
+                email?: string;
+                phone?: string;
+            };
         };
         /** @description Carte du tableau. Ne porte pas la note ni les sous-taches : elles ne sont lues qu'a l'ouverture du panneau. */
         TaskSummary: {
@@ -2993,6 +3035,20 @@ export interface components {
             country: string;
             siret: string;
             vat_number: string;
+            /**
+             * @description Particulier (une personne, sans SIRET) ou professionnel (une entreprise).
+             * @enum {string}
+             */
+            kind: "particulier" | "professionnel";
+            /** @description Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier. */
+            legal_name: string;
+            /** @description Forme juridique en clair. Vide pour un particulier. */
+            legal_form: string;
+            /**
+             * Format: date-time
+             * @description Date à laquelle le SIRET a été retrouvé au registre ; nulle s'il ne l'a jamais été ou a changé depuis.
+             */
+            registry_checked_at: string | null;
         };
         /** @description Fiche modifiable d'un client. Tous les champs voyagent ensemble : n'en envoyer qu'une partie effacerait le reste. */
         UpdateClientRequest: {
@@ -3009,6 +3065,17 @@ export interface components {
             country?: string;
             siret?: string;
             vat_number?: string;
+            /**
+             * @description Particulier (une personne, sans SIRET) ou professionnel (une entreprise).
+             * @enum {string}
+             */
+            kind?: "particulier" | "professionnel";
+            /** @description Raison sociale au registre. `name` reste le nom d'usage. Vide pour un particulier. */
+            legal_name?: string;
+            /** @description Forme juridique en clair. Vide pour un particulier. */
+            legal_form?: string;
+            /** @description L'écran vient de retrouver ce SIRET au registre : la date de vérification est posée. */
+            registry_checked?: boolean;
         };
         /** @description Identite d'un contact. Le rattachement a un client n'est pas ici. */
         UpdateContactRequest: {
