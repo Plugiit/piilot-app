@@ -5,7 +5,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 
 import { portalProjectsQuery } from '@/features/portal/api'
 import { PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
-import { DONE_COLOR, parseApiDate, PROGRESS_COLOR } from '@/features/projects/format'
+import { DONE_COLOR, parseApiDate, PROGRESS_COLOR, tracksSchedule } from '@/features/projects/format'
 import { Meter, StatusPill } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import type { PortalProject } from '@/types/api'
@@ -103,13 +103,23 @@ function ProjectCard({ project }: { project: PortalProject }) {
         <StatusPill label={status.label} color={status.color} pill={status.pill} />
       </span>
 
-      <span className="flex flex-col gap-1.5">
-        <span className="flex items-baseline justify-between text-[13px] text-[#73757c]">
-          <span>Avancement</span>
-          <span className="font-medium text-[#1b1b1b] tabular-nums">{project.progress} %</span>
+      {/* Heberge, le projet n'avance plus : une jauge figee a 100 % ne dirait
+          rien au client, qui veut savoir que son site est entre de bonnes
+          mains. */}
+      {tracksSchedule(project.status) ? (
+        <span className="flex flex-col gap-1.5">
+          <span className="flex items-baseline justify-between text-[13px] text-[#73757c]">
+            <span>Avancement</span>
+            <span className="font-medium text-[#1b1b1b] tabular-nums">{project.progress} %</span>
+          </span>
+          <Meter ratio={project.progress} color={project.progress >= 100 ? DONE_COLOR : PROGRESS_COLOR} className="h-1.5" />
         </span>
-        <Meter ratio={project.progress} color={project.progress >= 100 ? DONE_COLOR : PROGRESS_COLOR} className="h-1.5" />
-      </span>
+      ) : (
+        <span className="flex items-center gap-1.5 text-[13px] text-[#73757c]">
+          <span aria-hidden className="size-1.5 rounded-full" style={{ background: status.color }} />
+          Site en ligne, hébergé et suivi par l’agence
+        </span>
+      )}
 
       <span className="flex flex-col gap-1 border-t border-[#f3f4f4] pt-3 text-[13px]">
         <span className="flex items-center gap-1.5 text-[#4b4b4f]">

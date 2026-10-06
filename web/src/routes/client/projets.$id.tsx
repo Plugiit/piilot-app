@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import { MILESTONE_STATE } from '@/features/milestones/format'
 import { portalFileUrl, portalProjectQuery } from '@/features/portal/api'
 import { fileSize, PORTAL_DELIVERABLE_STATUS, PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
-import { DONE_COLOR, parseApiDate, PROGRESS_COLOR } from '@/features/projects/format'
+import { DONE_COLOR, parseApiDate, PROGRESS_COLOR, tracksSchedule } from '@/features/projects/format'
 import { Meter, StatusPill } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -75,15 +75,21 @@ function ClientProjectPage() {
             <StatusPill label={status.label} color={status.color} pill={status.pill} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-baseline justify-between text-[13px] text-[#73757c]">
-              <span>Avancement</span>
-              <span className="font-medium text-[#1b1b1b] tabular-nums">{project.progress} %</span>
+          {tracksSchedule(project.status) ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between text-[13px] text-[#73757c]">
+                <span>Avancement</span>
+                <span className="font-medium text-[#1b1b1b] tabular-nums">{project.progress} %</span>
+              </div>
+              <Meter ratio={project.progress} color={project.progress >= 100 ? DONE_COLOR : PROGRESS_COLOR} className="h-2" />
             </div>
-            <Meter ratio={project.progress} color={project.progress >= 100 ? DONE_COLOR : PROGRESS_COLOR} className="h-2" />
-          </div>
+          ) : (
+            <p className="text-[13px] text-[#73757c]">
+              Votre site est en ligne, hébergé et suivi par l’agence. Une question ou un souci : ouvrez un ticket.
+            </p>
+          )}
 
-          {(start !== null || due !== null) && (
+          {tracksSchedule(project.status) && (start !== null || due !== null) && (
             <p className="text-[13px] text-[#73757c]">
               {start !== null && `Démarré le ${LONG.format(start)}`}
               {start !== null && due !== null && ' · '}
