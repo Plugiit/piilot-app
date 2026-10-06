@@ -47,6 +47,10 @@ type Config struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
+	// DrainDelay : au signal d'arret, l'instance se declare en arret et
+	// continue de servir ce temps-la, pour que la passerelle l'ecarte avant
+	// qu'elle ne ferme ses connexions. Nul en developpement.
+	DrainDelay time.Duration
 
 	// RunMigrations applique les migrations embarquees au demarrage. Actif par
 	// defaut : le binaire porte son schema. A couper si les migrations sont
@@ -101,6 +105,7 @@ func Load() (Config, error) {
 		ReadTimeout:     envDuration("READ_TIMEOUT", 30*time.Second),
 		WriteTimeout:    envDuration("WRITE_TIMEOUT", 30*time.Second),
 		ShutdownTimeout: envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
+		DrainDelay:      envDuration("DRAIN_DELAY", 5*time.Second),
 		RunMigrations:   envBool("RUN_MIGRATIONS", true),
 		FilesDir:        env("FILES_DIR", "./data/files"),
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
@@ -157,6 +162,12 @@ func Load() (Config, error) {
 
 	if cfg.MaxUploadMiB < 1 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
+	}
+
+	// En local, personne ne route vers une autre instance : attendre ne
+	// ferait que retarder chaque arret du rechargement a chaud.
+	if cfg.IsDevelopment() && os.Getenv("DRAIN_DELAY") == "" {
+		cfg.DrainDelay = 0
 	}
 
 	return cfg, nil

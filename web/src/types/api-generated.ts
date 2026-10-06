@@ -2338,10 +2338,18 @@ export interface components {
             activity: components["schemas"]["DayActivity"][];
         };
         HealthLive: {
-            /** @example ok */
-            status: string;
+            /**
+             * @description `draining` : l'instance s'arrete et finit ses requetes ; la passerelle ne lui en envoie plus.
+             * @enum {string}
+             */
+            status: "ok" | "draining";
             version: string;
             commit: string;
+            /**
+             * Format: date-time
+             * @description Demarrage de l'instance. Entre deux instances saines, la passerelle choisit la plus recente.
+             */
+            started_at: string;
         };
         HealthReady: {
             /**
@@ -4287,6 +4295,15 @@ export interface operations {
         responses: {
             /** @description Le process ecoute */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthLive"];
+                };
+            };
+            /** @description L'instance s'arrete (status `draining`) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
