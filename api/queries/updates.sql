@@ -2,22 +2,49 @@
 SELECT * FROM app_release_check WHERE id;
 
 -- name: SaveReleaseCheck :exec
--- Resultat d'un passage reussi : la version vue remplace la precedente.
-INSERT INTO app_release_check (id, version, name, url, published_at, checked_at, error)
-VALUES (true, $1, $2, $3, $4, now(), '')
+-- Resultat d'un passage reussi : la version vue remplace la precedente, avec
+-- l'empreinte de la reponse pour le passage suivant.
+INSERT INTO app_release_check (id, version, name, url, published_at, etag, checked_at, error)
+VALUES (true, $1, $2, $3, $4, $5, now(), '')
 ON CONFLICT (id) DO UPDATE SET
-    version      = EXCLUDED.version,
-    name         = EXCLUDED.name,
-    url          = EXCLUDED.url,
-    published_at = EXCLUDED.published_at,
-    checked_at   = now(),
-    error        = '';
+    version            = EXCLUDED.version,
+    name               = EXCLUDED.name,
+    url                = EXCLUDED.url,
+    published_at       = EXCLUDED.published_at,
+    etag               = EXCLUDED.etag,
+    checked_at         = now(),
+    error              = '',
+    check_requested_at = NULL;
+
+-- name: TouchReleaseCheck :exec
+-- GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
+UPDATE app_release_check SET checked_at = now(), error = '', check_requested_at = NULL WHERE id;
+
+-- name: RequestReleaseCheck :exec
+-- Un admin demande une verification immediate ; la tache de fond la fera.
+INSERT INTO app_release_check (id, checked_at, check_requested_at)
+VALUES (true, 'epoch', now())
+ON CONFLICT (id) DO UPDATE SET check_requested_at = now();
+
+-- name: MarkReleaseNotified :exec
+UPDATE app_release_check SET notified_version = $1 WHERE id;
+
+-- name: ListUpdateRecipients :many
+-- Qui prevenir d'une nouvelle version : les comptes actifs qui peuvent
+-- l'installer.
+SELECT u.id
+FROM users u
+JOIN roles r ON r.code = u.role
+JOIN role_permissions rp ON rp.role_id = r.id
+JOIN permissions p ON p.id = rp.permission_id AND p.code = 'system.update'
+WHERE u.deleted_at IS NULL AND u.disabled_at IS NULL
+LIMIT 50;
 
 -- name: SaveReleaseCheckError :exec
 -- Passage rate : on garde la derniere version connue, on note l'erreur.
 INSERT INTO app_release_check (id, checked_at, error)
 VALUES (true, now(), $1)
-ON CONFLICT (id) DO UPDATE SET checked_at = now(), error = EXCLUDED.error;
+ON CONFLICT (id) DO UPDATE SET checked_at = now(), error = EXCLUDED.error, check_requested_at = NULL;
 
 -- name: GetUpdater :one
 SELECT * FROM app_updater WHERE id;
