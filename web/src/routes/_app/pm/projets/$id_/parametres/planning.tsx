@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 import { Input } from '@/components/ui/input'
 import { projectDetailQuery, useUpdateProject } from '@/features/projects/api'
-import { PROJECT_STATUS, PROJECT_STATUS_ORDER } from '@/features/projects/format'
+import { PROJECT_STATUS, PROJECT_STATUS_ORDER, tracksSchedule } from '@/features/projects/format'
 import { HttpError } from '@/lib/api'
 import type { ProjectDetail, ProjectStatus } from '@/types/api'
 
@@ -15,7 +15,7 @@ import { CHAMP, Card, Choices, Field, SaveBar } from '@/components/settings-ui'
 
 const schema = z
   .object({
-    status: z.enum(['cadrage', 'production', 'attente', 'livre']),
+    status: z.enum(['cadrage', 'production', 'attente', 'livre', 'hebergement']),
     progress: z.number().int().min(0, 'De 0 à 100').max(100, 'De 0 à 100'),
     starts_on: z.string(),
     due_on: z.string(),
@@ -61,6 +61,9 @@ function PlanningForm({ project }: { project: ProjectDetail }) {
 
   const errors = form.formState.errors
   const progress = form.watch('progress')
+  // Heberge, le projet n'a plus d'avancement ni d'echeance : les champs se
+  // retirent, sans effacer les valeurs, qui reviennent si le projet repart.
+  const scheduled = tracksSchedule(form.watch('status'))
 
   function onSubmit(values: Values) {
     update.mutate(
@@ -94,36 +97,45 @@ function PlanningForm({ project }: { project: ProjectDetail }) {
           />
         </Field>
 
-        <Field
-          label="Avancement"
-          hint="Déclaré par l’équipe. Distinct du rapport des tâches faites, qui se calcule tout seul."
-          error={errors.progress?.message}
-        >
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={Number.isNaN(progress) ? 0 : progress}
-              onChange={(event) =>
-                form.setValue('progress', Number(event.target.value), { shouldDirty: true })
-              }
-              className="accent-brand h-1 flex-1 cursor-pointer"
-              aria-label="Avancement"
-            />
-            <div className="flex w-[110px] shrink-0 items-center gap-2">
-              <Input
-                {...form.register('progress', { valueAsNumber: true })}
-                type="number"
+        {!scheduled && (
+          <p className="text-[13px] text-[#73757c]">
+            Livré et hébergé par l’agence : plus d’échéance ni d’avancement à suivre. Le projet reste ouvert aux
+            tickets et au temps passé.
+          </p>
+        )}
+
+        {scheduled && (
+          <Field
+            label="Avancement"
+            hint="Déclaré par l’équipe. Distinct du rapport des tâches faites, qui se calcule tout seul."
+            error={errors.progress?.message}
+          >
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
                 min={0}
                 max={100}
-                className={`${CHAMP} text-right tabular-nums`}
+                step={5}
+                value={Number.isNaN(progress) ? 0 : progress}
+                onChange={(event) =>
+                  form.setValue('progress', Number(event.target.value), { shouldDirty: true })
+                }
+                className="accent-brand h-1 flex-1 cursor-pointer"
+                aria-label="Avancement"
               />
-              <span className="text-[16px] text-[#73757c]">%</span>
+              <div className="flex w-[110px] shrink-0 items-center gap-2">
+                <Input
+                  {...form.register('progress', { valueAsNumber: true })}
+                  type="number"
+                  min={0}
+                  max={100}
+                  className={`${CHAMP} text-right tabular-nums`}
+                />
+                <span className="text-[16px] text-[#73757c]">%</span>
+              </div>
             </div>
-          </div>
-        </Field>
+          </Field>
+        )}
       </Card>
 
       <Card title="Dates" description="Laisser vide un projet dont la date n’est pas arrêtée.">
@@ -131,9 +143,11 @@ function PlanningForm({ project }: { project: ProjectDetail }) {
           <Input {...form.register('starts_on')} type="date" className={CHAMP} />
         </Field>
 
-        <Field label="Échéance" error={errors.due_on?.message}>
-          <Input {...form.register('due_on')} type="date" className={CHAMP} />
-        </Field>
+        {scheduled && (
+          <Field label="Échéance" error={errors.due_on?.message}>
+            <Input {...form.register('due_on')} type="date" className={CHAMP} />
+          </Field>
+        )}
       </Card>
 
       <SaveBar

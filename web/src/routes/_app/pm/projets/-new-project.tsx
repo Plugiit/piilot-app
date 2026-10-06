@@ -59,7 +59,7 @@ const schema = z.object({
     .object({ id: z.string().nullable(), name: z.string() })
     .nullable()
     .refine((value) => value !== null && value.name.trim() !== '', 'Un projet appartient à un client'),
-  status: z.enum(['cadrage', 'production', 'attente', 'livre']),
+  status: z.enum(['cadrage', 'production', 'attente', 'livre', 'hebergement']),
   hours_sold: z
     .string()
     .trim()
