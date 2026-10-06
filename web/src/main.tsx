@@ -63,6 +63,34 @@ declare module '@tanstack/react-router' {
   }
 }
 
+/**
+ * Morceau du front introuvable apres une mise a jour.
+ *
+ * Le front est decoupe en morceaux charges a la demande, dont le nom change a
+ * chaque version. Un onglet ouvert avant la mise a jour demande des morceaux
+ * que la nouvelle version ne sert plus : on recharge la page, qui repart sur
+ * la nouvelle. Une seule fois par minute, pour ne pas boucler si le morceau
+ * manque pour une autre raison.
+ */
+window.addEventListener('vite:preloadError', (event) => {
+  const key = 'piilot:reloaded-for-chunk'
+  let last = 0
+  try {
+    last = Number(sessionStorage.getItem(key) ?? 0)
+  } catch {
+    // Stockage indisponible : on recharge quand meme, une fois.
+  }
+  if (Date.now() - last < 60_000) return
+
+  event.preventDefault()
+  try {
+    sessionStorage.setItem(key, String(Date.now()))
+  } catch {
+    // Idem.
+  }
+  window.location.reload()
+})
+
 const rootElement = document.getElementById('root')
 
 if (!rootElement) {

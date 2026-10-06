@@ -7,11 +7,10 @@ import { liveVersionQuery } from '@/features/system/api'
 /**
  * Bandeau « nouvelle version en ligne », pour tout le monde.
  *
- * Apres un deploiement, un onglet reste ouvert garde l'ancien front. Ce n'est
- * pas qu'une question de nouveautes : le front est decoupe en morceaux charges
- * a la demande, et ceux de l'ancienne version n'existent plus sur le serveur —
- * changer d'ecran peut alors echouer. Le bandeau le dit et propose de
- * recharger, sans forcer : un formulaire en cours de saisie serait perdu.
+ * Apres un deploiement, un onglet reste ouvert garde l'ancien front. Le
+ * bandeau le dit et propose de recharger, sans forcer : un formulaire en cours
+ * de saisie serait perdu. Un morceau du front devenu introuvable, lui,
+ * recharge la page de lui-meme (voir main.tsx).
  *
  * Rien en developpement, ou le front et l'API ne portent pas de version de
  * release.
