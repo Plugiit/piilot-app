@@ -194,7 +194,7 @@ func LoadUpdater() (UpdaterConfig, error) {
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
 		LogLevel:     env("LOG_LEVEL", "info"),
 		DockerSocket: env("DOCKER_SOCKET", "/var/run/docker.sock"),
-		Service:      env("UPDATER_SERVICE", "app"),
+		Service:      env("UPDATER_SERVICE", "server"),
 		Self:         os.Getenv("HOSTNAME"),
 	}
 
