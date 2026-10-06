@@ -31,6 +31,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
 import { useCheckForUpdate } from '@/features/system/api'
+import { UpdateCard } from '@/features/system/update-card'
 import { HttpError } from '@/lib/api'
 import { logout, outOfReach, sessionQuery } from '@/lib/auth'
 import { userInitials } from '@/lib/initials'
@@ -380,11 +381,11 @@ function CheckForUpdateItem() {
           onSuccess: (status) => {
             toast.dismiss(pending)
             if (status.update_available && status.latest !== null) {
-              toast.success(`Piilot ${status.latest.version} est disponible : le bouton « Mettre à jour » est dans l’en-tête.`)
+              toast.success(`Piilot ${status.latest.version} est disponible : installez-la depuis la carte au bas du menu.`)
             } else if (status.check_error !== '') {
               toast.error(`Vérification impossible : ${status.check_error}`)
             } else if (status.check_pending) {
-              toast.info('La vérification prend plus de temps que prévu. Le bouton apparaîtra s’il y a une mise à jour.')
+              toast.info('La vérification prend plus de temps que prévu. Une carte apparaîtra au bas du menu s’il y a une mise à jour.')
             } else {
               toast.success(`Piilot est à jour (${status.current_version}).`)
             }
@@ -638,7 +639,7 @@ function Shortcuts() {
   if (items.length === 0) return null
 
   return (
-    <div className="mt-auto flex w-full flex-col items-start gap-2 border-t border-[#d8d8d8] pt-3">
+    <div className="flex w-full flex-col items-start gap-2 border-t border-[#d8d8d8] pt-3">
       <GroupLabel className="text-xs leading-[15.378px] tracking-[0.48px]">Raccourcis</GroupLabel>
 
       <div className="flex w-full flex-col">
@@ -766,12 +767,15 @@ function Panel({ fallbackTitle, scope }: { fallbackTitle: string; scope: string 
         ))}
       </div>
 
-      {/* Les favoris sont des projets : ils n'ont rien a faire sous le CRM.
-          `mt-auto` les plaque au bas du panneau — ils ne prolongent pas le
-          menu, ils occupent le pied de la colonne. Quand le menu remplit deja
-          la hauteur, la marge se reduit a rien et le bloc reprend sa place a
-          la suite plutot que de deborder. */}
-      {activeModule?.to === '/pm' && <Shortcuts />}
+      {/* Pied du panneau : les favoris, qui sont des projets et n'ont rien a
+          faire sous le CRM, puis l'annonce d'une nouvelle version. `mt-auto`
+          plaque le bloc en bas ; quand le menu remplit deja la hauteur, la
+          marge se reduit a rien et il reprend sa place a la suite plutot que
+          de deborder. */}
+      <div className="mt-auto flex w-full flex-col gap-4 pt-4">
+        {activeModule?.to === '/pm' && <Shortcuts />}
+        <UpdateCard />
+      </div>
     </div>
   )
 }

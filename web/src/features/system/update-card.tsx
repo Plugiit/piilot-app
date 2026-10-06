@@ -1,7 +1,7 @@
-import { ArrowUpRight01Icon, Loading03Icon, RefreshIcon } from '@hugeicons/core-free-icons'
+import { ArrowUpRight01Icon, Loading03Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -17,19 +17,17 @@ import {
 import { updateStatusQuery, useRequestUpdate } from '@/features/system/api'
 import { HttpError } from '@/lib/api'
 import { sessionQuery } from '@/lib/auth'
-import { cn } from '@/lib/utils'
 import type { UpdateStatus } from '@/types/api'
 
 const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
- * Bouton de mise a jour, dans l'en-tete, pour les seuls comptes qui portent la
- * permission `system.update` — les admins.
- *
- * Absent tant qu'il n'y a rien a installer : un bouton toujours visible
- * deviendrait un decor qu'on ne regarde plus le jour ou il compte.
+ * Etat de la mise a jour, pour les seuls comptes qui portent la permission
+ * `system.update` — les admins. Nul tant qu'il n'y a rien a installer ni
+ * installation en cours : un rappel toujours visible deviendrait un decor
+ * qu'on ne regarde plus le jour ou il compte.
  */
-export function UpdateButton() {
+function usePendingUpdate(): UpdateStatus | null {
   const { data: session } = useQuery(sessionQuery)
   const allowed = session?.permissions.includes('system.update') === true
 
@@ -40,30 +38,63 @@ export function UpdateButton() {
   if (!allowed || status === undefined) return null
   if (!status.update_available && !status.in_progress) return null
 
-  return <UpdateDialog status={status} />
+  return status
 }
 
-function UpdateDialog({ status }: { status: UpdateStatus }) {
+const targetOf = (status: UpdateStatus) => status.latest?.version ?? status.last_request?.target_version ?? ''
+
+/**
+ * Carte « nouvelle version », au pied du panneau de navigation.
+ *
+ * C'est la seule annonce dans l'interface : au pied du panneau, elle se voit
+ * depuis tous les ecrans du back-office sans prendre la place d'un contenu.
+ */
+export function UpdateCard() {
+  const status = usePendingUpdate()
+  if (status === null) return null
+
+  const target = targetOf(status)
+
+  return (
+    <UpdateDialog status={status}>
+      <div
+        role="region"
+        aria-label="Nouvelle version"
+        className="flex w-full flex-col gap-2.5 rounded-[10px] border border-[#e4e4e4] bg-white p-3"
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-2 text-[13px] leading-[1.4] font-medium text-[#1b1b1b]">
+            {status.in_progress ? (
+              <HugeiconsIcon icon={Loading03Icon} size={13} strokeWidth={2} className="animate-spin text-[#73757c]" />
+            ) : (
+              <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-brand" />
+            )}
+            {status.in_progress ? `Installation de la ${target}` : `Version ${target} disponible`}
+          </span>
+          <span className="text-[12px] leading-[1.4] text-[#73757c]">
+            {status.in_progress
+              ? 'L’application redémarre dans une à deux minutes.'
+              : `Version installée : ${status.current_version}`}
+          </span>
+        </div>
+
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full">
+            {status.in_progress ? 'Suivre l’installation' : 'Installer'}
+          </Button>
+        </DialogTrigger>
+      </div>
+    </UpdateDialog>
+  )
+}
+
+function UpdateDialog({ status, children }: { status: UpdateStatus; children: ReactNode }) {
   const [open, setOpen] = useState(false)
-  const target = status.latest?.version ?? status.last_request?.target_version ?? ''
+  const target = targetOf(status)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          size="sm"
-          variant={status.in_progress ? 'outline' : 'default'}
-          className="gap-1.5 whitespace-nowrap"
-        >
-          <HugeiconsIcon
-            icon={status.in_progress ? Loading03Icon : RefreshIcon}
-            size={16}
-            strokeWidth={1.8}
-            className={cn(status.in_progress && 'animate-spin')}
-          />
-          {status.in_progress ? 'Mise à jour en cours' : `Mettre à jour (${target})`}
-        </Button>
-      </DialogTrigger>
+      {children}
 
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>

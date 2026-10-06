@@ -746,8 +746,9 @@ propre rôle, et il reste toujours au moins un administrateur actif.
 
 ### Mise à jour depuis l'interface
 
-Quand une nouvelle version est publiée, les administrateurs voient un bouton
-**Mettre à jour** dans l'en-tête. Il ouvre les notes de version et, après
+Quand une nouvelle version est publiée, les administrateurs voient une carte
+**Nouvelle version** au bas du menu latéral. Son bouton **Installer la mise à
+jour** ouvre les notes de version et, après
 confirmation, met l'application à jour en une à deux minutes. Pour tous les
 autres comptes, un bandeau propose ensuite de recharger la page.
 
