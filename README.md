@@ -628,7 +628,8 @@ que de la laisser répondre 500 à la première requête.
 |---|---|---|
 | `APP_ENV` | `production` | `production`, `staging` ou `development` (cookies non `Secure`, logs verbeux) |
 | `LOG_LEVEL` | `info` | `debug` pour plus de détail |
-| `COOKIE_DOMAIN` | *(vide)* | Vide : cookie lié au seul domaine de l'app, le réglage le plus sûr |
+| `COOKIE_DOMAIN` | *(vide)* | Vide : cookie lié au seul domaine de l'app, le réglage le plus sûr. Avec un domaine par espace, se déduit du parent commun |
+| `AUTH_URL` / `TEAM_URL` / `ADMIN_URL` / `CLIENT_URL` | *(vides)* | Un domaine par espace, voir « Un domaine par espace ». Tous les quatre ou aucun |
 | `POSTGRES_DB` | `piilot` | Nom de la base |
 | `RUN_MIGRATIONS` | `true` | Applique les migrations au démarrage |
 | `MAX_UPLOAD_MIB` | `25` | Taille maximale d'une pièce jointe |
@@ -643,6 +644,36 @@ que de la laisser répondre 500 à la première requête.
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | *(vide)* | Identifiants SMTP |
 | `SMTP_FROM` | *(vide)* | Expéditeur, `Piilot <piilot@votre-agence.fr>`. Obligatoire avec `SMTP_HOST` |
 | `SMTP_SECURITY` | `starttls` | `starttls` (port 587), `tls` (port 465) ou `none` (serveur local de test) |
+
+### Un domaine par espace
+
+Par défaut, Piilot tient sur un seul domaine : la connexion sur `/login`, le
+back-office à la racine, le portail sur `/client`. Il peut aussi donner à
+chaque espace son domaine :
+
+| Variable | Exemple | Espace |
+|---|---|---|
+| `AUTH_URL` | `https://auth.agence.fr` | Connexion, invitation, mot de passe oublié |
+| `TEAM_URL` | `https://team.agence.fr` | Travail quotidien : Mon travail, projets, tâches, CRM, temps — équipe et admins |
+| `ADMIN_URL` | `https://admin.agence.fr` | Administration : tableau de bord de l'agence, paramètres, comptes et rôles — admins seulement |
+| `CLIENT_URL` | `https://client.agence.fr` | Portail client |
+
+Les quatre se renseignent ensemble et partagent un domaine parent (ici
+`agence.fr`) : le cookie de session y est posé, et une seule connexion vaut
+sur tous les espaces. C'est toujours la même application : une adresse ouverte
+sur le mauvais domaine est renvoyée vers le bon, et les e-mails pointent vers
+le domaine de leur espace. Le compte (`/compte`) s'ouvre depuis l'équipe comme
+depuis l'administration.
+
+Avec Coolify, renseignez les quatre variables, puis listez les quatre domaines
+sur le service « app » (Configuration > General > Domains), séparés par des
+virgules et suivis du port interne :
+`https://auth.agence.fr:8080,https://team.agence.fr:8080,https://admin.agence.fr:8080,https://client.agence.fr:8080`.
+Chaque domaine doit pointer vers le serveur dans votre DNS — un enregistrement
+`*.agence.fr` suffit pour les quatre.
+
+En multi-domaines, les référentiels (services, modèles de projet) relèvent de
+l'administration : seuls les administrateurs les modifient.
 
 ### Fixées par l'image
 
