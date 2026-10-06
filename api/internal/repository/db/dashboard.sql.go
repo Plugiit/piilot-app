@@ -63,7 +63,7 @@ FROM projects p
 JOIN clients c ON c.id = p.client_id
 WHERE p.deleted_at IS NULL
   AND NOT p.is_internal
-  AND p.status <> 'livre'
+  AND p.status NOT IN ('livre', 'hebergement')
   AND p.hours_sold > 0
 ORDER BY p.hours_spent / p.hours_sold DESC, p.id
 LIMIT 8

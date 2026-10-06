@@ -1069,7 +1069,8 @@
                 "cadrage",
                 "production",
                 "attente",
-                "livre"
+                "livre",
+                "hebergement"
               ]
             }
           },
@@ -7880,7 +7881,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -8190,7 +8192,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -8316,7 +8319,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           }
         }
@@ -9078,7 +9082,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -9172,7 +9177,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -9931,7 +9937,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -12594,7 +12601,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -13234,7 +13242,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {
@@ -13411,7 +13420,8 @@
               "cadrage",
               "production",
               "attente",
-              "livre"
+              "livre",
+              "hebergement"
             ]
           },
           "progress": {

@@ -66,7 +66,7 @@ SELECT
     coalesce(v.feedback, '')::text AS feedback,
     count(*) OVER () AS total
 FROM project_members pm
-JOIN projects p     ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status <> 'livre'
+JOIN projects p     ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status NOT IN ('livre', 'hebergement')
 JOIN deliverables d ON d.project_id = p.id AND d.deleted_at IS NULL
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 WHERE pm.user_id = sqlc.arg('user_id')
@@ -88,7 +88,7 @@ SELECT
     p.tasks_done,
     c.name AS client_name
 FROM project_members pm
-JOIN projects p ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status <> 'livre'
+JOIN projects p ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status NOT IN ('livre', 'hebergement')
 JOIN clients c  ON c.id = p.client_id
 WHERE pm.user_id = sqlc.arg('user_id')
 ORDER BY p.due_on ASC NULLS LAST, p.name

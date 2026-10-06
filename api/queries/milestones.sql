@@ -110,7 +110,7 @@ SELECT * FROM (
         p.id,
         p.name,
         p.due_on,
-        (p.status = 'livre')::boolean,
+        (p.status IN ('livre', 'hebergement'))::boolean,
         p.id,
         p.name,
         0,

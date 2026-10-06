@@ -215,7 +215,7 @@ type UpdateProjectInput struct {
 // le refuser ici donne une erreur de validation lisible plutot qu'une violation
 // de contrainte remontee en 500.
 var projectStatuses = map[string]struct{}{
-	"cadrage": {}, "production": {}, "attente": {}, "livre": {},
+	"cadrage": {}, "production": {}, "attente": {}, "livre": {}, "hebergement": {},
 }
 
 // Priorites acceptees. Meme parti que les statuts : le CHECK de la base dit la

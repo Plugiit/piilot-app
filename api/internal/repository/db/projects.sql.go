@@ -74,7 +74,7 @@ WHERE p.deleted_at IS NULL
   -- Les projets livres sont ecartes, comme dans les alertes du tableau de
   -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
   AND ($4::text IS NULL OR (
-        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+        NOT p.is_internal AND p.status NOT IN ('livre', 'hebergement') AND p.hours_sold > 0 AND (
             ($4::text = 'over' AND p.hours_spent > p.hours_sold)
          OR ($4::text = 'warning'
              AND p.hours_spent <= p.hours_sold
@@ -342,10 +342,10 @@ SELECT
     -- de chaque carte (voir budgetStateOf). Un projet livre n'alerte plus : ce
     -- qui est consomme l'est, il n'y a plus rien a prevenir.
     (SELECT count(*) FROM projects
-     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+     WHERE deleted_at IS NULL AND NOT is_internal AND status NOT IN ('livre', 'hebergement')
        AND hours_sold > 0 AND hours_spent > hours_sold)                            AS budget_over,
     (SELECT count(*) FROM projects
-     WHERE deleted_at IS NULL AND NOT is_internal AND status <> 'livre'
+     WHERE deleted_at IS NULL AND NOT is_internal AND status NOT IN ('livre', 'hebergement')
        AND hours_sold > 0 AND hours_spent <= hours_sold
        AND hours_spent >= hours_sold * $1::numeric)        AS budget_warning
 `
@@ -645,7 +645,7 @@ WHERE p.deleted_at IS NULL
   -- Les projets livres sont ecartes, comme dans les alertes du tableau de
   -- bord : le filtre sert a trouver ce qu'on peut encore rattraper.
   AND ($5::text IS NULL OR (
-        NOT p.is_internal AND p.status <> 'livre' AND p.hours_sold > 0 AND (
+        NOT p.is_internal AND p.status NOT IN ('livre', 'hebergement') AND p.hours_sold > 0 AND (
             ($5::text = 'over' AND p.hours_spent > p.hours_sold)
          OR ($5::text = 'warning'
              AND p.hours_spent <= p.hours_sold
