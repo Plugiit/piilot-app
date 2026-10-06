@@ -11,6 +11,50 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.5] — Mise à jour sans coupure et clients particuliers · 2026-10-06
+
+Cette version met Piilot à jour sans interruption de service et distingue, à la création d'un client, un particulier d'un professionnel dont le SIRET est vérifié au registre des entreprises.
+
+### Points forts
+
+- Mise à jour sans coupure : la nouvelle version démarre à côté de l'ancienne, et le trafic bascule de l'une à l'autre sans qu'une requête échoue.
+- Clients particuliers ou professionnels, avec vérification du SIRET au registre des entreprises.
+- Une carte « Nouvelle version » au bas du menu pour installer la mise à jour.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Client particulier ou professionnel** : deux cartes pour choisir à la création. Pour un professionnel, le SIRET est vérifié au registre des entreprises (API publique de l'État, gratuite) : établissement actif, fermé ou inconnu. Le registre remplit la forme juridique, l'adresse et le numéro de TVA, et la raison sociale saisie y est comparée, avec de quoi reprendre celle du registre d'un clic. Pour un particulier : prénom, nom, e-mail, téléphone et adresse ; la personne devient le contact principal.
+- **Fiche client** : raison sociale, forme juridique et SIRET marqué « Vérifié » pour un professionnel ; un particulier n'affiche que ses coordonnées. Un SIRET changé à la modification est revérifié.
+
+#### Admin
+
+- **Carte « Nouvelle version »** au bas du menu latéral, à la place du bouton de l'en-tête : la version disponible, celle installée, et un bouton Installer. Pendant l'installation, elle en suit l'avancement.
+
+#### Toute l'application
+
+- **Mise à jour sans coupure** : une passerelle se place devant l'application et ne s'arrête jamais. Pendant une mise à jour, la nouvelle version démarre à côté de l'ancienne ; la passerelle bascule le trafic dès qu'elle est saine, puis l'ancienne s'arrête après avoir fini ses requêtes. Si la nouvelle version ne démarre pas, l'ancienne n'a jamais cessé de servir. Rien ne dépend de Coolify ni de Traefik.
+- **Page de maintenance** : si le serveur ne répond plus pendant plus de quelques secondes, la passerelle sert une page « Mise à jour en cours » qui se recharge d'elle-même, et un onglet ouvert affiche le même écran.
+
+### Améliorations
+
+- Un onglet ouvert avant une mise à jour se recharge de lui-même quand il lui manque un morceau de la nouvelle version, au lieu d'échouer en changeant d'écran.
+
+### Corrections
+
+- Le champ téléphone de « Mon compte » est de nouveau utilisable : le sélecteur d'indicatif occupait toute la ligne.
+- La limite de tentatives de connexion par adresse IP valait pour tout le monde derrière un proxy : l'application voyait l'adresse du proxy, et non celle de l'appelant.
+- La mise à jour depuis l'interface échouait sur les serveurs Docker récents (stockage d'images containerd) : l'image en cours devenait illisible après le téléchargement de la nouvelle.
+
+### À savoir pour le déploiement
+
+- **Redéployer une fois** (*Redeploy* dans Coolify, ou `git pull && docker compose up -d --remove-orphans`). La pile passe à cinq services : `app` devient la passerelle et garde le domaine configuré, l'application devient `server`. Ce redéploiement coupe brièvement ; les mises à jour suivantes, non. Une mise à jour depuis l'interface sans ce redéploiement fonctionne, mais sans passerelle, donc avec coupure.
+- `create-admin` se lance désormais dans le conteneur `server`.
+- Nouvelle variable `DRAIN_DELAY` (5 s par défaut) : le temps pendant lequel une instance qui s'arrête sert encore.
+- Migration 000036 : type de client, raison sociale, forme juridique et date de vérification du SIRET. Les clients existants deviennent professionnels.
+- Les migrations suivent désormais une règle : elles ajoutent sans supprimer ni renommer dans la même version (voir le README).
+
 ## [0.9.4] — Agenda et finitions · 2026-10-06
 
 Cette version remet l'agenda sur le tableau de bord, cette fois avec les vraies échéances, et soigne plusieurs écrans du quotidien.
