@@ -53,7 +53,7 @@ func TestMonoDomaineNeRedirigeRien(t *testing.T) {
 func TestOfPath(t *testing.T) {
 	cases := map[string]string{
 		"/":                   "",
-		"/compte/securite":    "",
+		"/compte/securite":    Team,
 		"/login":              Auth,
 		"/invitation/abc":     Auth,
 		"/reinitialiser/abc":  Auth,
@@ -77,12 +77,17 @@ func TestRedirectRenvoieVersLeBonDomaine(t *testing.T) {
 	s := multi(t)
 	cases := []struct{ host, path, query, want string }{
 		{"team.agence.fr", "/pm/projets", "", ""},
+		// Le back-office se sert aussi sur l'administration : un admin y
+		// reste pour tout son travail.
+		{"admin.agence.fr", "/pm/projets", "", ""},
+		{"admin.agence.fr", "/crm/clients", "", ""},
 		{"team.agence.fr", "/parametres/comptes", "", "https://admin.agence.fr/parametres/comptes"},
 		{"client.agence.fr", "/pm/projets", "page=2", "https://team.agence.fr/pm/projets?page=2"},
 		{"team.agence.fr", "/login", "redirect=%2Fpm", "https://auth.agence.fr/login?redirect=%2Fpm"},
 		{"auth.agence.fr", "/client/tickets", "", "https://client.agence.fr/client/tickets"},
 		{"admin.agence.fr", "/compte", "", ""},
 		{"client.agence.fr", "/compte", "", "https://team.agence.fr/compte"},
+		{"team.agence.fr", "/compte", "", ""},
 		{"admin.agence.fr", "/", "", ""},
 		// Un hote inconnu — une sonde, une IP — n'est jamais redirige.
 		{"10.0.0.4:8080", "/client", "", ""},

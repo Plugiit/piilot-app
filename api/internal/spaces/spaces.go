@@ -8,7 +8,9 @@
 //
 // C'est toujours la meme application, servie par la meme image : chaque
 // domaine sert le front et l'API, et une adresse ouverte sur le mauvais domaine
-// est renvoyee vers le bon. Les domaines partagent un parent (auth.agence.fr,
+// est renvoyee vers le bon. Le back-office se sert sur deux domaines : celui
+// de l'equipe, et celui de l'administration, ou les administrateurs font tout
+// leur travail. Les domaines partagent un parent (auth.agence.fr,
 // team.agence.fr…) pour qu'une seule connexion vaille partout : le cookie de
 // session est pose sur ce parent.
 //
@@ -172,24 +174,25 @@ func (s Spaces) OfHost(host string) string {
 
 // OfPath rend l'espace auquel appartient une adresse de l'application.
 //
-// Vide pour ce qui vaut partout : la racine, que chaque espace redirige vers
-// son accueil, et le compte, que l'equipe comme les administrateurs ouvrent la
-// ou ils se trouvent.
+// Team designe le back-office en general : il est servi sur le domaine de
+// l'equipe comme sur celui de l'administration, ou les administrateurs font
+// tout leur travail. Admin designe les seuls ecrans d'administration — le
+// tableau de bord de l'agence et les parametres —, qui n'existent que sur le
+// domaine d'administration. Vide pour la racine, que chaque domaine redirige
+// vers son accueil.
 func OfPath(path string) string {
 	under := func(prefix string) bool { return path == prefix || strings.HasPrefix(path, prefix+"/") }
 
 	switch {
 	case path == "/" || path == "":
 		return ""
-	case under("/compte"):
-		return ""
 	case under("/login"), under("/invitation"), under("/mot-de-passe-oublie"), under("/reinitialiser"):
 		return Auth
 	case under("/client"):
 		return Client
 	// Le tableau de bord de l'agence est la racine du module PM : seule
-	// l'adresse exacte appartient a l'administration, ses voisines restent au
-	// travail quotidien.
+	// l'adresse exacte releve de l'administration, ses voisines sont du
+	// back-office ordinaire.
 	case path == "/pm" || path == "/pm/", under("/parametres"):
 		return Admin
 	default:
@@ -199,6 +202,10 @@ func OfPath(path string) string {
 
 // Redirect rend l'adresse vers laquelle renvoyer une requete servie sur le
 // mauvais domaine, ou une chaine vide quand elle est au bon endroit.
+//
+// Le serveur ne connait pas le role de l'appelant a cet endroit : une page du
+// back-office ouverte sur la connexion ou le portail part vers le domaine de
+// l'equipe, et le front y envoie ensuite un administrateur vers le sien.
 func (s Spaces) Redirect(host, path, rawQuery string) string {
 	if !s.Enabled() {
 		return ""
@@ -209,18 +216,21 @@ func (s Spaces) Redirect(host, path, rawQuery string) string {
 		return ""
 	}
 
-	target := OfPath(path)
-	switch {
-	case target == "":
-		// Ce qui vaut partout est servi partout, sauf le compte, qui n'a pas
-		// de sens dans le portail ni sur la page de connexion.
-		if strings.HasPrefix(path, "/compte") && (current == Auth || current == Client) {
-			target = Team
-		} else {
+	var target string
+	switch want := OfPath(path); want {
+	case "":
+		return ""
+	case Team:
+		// Le back-office se sert sur l'un ou l'autre des deux domaines.
+		if current == Team || current == Admin {
 			return ""
 		}
-	case target == current:
-		return ""
+		target = Team
+	default:
+		if want == current {
+			return ""
+		}
+		target = want
 	}
 
 	out := s.URL(target) + path
