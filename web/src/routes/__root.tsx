@@ -1,9 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet, redirect, useRouterState } from '@tanstack/react-router'
+import { useEffect } from 'react'
 
 import { ErrorState } from '@/components/layout/error-state'
 import { Toaster } from '@/components/ui/sonner'
 import { VersionBanner } from '@/features/system/version-banner'
+import { crossSpaceUrl } from '@/lib/spaces'
 
 /**
  * Le QueryClient est injecte dans le contexte du routeur : les loaders de
@@ -16,6 +18,14 @@ export interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  // Quand chaque espace a son domaine, une navigation qui sort de l'espace
+  // courant — un lien vers les parametres depuis l'equipe, la deconnexion —
+  // repart sur le domaine de destination. Le serveur fait de meme pour une
+  // adresse ouverte directement. En mono-domaine, rien ne se passe.
+  beforeLoad: ({ location }) => {
+    const target = crossSpaceUrl(location.pathname, location.searchStr)
+    if (target !== null) throw redirect({ href: target })
+  },
   component: RootLayout,
   // Filet ultime : ce qui echoue hors d'une vue (garde de route, session).
   // Les vues, elles, declarent le leur pour rester dans leur shell.
@@ -24,6 +34,16 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootLayout() {
+  // Filet de la garde ci-dessus : une redirection lancee par une garde enfant
+  // — vers la connexion quand la session manque, apres une deconnexion — ne
+  // repasse pas par le `beforeLoad` racine. Chaque adresse atteinte est donc
+  // reverifiee ici, et le domaine change s'il le faut.
+  const location = useRouterState({ select: (state) => state.location })
+  useEffect(() => {
+    const target = crossSpaceUrl(location.pathname, location.searchStr)
+    if (target !== null) window.location.replace(target)
+  }, [location.pathname, location.searchStr])
+
   return (
     <>
       <Outlet />
