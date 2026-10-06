@@ -90,7 +90,7 @@ function sentence(item: AppNotification): ReactNode {
     case 'deliverable_feedback':
       return `${who} a renvoyé des retours sur « ${title} »`
     case 'update_available':
-      return `Piilot ${typeof item.payload.version === 'string' ? item.payload.version : ''} est disponible : le bouton « Mettre à jour » est dans l’en-tête`
+      return `Piilot ${typeof item.payload.version === 'string' ? item.payload.version : ''} est disponible : installez-la depuis la carte au bas du menu`
   }
 }
 
