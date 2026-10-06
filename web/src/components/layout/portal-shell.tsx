@@ -14,19 +14,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { logout } from '@/lib/auth'
+import { userInitials } from '@/lib/initials'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
 
 export interface PortalNavItem {
   to: '/client' | '/client/tickets'
   label: string
-}
-
-/** Initiales, a defaut de photo. */
-function initials(user: User): string {
-  const letters = `${user.firstname.at(0) ?? ''}${user.lastname.at(0) ?? ''}`.trim()
-
-  return letters === '' ? user.email.slice(0, 2).toUpperCase() : letters.toUpperCase()
 }
 
 /**
@@ -100,7 +94,7 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
             >
               <span className="hidden text-[14px] text-[#1b1b1b] sm:inline">{user.firstname}</span>
               <span className="flex size-8 items-center justify-center rounded-full bg-[#1b1b1b] text-[12px] font-medium text-white">
-                {initials(user)}
+                {userInitials(user)}
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
