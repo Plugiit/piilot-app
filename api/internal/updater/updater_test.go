@@ -84,8 +84,19 @@ func (f *fakeDocker) StartContainer(_ context.Context, id string) error {
 }
 
 func (f *fakeDocker) RenameContainer(_ context.Context, id, name string) error {
-	f.log("rename " + id + " " + strings.SplitN(name, "-avant-maj-", 2)[0])
+	f.log("rename " + id + " " + stripStamp(name))
 	return nil
+}
+
+// stripStamp retire l'horodatage des noms provisoires, pour des journaux
+// comparables d'un passage a l'autre.
+func stripStamp(name string) string {
+	for _, sep := range []string{"-avant-maj-", "-suivante-"} {
+		if base, _, ok := strings.Cut(name, sep); ok {
+			return base + sep + "*"
+		}
+	}
+	return name
 }
 
 func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {
@@ -94,7 +105,7 @@ func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {
 }
 
 func (f *fakeDocker) CreateContainer(_ context.Context, name string, body any) (string, error) {
-	f.log("create " + name)
+	f.log("create " + stripStamp(name))
 	f.body = body.(map[string]any)
 	f.containers["new"] = docker.Container{ID: "new", State: docker.Container{}.State}
 	return "new", nil
@@ -113,6 +124,19 @@ func raw(v any) json.RawMessage {
 // installation : un updater et une application dans le projet « piilot »,
 // l'application sur l'image « old » avec une variable choisie et une heritee.
 func installation(health string) *fakeDocker {
+	return installationWith(health, map[string]any{"RestartPolicy": map[string]string{"Name": "unless-stopped"}})
+}
+
+// installationAvecPort publie le port de l'application sur l'hote, comme le
+// fait docker-compose.selfhost.yml sans passerelle.
+func installationAvecPort(health string) *fakeDocker {
+	return installationWith(health, map[string]any{
+		"RestartPolicy": map[string]string{"Name": "unless-stopped"},
+		"PortBindings":  map[string]any{"8080/tcp": []map[string]string{{"HostIp": "127.0.0.1", "HostPort": "8080"}}},
+	})
+}
+
+func installationWith(health string, hostConfig map[string]any) *fakeDocker {
 	app := docker.Container{
 		ID:    "app123456789",
 		Name:  "/piilot-app-1",
@@ -128,7 +152,7 @@ func installation(health string) *fakeDocker {
 			},
 			"Cmd": nil,
 		}),
-		HostConfig: raw(map[string]any{"RestartPolicy": map[string]string{"Name": "unless-stopped"}}),
+		HostConfig: raw(hostConfig),
 	}
 	app.State.Running = true
 	app.NetworkSettings.Networks = map[string]docker.Endpoint{
@@ -169,8 +193,50 @@ func TestTargetTrouveLApplicationDuMemeProjet(t *testing.T) {
 	}
 }
 
-func TestUpdateRecreeLeConteneurAvecLaNouvelleImage(t *testing.T) {
+func TestUpdateSansCoupureDemarreLaNouvelleAvantDArreterLAncienne(t *testing.T) {
 	d := installation("healthy")
+	u := newUpdater(d)
+	target, _ := u.Target(context.Background())
+
+	if err := u.Update(context.Background(), target, func(string) {}); err != nil {
+		t.Fatalf("Update : %v", err)
+	}
+
+	want := []string{
+		"pull ghcr.io/plugiit/piilot-app:latest",
+		"create piilot-app-1-suivante-*",
+		"connect traefik new",
+		"start new",
+		"stop app123456789",
+		"remove app123456789",
+		"rename new piilot-app-1",
+	}
+	if strings.Join(d.calls, "|") != strings.Join(want, "|") {
+		t.Fatalf("appels :\n%s\nattendu :\n%s", strings.Join(d.calls, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestUpdateSansCoupureNeToucheJamaisALAncienneSiLaNouvelleEstMalade(t *testing.T) {
+	d := installation("unhealthy")
+	u := newUpdater(d)
+	target, _ := u.Target(context.Background())
+
+	err := u.Update(context.Background(), target, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "pas ete interrompue") {
+		t.Fatalf("erreur = %v", err)
+	}
+	for _, call := range d.calls {
+		if strings.Contains(call, "app123456789") {
+			t.Fatalf("l'ancienne version a ete touchee : %s", call)
+		}
+	}
+	if d.calls[len(d.calls)-1] != "remove new" {
+		t.Errorf("la nouvelle version n'a pas ete retiree : %v", d.calls)
+	}
+}
+
+func TestUpdateRecreeLeConteneurAvecLaNouvelleImage(t *testing.T) {
+	d := installationAvecPort("healthy")
 	u := newUpdater(d)
 	target, _ := u.Target(context.Background())
 
@@ -182,7 +248,7 @@ func TestUpdateRecreeLeConteneurAvecLaNouvelleImage(t *testing.T) {
 	want := []string{
 		"pull ghcr.io/plugiit/piilot-app:latest",
 		"stop app123456789",
-		"rename app123456789 piilot-app-1",
+		"rename app123456789 piilot-app-1-avant-maj-*",
 		"create piilot-app-1",
 		"connect traefik new",
 		"start new",
@@ -214,7 +280,7 @@ func TestUpdateRecreeLeConteneurAvecLaNouvelleImage(t *testing.T) {
 }
 
 func TestUpdateRemetLAncienneVersionSiLaNouvelleEstMalade(t *testing.T) {
-	d := installation("unhealthy")
+	d := installationAvecPort("unhealthy")
 	u := newUpdater(d)
 	target, _ := u.Target(context.Background())
 

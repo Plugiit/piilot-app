@@ -36,6 +36,10 @@ const (
 	// les migrations s'appliquent au demarrage, et la sonde du conteneur
 	// laisse deja trente secondes de mise en route.
 	healthTimeout = 3 * time.Minute
+	// switchDelay : entre la nouvelle version saine et l'arret de l'ancienne.
+	// La passerelle sonde chaque seconde et attend deux sondes reussies avant
+	// d'envoyer du trafic a une instance : la bascule est faite bien avant.
+	switchDelay = 5 * time.Second
 )
 
 // Docker est ce dont l'updater a besoin du moteur. Declare ici pour que les
@@ -99,6 +103,21 @@ func (u *Updater) Target(ctx context.Context) (docker.Container, error) {
 		}
 	}
 
+	// Pendant une mise a jour sans coupure, la nouvelle version tourne un
+	// moment a cote de l'ancienne, sous un nom provisoire : la cible reste
+	// l'ancienne.
+	if len(found) > 1 {
+		var settled []docker.Container
+		for _, c := range found {
+			if !strings.Contains(c.Name, "-suivante-") {
+				settled = append(settled, c)
+			}
+		}
+		if len(settled) == 1 {
+			found = settled
+		}
+	}
+
 	switch len(found) {
 	case 0:
 		return docker.Container{}, fmt.Errorf("aucun conteneur « %s » en marche dans le projet %s", u.Service, project)
@@ -112,10 +131,18 @@ func (u *Updater) Target(ctx context.Context) (docker.Container, error) {
 // Update tire la derniere image du conteneur `target` et le recree avec.
 // `step` recoit chaque etape franchie, pour le suivi a l'ecran.
 //
-// En cas d'echec apres l'arret de l'ancien conteneur, celui-ci est remis en
-// route : l'application revient a sa version precedente plutot que de rester
-// coupee. Les migrations deja appliquees par la nouvelle version, elles, ne
-// se defont pas — d'ou la sauvegarde que l'ecran demande avant de lancer.
+// La nouvelle version demarre a cote de l'ancienne, qui ne s'arrete qu'une
+// fois la nouvelle saine : la passerelle bascule le trafic de l'une a
+// l'autre, sans coupure. Si la nouvelle ne demarre pas, elle est supprimee et
+// l'ancienne n'a jamais cesse de servir.
+//
+// Une application qui publie un port sur l'hote ne peut pas tourner en deux
+// exemplaires — le port est deja pris. Elle est alors arretee avant que la
+// nouvelle ne demarre, avec une courte coupure, et remise en route si la
+// nouvelle echoue.
+//
+// Dans les deux cas, les migrations appliquees par la nouvelle version ne se
+// defont pas — d'ou la sauvegarde que l'ecran demande avant de lancer.
 func (u *Updater) Update(ctx context.Context, target docker.Container, step func(string)) error {
 	ref := target.ConfigImage()
 	repository, tag, err := splitReference(ref)
@@ -151,6 +178,11 @@ func (u *Updater) Update(ctx context.Context, target docker.Container, step func
 	}
 
 	name := strings.TrimPrefix(target.Name, "/")
+
+	if !publishesPorts(target.HostConfig) {
+		return u.swap(ctx, target, name, body, extra, step)
+	}
+
 	backup := fmt.Sprintf("%s-avant-maj-%d", name, time.Now().Unix())
 
 	step("Arrêt de la version en cours")
@@ -190,6 +222,96 @@ func (u *Updater) Update(ctx context.Context, target docker.Container, step func
 	}
 
 	return nil
+}
+
+// swap remplace l'application sans coupure : la nouvelle version demarre a
+// cote de l'ancienne, sous un nom provisoire, et reprend le nom de l'ancienne
+// une fois celle-ci arretee.
+func (u *Updater) swap(ctx context.Context, target docker.Container, name string, body map[string]any, extra map[string]docker.Endpoint, step func(string)) error {
+	sleep := u.Sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+
+	next := fmt.Sprintf("%s-suivante-%d", name, time.Now().Unix())
+
+	// Tant que l'ancienne tourne, un echec ne coupe rien : il suffit de
+	// retirer la nouvelle.
+	abandon := func(created string, cause error) error {
+		if created != "" {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+			defer cancel()
+			if err := u.Docker.RemoveContainer(cleanup, created); err != nil {
+				return fmt.Errorf("%w ; nouvelle version non supprimee (%s) : %v", cause, next, err)
+			}
+		}
+		return fmt.Errorf("%w ; la version en cours n'a pas ete interrompue", cause)
+	}
+
+	step("Démarrage de la nouvelle version, à côté de l'actuelle")
+	created, err := u.Docker.CreateContainer(ctx, next, body)
+	if err != nil {
+		return abandon("", fmt.Errorf("creation du nouveau conteneur : %w", err))
+	}
+
+	for network, endpoint := range extra {
+		if err := u.Docker.ConnectNetwork(ctx, network, created, endpoint); err != nil {
+			return abandon(created, fmt.Errorf("branchement sur %s : %w", network, err))
+		}
+	}
+
+	if err := u.Docker.StartContainer(ctx, created); err != nil {
+		return abandon(created, fmt.Errorf("demarrage : %w", err))
+	}
+
+	step("Vérification de la nouvelle version")
+	if err := u.waitHealthy(ctx, created); err != nil {
+		return abandon(created, err)
+	}
+
+	step("Bascule du trafic vers la nouvelle version")
+	sleep(switchDelay)
+
+	// La nouvelle version sert : ce qui suit ne peut plus faire echouer la
+	// mise a jour, seulement laisser un reste a nettoyer.
+	step("Arrêt de l'ancienne version")
+	if err := u.Docker.StopContainer(ctx, target.ID, stopGrace); err != nil {
+		step("Ancienne version non arrêtée : " + err.Error())
+	}
+	if err := u.Docker.RemoveContainer(ctx, target.ID); err != nil {
+		backup := fmt.Sprintf("%s-avant-maj-%d", name, time.Now().Unix())
+		step("Ancien conteneur conservé : " + err.Error())
+		if err := u.Docker.RenameContainer(ctx, target.ID, backup); err != nil {
+			step("Nouvelle version gardée sous le nom " + next)
+			return nil
+		}
+	}
+
+	if err := u.Docker.RenameContainer(ctx, created, name); err != nil {
+		step("Nouvelle version gardée sous le nom " + next + " : " + err.Error())
+	}
+
+	return nil
+}
+
+// publishesPorts dit si le conteneur publie un port sur l'hote — auquel cas
+// deux exemplaires ne peuvent pas tourner ensemble.
+func publishesPorts(hostConfig json.RawMessage) bool {
+	var host struct {
+		PortBindings map[string][]struct {
+			HostPort string `json:"HostPort"`
+		} `json:"PortBindings"`
+	}
+	if err := json.Unmarshal(hostConfig, &host); err != nil {
+		// Dans le doute, la voie prudente : arreter avant de recreer.
+		return true
+	}
+	for _, bindings := range host.PortBindings {
+		if len(bindings) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // restore remet l'ancien conteneur en route apres un echec, et rend l'erreur
