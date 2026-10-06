@@ -2,8 +2,9 @@ import { ArrowLeft01Icon, Building03Icon, PlusSignIcon } from '@hugeicons/core-f
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useDeferredValue, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useDeferredValue, useState } from 'react'
 
+import { AutoHeight } from '@/components/auto-height'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { InteractionForm } from '@/features/interactions/journal'
 import { clientListQuery } from '@/features/projects/api'
-import { useSlideTransition } from '@/lib/motion'
+
 
 interface ChosenClient {
   id: string
@@ -111,34 +112,6 @@ export function NewInteractionDialog() {
         </AutoHeight>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * Enveloppe dont la hauteur suit son contenu, en ressort : la fenetre grandit
- * ou retrecit au passage d'une etape a l'autre au lieu de sauter.
- */
-function AutoHeight({ children }: { children: ReactNode }) {
-  const inner = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState<number | 'auto'>('auto')
-  const transition = useSlideTransition()
-
-  useLayoutEffect(() => {
-    const node = inner.current
-    if (node === null) return
-
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) setHeight(entry.contentRect.height)
-    })
-    observer.observe(node)
-
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <motion.div animate={{ height }} transition={transition} className="-mx-1 overflow-hidden px-1">
-      <div ref={inner}>{children}</div>
-    </motion.div>
   )
 }
 
