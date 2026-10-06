@@ -89,6 +89,8 @@ function sentence(item: AppNotification): ReactNode {
       return `${who} a validé « ${title} »`
     case 'deliverable_feedback':
       return `${who} a renvoyé des retours sur « ${title} »`
+    case 'update_available':
+      return `Piilot ${typeof item.payload.version === 'string' ? item.payload.version : ''} est disponible : le bouton « Mettre à jour » est dans l’en-tête`
   }
 }
 
