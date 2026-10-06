@@ -79,7 +79,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/seed ./cmd/seed \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
     -ldflags="-w -s -X main.version=${VERSION}" \
-    -o /out/updater ./cmd/updater
+    -o /out/updater ./cmd/updater \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
+    -ldflags="-w -s -X main.version=${VERSION}" \
+    -o /out/gateway ./cmd/gateway
 
 # =============================================================================
 # Stage 3 : API — tests (bloque le build)
@@ -121,6 +124,9 @@ COPY --from=api /out/seed /app/seed
 # (service « updater » du docker-compose) : c'est lui, et lui seul, qui recoit
 # le socket Docker.
 COPY --from=api /out/updater /app/updater
+# La passerelle aussi (service « app ») : elle tient le port et aiguille le
+# trafic vers l'application, ce qui permet de la remplacer sans coupure.
+COPY --from=api /out/gateway /app/gateway
 
 # Le front appartient a l'utilisateur app : le serveur de fichiers y depose la
 # version compressee de chaque asset au premier acces.
