@@ -26,7 +26,7 @@ import { PrimaryContactPicker } from '@/features/clients/primary-contact-picker'
 import { ClientRowActions } from '@/features/clients/row-actions'
 import { ContactRowActions } from '@/features/contacts/row-actions'
 import { InteractionForm, InteractionList } from '@/features/interactions/journal'
-import { PROJECT_STATUS } from '@/features/projects/format'
+import { PROJECT_STATUS, tracksSchedule } from '@/features/projects/format'
 import { Avatars, Meter, StatusPill } from '@/features/projects/ui'
 import { can, sessionQuery } from '@/lib/auth'
 import { formatPhone } from '@/lib/countries'
@@ -326,11 +326,13 @@ function ClientDetailPage() {
                         >
                           {project.name}
                         </Link>
-                        <Meter ratio={project.progress} color={tint.color} />
+                        {tracksSchedule(project.status as ProjectStatus) && (
+                          <Meter ratio={project.progress} color={tint.color} />
+                        )}
                       </span>
 
                       <span className="w-9 shrink-0 text-right text-[12px] text-[#8d8d8d] tabular-nums">
-                        {project.progress} %
+                        {tracksSchedule(project.status as ProjectStatus) && `${project.progress} %`}
                       </span>
 
                       <StatusPill label={tint.label} color={tint.color} pill={tint.pill} />

@@ -47,15 +47,17 @@ import {
 } from '@/features/projects/api'
 import {
   BUDGET_STATE,
+  daysUntil as daysBetween,
   DONE_COLOR,
   formatHours,
+  isDelivered,
+  parseApiDate,
   PROGRESS_COLOR,
   PROJECT_PRIORITY as PRIORITY,
   PROJECT_STATUS as STATUS,
   PROJECT_STATUS_ORDER as STATUS_ORDER,
-  daysUntil as daysBetween,
-  parseApiDate,
   tintOf,
+  tracksSchedule,
 } from '@/features/projects/format'
 import { HttpError } from '@/lib/api'
 import { can, sessionQuery } from '@/lib/auth'
@@ -97,7 +99,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
 const searchSchema = z.object({
   page: z.number().int().min(1).catch(1),
   search: z.string().optional(),
-  status: z.enum(['cadrage', 'production', 'attente', 'livre']).optional().catch(undefined),
+  status: z.enum(['cadrage', 'production', 'attente', 'livre', 'hebergement']).optional().catch(undefined),
   client_id: z.string().optional(),
   budget: z.enum(['warning', 'over']).optional().catch(undefined),
   sort: z.enum(SORTS).catch('due'),
@@ -132,7 +134,7 @@ function driftOf(project: Project) {
   const due = parseApiDate(project.due_on)
 
   return {
-    late: project.status !== 'livre' && due !== null && daysUntil(due) < 0,
+    late: !isDelivered(project.status) && due !== null && daysUntil(due) < 0,
   }
 }
 
@@ -527,19 +529,23 @@ function ProjectCard({ project }: { project: Project }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span
-            className={cn(
-              'flex items-center gap-1 text-[12px] whitespace-nowrap',
-              drift.late ? 'font-medium text-[#e5484d]' : 'text-[#73757c]',
-            )}
-          >
-            <HugeiconsIcon
-              icon={drift.late ? Alert02Icon : Calendar03Icon}
-              size={16}
-              strokeWidth={1.6}
-            />
-            {due === null ? 'Sans échéance' : DATE_FORMAT.format(due)}
-          </span>
+          {/* Un projet heberge n'a plus d'echeance : l'ancienne date de
+              livraison, passee, se lirait comme un retard. */}
+          {tracksSchedule(project.status) && (
+            <span
+              className={cn(
+                'flex items-center gap-1 text-[12px] whitespace-nowrap',
+                drift.late ? 'font-medium text-[#e5484d]' : 'text-[#73757c]',
+              )}
+            >
+              <HugeiconsIcon
+                icon={drift.late ? Alert02Icon : Calendar03Icon}
+                size={16}
+                strokeWidth={1.6}
+              />
+              {due === null ? 'Sans échéance' : DATE_FORMAT.format(due)}
+            </span>
+          )}
 
           <span className="flex items-center gap-1 text-[12px] whitespace-nowrap text-[#73757c]">
             <HugeiconsIcon icon={Flag02Icon} size={16} strokeWidth={1.6} />
@@ -562,10 +568,12 @@ function ProjectCard({ project }: { project: Project }) {
           </Link>
         </Button>
 
-        <span className="flex shrink-0 items-center gap-1 rounded-[8px] bg-[#f3f4f4] p-1.5 text-[12px] font-medium text-[#1b1b1b]">
-          <ProgressRing value={project.progress} />
-          <span className="tabular-nums">{project.progress} %</span>
-        </span>
+        {tracksSchedule(project.status) && (
+          <span className="flex shrink-0 items-center gap-1 rounded-[8px] bg-[#f3f4f4] p-1.5 text-[12px] font-medium text-[#1b1b1b]">
+            <ProgressRing value={project.progress} />
+            <span className="tabular-nums">{project.progress} %</span>
+          </span>
+        )}
       </div>
     </article>
   )
