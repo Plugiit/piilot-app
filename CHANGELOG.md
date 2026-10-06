@@ -11,6 +11,24 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.6] — Projets hébergés · 2026-10-06
+
+Cette version ajoute le statut **Hébergement** : un projet livré que l'agence continue d'héberger, sans échéance ni avancement à suivre.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Statut Hébergement**, après Livré. Le projet n'affiche plus d'échéance ni d'avancement — ni sur la carte de la liste, ni sur sa fiche, ni sur celle du client — et la page Planning retire ces deux champs. Côté production, il compte comme livré : hors des projets actifs du client, des alertes de budget, de « Mon travail » et du tableau de bord, jamais en retard. Il reste ouvert aux tickets et au temps passé.
+
+#### Portail client
+
+- Un projet hébergé se présente comme un site en ligne, « hébergé par l'agence », avec une invitation à ouvrir un ticket, à la place de la jauge d'avancement.
+
+### À savoir pour le déploiement
+
+- Migration 000037 : le statut et le calcul des projets actifs d'un client. Un retour arrière remet les projets hébergés en « livré ».
+
 ## [0.9.5] — Mise à jour sans coupure et clients particuliers · 2026-10-06
 
 Cette version met Piilot à jour sans interruption de service et distingue, à la création d'un client, un particulier d'un professionnel dont le SIRET est vérifié au registre des entreprises.
