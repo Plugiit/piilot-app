@@ -7,7 +7,6 @@ import { AnimatePresence, motion, type Transition } from 'framer-motion'
 import { LogOut, RefreshCw, Settings } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-import accountMarkUrl from '@/assets/sidebar/rail-bottom.png'
 import logoUrl from '@/assets/sidebar/logo.svg'
 import {
   DropdownMenu,
@@ -34,6 +33,7 @@ import { favoriteProjectsQuery } from '@/features/projects/api'
 import { useCheckForUpdate } from '@/features/system/api'
 import { HttpError } from '@/lib/api'
 import { logout, outOfReach, sessionQuery } from '@/lib/auth'
+import { userInitials } from '@/lib/initials'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -310,9 +310,12 @@ function AccountButton({ user }: { user: User }) {
         aria-label="Menu du compte"
         className="size-8.75 overflow-hidden rounded-[8px] outline-none"
       >
+        {/* Sans photo, les initiales du compte sur l'orange de la marque :
+            on reconnait sa session d'un coup d'oeil, ce que le logo commun a
+            tous les comptes ne permettait pas. */}
         {user.avatar_url == null || user.avatar_url === '' ? (
-          <span className="flex size-full items-center justify-center rounded-[8px] bg-[#02474f] p-[7.955px]">
-            <img src={accountMarkUrl} alt="" className="size-full object-contain" />
+          <span className="flex size-full items-center justify-center rounded-[8px] bg-brand text-[13px] font-semibold tracking-wide text-white">
+            {userInitials(user)}
           </span>
         ) : (
           <img
