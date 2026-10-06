@@ -11,6 +11,17 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [0.9.2] — Un domaine par rôle · 2026-10-06
+
+Cette version corrige le passage d'un domaine à l'autre en multi-domaines : un administrateur fait désormais tout son travail sur le domaine d'administration, sans jamais en changer.
+
+### Corrections
+
+- **Back-office sur le domaine du rôle** : le domaine d'administration sert tout le back-office — Mon travail, projets, tâches, CRM, temps — en plus du tableau de bord de l'agence et des paramètres. Un administrateur y navigue sans changer de domaine ni recharger la page ; l'équipe garde le sien, sans les écrans d'administration.
+- **Ramené sur son domaine** : un administrateur qui ouvre une adresse du domaine de l'équipe arrive sur la même page du domaine d'administration, et inversement pour l'équipe.
+- **Après la connexion**, un administrateur va directement sur le domaine d'administration.
+- **E-mails de tickets** : le lien envoyé à un administrateur pointe vers le domaine d'administration.
+
 ## [0.9.1] — Un domaine par espace · 2026-10-06
 
 Cette version permet de donner à chaque espace de Piilot son propre domaine — connexion, équipe, administration, portail client — et rend l'ajout d'une interaction CRM plus évident.
