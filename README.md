@@ -654,16 +654,17 @@ chaque espace son domaine :
 | Variable | Exemple | Espace |
 |---|---|---|
 | `AUTH_URL` | `https://auth.agence.fr` | Connexion, invitation, mot de passe oublié |
-| `TEAM_URL` | `https://team.agence.fr` | Travail quotidien : Mon travail, projets, tâches, CRM, temps — équipe et admins |
-| `ADMIN_URL` | `https://admin.agence.fr` | Administration : tableau de bord de l'agence, paramètres, comptes et rôles — admins seulement |
+| `TEAM_URL` | `https://team.agence.fr` | Back-office de l'équipe : Mon travail, projets, tâches, CRM, temps |
+| `ADMIN_URL` | `https://admin.agence.fr` | Back-office des administrateurs : tout ce que voit l'équipe, plus le tableau de bord de l'agence et les paramètres |
 | `CLIENT_URL` | `https://client.agence.fr` | Portail client |
 
 Les quatre se renseignent ensemble et partagent un domaine parent (ici
 `agence.fr`) : le cookie de session y est posé, et une seule connexion vaut
-sur tous les espaces. C'est toujours la même application : une adresse ouverte
-sur le mauvais domaine est renvoyée vers le bon, et les e-mails pointent vers
-le domaine de leur espace. Le compte (`/compte`) s'ouvre depuis l'équipe comme
-depuis l'administration.
+sur tous les espaces. C'est toujours la même application : chaque rôle a son
+domaine — un administrateur fait tout son travail sur celui de
+l'administration, sans jamais en changer ; un membre de l'équipe, sur le sien.
+Une adresse ouverte sur le mauvais domaine est renvoyée vers le bon, et les
+e-mails pointent vers le domaine de leur destinataire.
 
 Avec Coolify, renseignez les quatre variables, puis listez les quatre domaines
 sur le service « app » (Configuration > General > Domains), séparés par des
