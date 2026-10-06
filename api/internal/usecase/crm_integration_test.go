@@ -661,3 +661,47 @@ func TestUnProfessionnelExigeUnSiretValideEtUnique(t *testing.T) {
 		t.Fatalf("date gardee pour un autre SIRET : %v, %+v", err, changed.RegistryCheckedAt)
 	}
 }
+
+func TestUnProjetHebergeNestPlusActif(t *testing.T) {
+	clients, _, pool := newCRM(t)
+	ctx := context.Background()
+
+	client, err := clients.Create(ctx, pro(uniqueName("Heberge")))
+	if err != nil {
+		t.Fatalf("creation : %v", err)
+	}
+	dropClient(t, pool, client.ID)
+
+	var projectID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO projects (client_id, name, status) VALUES ($1, $2, 'production') RETURNING id`,
+		client.ID, uniqueName("Site"),
+	).Scan(&projectID); err != nil {
+		t.Fatalf("creation du projet : %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM projects WHERE id = $1`, projectID)
+	})
+
+	active := func() int {
+		t.Helper()
+		c, err := clients.Get(ctx, client.ID)
+		if err != nil {
+			t.Fatalf("relecture : %v", err)
+		}
+		return c.ProjectsActive
+	}
+
+	if got := active(); got != 1 {
+		t.Fatalf("en production : %d projet(s) actif(s), attendu 1", got)
+	}
+
+	// Livre puis heberge : le projet reste au client, mais ne compte plus
+	// parmi ceux qu'on produit.
+	if _, err := pool.Exec(ctx, `UPDATE projects SET status = 'hebergement' WHERE id = $1`, projectID); err != nil {
+		t.Fatalf("passage en hebergement : %v", err)
+	}
+	if got := active(); got != 0 {
+		t.Errorf("heberge : %d projet(s) actif(s), attendu 0", got)
+	}
+}
