@@ -47,7 +47,7 @@ import {
   useUploadProjectFile,
 } from '@/features/projects/api'
 import { MilestoneDialog } from '@/features/milestones/milestone-dialog'
-import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate } from '@/features/projects/format'
+import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate, tracksSchedule } from '@/features/projects/format'
 import { Avatars, BudgetBar, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { ServicePills } from '@/features/services/tag'
@@ -643,16 +643,23 @@ function ProjectLayout() {
               </p>
             </MetaRow>
 
-            <MetaRow label="Échéance">
-              <p className="text-[14px] text-[#1b1b1b]">
-                {due === null ? 'Sans échéance' : LONG_DATE.format(due)}
-              </p>
-            </MetaRow>
+            {/* Heberge, le projet n'a plus d'echeance ni d'avancement a
+                suivre : les deux lignes se taisent plutot que de montrer une
+                date passee et une jauge figee. */}
+            {tracksSchedule(project.status) && (
+              <>
+                <MetaRow label="Échéance">
+                  <p className="text-[14px] text-[#1b1b1b]">
+                    {due === null ? 'Sans échéance' : LONG_DATE.format(due)}
+                  </p>
+                </MetaRow>
 
-            <MetaRow label="Avancement">
-              <ProgressBar value={project.progress} />
-              <TasksRatio project={project} />
-            </MetaRow>
+                <MetaRow label="Avancement">
+                  <ProgressBar value={project.progress} />
+                  <TasksRatio project={project} />
+                </MetaRow>
+              </>
+            )}
 
             {seesBudget && (
               <MetaRow label="Budget">
