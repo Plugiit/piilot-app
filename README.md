@@ -638,7 +638,8 @@ que de la laisser répondre 500 à la première requête.
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
 | `SHUTDOWN_TIMEOUT` | `15s` | Délai laissé aux requêtes en cours à l'arrêt |
 | `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
-| `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub, toutes les 6 heures |
+| `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub |
+| `UPDATE_CHECK_INTERVAL` | `15m` | Intervalle entre deux vérifications, 5 minutes au minimum |
 | `SMTP_HOST` | *(vide)* | Serveur SMTP des e-mails (invitations, mot de passe oublié). Vide : aucun e-mail, les liens se copient depuis l'écran des comptes |
 | `SMTP_PORT` | `587` | Port du serveur SMTP |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | *(vide)* | Identifiants SMTP |
@@ -781,6 +782,12 @@ depuis l'interface, retirer le service `updater` : rien d'autre ne change.
 - L'updater lui-même passe sur la nouvelle image au prochain
   `docker compose up` ou *Redeploy* : il change rarement, et ne peut pas se
   remplacer pendant qu'il travaille.
+- Chaque instance vérifie elle-même les nouvelles versions, tous les quarts
+  d'heure (`UPDATE_CHECK_INTERVAL`), sans rien à configurer côté GitHub. Les
+  requêtes sont conditionnelles : quand rien n'a changé, GitHub répond 304,
+  ce qui ne compte pas dans sa limite d'appels. Une nouvelle version s'annonce
+  une fois dans la cloche des admins, et le menu du compte propose
+  *Rechercher une mise à jour* pour vérifier sans attendre.
 - La vérification des versions interroge l'API publique de GitHub. Pour une
   instance qui ne doit rien appeler au-dehors : `UPDATE_CHECK=false`.
 - Seuls les comptes qui ont la permission `system.update` voient le bouton :
