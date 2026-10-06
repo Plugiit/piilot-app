@@ -116,7 +116,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	deliverableService := usecase.NewDeliverableService(pool, notifyBus)
 	deliverableService.SetMail(cfg.URLFor(spaces.Client), sender.Configured())
 	ticketService := usecase.NewTicketService(pool, notifyBus)
-	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), sender.Configured())
+	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), cfg.URLFor(spaces.Admin), sender.Configured())
 
 	clientService := usecase.NewClientService(pool)
 	contactService := usecase.NewContactService(pool)

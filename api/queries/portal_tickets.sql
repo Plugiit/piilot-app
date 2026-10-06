@@ -127,8 +127,9 @@ WHERE t.id = sqlc.arg('ticket_id');
 
 -- name: ListTicketTeamMailRecipients :many
 -- Qui prevenir par e-mail cote agence : la personne qui traite le ticket, ou
--- les administrateurs tant que personne ne l'a pris.
-SELECT u.email, u.firstname
+-- les administrateurs tant que personne ne l'a pris. Le role dit vers quel
+-- domaine pointer le lien, quand chaque espace a le sien.
+SELECT u.email, u.firstname, u.role
 FROM tickets t
 JOIN users u ON (
     (t.assignee_id IS NOT NULL AND u.id = t.assignee_id)

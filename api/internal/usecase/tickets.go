@@ -104,6 +104,7 @@ type TicketService struct {
 	// le client ecrit.
 	baseURL     string
 	teamURL     string
+	adminURL    string
 	mailEnabled bool
 }
 
@@ -115,9 +116,13 @@ func NewTicketService(pool *pgxpool.Pool, bus Bus) *TicketService {
 //
 // Deux adresses : le portail pour les e-mails au client, le back-office pour
 // ceux de l'agence. Elles different quand chaque espace a son domaine.
-func (s *TicketService) SetMail(clientURL, teamURL string, enabled bool) {
+//
+// Les administrateurs font tout leur travail sur le domaine d'administration :
+// leurs liens y pointent.
+func (s *TicketService) SetMail(clientURL, teamURL, adminURL string, enabled bool) {
 	s.baseURL = strings.TrimRight(clientURL, "/")
 	s.teamURL = strings.TrimRight(teamURL, "/")
+	s.adminURL = strings.TrimRight(adminURL, "/")
 	s.mailEnabled = enabled
 }
 
@@ -183,8 +188,12 @@ func (s *TicketService) mailTeam(ctx context.Context, q *db.Queries, ticketID uu
 		return fmt.Errorf("destinataires de l'agence : %w", err)
 	}
 
-	url := fmt.Sprintf("%s/pm/tickets/%s", s.teamURL, ticketID)
 	for _, r := range recipients {
+		base := s.teamURL
+		if r.Role == "admin" {
+			base = s.adminURL
+		}
+		url := fmt.Sprintf("%s/pm/tickets/%s", base, ticketID)
 		msg, err := mailer.TicketToTeam(
 			r.Email, r.Firstname, created, info.Numero, info.Subject, info.ProjectName, info.ClientName,
 			author, excerpt(quote), url,

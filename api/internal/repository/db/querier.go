@@ -530,7 +530,8 @@ type Querier interface {
 	// back-office, le client suit son ticket depuis le portail.
 	ListTicketNotificationRecipients(ctx context.Context, arg ListTicketNotificationRecipientsParams) ([]uuid.UUID, error)
 	// Qui prevenir par e-mail cote agence : la personne qui traite le ticket, ou
-	// les administrateurs tant que personne ne l'a pris.
+	// les administrateurs tant que personne ne l'a pris. Le role dit vers quel
+	// domaine pointer le lien, quand chaque espace a le sien.
 	ListTicketTeamMailRecipients(ctx context.Context, ticketID uuid.UUID) ([]ListTicketTeamMailRecipientsRow, error)
 	// Tickets.
 	//
