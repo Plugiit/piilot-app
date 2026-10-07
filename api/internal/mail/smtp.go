@@ -174,6 +174,10 @@ func build(from *mail.Address, msg Message) ([]byte, error) {
 	id := make([]byte, 16)
 	_, _ = rand.Read(id)
 	domain := from.Address[strings.LastIndex(from.Address, "@")+1:]
+	messageID := "<" + hex.EncodeToString(id) + "@" + domain + ">"
+	if msg.MessageID != "" {
+		messageID = "<" + strings.Trim(msg.MessageID, "<>") + ">"
+	}
 
 	var out bytes.Buffer
 	headers := [][2]string{
@@ -181,12 +185,19 @@ func build(from *mail.Address, msg Message) ([]byte, error) {
 		{"To", msg.To},
 		{"Subject", mime.QEncoding.Encode("utf-8", msg.Subject)},
 		{"Date", time.Now().Format(time.RFC1123Z)},
-		{"Message-ID", "<" + hex.EncodeToString(id) + "@" + domain + ">"},
+		{"Message-ID", messageID},
 		{"MIME-Version", "1.0"},
 		{"Content-Type", "multipart/alternative; boundary=" + parts.Boundary()},
 		// Les e-mails de Piilot sont des notifications automatiques : les
 		// repondeurs d'absence n'ont pas a y repondre.
 		{"Auto-Submitted", "auto-generated"},
+	}
+	if msg.ReplyTo != "" {
+		headers = append(headers, [2]string{"Reply-To", msg.ReplyTo})
+	}
+	if msg.InReplyTo != "" {
+		ref := "<" + strings.Trim(msg.InReplyTo, "<>") + ">"
+		headers = append(headers, [2]string{"In-Reply-To", ref}, [2]string{"References", ref})
 	}
 	for _, h := range headers {
 		fmt.Fprintf(&out, "%s: %s\r\n", h[0], h[1])

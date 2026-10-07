@@ -67,6 +67,7 @@ func sendNext(ctx context.Context, pool *pgxpool.Pool, sender mail.SMTP, log *sl
 	sendErr := sender.Send(ctx, mail.Message{
 		Kind: email.Kind, To: email.ToAddress, Subject: email.Subject,
 		Text: email.TextBody, HTML: email.HtmlBody,
+		ReplyTo: email.ReplyTo, MessageID: email.MessageID, InReplyTo: email.InReplyTo,
 	})
 
 	switch {

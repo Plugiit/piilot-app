@@ -107,7 +107,7 @@ func TestDeliverableSubmittedPorteLesLiensDeReponse(t *testing.T) {
 }
 
 func TestTicketToClientDitReponseEtStatut(t *testing.T) {
-	both, err := TicketToClient("c@example.fr", "Inès", 47, "Formulaire <cassé>", "C'est corrigé.", "Résolue", "https://p.test/client/tickets/x")
+	both, err := TicketToClient("c@example.fr", "Inès", 47, "Formulaire <cassé>", "C'est corrigé.", "Résolue", "https://p.test/client/tickets/x", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestTicketToClientDitReponseEtStatut(t *testing.T) {
 		t.Error("le sujet n'est pas echappe")
 	}
 
-	status, err := TicketToClient("c@example.fr", "", 47, "Formulaire", "", "Résolue", "https://p.test/x")
+	status, err := TicketToClient("c@example.fr", "", 47, "Formulaire", "", "Résolue", "https://p.test/x", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,5 +136,22 @@ func TestTicketToTeamNommeLeClient(t *testing.T) {
 		if !strings.Contains(msg.Subject+msg.Text, want) {
 			t.Errorf("sans %q : %q / %q", want, msg.Subject, msg.Text)
 		}
+	}
+}
+
+func TestTicketToClientRepondable(t *testing.T) {
+	msg, err := TicketToClient("c@example.fr", "Inès", 47, "Formulaire", "C'est corrigé.", "", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(msg.HTML, "Voir la demande") || strings.Contains(msg.HTML, "Merci de ne pas y répondre") {
+		t.Error("sans compte du portail : ni bouton, ni « ne pas répondre »")
+	}
+	if !strings.Contains(msg.Text, "Répondez simplement à cet e-mail") {
+		t.Errorf("texte : %q", msg.Text)
+	}
+	ack, err := TicketReceived("c@example.fr", "Inès", 48, "Site lent", "", true)
+	if err != nil || !strings.Contains(ack.Subject, "#48") || !strings.Contains(ack.Text, "répondez à cet e-mail") {
+		t.Errorf("accuse de reception : %q %v", ack.Subject, err)
 	}
 }

@@ -106,6 +106,10 @@ type TicketService struct {
 	teamURL     string
 	adminURL    string
 	mailEnabled bool
+
+	// Fil e-mail : les e-mails au client portent une adresse de reponse qui
+	// ramene sa reponse sur le ticket.
+	thread threading
 }
 
 func NewTicketService(pool *pgxpool.Pool, bus Bus) *TicketService {
@@ -124,6 +128,12 @@ func (s *TicketService) SetMail(clientURL, teamURL, adminURL string, enabled boo
 	s.teamURL = strings.TrimRight(teamURL, "/")
 	s.adminURL = strings.TrimRight(adminURL, "/")
 	s.mailEnabled = enabled
+}
+
+// SetThreading regle le fil e-mail des tickets : la cle des etiquettes, et
+// l'adresse de support quand l'environnement la fixe.
+func (s *TicketService) SetThreading(secret []byte, envAddress string) {
+	s.thread = newThreading(secret, envAddress)
 }
 
 // PortalTicketStatus est le statut d'un ticket dans les mots du client. Les
@@ -146,8 +156,9 @@ func PortalTicketStatus(status string) string {
 	}
 }
 
-// mailClient previent la personne du portail qui a ouvert le ticket : une
-// reponse publique, un changement de statut visible, ou les deux.
+// mailClient previent le client : la personne du portail qui a ouvert le
+// ticket, ou, sans compte, celle qui l'a ouvert par e-mail. Une reponse
+// publique, un changement de statut visible, ou les deux.
 func (s *TicketService) mailClient(ctx context.Context, q *db.Queries, ticketID uuid.UUID, quote, status string) error {
 	if !s.mailEnabled || (quote == "" && status == "") {
 		return nil
@@ -157,19 +168,71 @@ func (s *TicketService) mailClient(ctx context.Context, q *db.Queries, ticketID 
 	if err != nil {
 		return fmt.Errorf("lecture du ticket : %w", err)
 	}
-	if !info.ClientVisible || !info.ReporterIsActiveClient || info.ReporterEmail == nil {
+	if !info.ClientVisible {
 		return nil
 	}
 
-	msg, err := mailer.TicketToClient(
-		*info.ReporterEmail, firstnameOf(info.ReporterFirstname), info.Numero, info.Subject,
-		excerpt(quote), status, fmt.Sprintf("%s/client/tickets/%s", s.baseURL, ticketID),
-	)
+	var to, firstname, url string
+	switch {
+	case info.ReporterIsActiveClient && info.ReporterEmail != nil:
+		to, firstname = *info.ReporterEmail, firstnameOf(info.ReporterFirstname)
+		url = fmt.Sprintf("%s/client/tickets/%s", s.baseURL, ticketID)
+	case info.RequesterEmail != nil && *info.RequesterEmail != "":
+		// Pas de compte du portail : pas de lien, la conversation passe par
+		// l'e-mail.
+		to, firstname = *info.RequesterEmail, firstWord(info.RequesterName)
+	default:
+		return nil
+	}
+
+	replyTo, messageID, inReplyTo := s.thread.headers(ctx, q, info.Numero)
+	msg, err := mailer.TicketToClient(to, firstname, info.Numero, info.Subject, excerpt(quote), status, url, replyTo != "")
 	if err != nil {
 		return err
 	}
+	msg.ReplyTo, msg.MessageID, msg.InReplyTo = replyTo, messageID, inReplyTo
 
 	return enqueue(ctx, q, msg)
+}
+
+// mailReceived accuse reception d'une demande ouverte par e-mail, dans le fil
+// de l'e-mail d'origine : la messagerie du client les range ensemble.
+func (s *TicketService) mailReceived(ctx context.Context, q *db.Queries, ticketID uuid.UUID, originalID string) error {
+	if !s.mailEnabled {
+		return nil
+	}
+	info, err := q.GetTicketMailContext(ctx, ticketID)
+	if err != nil {
+		return fmt.Errorf("lecture du ticket : %w", err)
+	}
+
+	var to, firstname, url string
+	switch {
+	case info.ReporterIsActiveClient && info.ReporterEmail != nil:
+		to, firstname = *info.ReporterEmail, firstnameOf(info.ReporterFirstname)
+		url = fmt.Sprintf("%s/client/tickets/%s", s.baseURL, ticketID)
+	case info.RequesterEmail != nil && *info.RequesterEmail != "":
+		to, firstname = *info.RequesterEmail, firstWord(info.RequesterName)
+	default:
+		return nil
+	}
+
+	replyTo, messageID, _ := s.thread.headers(ctx, q, info.Numero)
+	msg, err := mailer.TicketReceived(to, firstname, info.Numero, info.Subject, url, replyTo != "")
+	if err != nil {
+		return err
+	}
+	msg.ReplyTo, msg.MessageID, msg.InReplyTo = replyTo, messageID, originalID
+
+	return enqueue(ctx, q, msg)
+}
+
+// firstWord rend le prenom d'un nom complet, pour la salutation.
+func firstWord(name string) string {
+	if f := strings.Fields(name); len(f) > 0 {
+		return f[0]
+	}
+	return ""
 }
 
 // mailTeam previent l'agence d'une demande deposee dans le portail, ou de la
@@ -471,6 +534,14 @@ type CreateTicketInput struct {
 	// en est prevenue par e-mail. AuthorName nomme la personne dans l'e-mail.
 	FromPortal bool
 	AuthorName string
+
+	// Ouvert par e-mail : la personne qui a ecrit, quand elle n'a pas de
+	// compte du portail, et l'e-mail d'origine, dans le fil duquel part
+	// l'accuse de reception.
+	ViaEmail          bool
+	RequesterEmail    string
+	RequesterName     string
+	OriginalMessageID string
 }
 
 // Create depose un ticket et le rend sous la forme qu'affiche la liste.
@@ -508,15 +579,17 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 	q := s.q.WithTx(tx)
 
 	row, err := q.CreateTicket(ctx, db.CreateTicketParams{
-		ProjectID:     in.ProjectID,
-		Subject:       subject,
-		Description:   strings.TrimSpace(in.Description),
-		Tracker:       in.Tracker,
-		Status:        "backlog",
-		Priority:      in.Priority,
-		AssigneeID:    in.AssigneeID,
-		CreatedBy:     in.CreatedBy,
-		ClientVisible: in.FromPortal,
+		ProjectID:      in.ProjectID,
+		Subject:        subject,
+		Description:    strings.TrimSpace(in.Description),
+		Tracker:        in.Tracker,
+		Status:         "backlog",
+		Priority:       in.Priority,
+		AssigneeID:     in.AssigneeID,
+		CreatedBy:      in.CreatedBy,
+		ClientVisible:  in.FromPortal,
+		RequesterEmail: nullableText(in.RequesterEmail),
+		RequesterName:  strings.TrimSpace(in.RequesterName),
 	})
 	if err != nil {
 		return TicketItem{}, fmt.Errorf("creation du ticket : %w", err)
@@ -542,6 +615,11 @@ func (s *TicketService) Create(ctx context.Context, in CreateTicketInput) (Ticke
 
 	if in.FromPortal {
 		if err := s.mailTeam(ctx, q, row.ID, true, in.AuthorName, strings.TrimSpace(in.Description)); err != nil {
+			return TicketItem{}, err
+		}
+	}
+	if in.ViaEmail {
+		if err := s.mailReceived(ctx, q, row.ID, in.OriginalMessageID); err != nil {
 			return TicketItem{}, err
 		}
 	}
@@ -589,7 +667,12 @@ type TicketEntry struct {
 	Author *TicketPerson `json:"author"`
 	// Sans auteur des l'origine : un geste de Piilot lui-meme — l'integration
 	// Git, une tache de fond. Distinct d'un auteur dont le compte a disparu.
-	Automatic  bool   `json:"automatic"`
+	Automatic bool `json:"automatic"`
+	// Arrive par e-mail, et qui l'a ecrit : le nom et l'adresse tels que
+	// l'e-mail les portait, meme sans compte.
+	ViaEmail   bool   `json:"via_email"`
+	Sender     string `json:"sender"`
+	SenderMail string `json:"sender_email"`
 	Body       string `json:"body"`
 	IsInternal bool   `json:"is_internal"`
 	// Champ modifie et valeurs, pour un evenement : status, priority, tracker
@@ -605,6 +688,9 @@ type TicketDetail struct {
 	Description string         `json:"description"`
 	Client      *TicketProject `json:"client"`
 	Reporter    *TicketPerson  `json:"reporter"`
+	// Ouvert par e-mail par quelqu'un sans compte du portail : les reponses
+	// lui partent a cette adresse.
+	Requester *TicketRequester `json:"requester"`
 	// Visible du client dans son portail : le ticket vient de lui, et ce qui
 	// n'est pas note interne lui parvient.
 	ClientVisible bool `json:"client_visible"`
@@ -614,6 +700,12 @@ type TicketDetail struct {
 	Entries []TicketEntry `json:"entries"`
 	// Les pull requests qui le nomment, recues par webhook.
 	PullRequests []PullRequest `json:"pull_requests"`
+}
+
+// TicketRequester nomme qui a ouvert un ticket par e-mail, sans compte.
+type TicketRequester struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 // personOfTicket compose une personne a partir des colonnes d'une jointure a
@@ -678,6 +770,10 @@ func (s *TicketService) Get(ctx context.Context, id uuid.UUID) (TicketDetail, er
 		row.CreatedBy, row.ReporterFirstname, row.ReporterLastname, row.ReporterAvatarUrl, "",
 	)
 
+	if row.RequesterEmail != nil && *row.RequesterEmail != "" {
+		detail.Requester = &TicketRequester{Name: row.RequesterName, Email: *row.RequesterEmail}
+	}
+
 	entries, err := s.registre(ctx, id)
 	if err != nil {
 		return TicketDetail{}, err
@@ -739,7 +835,10 @@ func (s *TicketService) registre(ctx context.Context, ticketID uuid.UUID) ([]Tic
 			Kind:       "message",
 			At:         m.CreatedAt,
 			Author:     personOfTicket(m.AuthorID, m.AuthorFirstname, m.AuthorLastname, m.AuthorAvatarUrl, role),
-			Automatic:  m.AuthorID == nil,
+			Automatic:  m.AuthorID == nil && !m.ViaEmail,
+			ViaEmail:   m.ViaEmail,
+			Sender:     m.SenderName,
+			SenderMail: m.SenderEmail,
 			Body:       m.Body,
 			IsInternal: m.IsInternal,
 		})
@@ -797,6 +896,12 @@ type PostMessageInput struct {
 	// client l'est d'une reponse publique ou d'un statut qui change a ses yeux.
 	FromClient bool
 	AuthorName string
+
+	// Arrive par e-mail : le nom et l'adresse de qui l'a ecrit, gardes meme
+	// sans compte.
+	ViaEmail    bool
+	SenderName  string
+	SenderEmail string
 }
 
 // nameOfAssignee compose le nom porte par les colonnes de la jointure a gauche.
@@ -875,10 +980,13 @@ func (s *TicketService) PostMessage(
 	}
 
 	if _, err := q.CreateTicketMessage(ctx, db.CreateTicketMessageParams{
-		TicketID:   ticketID,
-		AuthorID:   in.AuthorID,
-		Body:       body,
-		IsInternal: in.IsInternal,
+		TicketID:    ticketID,
+		AuthorID:    in.AuthorID,
+		Body:        body,
+		IsInternal:  in.IsInternal,
+		ViaEmail:    in.ViaEmail,
+		SenderName:  strings.TrimSpace(in.SenderName),
+		SenderEmail: strings.TrimSpace(in.SenderEmail),
 	}); err != nil {
 		return TicketDetail{}, fmt.Errorf("inscription du message : %w", err)
 	}

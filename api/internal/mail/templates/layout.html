@@ -18,10 +18,10 @@
 <p style="margin:0;font-size:12px;line-height:1.6;color:#8d8d8d;">Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br><a href="{{.URL}}" style="color:#8d8d8d;word-break:break-all;">{{.URL}}</a></p>
 </td></tr>
 </table>
-<p style="margin:16px 0 0 0;font-size:12px;color:#a2a3a7;">E-mail envoyé automatiquement par Piilot. Merci de ne pas y répondre.</p>
+<p style="margin:16px 0 0 0;font-size:12px;color:#a2a3a7;">{{if .CanReply}}Répondez directement à cet e-mail : votre réponse s'ajoute à la demande.{{else}}E-mail envoyé automatiquement par Piilot. Merci de ne pas y répondre.{{end}}</p>
 </td></tr>
 </table>
 </body>
 </html>{{end}}
 
-{{define "button"}}<p style="margin:24px 0;"><a href="{{.URL}}" style="display:inline-block;background:#ff782b;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:8px;">{{.Action}}</a></p>{{end}}
+{{define "button"}}{{if .URL}}<p style="margin:24px 0;"><a href="{{.URL}}" style="display:inline-block;background:#ff782b;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:8px;">{{.Action}}</a></p>{{end}}{{end}}

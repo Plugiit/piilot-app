@@ -28,6 +28,13 @@ type Message struct {
 	Subject string
 	Text    string
 	HTML    string
+
+	// Fil d'un ticket : l'adresse de reponse (support+t47.<signature>@…),
+	// l'identifiant du message et celui auquel il fait suite. Vides pour les
+	// e-mails qui n'attendent pas de reponse.
+	ReplyTo   string
+	MessageID string
+	InReplyTo string
 }
 
 // paris : les dates des e-mails sont celles de l'agence, quel que soit le
@@ -72,6 +79,9 @@ type view struct {
 	Lead   string
 	Quote  string
 	Footer string
+
+	// Le destinataire peut repondre a l'e-mail : sa reponse rejoint le ticket.
+	CanReply bool
 }
 
 // Invitation compose l'e-mail d'invitation.
@@ -177,7 +187,7 @@ func DeliverableReminder(to, firstname, projectName, deliverable string, version
 // repondu, ou la demande a change de statut. `status` est le libelle du
 // nouveau statut, vide quand il n'a pas bouge ; `quote`, la reponse, vide
 // quand il n'y en a pas de publique.
-func TicketToClient(to, firstname string, numero int64, subject, quote, status, url string) (Message, error) {
+func TicketToClient(to, firstname string, numero int64, subject, quote, status, url string, canReply bool) (Message, error) {
 	ref := fmt.Sprintf("#%d « %s »", numero, subject)
 
 	var title, lead string
@@ -193,6 +203,14 @@ func TicketToClient(to, firstname string, numero int64, subject, quote, status, 
 		lead = fmt.Sprintf("Votre demande %s passe au statut « %s ».", ref, status)
 	}
 
+	footer := "Vous pouvez répondre directement depuis votre espace client."
+	switch {
+	case canReply && url != "":
+		footer = "Répondez à cet e-mail, ou depuis votre espace client."
+	case canReply:
+		footer = "Répondez simplement à cet e-mail : votre réponse s'ajoute à la demande."
+	}
+
 	v := view{
 		Subject:   title + " — " + subject,
 		Title:     title,
@@ -201,13 +219,48 @@ func TicketToClient(to, firstname string, numero int64, subject, quote, status, 
 		Firstname: firstname,
 		Lead:      lead,
 		Quote:     quote,
-		Footer:    "Vous pouvez répondre directement depuis votre espace client.",
+		Footer:    footer,
+		CanReply:  canReply,
 	}
 
-	text := fmt.Sprintf("Bonjour%s,\n\n%s\n%s\nVoir la demande et répondre :\n\n%s\n",
-		prefixed(firstname), lead, ifElse(quote != "", "\n« "+quote+" »\n", ""), url)
+	text := fmt.Sprintf("Bonjour%s,\n\n%s\n%s\n", prefixed(firstname), lead, ifElse(quote != "", "\n« "+quote+" »\n", ""))
+	if url != "" {
+		text += fmt.Sprintf("Voir la demande et répondre :\n\n%s\n", url)
+	}
+	if canReply {
+		text += "\n" + footer + "\n"
+	}
 
 	return compose("ticket_client", to, v, "ticket.html", text)
+}
+
+// TicketReceived accuse reception d'une demande ouverte par e-mail : le
+// numero, et la promesse que la reponse viendra par le meme chemin.
+func TicketReceived(to, firstname string, numero int64, subject, url string, canReply bool) (Message, error) {
+	title := fmt.Sprintf("Demande #%d bien reçue", numero)
+	lead := fmt.Sprintf("Nous avons bien reçu votre demande « %s ». Elle porte le numéro #%d : l'équipe la prend en charge et vous répond ici.", subject, numero)
+	footer := ""
+	if canReply {
+		footer = "Pour compléter votre demande, répondez à cet e-mail."
+	}
+	v := view{
+		Subject:   title + " — " + subject,
+		Title:     title,
+		Action:    "Suivre la demande",
+		URL:       url,
+		Firstname: firstname,
+		Lead:      lead,
+		Footer:    footer,
+		CanReply:  canReply,
+	}
+	text := fmt.Sprintf("Bonjour%s,\n\n%s\n", prefixed(firstname), lead)
+	if url != "" {
+		text += fmt.Sprintf("\nSuivre la demande :\n\n%s\n", url)
+	}
+	if footer != "" {
+		text += "\n" + footer + "\n"
+	}
+	return compose("ticket_received", to, v, "ticket.html", text)
 }
 
 // TicketToTeam previent l'agence d'une demande deposee dans le portail, ou de
