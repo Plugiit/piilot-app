@@ -44,6 +44,8 @@ import { HttpError } from '@/lib/api'
 import { can, sessionQuery } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { ProjectStatus } from '@/types/api'
+import { useCreateIntent } from '@/lib/palette'
+import type { ClientChoice } from '@/features/clients/client-select'
 
 /**
  * Ce que le formulaire exige, et rien de plus.
@@ -85,8 +87,17 @@ type Values = z.infer<typeof schema>
  * `trigger` permet a la carte pointillee de la liste d'ouvrir ce meme dialogue.
  * Sans lui, le bouton par defaut de la barre d'outils est rendu.
  */
-export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
+export function NewProjectDialog({
+  trigger,
+  initialClient = null,
+}: {
+  trigger?: ReactNode
+  /** Client deja choisi : depuis sa fiche, on ne le redemande pas. */
+  initialClient?: ClientChoice | null
+} = {}) {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('project', () => setOpen(true))
   const navigate = useNavigate()
 
   const { data: session } = useQuery(sessionQuery)
@@ -101,7 +112,7 @@ export function NewProjectDialog({ trigger }: { trigger?: ReactNode } = {}) {
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
-      client: null,
+      client: initialClient,
       status: 'cadrage',
       hours_sold: '',
       due_on: '',
