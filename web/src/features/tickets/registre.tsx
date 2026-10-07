@@ -1,3 +1,6 @@
+import { Mail01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+
 import { Avatars, StatusPill } from '@/features/projects/ui'
 import { TICKET_PRIORITY, TICKET_STATUS, TICKET_TRACKER } from '@/features/tickets/format'
 import type {
@@ -31,6 +34,24 @@ function nameOf(person: TicketPerson | null, automatic = false): string {
   if (person === null) return automatic ? 'Piilot' : 'Compte supprimé'
 
   return `${person.firstname} ${person.lastname}`.trim() || 'Sans nom'
+}
+
+/**
+ * L'auteur d'une entree. Un message arrive par e-mail d'une personne sans
+ * compte porte le nom et l'adresse que l'e-mail donnait : on le nomme ainsi,
+ * avec ses initiales, plutot que comme un compte disparu.
+ */
+function authorOf(entry: TicketEntry): { name: string; face: TicketPerson | null } {
+  if (entry.author !== null || !entry.via_email) {
+    return { name: nameOf(entry.author, entry.automatic), face: entry.author }
+  }
+  const name = entry.sender.trim() || entry.sender_email
+  const parts = name.split(/\s+/).filter(Boolean)
+  const initials = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '@'
+  return {
+    name,
+    face: { id: entry.id, firstname: parts[0] ?? '', lastname: parts.slice(1).join(' '), initials, avatar_url: null, role: 'client' },
+  }
 }
 
 const DAY_TIME = new Intl.DateTimeFormat('fr-FR', {
@@ -120,6 +141,8 @@ function Face({ person, size }: { person: TicketPerson | null; size: number }) {
  * au lieu de deux.
  */
 function Message({ entry }: { entry: TicketEntry }) {
+  const author = authorOf(entry)
+
   return (
     <article className="relative flex flex-col gap-2.5 rounded-[12px] border border-[#ebebeb] bg-white p-4 shadow-[0_1px_2px_0_rgb(16_24_40/0.05)]">
       {/* Meme gabarit que le repere de la barre laterale : 3px a bout droit
@@ -142,9 +165,21 @@ function Message({ entry }: { entry: TicketEntry }) {
       )}
 
       <header className="flex flex-wrap items-center gap-2">
-        <Face person={entry.author} size={24} />
+        <Face person={author.face} size={24} />
 
-        <span className="text-[14px] font-medium text-[#1b1b1b]">{nameOf(entry.author, entry.automatic)}</span>
+        <span className="text-[14px] font-medium text-[#1b1b1b]">{author.name}</span>
+
+        {/* Arrive par e-mail : l'adresse au survol, pour savoir a qui l'on
+            repond quand la personne n'a pas de compte. */}
+        {entry.via_email && (
+          <span
+            title={entry.sender_email || undefined}
+            className="flex items-center gap-1 rounded-full bg-[#f3f4f4] px-2 py-0.5 text-[11.5px] text-[#73757c]"
+          >
+            <HugeiconsIcon icon={Mail01Icon} size={12} strokeWidth={1.8} />
+            par e-mail
+          </span>
+        )}
 
         <span className="ml-auto text-[12px] text-[#a2a3a7] tabular-nums">
           {DAY_TIME.format(new Date(entry.at))}

@@ -1,4 +1,4 @@
-import { Message01Icon } from '@hugeicons/core-free-icons'
+import { Message01Icon, TextIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { useReducedMotion } from 'framer-motion'
@@ -14,6 +14,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { fillTemplate, replyTemplatesQuery } from '@/features/tickets/replies'
 import { peopleQuery } from '@/features/projects/api'
 import { usePostTicketMessage } from '@/features/tickets/api'
 import {
@@ -184,6 +191,13 @@ export function TicketRedacteur({ ticket }: { ticket: TicketDetail }) {
           ]}
         />
 
+        <span className="ml-auto pr-1 pb-2">
+          <ReplyTemplatePicker
+            ticket={ticket}
+            onPick={(text) => setBody((current) => (current.trim() === '' ? text : `${current.trimEnd()}\n\n${text}`))}
+          />
+        </span>
+
         <span className="pr-2 pb-2 text-[12px] text-[#a2a3a7]">
           {interne
             ? 'Visible par l’agence seule'
@@ -290,5 +304,40 @@ export function TicketRedacteur({ ticket }: { ticket: TicketDetail }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Les reponses types : un menu au-dessus de la zone de texte. Le texte choisi
+ * s'ajoute a ce qui est deja ecrit, variables remplies, pour etre relu et
+ * ajuste avant l'envoi — jamais envoye tel quel.
+ */
+function ReplyTemplatePicker({ ticket, onPick }: { ticket: TicketDetail; onPick: (text: string) => void }) {
+  const { data } = useQuery(replyTemplatesQuery)
+  const items = data?.items ?? []
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-[12.5px] text-[#4f5059]">
+          <HugeiconsIcon icon={TextIcon} size={14} strokeWidth={1.8} />
+          Réponses types
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[280px]">
+        {items.length === 0 ? (
+          <p className="px-2 py-2 text-[12.5px] text-[#73757c]">
+            Aucune pour l’instant. Elles se créent dans Paramètres › Réponses types.
+          </p>
+        ) : (
+          items.map((template) => (
+            <DropdownMenuItem key={template.id} onSelect={() => onPick(fillTemplate(template, ticket))} className="flex flex-col items-start gap-0.5">
+              <span className="text-[13px] text-[#1b1b1b]">{template.title}</span>
+              <span className="line-clamp-1 text-[12px] text-[#8d8d8d]">{template.body}</span>
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
