@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { Avatars } from '@/features/projects/ui'
 import {
+  isInternal,
   sessionQuery,
   useRemoveAvatar,
   useUpdateProfile,
@@ -57,6 +58,7 @@ function PersonalPage() {
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <IdentityForm key={`${user.firstname}-${user.lastname}-${user.gender}`} user={user} />
         <ContactForm key={user.email} user={user} />
+        {isInternal(user) && <BookingForm key={user.booking_url} user={user} />}
       </div>
 
       <ProfileCard user={user} />
@@ -284,6 +286,64 @@ function ContactForm({ user }: { user: User }) {
           pending={update.isPending}
           onCancel={() => form.reset()}
         />
+      </Card>
+    </form>
+  )
+}
+
+const bookingSchema = z.object({
+  booking_url: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^https?:\/\/\S+$/.test(v), 'Une adresse complète, qui commence par https://'),
+})
+
+/**
+ * Le lien de rendez-vous d'un membre de l'equipe, montre aux clients sur le
+ * portail a cote de son e-mail et de son telephone. Un lien externe — Cal.com,
+ * Calendly, Google Agenda — et rien a synchroniser : les creneaux vivent la ou
+ * ils sont. Les comptes du portail n'en ont pas : ils ne recoivent pas de
+ * rendez-vous, ils en prennent.
+ */
+function BookingForm({ user }: { user: User }) {
+  const update = useUpdateProfile()
+
+  const form = useForm<z.infer<typeof bookingSchema>>({
+    resolver: zodResolver(bookingSchema),
+    defaultValues: { booking_url: user.booking_url },
+  })
+
+  return (
+    <form
+      onSubmit={form.handleSubmit((values) =>
+        update.mutate(values, {
+          onSuccess: () => {
+            toast.success(values.booking_url === '' ? 'Lien de rendez-vous retiré' : 'Lien de rendez-vous enregistré')
+            form.reset(values)
+          },
+          onError: reportError,
+        }),
+      )}
+    >
+      <Card
+        title="Prise de rendez-vous"
+        description="Vos clients voient ce lien sur le portail, avec votre e-mail et votre téléphone, pour réserver un créneau sans échange de mails."
+      >
+        <Field
+          label="Lien de rendez-vous"
+          hint="Cal.com, Calendly, Google Agenda… Vide : pas de bouton côté client."
+          error={form.formState.errors.booking_url?.message}
+        >
+          <Input
+            type="url"
+            inputMode="url"
+            placeholder="https://cal.com/votre-nom/30min"
+            className={CHAMP}
+            {...form.register('booking_url')}
+          />
+        </Field>
+
+        <SaveBar dirty={form.formState.isDirty} pending={update.isPending} onCancel={() => form.reset()} />
       </Card>
     </form>
   )

@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 
 import { api, postFile, unwrap } from '@/lib/api'
 import { spaceOfPath, spacesEnabled } from '@/lib/spaces'
-import type { User } from '@/types/api'
+import type { UpdateProfileRequest, User } from '@/types/api'
 
 /**
  * Session courante.
@@ -93,11 +93,7 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (body: {
-      firstname?: string
-      lastname?: string
-      email?: string
-    }) => unwrap(await api.PATCH('/api/v1/auth/me', { body })).user,
+    mutationFn: async (body: UpdateProfileRequest) => unwrap(await api.PATCH('/api/v1/auth/me', { body })).user,
     onSuccess: (user) => queryClient.setQueryData(sessionQuery.queryKey, user),
   })
 }

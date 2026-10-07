@@ -14,6 +14,19 @@ export const portalKeys = {
   deliverable: (id: string) => [...portalKeys.all, 'deliverable', id] as const,
   tickets: (state: 'open' | 'closed', page: number) => [...portalKeys.all, 'tickets', state, page] as const,
   ticket: (id: string) => [...portalKeys.all, 'ticket', id] as const,
+  review: (id: string, token: string) => [...portalKeys.all, 'review', id, token] as const,
+}
+
+/**
+ * La page de reponse ouverte depuis l'e-mail : sans session, le jeton signe
+ * du lien fait foi. Rien n'est decide en la lisant.
+ */
+export function portalReviewQuery(id: string, token: string) {
+  return queryOptions({
+    queryKey: portalKeys.review(id, token),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/v1/public/deliverables/{id}/review', { params: { path: { id }, query: { token } } })),
+  })
 }
 
 export const portalProjectsQuery = queryOptions({

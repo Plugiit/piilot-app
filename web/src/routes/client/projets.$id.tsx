@@ -1,4 +1,12 @@
-import { ArrowLeft01Icon, ArrowRight01Icon, Download04Icon, File01Icon } from '@hugeicons/core-free-icons'
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Calendar03Icon,
+  Download04Icon,
+  File01Icon,
+  Mail01Icon,
+  TelephoneIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -8,10 +16,10 @@ import { MILESTONE_STATE } from '@/features/milestones/format'
 import { portalFileUrl, portalProjectQuery } from '@/features/portal/api'
 import { fileSize, PORTAL_DELIVERABLE_STATUS, PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
 import { DONE_COLOR, parseApiDate, PROGRESS_COLOR, tracksSchedule } from '@/features/projects/format'
-import { Meter, ProjectLogo, StatusPill } from '@/features/projects/ui'
+import { Avatars, Meter, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import type { Milestone, PortalDeliverable } from '@/types/api'
+import type { Milestone, PortalContact, PortalDeliverable, PortalProjectDetail } from '@/types/api'
 
 /**
  * Un projet vu par le client : ou il en est, ce qui attend sa reponse, les
@@ -109,6 +117,8 @@ function ClientProjectPage() {
         </header>
       </div>
 
+      <NextStep project={project} />
+
       {toValidate.length > 0 && (
         <Section id="a-valider" title="À valider" count={toValidate.length} tone="brand">
           <div className="flex flex-col gap-2">
@@ -145,6 +155,16 @@ function ClientProjectPage() {
         )}
       </Section>
 
+      {project.team.length > 0 && (
+        <Section title="Vos interlocuteurs" count={0}>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {project.team.map((contact) => (
+              <ContactCard key={contact.id} contact={contact} />
+            ))}
+          </ul>
+        </Section>
+      )}
+
       <Section title="Documents" count={project.files.length}>
         {project.files.length === 0 ? (
           <Empty>Aucun document partagé pour l’instant.</Empty>
@@ -171,6 +191,115 @@ function ClientProjectPage() {
         )}
       </Section>
     </div>
+  )
+}
+
+/**
+ * Ce qui vient : le prochain jalon, ce qui attend le client, ou en est
+ * l'equipe. La reponse a « et maintenant ? », en tete de page, avant la liste
+ * de tout ce qui a ete fait.
+ */
+function NextStep({ project }: { project: PortalProjectDetail }) {
+  const step = project.next_step
+  const milestone = step.milestone
+  const due = milestone === null ? null : parseApiDate(milestone.due_on)
+  const hosting = !tracksSchedule(project.status)
+  const state = milestone === null ? null : MILESTONE_STATE[milestone.state]
+
+  // Un site heberge sans jalon ni livrable en attente n'a pas de prochaine
+  // etape : rien a annoncer, pas de carte vide.
+  if (hosting && milestone === null && step.deliverables_pending === 0) return null
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[14px] border border-[#e8e8e9] bg-white p-4 sm:p-5">
+      <h2 className="text-[13px] font-medium tracking-wide text-[#8d8d8d] uppercase">Prochaine étape</h2>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] text-[#73757c]">Prochain jalon</span>
+          {milestone === null ? (
+            <span className="text-[15px] text-[#1b1b1b]">
+              {project.milestones.length === 0 ? 'Pas encore posé' : 'Tous les jalons sont atteints'}
+            </span>
+          ) : (
+            <>
+              <span className="flex flex-wrap items-center gap-2 text-[15px] text-[#1b1b1b]">
+                {milestone.title}
+                {state !== null && milestone.state === 'late' && <StatusPill label={state.label} color={state.color} pill={state.pill} />}
+              </span>
+              <span className="text-[13px] text-[#8d8d8d]">{due === null ? 'Date à venir' : LONG.format(due)}</span>
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] text-[#73757c]">De votre côté</span>
+          {step.deliverables_pending === 0 ? (
+            <span className="text-[15px] text-[#1b1b1b]">Rien n’attend votre réponse</span>
+          ) : (
+            <a href="#a-valider" className="text-[15px] font-medium text-brand hover:underline">
+              {step.deliverables_pending} livrable{step.deliverables_pending > 1 ? 's' : ''} à valider
+            </a>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] text-[#73757c]">Côté agence</span>
+          {hosting ? (
+            <span className="text-[15px] text-[#1b1b1b]">Hébergement et suivi du site</span>
+          ) : step.tasks_total === 0 ? (
+            <span className="text-[15px] text-[#1b1b1b]">Le travail n’a pas encore commencé</span>
+          ) : (
+            <>
+              <span className="text-[15px] text-[#1b1b1b]">
+                {step.tasks_done} tâche{step.tasks_done > 1 ? 's' : ''} sur {step.tasks_total} terminée{step.tasks_done > 1 ? 's' : ''}
+              </span>
+              <Meter ratio={Math.round((step.tasks_done / step.tasks_total) * 100)} color={step.tasks_done >= step.tasks_total ? DONE_COLOR : PROGRESS_COLOR} className="h-1.5 max-w-[160px]" />
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** Un interlocuteur : qui, pour quoi, et comment le joindre. */
+function ContactCard({ contact }: { contact: PortalContact }) {
+  const name = `${contact.firstname} ${contact.lastname}`.trim()
+
+  return (
+    <li className="flex items-start gap-3 rounded-[14px] border border-[#e8e8e9] bg-white p-4">
+      <Avatars people={[contact]} max={1} size={40} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex flex-col">
+          <span className="truncate text-[15px] font-medium text-[#1b1b1b]">{name}</span>
+          <span className="text-[13px] text-[#8d8d8d]">{contact.role}</span>
+        </div>
+        <div className="flex flex-col gap-1 text-[14px]">
+          <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-[#4b4b4f] hover:text-[#1b1b1b] hover:underline">
+            <HugeiconsIcon icon={Mail01Icon} size={15} strokeWidth={1.8} className="shrink-0 text-[#8d8d8d]" />
+            <span className="truncate">{contact.email}</span>
+          </a>
+          {contact.phone !== '' && (
+            <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-[#4b4b4f] hover:text-[#1b1b1b] hover:underline">
+              <HugeiconsIcon icon={TelephoneIcon} size={15} strokeWidth={1.8} className="shrink-0 text-[#8d8d8d]" />
+              {contact.phone}
+            </a>
+          )}
+        </div>
+        {contact.booking_url !== '' && (
+          <a
+            href={contact.booking_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex w-fit items-center gap-1.5 rounded-full border border-[#e8e8e9] px-3 py-1.5 text-[13px] font-medium text-[#1b1b1b] transition-colors hover:bg-[#fafafa]"
+          >
+            <HugeiconsIcon icon={Calendar03Icon} size={15} strokeWidth={1.8} />
+            Prendre rendez-vous
+          </a>
+        )}
+      </div>
+    </li>
   )
 }
 
