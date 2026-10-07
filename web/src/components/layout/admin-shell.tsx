@@ -31,7 +31,9 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useNotificationStream } from '@/features/notifications/api'
 import { favoriteProjectsQuery } from '@/features/projects/api'
 import { useCheckForUpdate } from '@/features/system/api'
+import { ProjectLogo } from '@/features/projects/ui'
 import { UpdateCard } from '@/features/system/update-card'
+import { openPalette } from '@/lib/palette'
 import { HttpError } from '@/lib/api'
 import { logout, outOfReach, sessionQuery } from '@/lib/auth'
 import { userInitials } from '@/lib/initials'
@@ -416,12 +418,13 @@ function CheckForUpdateItem() {
  * n'existe pas est retire. Le jour ou une recherche globale existera, ce
  * composant redeviendra un champ — `ui/command.tsx` est deja installe pour ca.
  */
+/** Ouvre la palette Cmd+K : le champ n'est qu'un bouton qui lui ressemble. */
 function SearchField() {
   return (
-    <div
-      aria-hidden
-      title="La recherche globale n’est pas encore disponible"
-      className="bg-surface-sunken border-surface-sunken flex h-[39px] w-full items-center gap-1.5 rounded-[10px] border py-2.5 pr-[7px] pl-3.5"
+    <button
+      type="button"
+      onClick={openPalette}
+      className="bg-surface-sunken border-surface-sunken flex h-[39px] w-full cursor-pointer items-center gap-1.5 rounded-[10px] border py-2.5 pr-[7px] pl-3.5 text-left transition-colors hover:border-[#d8d8d8] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <HugeiconsIcon
         icon={Search01Icon}
@@ -432,7 +435,10 @@ function SearchField() {
       <span className="min-w-0 flex-1 truncate text-sm text-[#73757c] select-none">
         Rechercher
       </span>
-    </div>
+      <kbd className="shrink-0 rounded-[5px] border border-[#dcdcdc] bg-white px-1.5 py-0.5 font-sans text-[11px] text-[#8d8d8d]">
+        ⌘K
+      </kbd>
+    </button>
   )
 }
 
@@ -652,12 +658,18 @@ function Shortcuts() {
             className="flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-[13px] text-[#111] transition-colors hover:bg-[#ededed]"
             activeProps={{ className: 'bg-[#ededed] font-medium' }}
           >
-            <HugeiconsIcon
-              icon={StarIcon}
-              size={16}
-              strokeWidth={1.6}
-              className="fill-brand text-brand shrink-0"
-            />
+            {/* Le logo tient lieu d'etoile : tout ce qui est ici est un
+                favori, l'etoile n'apprend rien que le logo ne dise mieux. */}
+            {project.logo_url == null ? (
+              <HugeiconsIcon
+                icon={StarIcon}
+                size={16}
+                strokeWidth={1.6}
+                className="fill-brand text-brand shrink-0"
+              />
+            ) : (
+              <ProjectLogo url={project.logo_url} size={16} className="rounded-[4px] p-0" />
+            )}
             <span className="min-w-0 flex-1 truncate">{project.name}</span>
           </Link>
         ))}

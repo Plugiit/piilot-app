@@ -46,6 +46,7 @@ import {
 } from '@/features/tickets/format'
 import { HttpError } from '@/lib/api'
 import type { Person } from '@/types/api'
+import { useCreateIntent } from '@/lib/palette'
 
 /**
  * Depot d'un ticket.
@@ -79,6 +80,8 @@ type FormValues = z.infer<typeof formSchema>
  */
 export function NewTicketDialog({ projectId }: { projectId?: string }) {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('ticket', () => setOpen(true))
 
   // Les deux listes ne partent qu'a l'ouverture : l'ecran des tickets n'a
   // besoin ni des projets ni des comptes pour s'afficher. Et pas de liste de

@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
+import { CommandPalette } from '@/components/command-palette'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
 import { backOfficeOf, currentSpace, spaceOfPath, spacesEnabled, spaceUrl } from '@/lib/spaces'
@@ -65,6 +66,7 @@ function AppLayout() {
   return (
     <AdminShell user={user} title="Projets">
       <Outlet />
+      <CommandPalette />
     </AdminShell>
   )
 }

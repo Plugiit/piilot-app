@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { InteractionForm } from '@/features/interactions/journal'
 import { clientListQuery } from '@/features/projects/api'
+import { useCreateIntent } from '@/lib/palette'
 
 
 interface ChosenClient {
@@ -44,6 +45,8 @@ interface ChosenClient {
  */
 export function NewInteractionDialog() {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('interaction', () => setOpen(true))
   const [client, setClient] = useState<ChosenClient | null>(null)
 
   return (
