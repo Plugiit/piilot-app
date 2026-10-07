@@ -668,7 +668,7 @@ function Shortcuts() {
                 className="fill-brand text-brand shrink-0"
               />
             ) : (
-              <ProjectLogo url={project.logo_url} size={16} className="rounded-[4px] p-0" />
+              <ProjectLogo url={project.logo_url} size={16} bare className="rounded-[4px]" />
             )}
             <span className="min-w-0 flex-1 truncate">{project.name}</span>
           </Link>

@@ -108,10 +108,13 @@ export function Tile({
 export function ProjectLogo({
   url,
   size = 24,
+  bare = false,
   className,
 }: {
   url: string | null | undefined
   size?: number
+  /** Sans cadre : a cote d'un titre, le logo se suffit. */
+  bare?: boolean
   className?: string
 }) {
   if (url == null) return null
@@ -122,7 +125,11 @@ export function ProjectLogo({
       alt=""
       width={size}
       height={size}
-      className={cn('shrink-0 rounded-[6px] border border-[#e8e8e9] bg-white object-contain p-px', className)}
+      className={cn(
+        'shrink-0 rounded-[6px] object-contain',
+        !bare && 'border border-[#e8e8e9] bg-white p-px',
+        className,
+      )}
       style={{ width: size, height: size }}
     />
   )
