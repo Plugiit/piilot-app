@@ -21,9 +21,14 @@ import type {
  * restent des lignes : ils se parcourent, ils ne se lisent pas.
  */
 
-/** Nom affichable, l'un des deux champs pouvant etre vide. */
-function nameOf(person: TicketPerson | null): string {
-  if (person === null) return 'Compte supprimé'
+/**
+ * Nom affichable, l'un des deux champs pouvant etre vide.
+ *
+ * Sans auteur, deux cas qui ne se lisent pas pareil : un geste de Piilot
+ * lui-meme — l'integration Git, une tache de fond — ou un compte disparu.
+ */
+function nameOf(person: TicketPerson | null, automatic = false): string {
+  if (person === null) return automatic ? 'Piilot' : 'Compte supprimé'
 
   return `${person.firstname} ${person.lastname}`.trim() || 'Sans nom'
 }
@@ -139,7 +144,7 @@ function Message({ entry }: { entry: TicketEntry }) {
       <header className="flex flex-wrap items-center gap-2">
         <Face person={entry.author} size={24} />
 
-        <span className="text-[14px] font-medium text-[#1b1b1b]">{nameOf(entry.author)}</span>
+        <span className="text-[14px] font-medium text-[#1b1b1b]">{nameOf(entry.author, entry.automatic)}</span>
 
         <span className="ml-auto text-[12px] text-[#a2a3a7] tabular-nums">
           {DAY_TIME.format(new Date(entry.at))}
@@ -166,7 +171,7 @@ function Event({ entry }: { entry: TicketEntry }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-1 py-0.5 text-[13px] text-[#73757c]">
       <Face person={entry.author} size={20} />
-      <span className="font-medium text-[#1b1b1b]">{nameOf(entry.author)}</span>
+      <span className="font-medium text-[#1b1b1b]">{nameOf(entry.author, entry.automatic)}</span>
       {FIELD_VERB[entry.field] ?? 'a modifié le ticket'}
       <ValuePill field={entry.field} value={entry.old_value} />
       <span className="text-[#a2a3a7]">→</span>

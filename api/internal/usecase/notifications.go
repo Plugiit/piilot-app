@@ -250,8 +250,10 @@ func deliver(ctx context.Context, q *db.Queries, bus Bus, n notice) error {
 		seen[userID] = true
 
 		row, err := q.CreateNotification(ctx, db.CreateNotificationParams{
-			UserID:        userID,
-			ActorID:       &n.ActorID,
+			UserID: userID,
+			// Sans acteur humain — l'integration Git, une tache de fond — la
+			// colonne reste nulle : un identifiant vide violerait la cle etrangere.
+			ActorID:       nullableActor(n.ActorID),
 			Kind:          n.Kind,
 			Payload:       payload,
 			TaskID:        n.TaskID,
@@ -284,4 +286,12 @@ func deliver(ctx context.Context, q *db.Queries, bus Bus, n notice) error {
 	}
 
 	return nil
+}
+
+// nullableActor rend nil pour l'acteur vide, celui des gestes automatiques.
+func nullableActor(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
 }

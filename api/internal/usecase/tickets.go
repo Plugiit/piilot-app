@@ -584,11 +584,14 @@ type TicketPerson struct {
 type TicketEntry struct {
 	ID uuid.UUID `json:"id"`
 	// "message" ou "event".
-	Kind       string        `json:"kind"`
-	At         time.Time     `json:"at"`
-	Author     *TicketPerson `json:"author"`
-	Body       string        `json:"body"`
-	IsInternal bool          `json:"is_internal"`
+	Kind   string        `json:"kind"`
+	At     time.Time     `json:"at"`
+	Author *TicketPerson `json:"author"`
+	// Sans auteur des l'origine : un geste de Piilot lui-meme — l'integration
+	// Git, une tache de fond. Distinct d'un auteur dont le compte a disparu.
+	Automatic  bool   `json:"automatic"`
+	Body       string `json:"body"`
+	IsInternal bool   `json:"is_internal"`
 	// Champ modifie et valeurs, pour un evenement : status, priority, tracker
 	// ou assignee. Vides pour un message.
 	Field    string `json:"field"`
@@ -609,6 +612,8 @@ type TicketDetail struct {
 	Files []Attachment `json:"files"`
 	// Le registre, deja fusionne et trie du plus ancien au plus recent.
 	Entries []TicketEntry `json:"entries"`
+	// Les pull requests qui le nomment, recues par webhook.
+	PullRequests []PullRequest `json:"pull_requests"`
 }
 
 // personOfTicket compose une personne a partir des colonnes d'une jointure a
@@ -692,6 +697,15 @@ func (s *TicketService) Get(ctx context.Context, id uuid.UUID) (TicketDetail, er
 		})
 	}
 
+	prs, err := s.q.ListPullRequestsOfTicket(ctx, &id)
+	if err != nil {
+		return TicketDetail{}, fmt.Errorf("pull requests du ticket : %w", err)
+	}
+	detail.PullRequests = make([]PullRequest, 0, len(prs))
+	for _, pr := range prs {
+		detail.PullRequests = append(detail.PullRequests, pullRequestOf(pr))
+	}
+
 	return detail, nil
 }
 
@@ -725,6 +739,7 @@ func (s *TicketService) registre(ctx context.Context, ticketID uuid.UUID) ([]Tic
 			Kind:       "message",
 			At:         m.CreatedAt,
 			Author:     personOfTicket(m.AuthorID, m.AuthorFirstname, m.AuthorLastname, m.AuthorAvatarUrl, role),
+			Automatic:  m.AuthorID == nil,
 			Body:       m.Body,
 			IsInternal: m.IsInternal,
 		})
@@ -732,13 +747,14 @@ func (s *TicketService) registre(ctx context.Context, ticketID uuid.UUID) ([]Tic
 
 	for _, e := range events {
 		entries = append(entries, TicketEntry{
-			ID:       e.ID,
-			Kind:     "event",
-			At:       e.CreatedAt,
-			Author:   personOfTicket(e.ActorID, e.ActorFirstname, e.ActorLastname, e.ActorAvatarUrl, ""),
-			Field:    e.Field,
-			OldValue: e.OldValue,
-			NewValue: e.NewValue,
+			ID:        e.ID,
+			Kind:      "event",
+			At:        e.CreatedAt,
+			Author:    personOfTicket(e.ActorID, e.ActorFirstname, e.ActorLastname, e.ActorAvatarUrl, ""),
+			Automatic: e.ActorID == nil,
+			Field:     e.Field,
+			OldValue:  e.OldValue,
+			NewValue:  e.NewValue,
 		})
 	}
 
