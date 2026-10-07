@@ -165,6 +165,14 @@ ticket suit un cycle de vie complet (backlog → à faire → en cours → en re
 internes que le client ne voit pas, et un historique des changements. Vues en
 tableau, par projet ou par statut.
 
+Les tickets se traitent aussi **par e-mail** : un client écrit à l'adresse de
+support, Piilot en fait un ticket et lui accuse réception ; il répond à un
+e-mail de ticket, sa réponse rejoint le fil, sans la citation du message
+précédent. Ce que Piilot ne sait pas ranger seul — expéditeur inconnu, client
+à plusieurs projets — attend dans **À trier**. Les **réponses types** gardent
+prêtes les réponses aux demandes qui reviennent. Voir
+[Tickets par e-mail](#tickets-par-e-mail).
+
 ![Détail d'un ticket](docs/images/ticket-detail.jpg)
 
 ### CRM
@@ -665,6 +673,11 @@ que de la laisser répondre 500 à la première requête.
 | `DRAIN_DELAY` | `5s` | À l'arrêt, temps pendant lequel l'instance se déclare en arrêt et sert encore, que la passerelle l'écarte sans faire échouer de requête |
 | `DELIVERABLE_REMINDER_AFTER` | `72h` | Un livrable sans réponse du client est relancé par e-mail, une fois, au-delà de ce délai (SMTP requis). `0` pour ne jamais relancer |
 | `GIT_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks GitHub/GitLab. Vide : Piilot en tire un, visible dans *Paramètres > Dépôts Git*. Renseigné : c'est lui, et l'écran ne permet plus de le changer |
+| `AUDIT_RETENTION` | `8760h` | Durée de conservation du journal d'audit (un an) |
+| `INBOUND_ADDRESS` | *(vide)* | Adresse de support des tickets par e-mail. Vide : elle se règle dans *Paramètres > E-mails entrants* |
+| `INBOUND_IMAP_HOST` / `INBOUND_IMAP_PORT` / `INBOUND_IMAP_SECURITY` | *(vide)* / `993` / `tls` | Boîte relevée chaque minute. Renseignées, elles priment sur l'écran ; `none` seulement pour un serveur de test local |
+| `INBOUND_IMAP_USERNAME` / `INBOUND_IMAP_PASSWORD` / `INBOUND_IMAP_FOLDER` | *(vides)* / `INBOX` | Identifiants et dossier de la boîte |
+| `INBOUND_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks des fournisseurs d'e-mail. Vide : Piilot en tire un, visible à l'écran |
 | `BACKUP_STALE_AFTER` | `36h` | Sans sauvegarde réussie depuis ce délai, les admins sont prévenus dans la cloche. `0` pour une instance sauvegardée autrement |
 | `BACKUP_AT` | `03:00` | Heure (Europe/Paris) de la sauvegarde quotidienne du service `backup` |
 | `BACKUP_KEEP_DAILY` / `BACKUP_KEEP_WEEKLY` / `BACKUP_KEEP_MONTHLY` | `7` / `4` / `3` | Rétention des sauvegardes, sur le disque comme sur S3 |
@@ -909,6 +922,68 @@ depuis l'interface, retirer le service `updater` : rien d'autre ne change.
 - Seuls les comptes qui ont la permission `system.update` voient le bouton :
   le rôle `admin`, par défaut.
 
+### Tickets par e-mail
+
+*Paramètres → E-mails entrants* branche une adresse de support
+(`support@votre-agence.fr`). Deux portes, au choix ou ensemble :
+
+- **Relève IMAP** (par défaut) : Piilot relève la boîte chaque minute, range
+  chaque nouveau message et le marque comme lu. Marche avec n'importe quel
+  hébergeur, rien à exposer. Le mot de passe est chiffré en base (AES-GCM,
+  clé dérivée de `JWT_SECRET`) ; avec la double authentification, un mot de
+  passe d'application.
+- **Webhook d'un fournisseur**, pour un rangement en quelques secondes :
+  Postmark, Mailgun, Brevo, ou n'importe quel service qui poste l'e-mail brut
+  (Cloudflare Email Workers, CloudMailin). L'écran donne l'adresse de chacun,
+  secret compris.
+
+Dans les deux cas l'e-mail est d'abord déposé en base tel quel, puis une tâche
+de fond le range : aucune requête HTTP n'attend un serveur de messagerie, et un
+même e-mail arrivé par les deux portes n'est rangé qu'une fois.
+
+**Le fil.** Chaque e-mail de ticket part avec une adresse de réponse
+`support+t47.3fa9c1d0be@votre-agence.fr` et un identifiant de message qui
+portent le numéro du ticket et une signature (HMAC, clé dérivée de
+`JWT_SECRET`) : la réponse du client revient sur le bon ticket, et personne ne
+peut écrire sur le ticket 48 en devinant son numéro. La boîte doit accepter les
+adresses « plus » — c'est le cas de Gmail, Google Workspace, Microsoft 365,
+OVH, Infomaniak et de la plupart des hébergeurs ; à défaut, l'en-tête de
+réponse (`In-Reply-To`) suffit le plus souvent.
+
+| E-mail reçu | Ce que Piilot en fait |
+|---|---|
+| Réponse à un e-mail de ticket, du client | Ajoutée au fil, pièces jointes comprises, sans la citation. Un ticket clos rouvre. |
+| Réponse à un e-mail de ticket, d'un collègue | Note interne : rien ne part au client sans passer par Piilot. |
+| Nouvelle demande d'un compte du portail ou d'un contact du CRM | Ticket « Assistance » sur le projet du client s'il n'en a qu'un en cours, et accusé de réception. Sinon, à trier. |
+| Expéditeur inconnu, adresse partagée par deux clients, réponse d'une autre adresse, transfert d'un collègue, plus de 10 demandes en une heure | À trier, et les admins sont prévenus. Jamais rejeté en silence. |
+| Réponse automatique, rebond, liste de diffusion, e-mail de Piilot qui revient | Écarté. |
+
+Un contact sans compte du portail reçoit les réponses par e-mail, sans lien
+vers l'espace client. *Tickets → À trier* propose, pour chaque e-mail, les
+projets du client deviné : ouvrir un ticket, l'ajouter à un ticket existant par
+son numéro, ou l'écarter.
+
+Les **réponses types** (*Paramètres → Réponses types*) s'insèrent depuis
+« Réponses types » au-dessus de la réponse à un ticket ; `{prenom}`,
+`{numero}`, `{sujet}` et `{projet}` se remplissent, et le texte se relit avant
+l'envoi.
+
+### Journal d'audit
+
+*Paramètres → Journal d'audit* (admins, permission `audit.read`) : qui a fait
+quoi, quand, d'où. Connexions et leurs échecs (avec l'adresse tentée, jamais le
+mot de passe), changements de rôle et de permissions, invitations, comptes
+désactivés, suppressions, exports, téléchargements et réponses du portail,
+changements de secret et de réglages, tri des e-mails. Filtrable par famille
+d'action, par dates et par recherche, exportable en CSV (50 000 lignes par
+export).
+
+La table est **en ajout seul** : un déclencheur Postgres refuse toute
+modification et toute suppression, sauf la purge de rétention
+(`AUDIT_RETENTION`, un an par défaut), qui le déclare dans sa transaction.
+Supprimer un compte vide seulement le lien vers lui ; son adresse, figée au
+moment du geste, reste.
+
 ### Dépôts Git : pull requests et mises en ligne
 
 Piilot se branche sur GitHub et GitLab par **webhook** : ils poussent leurs
@@ -1012,6 +1087,7 @@ api/                        API Go
 ├── cmd/updater/            mise à jour de l'application (service updater)
 ├── cmd/gateway/            passerelle devant l'application (service app)
 ├── cmd/backup/             sauvegarde et restauration (service backup)
+├── internal/mailin/        e-mail entrant : MIME, citations, IMAP, webhooks
 ├── internal/               config, domaine, handlers, usecases, repository…
 ├── migrations/             SQL versionné, embarqué dans le binaire
 ├── queries/                requêtes SQL (source de sqlc)
