@@ -642,6 +642,8 @@ que de la laisser répondre 500 à la première requête.
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
 | `SHUTDOWN_TIMEOUT` | `15s` | Délai laissé aux requêtes en cours à l'arrêt |
 | `DRAIN_DELAY` | `5s` | À l'arrêt, temps pendant lequel l'instance se déclare en arrêt et sert encore, que la passerelle l'écarte sans faire échouer de requête |
+| `DELIVERABLE_REMINDER_AFTER` | `72h` | Un livrable sans réponse du client est relancé par e-mail, une fois, au-delà de ce délai (SMTP requis). `0` pour ne jamais relancer |
+| `GIT_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks GitHub/GitLab. Vide : Piilot en tire un, visible dans *Paramètres > Dépôts Git*. Renseigné : c'est lui, et l'écran ne permet plus de le changer |
 | `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
 | `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub |
 | `UPDATE_CHECK_INTERVAL` | `15m` | Intervalle entre deux vérifications, 5 minutes au minimum |
@@ -843,6 +845,48 @@ depuis l'interface, retirer le service `updater` : rien d'autre ne change.
   instance qui ne doit rien appeler au-dehors : `UPDATE_CHECK=false`.
 - Seuls les comptes qui ont la permission `system.update` voient le bouton :
   le rôle `admin`, par défaut.
+
+### Dépôts Git : pull requests et mises en ligne
+
+Piilot se branche sur GitHub et GitLab par **webhook** : ils poussent leurs
+événements, Piilot écrit, rien ne sort vers eux et aucun jeton d'API n'est
+stocké. Un seul secret pour toute l'installation, quel que soit le nombre
+d'organisations ou de dépôts.
+
+**Réglage, une fois.** *Paramètres > Dépôts Git* affiche l'adresse du webhook
+(`https://votre-piilot/api/v1/hooks/git`) et le secret. À copier :
+
+- **GitHub** : *Settings > Webhooks* de l'organisation (un seul webhook pour
+  tous ses dépôts) ou d'un dépôt. Content type `application/json`, le secret,
+  et les événements *Pull requests*, *Releases*, *Pushes* et *Deployment
+  statuses*.
+- **GitLab** : *Settings > Webhooks* du groupe ou du projet. Le secret dans
+  *Secret token*, et les déclencheurs *Merge request*, *Tag push*, *Releases*
+  et *Deployment*.
+
+**Par projet.** Dans *Paramètres > Général* du projet, l'adresse de son dépôt
+(`https://github.com/org/depot` ou `git@gitlab.agence.fr:groupe/depot.git`).
+C'est elle qui relie un événement reçu au bon projet.
+
+**Rien à lier à la main.** Une pull request nomme ce qu'elle fait avancer par
+son numéro, dans son titre, sa branche ou sa description : `#47` pour le
+ticket 47, `T-123` (ou `task-123`) pour la tâche 123. Le numéro d'une tâche
+s'affiche dans son panneau. Un numéro qui ne correspond à rien dans le projet
+du dépôt est ignoré.
+
+Ce que ça produit :
+
+| Événement | Ticket nommé | Tâche nommée |
+|---|---|---|
+| Pull request ouverte | passe *En revue* | passe *En revue* |
+| Pull request fusionnée | passe *Prêt à déployer* | passe *Terminée* |
+| Mise en ligne (release publiée, tag poussé, déploiement réussi) | les tickets *Prêt à déployer* dont la PR est fusionnée passent *Terminé*, avec un mot visible du client et l'e-mail habituel | — |
+
+Une mise en ligne atteint aussi le jalon du projet nommé « Mise en ligne »
+(ou « Mise en production », « Déploiement », « Release », « Lancement »,
+« Livraison ») s'il ne l'est pas encore, s'inscrit au journal du client et
+s'affiche sur le portail. Les pull requests liées se lisent sur la fiche du
+ticket et dans le panneau de la tâche.
 
 ### Sondes
 
