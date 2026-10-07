@@ -8,7 +8,7 @@ import { MILESTONE_STATE } from '@/features/milestones/format'
 import { portalFileUrl, portalProjectQuery } from '@/features/portal/api'
 import { fileSize, PORTAL_DELIVERABLE_STATUS, PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
 import { DONE_COLOR, parseApiDate, PROGRESS_COLOR, tracksSchedule } from '@/features/projects/format'
-import { Meter, StatusPill } from '@/features/projects/ui'
+import { Meter, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Milestone, PortalDeliverable } from '@/types/api'
@@ -68,9 +68,12 @@ function ClientProjectPage() {
         <BackLink />
         <header className="flex flex-col gap-3 rounded-[14px] border border-[#e8e8e9] bg-white p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-col gap-1">
-              <h1 className="font-heading text-[24px] leading-tight font-medium text-[#1b1b1b]">{project.name}</h1>
-              {project.description !== '' && <p className="text-[15px] text-[#73757c]">{project.description}</p>}
+            <div className="flex min-w-0 items-start gap-3">
+              <ProjectLogo url={project.logo_url} size={44} className="rounded-[10px]" />
+              <div className="flex min-w-0 flex-col gap-1">
+                <h1 className="font-heading text-[24px] leading-tight font-medium text-[#1b1b1b]">{project.name}</h1>
+                {project.description !== '' && <p className="text-[15px] text-[#73757c]">{project.description}</p>}
+              </div>
             </div>
             <StatusPill label={status.label} color={status.color} pill={status.pill} />
           </div>
@@ -94,6 +97,13 @@ function ClientProjectPage() {
               {start !== null && `Démarré le ${LONG.format(start)}`}
               {start !== null && due !== null && ' · '}
               {due !== null && `Livraison prévue le ${LONG.format(due)}`}
+            </p>
+          )}
+
+          {project.last_deployment !== null && (
+            <p className="text-[13px] text-[#73757c]">
+              Dernière mise en ligne le {LONG.format(new Date(project.last_deployment.deployed_at))}
+              {project.last_deployment.name !== '' && ` · ${project.last_deployment.name}`}
             </p>
           )}
         </header>

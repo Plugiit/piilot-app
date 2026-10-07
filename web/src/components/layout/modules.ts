@@ -7,6 +7,7 @@ import {
   Contact01Icon,
   DeliveryBox01Icon,
   Folder01Icon,
+  GitBranchIcon,
   Home03Icon,
   LayoutTable01Icon,
   LockKeyIcon,
@@ -144,6 +145,7 @@ export const MODULES: AppModule[] = [
         label: 'Apparence',
         items: [
           { icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps', permission: 'users.write' },
+          { icon: GitBranchIcon, label: 'Dépôts Git', to: '/parametres/git', permission: 'users.write' },
         ],
       },
     ],

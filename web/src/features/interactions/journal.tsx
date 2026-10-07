@@ -6,6 +6,7 @@ import {
   Folder01Icon,
   Mail01Icon,
   Note01Icon,
+  Rocket01Icon,
   Ticket02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
@@ -36,6 +37,7 @@ export const INTERACTION_KIND: Record<InteractionKind, { label: string; icon: Ic
   project_created: { label: 'Projet créé', icon: Folder01Icon, tint: '#f3f4f4' },
   deliverable_validated: { label: 'Livrable validé', icon: CheckmarkCircle02Icon, tint: '#dcf7ea' },
   ticket_opened: { label: 'Ticket ouvert', icon: Ticket02Icon, tint: '#ffe8ec' },
+  deployment: { label: 'Mise en ligne', icon: Rocket01Icon, tint: '#f3f0fe' },
 }
 
 const MANUAL: InteractionValues['kind'][] = ['note', 'call', 'meeting', 'email']
