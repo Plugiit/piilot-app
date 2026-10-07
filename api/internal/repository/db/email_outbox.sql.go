@@ -13,7 +13,7 @@ import (
 )
 
 const claimDueEmail = `-- name: ClaimDueEmail :one
-SELECT id, kind, to_address, subject, text_body, html_body, status, attempts, next_attempt_at, last_error, created_at, sent_at FROM email_outbox
+SELECT id, kind, to_address, subject, text_body, html_body, status, attempts, next_attempt_at, last_error, created_at, sent_at, reply_to, message_id, in_reply_to FROM email_outbox
 WHERE status = 'pending' AND next_attempt_at <= now()
 ORDER BY next_attempt_at
 LIMIT 1
@@ -37,13 +37,19 @@ func (q *Queries) ClaimDueEmail(ctx context.Context) (EmailOutbox, error) {
 		&i.LastError,
 		&i.CreatedAt,
 		&i.SentAt,
+		&i.ReplyTo,
+		&i.MessageID,
+		&i.InReplyTo,
 	)
 	return i, err
 }
 
 const enqueueEmail = `-- name: EnqueueEmail :exec
-INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body, reply_to, message_id, in_reply_to)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8
+)
 `
 
 type EnqueueEmailParams struct {
@@ -52,8 +58,13 @@ type EnqueueEmailParams struct {
 	Subject   string `json:"subject"`
 	TextBody  string `json:"text_body"`
 	HtmlBody  string `json:"html_body"`
+	ReplyTo   string `json:"reply_to"`
+	MessageID string `json:"message_id"`
+	InReplyTo string `json:"in_reply_to"`
 }
 
+// reply_to, message_id et in_reply_to filent les e-mails des tickets : la
+// reponse du client revient sur le bon ticket. Vides pour les autres.
 func (q *Queries) EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error {
 	_, err := q.db.Exec(ctx, enqueueEmail,
 		arg.Kind,
@@ -61,6 +72,9 @@ func (q *Queries) EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) erro
 		arg.Subject,
 		arg.TextBody,
 		arg.HtmlBody,
+		arg.ReplyTo,
+		arg.MessageID,
+		arg.InReplyTo,
 	)
 	return err
 }

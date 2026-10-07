@@ -30,6 +30,8 @@ type Querier interface {
 	AddTemplateMilestone(ctx context.Context, arg AddTemplateMilestoneParams) error
 	AddTemplateService(ctx context.Context, arg AddTemplateServiceParams) error
 	AddTemplateTask(ctx context.Context, arg AddTemplateTaskParams) error
+	// A appeler dans la transaction de la purge, juste avant elle.
+	AllowAuditPurge(ctx context.Context) error
 	AssignTask(ctx context.Context, arg AssignTaskParams) error
 	// Rattache un contact libre a un client.
 	//
@@ -46,6 +48,9 @@ type Querier interface {
 	AvatarURLExists(ctx context.Context, avatarUrl *string) (bool, error)
 	// Le prochain e-mail a envoyer, verrouille pour la transaction de l'envoi.
 	ClaimDueEmail(ctx context.Context) (EmailOutbox, error)
+	// Le prochain e-mail a ranger, verrouille le temps de le traiter : deux
+	// instances pendant un deploiement ne rangent pas deux fois le meme.
+	ClaimPendingInbound(ctx context.Context) (InboundEmail, error)
 	// Retire la designation qui pointe vers ce contact, quel que soit le client.
 	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
 	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
@@ -59,10 +64,12 @@ type Querier interface {
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
 	CountActiveAdmins(ctx context.Context) (int64, error)
+	CountAudit(ctx context.Context, arg CountAuditParams) (int32, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
+	CountHeldInbound(ctx context.Context) (int32, error)
 	CountOpenInvitations(ctx context.Context) (int64, error)
 	CountProjectTemplates(ctx context.Context) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
@@ -82,6 +89,9 @@ type Querier interface {
 	CountTicketsAssignedTo(ctx context.Context, arg CountTicketsAssignedToParams) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountTicketsByProject(ctx context.Context, arg CountTicketsByProjectParams) (int64, error)
+	// Les tickets qu'une adresse a ouverts par e-mail dans l'heure : au-dela d'un
+	// seuil, deux robots se repondent, et l'e-mail attend un humain.
+	CountTicketsOpenedByEmailFrom(ctx context.Context, fromAddress string) (int32, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	CountUsersByRole(ctx context.Context) ([]CountUsersByRoleRow, error)
@@ -114,6 +124,7 @@ type Querier interface {
 	// Le jeton n'est jamais stocke en clair : seul son empreinte SHA-256 entre en
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateReplyTemplate(ctx context.Context, arg CreateReplyTemplateParams) (TicketReplyTemplate, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (CreateServiceRow, error)
 	// Le rang par defaut place la nouvelle app en queue : on ajoute au bout, on
 	// reordonne ensuite si besoin.
@@ -155,6 +166,7 @@ type Querier interface {
 	DeleteInteraction(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectTemplate(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteReplyTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	// Suppression douce, comme partout : un service retire d'un referentiel a pu
 	// etre porte par des donnees passees.
 	DeleteService(ctx context.Context, id uuid.UUID) (int64, error)
@@ -168,8 +180,16 @@ type Querier interface {
 	DeleteTimer(ctx context.Context, userID uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, id uuid.UUID) error
 	EnableUser(ctx context.Context, id uuid.UUID) error
+	// reply_to, message_id et in_reply_to filent les e-mails des tickets : la
+	// reponse du client revient sur le bon ticket. Vides pour les autres.
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
+	// Une erreur passagere (base, disque) : on reessaie, cinq fois au plus.
+	FailInboundAttempt(ctx context.Context, arg FailInboundAttemptParams) error
+	FindActiveUserByEmail(ctx context.Context, email string) (FindActiveUserByEmailRow, error)
+	// Les contacts du CRM qui portent cette adresse, sur des clients actifs.
+	FindContactsByEmail(ctx context.Context, email *string) ([]FindContactsByEmailRow, error)
 	FinishBackup(ctx context.Context, arg FinishBackupParams) error
+	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Question posee par la garde a chaque requete authentifiee : ce compte
 	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
@@ -211,6 +231,9 @@ type Querier interface {
 	// numero de la version tranchee, figes au moment du geste.
 	GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error)
 	GetGitWebhook(ctx context.Context) (GetGitWebhookRow, error)
+	GetInboundEmail(ctx context.Context, id uuid.UUID) (GetInboundEmailRow, error)
+	// E-mail entrant : reglages, file des e-mails recus, tri.
+	GetInboundSettings(ctx context.Context) (InboundMailSetting, error)
 	GetInteraction(ctx context.Context, id uuid.UUID) (ClientInteraction, error)
 	GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, error)
 	// Page d'acceptation : l'invitation, qui l'a envoyee et pour quel client.
@@ -225,6 +248,9 @@ type Querier interface {
 	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	GetProjectByRepoURL(ctx context.Context, repoUrl string) (Project, error)
+	// Le client d'un projet choisi au tri. Un projet interne n'en a pas a qui
+	// repondre : il est refuse.
+	GetProjectClientForTriage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -262,6 +288,8 @@ type Querier interface {
 	// ramener par jointure multiplierait l'en-tete par le nombre de lignes du
 	// registre.
 	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
+	// Le ticket que designe une adresse de reponse : son numero, son client.
+	GetTicketByNumero(ctx context.Context, numero int64) (GetTicketByNumeroRow, error)
 	GetTicketByNumeroInProject(ctx context.Context, arg GetTicketByNumeroInProjectParams) (GetTicketByNumeroInProjectRow, error)
 	// De quoi ecrire les e-mails d'un ticket : son numero, son sujet, son projet,
 	// et la personne du portail qui l'a ouvert, si elle est toujours active.
@@ -273,9 +301,16 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
+	InboundStats(ctx context.Context) (InboundStatsRow, error)
+	// Journal d'audit : en ajout seul. Ni UPDATE ni DELETE ici, sauf la purge de
+	// retention, que le declencheur n'admet que declaree.
+	InsertAudit(ctx context.Context, arg InsertAuditParams) error
 	// Aucune ligne rendue quand la mise en ligne est deja connue : GitHub et
 	// GitLab renvoient volontiers un evenement deux fois.
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
+	// Un e-mail deja recu — releve rejouee, webhook renvoye — ne rentre pas une
+	// seconde fois : la ligne n'est pas rendue.
+	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
 	// Un mot de passe change rend caducs les autres liens en circulation.
 	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
 	// Quand une alerte globale a ete emise pour la derniere fois, toutes
@@ -291,6 +326,7 @@ type Querier interface {
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
 	// pour les equipes de projets.
 	ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListAssigneesOfTasksRow, error)
+	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
 	ListBackups(ctx context.Context) ([]AppBackup, error)
 	// Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
 	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
@@ -371,6 +407,8 @@ type Querier interface {
 	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
 	// client, et le nouveau ne peut pas le lui prendre.
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
+	// Les e-mails a trier, les plus recents d'abord.
+	ListHeldInbound(ctx context.Context, arg ListHeldInboundParams) ([]ListHeldInboundRow, error)
 	// Interactions client : le journal de la relation.
 	// Le journal, du plus recent au plus ancien, filtre par client et par genre.
 	// Pagination par curseur : la liste s'allonge par le haut.
@@ -477,6 +515,7 @@ type Querier interface {
 	ListProjectsOfClient(ctx context.Context, arg ListProjectsOfClientParams) ([]ListProjectsOfClientRow, error)
 	ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID) ([]PullRequest, error)
 	ListPullRequestsOfTicket(ctx context.Context, ticketID *uuid.UUID) ([]PullRequest, error)
+	ListReplyTemplates(ctx context.Context) ([]TicketReplyTemplate, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
 	// permissions.
@@ -565,6 +604,12 @@ type Querier interface {
 	// Les comptes du portail sont ecartes : la cloche est un outil du
 	// back-office, le client suit son ticket depuis le portail.
 	ListTicketNotificationRecipients(ctx context.Context, arg ListTicketNotificationRecipientsParams) ([]uuid.UUID, error)
+	// Les projets d'un client qui recoivent des tickets : en cours, en attente,
+	// ou heberges. Un projet livre et clos n'en attend plus.
+	ListTicketProjectsOfClient(ctx context.Context, clientID uuid.UUID) ([]ListTicketProjectsOfClientRow, error)
+	// Les memes, pour plusieurs clients d'un coup : la liste a trier propose a
+	// chaque e-mail les projets de son client.
+	ListTicketProjectsOfClients(ctx context.Context, clientIds []uuid.UUID) ([]ListTicketProjectsOfClientsRow, error)
 	// Qui prevenir par e-mail cote agence : la personne qui traite le ticket, ou
 	// les administrateurs tant que personne ne l'a pris. Le role dit vers quel
 	// domaine pointer le lien, quand chaque espace a le sien.
@@ -627,6 +672,8 @@ type Querier interface {
 	// L'ecran montre une journee ou une semaine : les deux bornes disent laquelle,
 	// et la meme requete sert les deux.
 	ListTimeEntries(ctx context.Context, arg ListTimeEntriesParams) ([]ListTimeEntriesRow, error)
+	// Qui prevenir d'un e-mail a trier : les administrateurs actifs.
+	ListTriageRecipients(ctx context.Context) ([]uuid.UUID, error)
 	// Qui prevenir d'une nouvelle version : les comptes actifs qui peuvent
 	// l'installer.
 	ListUpdateRecipients(ctx context.Context) ([]uuid.UUID, error)
@@ -639,6 +686,7 @@ type Querier interface {
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
 	// simultanees prendraient sinon le meme numero.
 	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
+	LockInboundEmail(ctx context.Context, id uuid.UUID) (InboundEmail, error)
 	// Prend le verrou d'ecriture sur un ticket, le temps de la transaction.
 	//
 	// Sans lui, deux ecritures concurrentes lisent toutes deux l'etat d'avant et
@@ -720,6 +768,8 @@ type Querier interface {
 	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)
 	// Le journal n'a pas a remonter plus loin que la retention la plus longue.
 	PruneBackupRows(ctx context.Context) error
+	PurgeAudit(ctx context.Context, days int32) (int64, error)
+	RecordInboundPoll(ctx context.Context, error string) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
@@ -727,6 +777,7 @@ type Querier interface {
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
 	RenewInvitation(ctx context.Context, arg RenewInvitationParams) (Invitation, error)
+	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
 	RequestReleaseCheck(ctx context.Context) error
 	// Repasse le logo en automatique.
@@ -778,6 +829,7 @@ type Querier interface {
 	// projet ne rattache rien.
 	SetDeliverableMilestone(ctx context.Context, arg SetDeliverableMilestoneParams) (int64, error)
 	SetGitWebhookSecret(ctx context.Context, secret string) error
+	SetInboundWebhookSecret(ctx context.Context, secret string) error
 	// Designe le contact principal. `NULL` le retire.
 	//
 	// La condition sur `client_id` est une ceinture : la cle etrangere composite
@@ -879,6 +931,9 @@ type Querier interface {
 	// passe par la designation du contact principal, qui sait tenir la cle
 	// etrangere composite dans le bon ordre.
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
+	// Le mot de passe n'est remplace que s'il est fourni : l'ecran ne le relit
+	// jamais, et un champ laisse vide garde celui en place.
+	UpdateInboundSettings(ctx context.Context, arg UpdateInboundSettingsParams) error
 	// Un champ nul garde sa valeur ; l'echeance et l'etat ont chacun un drapeau,
 	// parce que « effacer » et « ne pas toucher » s'y distinguent.
 	UpdateMilestone(ctx context.Context, arg UpdateMilestoneParams) (Milestone, error)
@@ -887,6 +942,7 @@ type Querier interface {
 	// une requete par champ modifiable.
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectTemplate(ctx context.Context, arg UpdateProjectTemplateParams) (ProjectTemplate, error)
+	UpdateReplyTemplate(ctx context.Context, arg UpdateReplyTemplateParams) (TicketReplyTemplate, error)
 	// Les trois champs partent ensemble : le formulaire les montre tous, et une
 	// mise a jour partielle demanderait de distinguer « vide » de « inchange ».
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (UpdateServiceRow, error)

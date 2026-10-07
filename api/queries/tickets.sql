@@ -214,12 +214,13 @@ LIMIT sqlc.arg('page_size');
 WITH nouveau AS (
     INSERT INTO tickets (
         project_id, subject, description, tracker, status, priority,
-        assignee_id, created_by, client_visible
+        assignee_id, created_by, client_visible, requester_email, requester_name
     )
     VALUES (
         sqlc.arg('project_id'), sqlc.arg('subject'), sqlc.arg('description'),
         sqlc.arg('tracker'), sqlc.arg('status'), sqlc.arg('priority'),
-        sqlc.narg('assignee_id'), sqlc.narg('created_by'), sqlc.arg('client_visible')
+        sqlc.narg('assignee_id'), sqlc.narg('created_by'), sqlc.arg('client_visible'),
+        sqlc.narg('requester_email'), sqlc.arg('requester_name')
     )
     RETURNING *
 )
@@ -265,7 +266,9 @@ SELECT
     t.created_by,
     r.firstname  AS reporter_firstname,
     r.lastname   AS reporter_lastname,
-    r.avatar_url AS reporter_avatar_url
+    r.avatar_url AS reporter_avatar_url,
+    t.requester_email,
+    t.requester_name
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
 LEFT JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
@@ -284,7 +287,10 @@ SELECT
     u.firstname  AS author_firstname,
     u.lastname   AS author_lastname,
     u.avatar_url AS author_avatar_url,
-    u.role       AS author_role
+    u.role       AS author_role,
+    m.via_email,
+    m.sender_name,
+    m.sender_email
 FROM ticket_messages m
 LEFT JOIN users u ON u.id = m.author_id AND u.deleted_at IS NULL
 WHERE m.ticket_id = sqlc.arg('ticket_id') AND m.deleted_at IS NULL
@@ -309,8 +315,11 @@ ORDER BY e.created_at, e.id;
 
 -- name: CreateTicketMessage :one
 -- Inscrit un message au registre.
-INSERT INTO ticket_messages (ticket_id, author_id, body, is_internal)
-VALUES (sqlc.arg('ticket_id'), sqlc.narg('author_id'), sqlc.arg('body'), sqlc.arg('is_internal'))
+INSERT INTO ticket_messages (ticket_id, author_id, body, is_internal, via_email, sender_name, sender_email)
+VALUES (
+    sqlc.arg('ticket_id'), sqlc.narg('author_id'), sqlc.arg('body'), sqlc.arg('is_internal'),
+    sqlc.arg('via_email'), sqlc.arg('sender_name'), sqlc.arg('sender_email')
+)
 RETURNING id, created_at;
 
 -- name: CreateTicketEvent :one
@@ -363,3 +372,10 @@ SELECT id
 FROM tickets
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 FOR UPDATE;
+
+-- name: GetTicketByNumero :one
+-- Le ticket que designe une adresse de reponse : son numero, son client.
+SELECT t.id, t.numero, t.status, t.subject, t.project_id, p.client_id
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.numero = sqlc.arg('numero') AND t.deleted_at IS NULL;
