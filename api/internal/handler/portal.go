@@ -20,6 +20,8 @@ type PortalService interface {
 	Project(ctx context.Context, userID, projectID uuid.UUID) (usecase.PortalProjectDetail, error)
 	Deliverable(ctx context.Context, userID, deliverableID uuid.UUID) (usecase.PortalDeliverableDetail, error)
 	Decide(ctx context.Context, userID, deliverableID uuid.UUID, decision, feedback string) (usecase.PortalDeliverableDetail, error)
+	Review(ctx context.Context, deliverableID uuid.UUID, token string) (usecase.PortalReview, error)
+	DecideByLink(ctx context.Context, deliverableID uuid.UUID, token, decision, feedback string) (usecase.PortalReview, error)
 	OpenFile(ctx context.Context, userID, fileID uuid.UUID) (usecase.Attachment, io.ReadCloser, error)
 
 	Tickets(ctx context.Context, userID uuid.UUID, open *bool, page int) (usecase.PortalTicketPage, error)
@@ -127,6 +129,46 @@ func (h *Portal) Decide(c fiber.Ctx) error {
 	}
 
 	return c.JSON(deliverable)
+}
+
+// Review sert la page de reponse ouverte depuis l'e-mail. Sans session : le
+// jeton signe du lien tient lieu de preuve. Rien n'est decide ici.
+func (h *Portal) Review(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	review, err := h.svc.Review(c.Context(), id, c.Query("token"))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(review)
+}
+
+// ReviewDecide enregistre la reponse donnee depuis la page du lien.
+func (h *Portal) ReviewDecide(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	var body struct {
+		Token    string `json:"token"`
+		Decision string `json:"decision"`
+		Feedback string `json:"feedback"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	review, err := h.svc.DecideByLink(c.Context(), id, body.Token, body.Decision, body.Feedback)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(review)
 }
 
 // DownloadFile sert un fichier partage, ou celui d'une version de livrable.

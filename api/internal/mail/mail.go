@@ -51,14 +51,18 @@ func dateTime(t time.Time) string {
 
 // view est ce que les modeles recoivent.
 type view struct {
-	Subject    string
-	Title      string
-	Action     string
-	URL        string
-	Expires    string
-	Firstname  string
-	Inviter    string
-	ClientName string
+	Subject string
+	Title   string
+	Action  string
+	URL     string
+	// Deux gestes directs, en plus du lien principal : vides, le gabarit ne
+	// les montre pas.
+	ValidateURL string
+	FeedbackURL string
+	Expires     string
+	Firstname   string
+	Inviter     string
+	ClientName  string
 
 	ProjectName string
 	Deliverable string
@@ -111,13 +115,18 @@ func PasswordReset(to, firstname, url string, expires time.Time) (Message, error
 
 // DeliverableSubmitted previent un compte du portail qu'un livrable attend sa
 // reponse : un nouveau livrable, ou une nouvelle version apres des retours.
-func DeliverableSubmitted(to, firstname, projectName, deliverable string, version int, url string) (Message, error) {
+//
+// validateURL et feedbackURL sont les liens signes pour repondre sans se
+// connecter ; vides, l'e-mail ne propose que le portail.
+func DeliverableSubmitted(to, firstname, projectName, deliverable string, version int, url, validateURL, feedbackURL string) (Message, error) {
 	first := version <= 1
 	v := view{
 		Subject:     ifElse(first, "Nouveau livrable à valider : ", "Nouvelle version à valider : ") + deliverable,
 		Title:       ifElse(first, "Un livrable vous attend", "Une nouvelle version vous attend"),
 		Action:      "Voir le livrable",
 		URL:         url,
+		ValidateURL: validateURL,
+		FeedbackURL: feedbackURL,
 		Firstname:   firstname,
 		ProjectName: projectName,
 		Deliverable: deliverable,
@@ -131,6 +140,9 @@ func DeliverableSubmitted(to, firstname, projectName, deliverable string, versio
 		projectName, deliverable,
 		ifElse(first, "", fmt.Sprintf(", version %d", version)),
 		url)
+	if validateURL != "" && feedbackURL != "" {
+		text += fmt.Sprintf("\nRépondre sans vous connecter (lien valable 30 jours) :\n- Valider : %s\n- Faire un retour : %s\n", validateURL, feedbackURL)
+	}
 
 	return compose("deliverable_submitted", to, v, "deliverable_submitted.html", text)
 }
