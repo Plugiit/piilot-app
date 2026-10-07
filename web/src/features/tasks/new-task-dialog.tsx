@@ -2,7 +2,7 @@ import { AddSquareIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -27,12 +27,15 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PRIORITY_TONE, TASK_STATUS, TASK_STATUS_ORDER } from '@/features/projects/format'
-import { projectListQuery } from '@/features/projects/api'
+import { peopleQuery, projectListQuery } from '@/features/projects/api'
 import { useCreateTask } from '@/features/tasks/api'
 import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
+import { sessionQuery } from '@/lib/auth'
+import { userInitials } from '@/lib/initials'
 import { cn } from '@/lib/utils'
-import type { TaskPriority, TaskStatus } from '@/types/api'
+import type { Person, TaskPriority, TaskStatus } from '@/types/api'
+import { useCreateIntent } from '@/lib/palette'
 
 /**
  * Le minimum pour qu'une tache existe.
@@ -52,6 +55,9 @@ const schema = z.object({
   // un correctif d'intendance.
   service_ids: z.array(z.string()),
   due_on: z.string().trim(),
+  // Qui s'en charge, des la creation : assigner apres coup, c'est rouvrir la
+  // tache. Par defaut, celui qui la cree.
+  assignee_ids: z.array(z.string()),
 })
 
 type Values = z.infer<typeof schema>
@@ -76,6 +82,13 @@ export function NewTaskDialog({
   trigger?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('task', () => setOpen(true))
+  // Creer puis enchainer : la fenetre reste ouverte, le libelle se vide, le
+  // reste — projet, statut, assignes — est garde pour la suivante.
+  const [again, setAgain] = useState(false)
+  const { data: me } = useQuery(sessionQuery)
+  const { data: people } = useQuery({ ...peopleQuery, enabled: open })
   const { data: projects } = useQuery({
     ...projectListQuery({ page: 1, pageSize: 100, sort: 'name', dir: 'asc' }),
     // Rien a charger quand le projet est impose par l'ecran.
@@ -91,8 +104,16 @@ export function NewTaskDialog({
       priority: 'medium',
       service_ids: [],
       due_on: '',
+      assignee_ids: me === undefined ? [] : [me.id],
     },
   })
+
+  // Le compte arrive apres le premier rendu : la valeur par defaut le suit.
+  useEffect(() => {
+    if (me !== undefined && !form.formState.isDirty && form.getValues('assignee_ids').length === 0) {
+      form.setValue('assignee_ids', [me.id])
+    }
+  }, [me, form])
 
   // Le projet choisi decide de l'endpoint : le hook suit la valeur du
   // formulaire tant qu'aucun n'est impose.
@@ -106,6 +127,7 @@ export function NewTaskDialog({
         priority: values.priority,
         service_ids: values.service_ids,
         due_on: values.due_on === '' ? null : values.due_on,
+        assignee_ids: values.assignee_ids,
       },
       {
         onSuccess: () => {
@@ -113,12 +135,18 @@ export function NewTaskDialog({
           form.reset({
             project_id: projectId ?? values.project_id,
             title: '',
-            status: 'todo',
-            priority: 'medium',
-            service_ids: [],
+            status: again ? values.status : 'todo',
+            priority: again ? values.priority : 'medium',
+            service_ids: again ? values.service_ids : [],
             due_on: '',
+            assignee_ids: again ? values.assignee_ids : me === undefined ? [] : [me.id],
           })
-          setOpen(false)
+          if (again) {
+            setAgain(false)
+            form.setFocus('title')
+          } else {
+            setOpen(false)
+          }
         },
         onError: (error) => {
           toast.error(error instanceof HttpError ? error.message : 'Création impossible')
@@ -145,7 +173,7 @@ export function NewTaskDialog({
         <DialogHeader>
           <DialogTitle>Nouvelle tâche</DialogTitle>
           <DialogDescription>
-            Le libellé suffit. Assignation et détail se complètent depuis la tâche.
+            Le libellé suffit. Le détail se complète depuis la tâche.
           </DialogDescription>
         </DialogHeader>
 
@@ -289,11 +317,53 @@ export function NewTaskDialog({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="assignee_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Assignée à</FormLabel>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(people?.items ?? []).map((person: Person) => {
+                      const active = field.value.includes(person.id)
+                      const name = `${person.firstname} ${person.lastname}`.trim() || 'Sans nom'
+                      return (
+                        <button
+                          key={person.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={active}
+                          onClick={() =>
+                            field.onChange(
+                              active ? field.value.filter((id: string) => id !== person.id) : [...field.value, person.id],
+                            )
+                          }
+                          className={cn(
+                            'flex cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-[12px] transition-colors',
+                            active ? 'border-brand bg-[#fff2ea] text-[#b84a0c]' : 'border-[#e8e8e9] bg-white text-[#73757c] hover:bg-[#f8f8f8]',
+                          )}
+                        >
+                          <span className={cn('flex size-5 items-center justify-center rounded-full text-[10px] font-medium', active ? 'bg-brand text-white' : 'bg-[#f3f4f4] text-[#73757c]')}>
+                            {userInitials({ firstname: person.firstname, lastname: person.lastname, email: '' })}
+                          </span>
+                          {person.id === me?.id ? 'Moi' : name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
               <Button type="button" variant="ghost" size="lg" onClick={() => setOpen(false)}>
                 Annuler
               </Button>
-              <Button type="submit" size="lg" disabled={create.isPending}>
+              <Button type="submit" size="lg" variant="outline" disabled={create.isPending} onClick={() => setAgain(true)}>
+                Créer et ajouter une autre
+              </Button>
+              <Button type="submit" size="lg" disabled={create.isPending} onClick={() => setAgain(false)}>
                 {create.isPending ? 'Création…' : 'Créer la tâche'}
               </Button>
             </DialogFooter>

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { TaskDrawer } from '@/components/task-drawer'
+import { QuickAddTask } from '@/features/tasks/quick-add'
 import { Button } from '@/components/ui/button'
 import { reportError } from '@/features/tasks/board'
 import { TASK_PAGE_SIZE, taskListQuery, useMoveTaskInList } from '@/features/tasks/api'
@@ -50,6 +51,10 @@ function TaskListPage() {
 
   return (
     <>
+      {/* L'ajout rapide a besoin d'un projet : il apparait des que la liste
+          est filtree sur l'un d'eux. */}
+      {search.projet !== undefined && <QuickAddTask projectId={search.projet} />}
+
       <TaskTable
         tasks={list?.items ?? []}
         showProject

@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { TaskDrawer } from '@/components/task-drawer'
+import { QuickAddTask } from '@/features/tasks/quick-add'
 import { taskBoardQuery, useCreateTask, useMoveTask } from '@/features/tasks/api'
 import { TaskColumns, reportError } from '@/features/tasks/board'
 import { TaskTable } from '@/features/tasks/list'
@@ -54,7 +55,7 @@ function ProjectTasksPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {vue !== 'kanban' ? (
+      {vue === 'table' ? (
         <>
           {hidden > 0 && (
             <p className="px-4 pt-4 text-[12px] text-[#73757c]">
@@ -62,6 +63,8 @@ function ProjectTasksPage() {
               {board?.column_limit} par statut, les plus anciennes ne sont pas chargées.
             </p>
           )}
+
+          <QuickAddTask projectId={id} />
 
           <TaskTable
             tasks={board?.items ?? []}
