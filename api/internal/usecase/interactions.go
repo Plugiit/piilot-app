@@ -26,6 +26,7 @@ const (
 	InteractionProjectCreated       = "project_created"
 	InteractionDeliverableValidated = "deliverable_validated"
 	InteractionTicketOpened         = "ticket_opened"
+	InteractionDeployment           = "deployment"
 )
 
 var manualInteractions = map[string]bool{
@@ -35,6 +36,7 @@ var manualInteractions = map[string]bool{
 var interactionKinds = map[string]bool{
 	InteractionNote: true, InteractionCall: true, InteractionMeeting: true, InteractionEmail: true,
 	InteractionProjectCreated: true, InteractionDeliverableValidated: true, InteractionTicketOpened: true,
+	InteractionDeployment: true,
 }
 
 // interactionPageSize borne une page du journal.
@@ -95,7 +97,7 @@ func (s *InteractionService) List(ctx context.Context, f InteractionFilters) (In
 	case "manual":
 		kinds = []string{InteractionNote, InteractionCall, InteractionMeeting, InteractionEmail}
 	case "events":
-		kinds = []string{InteractionProjectCreated, InteractionDeliverableValidated, InteractionTicketOpened}
+		kinds = []string{InteractionProjectCreated, InteractionDeliverableValidated, InteractionTicketOpened, InteractionDeployment}
 	case "":
 	default:
 		if !interactionKinds[f.Source] {
