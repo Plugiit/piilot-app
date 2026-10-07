@@ -1,7 +1,6 @@
 import {
   Key01Icon,
   MoreHorizontalIcon,
-  Search01Icon,
   ShieldUserIcon,
   UserBlock01Icon,
   UserCheck01Icon,
@@ -26,7 +25,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import {
   ACCOUNT_PAGE_SIZE,
   accountListQuery,
@@ -39,6 +37,7 @@ import { LinkBox } from '@/features/accounts/link-box'
 import { Avatars } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { sessionQuery } from '@/lib/auth'
+import { AccountsToolbar, ToolbarSearch } from '@/features/accounts/toolbar'
 import { useSearchField } from '@/lib/search-field'
 import { cn } from '@/lib/utils'
 import type { Account, SentLink } from '@/types/api'
@@ -239,24 +238,16 @@ function AccountsPage() {
   ]
 
   return (
-    <div className="flex flex-1 flex-col gap-3 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            size={16}
-            strokeWidth={1.6}
-            className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[#8d8d8d]"
-          />
-          <Input
-            type="search"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Rechercher un nom ou une adresse"
-            aria-label="Rechercher un compte"
-            className="h-9 pl-8 text-[13px]"
-          />
-        </div>
+    <div className="flex flex-1 flex-col">
+      {/* Recherche et filtres vivent dans la barre du chassis, au-dessus des
+          onglets, a gauche d'« Inviter ». */}
+      <AccountsToolbar>
+        <ToolbarSearch
+          value={draft}
+          onChange={setDraft}
+          placeholder="Rechercher un nom ou une adresse"
+          label="Rechercher un compte"
+        />
         <FilterMenu
           name="Rôle"
           all="Tous les rôles"
@@ -271,18 +262,20 @@ function AccountsPage() {
           options={statusOptions}
           onChange={(value) => setFilter({ status: value as 'active' | 'disabled' | undefined })}
         />
-      </div>
+      </AccountsToolbar>
 
       {data !== undefined && !data.mail_enabled && canManage && (
-        <p className="rounded-[10px] bg-[#f3f4f4] px-3 py-2.5 text-[13px] text-[#4b4b4f]">
+        <p className="m-4 mb-0 rounded-[10px] bg-[#f3f4f4] px-3 py-2.5 text-[13px] text-[#4b4b4f]">
           Piilot n’envoie pas d’e-mails sur cette instance : les liens d’invitation et de
           réinitialisation s’affichent ici, à transmettre vous-même. Renseignez SMTP_HOST pour les
           envoyer automatiquement.
         </p>
       )}
 
-      <div className="overflow-hidden rounded-[12px] border border-[#e8e8e9]">
-        <div className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center bg-[#f3f4f4] px-3 py-2.5 text-[13px] text-[#73757c] max-md:hidden">
+      {/* Sur toute la largeur, comme le tableau des taches : pas de cadre,
+          un filet sous chaque ligne. */}
+      <div className="flex flex-col">
+        <div className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center border-b border-[#e8e8e9] bg-[#f3f4f4] px-4 py-3 text-[14px] text-[#73757c] max-md:hidden">
           <span>Personne</span>
           <span>Rôle</span>
           <span>Client</span>
@@ -292,11 +285,11 @@ function AccountsPage() {
 
         {isPending &&
           Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className="h-[61px] animate-pulse border-t border-[#e8e8e9] bg-[#fafafa]" />
+            <div key={index} className="h-[61px] animate-pulse border-b border-[#e8e8e9] bg-[#fafafa]" />
           ))}
 
         {!isPending && rows.length === 0 && (
-          <div className="flex flex-col items-center gap-2 border-t border-[#e8e8e9] px-4 py-10 text-center">
+          <div className="flex flex-col items-center gap-2 border-b border-[#e8e8e9] px-4 py-10 text-center">
             <HugeiconsIcon icon={UserMultipleIcon} size={28} strokeWidth={1.4} className="text-[#a2a3a7]" />
             <p className="text-[14px] text-[#73757c]">
               {filtered ? 'Aucun compte ne correspond à ces filtres.' : 'Aucun compte pour l’instant.'}
@@ -309,7 +302,7 @@ function AccountsPage() {
           return (
             <div
               key={account.id}
-              className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center border-t border-[#e8e8e9] bg-white px-3 py-2.5 max-md:grid-cols-[1fr_44px] max-md:gap-y-1"
+              className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center border-b border-[#e8e8e9] bg-white px-4 py-2.5 max-md:grid-cols-[1fr_44px] max-md:gap-y-1"
             >
               <div className={cn('flex min-w-0 items-center gap-2.5', disabled && 'opacity-55')}>
                 <Avatars people={[account]} max={1} size={32} />
@@ -362,7 +355,7 @@ function AccountsPage() {
         })}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-4">
         <p className="text-[12px] text-[#777]">
           {total} compte{total > 1 ? 's' : ''} · page {search.page} sur {totalPages}
         </p>

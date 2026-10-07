@@ -17,6 +17,7 @@ import {
 import { invitationListQuery, useResendInvitation, useRevokeInvitation } from '@/features/accounts/api'
 import { displayName, roleOf } from '@/features/accounts/format'
 import { LinkBox } from '@/features/accounts/link-box'
+import { AccountsToolbar, matchesSearch, ToolbarSearch } from '@/features/accounts/toolbar'
 import { HttpError } from '@/lib/api'
 import { sessionQuery } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,20 @@ function InvitationsPage() {
 
   const items = data?.items ?? []
 
+  // Recherche locale : la liste est bornee et deja la, filtrer ici evite un
+  // aller-retour pour quelques lignes.
+  const [query, setQuery] = useState('')
+  const shown = items.filter((invitation) =>
+    matchesSearch(
+      query,
+      displayName(invitation),
+      invitation.email,
+      invitation.client?.name,
+      roleOf(invitation.role).label,
+      invitation.invited_by,
+    ),
+  )
+
   function doResend(invitation: Invitation) {
     resend.mutate(invitation.id, {
       onSuccess: (sent) => setLink({ ...sent, email: invitation.email }),
@@ -57,7 +72,22 @@ function InvitationsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-4">
+      <AccountsToolbar>
+        <ToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Rechercher une invitation"
+          label="Rechercher une invitation"
+        />
+      </AccountsToolbar>
+
       {isPending && <div className="h-[120px] animate-pulse rounded-[12px] bg-[#fafafa]" />}
+
+      {!isPending && items.length > 0 && shown.length === 0 && (
+        <p className="rounded-[12px] border border-dashed border-[#d0d1d3] px-4 py-10 text-center text-[14px] text-[#73757c]">
+          Aucune invitation ne correspond à « {query} ».
+        </p>
+      )}
 
       {!isPending && items.length === 0 && (
         <div className="flex flex-col items-center gap-2 rounded-[12px] border border-dashed border-[#d0d1d3] px-4 py-12 text-center">
@@ -69,9 +99,9 @@ function InvitationsPage() {
         </div>
       )}
 
-      {items.length > 0 && (
+      {shown.length > 0 && (
         <ul className="overflow-hidden rounded-[12px] border border-[#e8e8e9]">
-          {items.map((invitation) => {
+          {shown.map((invitation) => {
             const expired = invitation.status === 'expired'
             const role = roleOf(invitation.role)
             return (
