@@ -1,6 +1,6 @@
-import { PlusSignIcon } from '@hugeicons/core-free-icons'
+import { ArrowReloadHorizontalIcon, PlusSignIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -156,10 +156,17 @@ export function WeekSheet({ monday, onOpenDay }: { monday: string; onOpenDay: (d
         </div>
       </div>
 
-      <AddRow
-        existing={new Set(rows.map((row) => row.key))}
-        onAdd={(row) => setExtra((prev) => [...prev, row])}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <AddRow
+          existing={new Set(rows.map((row) => row.key))}
+          onAdd={(row) => setExtra((prev) => [...prev, row])}
+        />
+        <CopyPreviousWeek
+          monday={monday}
+          existing={new Set(rows.map((row) => row.key))}
+          onRows={(added) => setExtra((prev) => [...prev, ...added])}
+        />
+      </div>
 
       <p className="text-[12px] text-[#8d8d8d]">
         Tapez une durée (90, 1h30 ou 1,5) puis Entrée ou Tab. Videz une cellule pour retirer sa saisie.
@@ -292,6 +299,63 @@ function WeekCell({
       />
     </span>
   )
+}
+
+/**
+ * Reprend les rangees de la semaine precedente — les projets et les taches,
+ * pas les heures : une semaine ressemble a la precedente, et les ouvrir une a
+ * une etait le geste le plus repete du lundi matin.
+ */
+function CopyPreviousWeek({
+  monday,
+  existing,
+  onRows,
+}: {
+  monday: string
+  existing: Set<string>
+  onRows: (rows: { project: WeekRef; task: WeekRef | null }[]) => void
+}) {
+  const queryClient = useQueryClient()
+  const [pending, setPending] = useState(false)
+
+  async function copy() {
+    setPending(true)
+    try {
+      const previous = weekDays(shiftDays(monday, -7))
+      const sheet = await queryClient.fetchQuery(timeSheetQuery(previous[0]!, previous[6]!))
+      const seen = new Set(existing)
+      const rows: { project: WeekRef; task: WeekRef | null }[] = []
+      for (const entry of sheet.items) {
+        const key = rowKey(entry.project.id, entry.task?.id)
+        if (seen.has(key)) continue
+        seen.add(key)
+        rows.push({ project: entry.project, task: entry.task })
+      }
+      if (rows.length === 0) {
+        toast.info('Rien de nouveau à reprendre : les lignes de la semaine dernière sont déjà là.')
+      } else {
+        onRows(rows)
+        toast.success(`${rows.length} ligne${rows.length > 1 ? 's' : ''} reprise${rows.length > 1 ? 's' : ''} de la semaine dernière`)
+      }
+    } catch (error) {
+      toast.error(error instanceof HttpError ? error.message : 'Lecture impossible')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Button variant="ghost" size="sm" className="gap-1.5" disabled={pending} onClick={() => void copy()}>
+      <HugeiconsIcon icon={ArrowReloadHorizontalIcon} size={14} strokeWidth={2} />
+      Reprendre la semaine précédente
+    </Button>
+  )
+}
+
+function shiftDays(day: string, delta: number): string {
+  const date = new Date(`${day}T12:00:00`)
+  date.setDate(date.getDate() + delta)
+  return date.toLocaleDateString('sv-SE')
 }
 
 /** Ouvre une rangee pour un projet, et une tache si l'on veut. */
