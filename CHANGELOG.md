@@ -11,6 +11,55 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.0.0] — V1 : le temps de l'équipe · 2026-10-07
+
+Première version majeure. Elle est tournée vers un seul objectif : que l'équipe et le client passent moins de temps dans l'outil pour le même résultat. Chercher d'une touche, créer d'une ligne, agir sans changer d'écran, et laisser Git, le registre des entreprises et la Base Adresse remplir ce qu'on tapait à la main.
+
+### Points forts
+
+- Palette `Cmd+K` : chercher projets, clients, contacts, tâches et tickets, aller partout, créer sans passer par le bon écran.
+- Intégration GitHub et GitLab par webhook : une pull request qui nomme `#47` ou `T-123` fait avancer le ticket et la tâche ; une mise en ligne clôt les tickets fusionnés avec un mot au client et atteint le jalon « Mise en ligne ».
+- Chrono sur les tâches et les tickets, visible de tous les écrans, qui devient une saisie de temps à l'arrêt.
+- La session ne s'expire plus tous les quarts d'heure.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Palette Cmd+K** (ou `/`, ou le champ Rechercher du panneau) : résultats serveur par famille selon les permissions, navigation vers chaque écran, création de projet, tâche, ticket, client, contact ou interaction.
+- **Tâches en une ligne** : ligne d'ajout rapide en tête des tâches d'un projet, Entrée crée et attend la suivante. « demain », « lundi », « 12/10 », « !haute » se lisent dans le libellé. La fenêtre de création assigne à soi par défaut et sait « Créer et ajouter une autre ».
+- **Mon travail agit** : case pour terminer, statut cliquable, temps du jour posé d'un clic, sans quitter la page. Les cartes prennent la coque du tableau de bord.
+- **Chrono** : « Démarrer » dans le panneau d'une tâche et sur un ticket ; un seul par personne, stocké côté serveur, qui suit d'un poste à l'autre. Basculer ailleurs enregistre le précédent.
+- **Feuille de temps** : « Reprendre la semaine précédente » rouvre les lignes projet/tâche de la semaine passée. « 45m » et « 45 min » sont des durées.
+- **Filtres mémorisés** par écran et par navigateur : projets, tâches, tickets, clients, contacts, interactions, livrables.
+- **Relance des livrables** : un livrable sans réponse du client depuis 72 h est relancé par e-mail, une fois par version.
+- **Inviter sur le portail** depuis la ligne d'un contact, fenêtre déjà remplie ; le panneau « Comptes portail » vide le propose aussi.
+- **Fiche client et kanban** : « Nouveau projet » (client déjà choisi), « Nouveau contact » (déjà rattaché) ; sur la carte du pipeline, appeler, écrire, noter une interaction, nouveau projet.
+- **Adresse autocomplétée** par la Base Adresse Nationale : code postal, ville et pays se remplissent. Création et modification de client, Mon compte.
+- **Logo par projet** (SVG, PNG, JPEG, WEBP, GIF), déposé depuis ses paramètres, affiché à côté du nom partout : liste, fiche, raccourcis, Mon travail, fiche client, portail.
+- **Kanban par défaut** sur les onglets Tâches et Tickets d'un projet.
+- **Jalon atteint tout seul** quand tous ses livrables sont validés ; il se rouvre si un livrable s'ajoute ou retombe, sauf s'il a été atteint à la main.
+- **Comptes et rôles** sur le châssis des tâches : recherche et filtres en haut, Inviter au bout de la ligne, onglets, tableau sur toute la largeur. Une recherche sur Invitations et Rôles aussi.
+- **Dépôts Git** : *Paramètres > Dépôts Git* affiche l'adresse du webhook et son secret, à copier une fois chez GitHub (organisation ou dépôt) ou GitLab (groupe ou projet, instance auto-hébergée comprise). Chaque projet indique son dépôt. Rien à lier à la main : `#47` ou `ticket-47` nomme le ticket 47, `T-123` ou `task-123` la tâche 123, dans le titre, la branche ou la description d'une pull request. Ouverte : en revue. Fusionnée : ticket prêt à déployer, tâche terminée. Mise en ligne (release, tag, déploiement réussi) : tickets clos avec un mot au client, jalon « Mise en ligne » atteint, journal du client. Les pull requests se lisent sur la fiche du ticket et dans le panneau de la tâche, qui affiche son numéro.
+
+#### Portail client
+
+- « Dernière mise en ligne le … » sur la fiche d'un projet.
+- Logo du projet sur la liste et la fiche.
+
+### Corrections
+
+- La session expirait toutes les 15 minutes : le front n'appelait jamais le rafraîchissement. Un 401 rafraîchit maintenant la session, une seule fois à la fois, puis rejoue la requête. Elle dure désormais `REFRESH_TOKEN_TTL` (30 jours).
+- Une notification émise sans acteur humain (tâche de fond, intégration Git) violait la base.
+- Un message automatique sur un ticket s'affichait « Compte supprimé » : il s'affiche « Piilot ».
+
+### À savoir pour le déploiement
+
+- Migrations 000038 à 000042, toutes en ajout : logo de projet, chrono, relance des livrables, jalon automatique, intégration Git (dépôt par projet, numéro de tâche, secret, pull requests, mises en ligne).
+- `DELIVERABLE_REMINDER_AFTER` (72 h par défaut, `0` pour couper) et `GIT_WEBHOOK_SECRET` (facultatif) dans le `docker-compose.yml`.
+- L'intégration Git se règle dans *Paramètres > Dépôts Git* ; sans réglage, rien ne change.
+- Les critères de sortie listés dans ROADMAP.md pour la V1 (recette, sauvegardes, export RGPD, journal d'audit, tests de bout en bout) restent à traiter : ils suivront en versions mineures.
+
 ## [0.9.6] — Projets hébergés · 2026-10-06
 
 Cette version ajoute le statut **Hébergement** : un projet livré que l'agence continue d'héberger, sans échéance ni avancement à suivre.
