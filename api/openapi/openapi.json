@@ -27,6 +27,10 @@
     {
       "name": "client",
       "description": "Portail client : role client uniquement, isole par le client de l'appelant"
+    },
+    {
+      "name": "public",
+      "description": "Sans session : liens signés envoyés par e-mail"
     }
   ],
   "paths": {
@@ -8068,6 +8072,159 @@
           }
         }
       }
+    },
+    "/api/v1/public/deliverables/{id}/review": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Page de réponse à un livrable, depuis l'e-mail",
+        "description": "Sans session : le jeton signé porté par le lien de l'e-mail de dépôt tient lieu de preuve et désigne le compte qui répond. Rien n'est décidé à l'ouverture : un filtre anti-spam qui suit les liens ne valide rien. Le lien vaut 30 jours et ne désigne que la version courante.",
+        "operationId": "getPublicDeliverableReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Le livrable et la version à juger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalReview"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/LinkExpired"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Répondre à un livrable depuis l'e-mail",
+        "description": "Enregistre la réponse au nom du compte du jeton, par le même chemin que depuis le portail : mêmes notifications, même journal, même refus (409) si la version a déjà reçu sa réponse. Des retours exigent un mot.",
+        "operationId": "postPublicDeliverableReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "decision"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "valide",
+                      "retours"
+                    ]
+                  },
+                  "feedback": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Réponse enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalReview"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cette version a déjà reçu une réponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/LinkExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/system/backups": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "État des sauvegardes",
+        "description": "Dernière sauvegarde réussie et journal des 20 dernières, écrits par le service backup du docker-compose. Exige system.update, accordée aux seuls admins.",
+        "operationId": "getAdminSystemBackups",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "État",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8139,6 +8296,16 @@
             }
           }
         }
+      },
+      "LinkExpired": {
+        "description": "Lien périmé, altéré, ou qui ne désigne plus la version courante",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -8190,7 +8357,8 @@
           "address",
           "postal_code",
           "city",
-          "country"
+          "country",
+          "booking_url"
         ],
         "properties": {
           "id": {
@@ -8264,6 +8432,10 @@
                 "projects.write"
               ]
             ]
+          },
+          "booking_url": {
+            "type": "string",
+            "description": "Lien de prise de rendez-vous (Cal.com, Calendly, Google…), montré aux clients sur le portail. Vide sans lien."
           }
         }
       },
@@ -10069,6 +10241,10 @@
           },
           "country": {
             "type": "string"
+          },
+          "booking_url": {
+            "type": "string",
+            "description": "Lien de prise de rendez-vous ; vide pour le retirer. Doit être une adresse http(s)."
           }
         }
       },
@@ -10125,7 +10301,8 @@
               "ticket_status_changed",
               "deliverable_validated",
               "deliverable_feedback",
-              "update_available"
+              "update_available",
+              "backup_stale"
             ]
           },
           "payload": {
@@ -13962,7 +14139,9 @@
           "deliverables",
           "files",
           "logo_url",
-          "last_deployment"
+          "last_deployment",
+          "next_step",
+          "team"
         ],
         "properties": {
           "id": {
@@ -14041,6 +14220,16 @@
                 "type": "null"
               }
             ]
+          },
+          "next_step": {
+            "$ref": "#/components/schemas/PortalNextStep"
+          },
+          "team": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalContact"
+            },
+            "description": "Le chargé de compte d'abord, puis l'équipe du projet."
           }
         }
       },
@@ -14829,6 +15018,240 @@
           }
         },
         "description": "Ce que l'evenement a produit."
+      },
+      "PortalContact": {
+        "type": "object",
+        "required": [
+          "id",
+          "firstname",
+          "lastname",
+          "initials",
+          "avatar_url",
+          "role",
+          "email",
+          "phone",
+          "booking_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "description": "« Chargé·e de compte » ou « Équipe du projet »."
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "booking_url": {
+            "type": "string",
+            "description": "Lien de rendez-vous du membre, vide s'il n'en a pas."
+          }
+        }
+      },
+      "PortalNextStep": {
+        "type": "object",
+        "required": [
+          "milestone",
+          "deliverables_pending",
+          "tasks_done",
+          "tasks_total"
+        ],
+        "properties": {
+          "milestone": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Milestone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prochain jalon non atteint, nul quand tout est atteint ou rien posé."
+          },
+          "deliverables_pending": {
+            "type": "integer",
+            "description": "Livrables qui attendent la réponse du client."
+          },
+          "tasks_done": {
+            "type": "integer"
+          },
+          "tasks_total": {
+            "type": "integer"
+          }
+        }
+      },
+      "PortalReview": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "project_name",
+          "milestone",
+          "firstname",
+          "version",
+          "url",
+          "file_id",
+          "status",
+          "decided_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "milestone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstname": {
+            "type": "string",
+            "description": "Prénom du compte qui répond."
+          },
+          "version": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "file_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "en_attente",
+              "valide",
+              "retours"
+            ]
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "BackupInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "started_at",
+          "finished_at",
+          "status",
+          "location",
+          "size_bytes",
+          "error"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "description": "Où l'archive est posée : chemin local, et seau S3 le cas échéant."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "BackupStatus": {
+        "type": "object",
+        "required": [
+          "last_success",
+          "stale_after",
+          "stale",
+          "items"
+        ],
+        "properties": {
+          "last_success": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BackupInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dernière sauvegarde réussie, nulle tant qu'il n'y en a aucune."
+          },
+          "stale_after": {
+            "type": "string",
+            "description": "Délai (BACKUP_STALE_AFTER) au-delà duquel l'instance est jugée sans sauvegarde."
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupInfo"
+            },
+            "description": "Le journal, les 20 dernières, les plus récentes d'abord."
+          }
+        }
       }
     }
   }

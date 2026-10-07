@@ -43,6 +43,9 @@ type Profile struct {
 	PostalCode string `json:"postal_code"`
 	City       string `json:"city"`
 	Country    string `json:"country"`
+	// Lien de prise de rendez-vous (Cal.com, Calendly, Google…), montre aux
+	// clients sur le portail. Vide quand le membre n'en a pas.
+	BookingURL string `json:"booking_url"`
 	// Permissions du role, servies au front pour qu'il masque les actions
 	// inaccessibles. C'est un confort d'affichage, pas une protection.
 	Permissions []string `json:"permissions"`
@@ -362,6 +365,7 @@ func (s *AuthService) profile(ctx context.Context, user db.User) (Profile, error
 		PostalCode:  user.PostalCode,
 		City:        user.City,
 		Country:     user.Country,
+		BookingURL:  user.BookingUrl,
 		Permissions: permissions,
 	}, nil
 }
@@ -391,6 +395,7 @@ type UpdateProfileInput struct {
 	PostalCode *string
 	City       *string
 	Country    *string
+	BookingURL *string
 }
 
 // UpdateProfile modifie l'etat civil et l'adresse du compte appelant.
@@ -417,6 +422,16 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, in Up
 		})
 	}
 
+	// Le lien de rendez-vous part sur le portail, dans un href : rien d'autre
+	// qu'une adresse http(s) n'y a sa place.
+	if in.BookingURL != nil {
+		link := strings.TrimSpace(*in.BookingURL)
+		if err := validateLink("booking_url", link); err != nil {
+			return Profile{}, err
+		}
+		in.BookingURL = &link
+	}
+
 	user, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
 		ID:         userID,
 		Firstname:  in.Firstname,
@@ -428,6 +443,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, in Up
 		PostalCode: in.PostalCode,
 		City:       in.City,
 		Country:    in.Country,
+		BookingUrl: in.BookingURL,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
