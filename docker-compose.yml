@@ -118,6 +118,9 @@ services:
       # Secret des webhooks GitHub/GitLab. Vide, Piilot en tire un et le montre
       # dans Paramètres > Dépôts Git ; renseigné, c'est lui qui vaut.
       GIT_WEBHOOK_SECRET: ${GIT_WEBHOOK_SECRET:-}
+      # Sans sauvegarde reussie depuis ce delai, les admins sont prevenus
+      # dans la cloche. 0 pour une instance sauvegardee autrement.
+      BACKUP_STALE_AFTER: ${BACKUP_STALE_AFTER:-36h}
 
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
@@ -180,6 +183,47 @@ services:
     healthcheck:
       disable: true
 
+  # Sauvegarde quotidienne de la base et des pieces jointes, dans une seule
+  # archive posee sur son volume, et copiee sur un stockage S3 si on lui en
+  # donne un (Scaleway, OVH, Hetzner…). Retention : 7 jours, 4 semaines,
+  # 3 mois. Chaque passage est note en base : Paramètres > Sauvegardes le
+  # montre, et les admins sont prevenus s'il manque.
+  #
+  # Restaurer : docker compose exec backup backup restore (la plus recente)
+  # — voir le README. Retirer ce service desactive les sauvegardes, rien
+  # d'autre.
+  backup:
+    image: ${PIILOT_IMAGE:-ghcr.io/plugiit/piilot-app}:${PIILOT_TAG:-latest}
+    restart: unless-stopped
+    entrypoint: ["/app/backup"]
+    environment:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-piilot}?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Heure locale (Europe/Paris) de la sauvegarde quotidienne.
+      BACKUP_AT: ${BACKUP_AT:-03:00}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-3}
+      # Copie hors du serveur, facultative mais vivement conseillee : un seau
+      # S3 compatible, heberge dans l'UE. Les quatre premieres vont ensemble.
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
+      BACKUP_S3_SECRET_KEY: ${BACKUP_S3_SECRET_KEY:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-fr-par}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-piilot/}
+    volumes:
+      # Les pieces jointes, en lecture seule : la sauvegarde ne les touche pas.
+      - piilot-files:/app/data/files:ro
+      # Les archives. A mettre a l'abri hors du serveur : S3 ci-dessus, ou
+      # une copie par un autre moyen.
+      - piilot-backups:/app/data/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -215,3 +259,4 @@ volumes:
   piilot-files:
   piilot-postgres:
   piilot-redis:
+  piilot-backups:

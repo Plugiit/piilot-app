@@ -106,3 +106,107 @@ jobs:
 
       - name: Tests d'integration
         run: make test-integration
+
+  backup:
+    name: Sauvegarde et restauration
+    runs-on: ubuntu-latest
+
+    # Une sauvegarde n'a de valeur que si sa restauration a ete testee : ici,
+    # a chaque poussee. Une base migree et remplie est sauvegardee par la
+    # commande backup, restauree dans une base vide, et l'API demarre dessus.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: piilot
+          POSTGRES_PASSWORD: piilot
+          POSTGRES_DB: piilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U piilot"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      PGPASSWORD: piilot
+      DATABASE_URL: postgres://piilot:piilot@localhost:5432/piilot?sslmode=disable
+      RESTORE_URL: postgres://piilot:piilot@localhost:5432/piilot_restore?sslmode=disable
+      FILES_DIR: ${{ github.workspace }}/tmp/files
+      BACKUP_DIR: ${{ github.workspace }}/tmp/backups
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      # pg_dump et pg_restore de la meme version que le serveur : le paquet
+      # Ubuntu est en retard, celui du PGDG suit.
+      - name: Installe le client Postgres 17
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Applique les migrations et remplit la base
+        env:
+          SEED_PASSWORD: Un-mot-de-passe-de-ci-2026
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/api/migrations:/migrations" \
+            migrate/migrate:latest \
+            -path /migrations -database "$DATABASE_URL" up
+          go run ./cmd/seed -email=admin@example.fr -firstname=Ada -lastname=Lovelace -role=admin
+          mkdir -p "$FILES_DIR/ab" && echo "piece jointe" > "$FILES_DIR/ab/cd.bin"
+
+      - name: Sauvegarde
+        run: |
+          go run ./cmd/backup now
+          go run ./cmd/backup list
+          test "$(go run ./cmd/backup list | wc -l)" = "1"
+
+      - name: Restaure dans une base vide
+        run: |
+          psql -h localhost -U piilot -d postgres -c 'CREATE DATABASE piilot_restore'
+          rm -r -- "$FILES_DIR"
+          DATABASE_URL="$RESTORE_URL" go run ./cmd/backup restore
+          test "$(psql -h localhost -U piilot -d piilot_restore -tAc "SELECT count(*) FROM users WHERE email = 'admin@example.fr'")" = "1"
+          test "$(psql -h localhost -U piilot -d piilot_restore -tAc "SELECT count(*) FROM app_backups WHERE status = 'running'")" = "1"
+          test "$(cat "$FILES_DIR/ab/cd.bin")" = "piece jointe"
+
+      - name: L'API demarre sur la base restauree
+        env:
+          DATABASE_URL: ${{ env.RESTORE_URL }}
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: une-cle-de-test-assez-longue-pour-passer-la-validation
+          APP_ENV: development
+          PORT: 8085
+        run: |
+          go build -o /tmp/piilot-api ./cmd/api
+          /tmp/piilot-api > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8085/health/ready; then echo; exit 0; fi
+            sleep 1
+          done
+          cat /tmp/api.log
+          exit 1

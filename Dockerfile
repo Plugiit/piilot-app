@@ -82,7 +82,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/updater ./cmd/updater \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
     -ldflags="-w -s -X main.version=${VERSION}" \
-    -o /out/gateway ./cmd/gateway
+    -o /out/gateway ./cmd/gateway \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
+    -ldflags="-w -s -X main.version=${VERSION}" \
+    -o /out/backup ./cmd/backup
 
 # =============================================================================
 # Stage 3 : API — tests (bloque le build)
@@ -103,10 +106,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # =============================================================================
 FROM alpine:3.22 AS production
 
-# ca-certificates : appels HTTPS sortants (recuperation des logos d'apps)
-# tzdata        : Europe/Paris pour les dates metier
-# curl          : sonde du HEALTHCHECK
-RUN apk add --no-cache ca-certificates tzdata curl \
+# ca-certificates    : appels HTTPS sortants (recuperation des logos d'apps)
+# tzdata             : Europe/Paris pour les dates metier
+# curl               : sonde du HEALTHCHECK
+# postgresql17-client : pg_dump et pg_restore pour le service backup. La
+#                      version suit celle du service postgres du compose : un
+#                      pg_dump ne lit pas un serveur plus recent que lui.
+RUN apk add --no-cache ca-certificates tzdata curl postgresql17-client \
     && addgroup -g 1000 app \
     && adduser -u 1000 -G app -s /bin/sh -D app
 
@@ -127,6 +133,9 @@ COPY --from=api /out/updater /app/updater
 # La passerelle aussi (service « app ») : elle tient le port et aiguille le
 # trafic vers l'application, ce qui permet de la remplacer sans coupure.
 COPY --from=api /out/gateway /app/gateway
+# La sauvegarde (service « backup ») : elle lit la base et les fichiers,
+# ecrit ses archives dans son volume.
+COPY --from=api /out/backup /app/backup
 
 # Le front appartient a l'utilisateur app : le serveur de fichiers y depose la
 # version compressee de chaque asset au premier acces.
@@ -136,12 +145,13 @@ COPY --from=web --chown=app:app /src/web/dist /app/public
 # conteneur, sans chemin a retenir. Le meme binaire change de comportement
 # selon le nom sous lequel il est appele.
 RUN ln -s /app/seed /usr/local/bin/create-admin \
-    && ln -s /app/seed /usr/local/bin/seed
+    && ln -s /app/seed /usr/local/bin/seed \
+    && ln -s /app/backup /usr/local/bin/backup
 
 # Pieces jointes : a monter sur un volume persistant, sinon elles
 # disparaissent au prochain deploiement. Le repertoire est cree ici avec le
 # bon proprietaire pour qu'un volume neuf en herite.
-RUN mkdir -p /app/data/files && chown -R app:app /app/data
+RUN mkdir -p /app/data/files /app/data/backups && chown -R app:app /app/data
 
 # Valeurs par defaut propres a l'image. Tout le reste — secrets, URLs de base,
 # origines — vient de l'environnement Coolify.
@@ -149,7 +159,8 @@ ENV TZ=Europe/Paris \
     APP_ENV=production \
     PORT=8080 \
     STATIC_DIR=/app/public \
-    FILES_DIR=/app/data/files
+    FILES_DIR=/app/data/files \
+    BACKUP_DIR=/app/data/backups
 
 USER app
 
