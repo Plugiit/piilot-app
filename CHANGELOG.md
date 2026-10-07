@@ -11,6 +11,46 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.2.0] — E-mail ↔ tickets · 2026-10-07
+
+Le client écrit un e-mail, Piilot en fait un ticket ; il répond à l'e-mail, sa réponse arrive sur le ticket. Et chaque geste sensible laisse une trace.
+
+### Points forts
+
+- **Tickets par e-mail** : une adresse de support relevée en IMAP ou poussée par webhook (Postmark, Mailgun, Brevo, e-mail brut). Une nouvelle demande devient un ticket avec accusé de réception ; une réponse rejoint son ticket, sans la citation du message précédent.
+- **À trier** : ce que Piilot ne sait pas ranger seul attend un geste — ouvrir un ticket sur le bon projet, l'ajouter à un ticket, l'écarter. Rien n'est rejeté en silence.
+- **Réponses types** à insérer dans la réponse à un ticket, variables remplies.
+- **Journal d'audit** en ajout seul : connexions et échecs, rôles et permissions, invitations, suppressions, exports, portail, secrets. Filtrable, exportable en CSV.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Paramètres › E-mails entrants** : adresse de support, relève IMAP (mot de passe chiffré en base, « Relever maintenant »), adresses des webhooks avec leur secret, état de la relève et du rangement. Les variables `INBOUND_*` priment et sont signalées.
+- **Fil e-mail des tickets** : chaque e-mail au client porte une adresse de réponse `support+t47.<signature>@…` et un identifiant de message signés ; la réponse revient sur le bon ticket, et un numéro deviné sans sa signature ne mène nulle part.
+- **Rangement** : réponse du client ajoutée au fil avec ses pièces jointes (un ticket clos rouvre) ; réponse d'un collègue en note interne ; nouvelle demande d'un compte du portail ou d'un contact du CRM ouverte en « Assistance » sur le projet du client s'il n'en a qu'un en cours. Réponses automatiques, rebonds, listes et e-mails de Piilot qui reviennent sont écartés ; au-delà de dix demandes en une heure, une adresse attend un humain.
+- **Tickets › À trier** : lien dans la barre d'outils des tickets quand il y a quelque chose à trier, raison de la mise de côté, projets du client deviné, e-mail complet à la demande. Les admins sont prévenus dans la cloche.
+- **Fiche ticket** : les messages arrivés par e-mail sont marqués « par e-mail », avec le nom de qui a écrit même sans compte ; « Déposé par » montre l'adresse d'un demandeur sans compte. Menu **Réponses types** au-dessus de la zone de réponse.
+- **Paramètres › Réponses types** : créer, modifier, retirer ; `{prenom}`, `{numero}`, `{sujet}`, `{projet}`.
+- **Paramètres › Journal d'audit** (admins) : filtres par famille d'action, dates et recherche, export CSV, rétention affichée.
+- Menu des paramètres : un groupe **Intégrations** (Dépôts Git, E-mails entrants).
+
+#### Portail client
+
+- Un client sans compte du portail — un contact du CRM — suit sa demande par e-mail : les réponses lui arrivent, sans lien vers un espace qu'il n'a pas.
+- Un e-mail de ticket invite à répondre directement quand l'adresse de support est réglée.
+
+### Corrections
+
+- Les e-mails de Piilot disaient tous « Merci de ne pas y répondre », y compris ceux auxquels on peut désormais répondre.
+
+### À savoir pour le déploiement
+
+- Migration 000044, en ajout : réglages et file de l'e-mail entrant, demandeur et messages par e-mail des tickets, fil des e-mails sortants, réponses types, journal d'audit (avec son déclencheur d'ajout seul), permission `audit.read` accordée aux admins, notification `inbound_email_held`.
+- Nouvelles variables, toutes facultatives : `INBOUND_ADDRESS`, `INBOUND_IMAP_*`, `INBOUND_WEBHOOK_SECRET`, `AUDIT_RETENTION` (un an). Sans réglage, rien ne change : les tickets passent par le portail comme avant.
+- La boîte de support doit accepter les adresses « plus » (support+…@) pour le rangement le plus fiable.
+- Les signatures des adresses de réponse et le chiffrement du mot de passe IMAP dérivent de `JWT_SECRET` : le changer invalide les adresses de réponse déjà envoyées et oblige à ressaisir le mot de passe IMAP.
+
 ## [1.1.0] — Portail : livrables et prochaine étape · 2026-10-07
 
 Le client voit ce qui vient et répond sans se connecter. Et l'instance se sauvegarde toute seule.
