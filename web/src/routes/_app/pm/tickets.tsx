@@ -2,11 +2,12 @@ import {
   DashboardSquare01Icon,
   FolderOpenIcon,
   ListViewIcon,
+  MailReceive01Icon,
   Search01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { FilterMenu, type Option } from '@/components/filter-menu'
@@ -24,6 +25,8 @@ import {
   TICKET_TRACKER_ORDER,
 } from '@/features/tickets/format'
 import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
+import { heldEmailsQuery } from '@/features/inbound/api'
+import { can, sessionQuery } from '@/lib/auth'
 import { useSearchField } from '@/lib/search-field'
 import type { TicketPriority, TicketStatus, TicketTracker } from '@/types/api'
 import { useRememberFilters } from '@/lib/remember-filters'
@@ -185,6 +188,7 @@ function TicketsLayout() {
               onChange={(value) => setFilter({ projet: value })}
             />
 
+            <TriageLink />
             <NewTicketDialog />
           </div>
         </div>
@@ -196,5 +200,27 @@ function TicketsLayout() {
         <Outlet />
       </div>
     </PageFrame>
+  )
+}
+
+/**
+ * Les e-mails a trier, a cote de « Nouveau ticket » : visibles seulement
+ * quand il y en a, pour qu'un compteur a zero ne devienne pas un decor.
+ */
+function TriageLink() {
+  const { data: session } = useQuery(sessionQuery)
+  const allowed = can(session, 'tickets.write')
+  const { data } = useQuery({ ...heldEmailsQuery(1), enabled: allowed })
+  if (!allowed || data === undefined || data.total === 0) return null
+
+  return (
+    <Link
+      to="/pm/tickets/a-trier"
+      search={{ page: 1 }}
+      className="flex h-10 items-center gap-1.5 rounded-[12px] border border-[#ffd9c2] bg-[#fff2ea] px-3 text-[13px] font-medium text-[#b84a0c] hover:bg-[#ffe8d9]"
+    >
+      <HugeiconsIcon icon={MailReceive01Icon} size={16} strokeWidth={1.8} />
+      {data.total} e-mail{data.total > 1 ? 's' : ''} à trier
+    </Link>
   )
 }
