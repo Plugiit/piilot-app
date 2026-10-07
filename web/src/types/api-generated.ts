@@ -2409,6 +2409,263 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/integrations/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages de l'e-mail entrant
+         * @description Adresse de support, relève IMAP (sans le mot de passe), adresses des webhooks et état de la relève. Les variables INBOUND_* priment et sont signalées. Exige users.write.
+         */
+        get: operations["getAdminIntegrationsMail"];
+        /**
+         * Modifier l'e-mail entrant
+         * @description Le mot de passe IMAP est chiffré en base (AES-GCM, clé dérivée de JWT_SECRET). Rien n'est tenté vers le serveur IMAP ici : la relève le fait en tâche de fond. Exige users.write.
+         */
+        put: operations["putAdminIntegrationsMail"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/mail/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nouveau secret des webhooks
+         * @description Les webhooks configurés avec l'ancien cessent d'être acceptés. 409 si INBOUND_WEBHOOK_SECRET le fixe.
+         */
+        post: operations["postAdminIntegrationsMailRotate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/mail/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Relever la boîte maintenant
+         * @description Enregistre une demande ; la tâche de fond relève dans les dix secondes. L'écran relit l'état.
+         */
+        post: operations["postAdminIntegrationsMailPoll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inbound-emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * E-mails à trier
+         * @description Ceux que Piilot n'a pas su ranger seul : expéditeur inconnu, projet à choisir, réponse d'une autre adresse, transfert d'un collègue. 25 par page. Exige tickets.write.
+         */
+        get: operations["getAdminInboundEmails"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inbound-emails/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Un e-mail à trier */
+        get: operations["getAdminInboundEmail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inbound-emails/{id}/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ouvrir un ticket depuis l'e-mail
+         * @description Sur le projet choisi. L'expéditeur reçoit l'accusé de réception, et ses réponses rejoindront le ticket.
+         */
+        post: operations["postAdminInboundEmailTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inbound-emails/{id}/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ajouter l'e-mail à un ticket
+         * @description Au fil du ticket désigné par son numéro. Un collègue y écrit une note interne ; une autre personne, un message public.
+         */
+        post: operations["postAdminInboundEmailAttach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inbound-emails/{id}/ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Écarter l'e-mail */
+        post: operations["postAdminInboundEmailIgnore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ticket-reply-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réponses types
+         * @description Toutes, par titre. {prenom}, {numero}, {sujet} et {projet} se remplacent à l'insertion.
+         */
+        get: operations["getAdminTicketReplyTemplates"];
+        put?: never;
+        /** Ajouter une réponse type */
+        post: operations["postAdminTicketReplyTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ticket-reply-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Retirer une réponse type */
+        delete: operations["deleteAdminTicketReplyTemplate"];
+        options?: never;
+        head?: never;
+        /** Modifier une réponse type */
+        patch: operations["patchAdminTicketReplyTemplate"];
+        trace?: never;
+    };
+    "/api/v1/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal d'audit
+         * @description Qui a fait quoi, quand, d'où : connexions et échecs, rôles et permissions, invitations, suppressions, exports, accès au portail, secrets. 50 par page. Exige audit.read.
+         */
+        get: operations["getAdminAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Exporter le journal d'audit
+         * @description CSV (séparateur « ; », UTF-8 avec BOM), 50 000 lignes au plus : au-delà, 422 invite à resserrer les dates. L'export est lui-même journalisé.
+         */
+        get: operations["getAdminAuditExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hooks/mail/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * E-mail entrant poussé par un fournisseur
+         * @description Sans session : le jeton de l'adresse (?token=) fait office de preuve. postmark (JSON Inbound), mailgun (formulaire d'une route ; body-mime si l'adresse finit par /mime), brevo (JSON Inbound parsing, sans pièces jointes), raw (le corps est l'e-mail MIME). L'e-mail est déposé et rangé en tâche de fond ; un e-mail déjà reçu n'est pas déposé deux fois.
+         */
+        post: operations["postHookMail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3120,7 +3377,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available" | "backup_stale";
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available" | "backup_stale" | "inbound_email_held";
             /** @description De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message. */
             payload: {
                 [key: string]: unknown;
@@ -3447,6 +3704,11 @@ export interface components {
             new_value: string;
             /** @description Sans auteur des l'origine : un geste de Piilot (integration Git, tache de fond), pas un compte disparu. */
             automatic: boolean;
+            /** @description Arrivé par e-mail. */
+            via_email: boolean;
+            /** @description Nom de qui a écrit l'e-mail, même sans compte. */
+            sender: string;
+            sender_email: string;
         };
         /** @description Fiche d'un ticket : son en-tete, ses coordonnees et son registre, en un appel. */
         TicketDetail: components["schemas"]["Ticket"] & {
@@ -3460,6 +3722,11 @@ export interface components {
             /** @description Pieces jointes deposees avec la demande. */
             files: components["schemas"]["Attachment"][];
             pull_requests: components["schemas"]["PullRequest"][];
+            /** @description Ouvert par e-mail par quelqu'un sans compte du portail : les réponses lui partent à cette adresse. */
+            requester: {
+                name: string;
+                email: string;
+            } | null;
         };
         /** @description Une entree a inscrire au registre. Les changements sont facultatifs mais au meme endroit que le message : repondre et faire avancer un ticket sont un seul geste. Seuls les changements reels sont journalises. */
         PostTicketMessage: {
@@ -4644,6 +4911,149 @@ export interface components {
             stale: boolean;
             /** @description Le journal, les 20 dernières, les plus récentes d'abord. */
             items: components["schemas"]["BackupInfo"][];
+        };
+        InboundSettings: {
+            address: string;
+            address_from_env: boolean;
+            /** @description Les e-mails des tickets invitent à répondre : l'adresse de support est posée. */
+            reply_enabled: boolean;
+            imap: {
+                enabled: boolean;
+                host: string;
+                port: number;
+                /** @enum {string} */
+                security: "tls" | "none";
+                username: string;
+                /** @description Le mot de passe n'est jamais renvoyé, seulement s'il est renseigné. */
+                password_set: boolean;
+                folder: string;
+                from_env: boolean;
+            };
+            webhook: {
+                secret: string;
+                from_env: boolean;
+                /** @description Adresse à donner à chaque fournisseur : postmark, mailgun, brevo, raw. */
+                urls: {
+                    [key: string]: string;
+                };
+            };
+            status: {
+                /** Format: date-time */
+                last_poll_at: string | null;
+                last_poll_error: string;
+                poll_pending: boolean;
+                pending: number;
+                held: number;
+                processed_day: number;
+                failed_week: number;
+            };
+        };
+        InboundSettingsRequest: {
+            address?: string;
+            imap_enabled?: boolean;
+            imap_host?: string;
+            imap_port?: number;
+            /** @enum {string} */
+            imap_security?: "tls" | "none";
+            imap_username?: string;
+            /** @description Absent ou nul : garde le mot de passe en place. Chaîne vide : le retire. */
+            imap_password?: string | null;
+            imap_folder?: string;
+        };
+        InboundProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        InboundItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            received_at: string;
+            /** @enum {string} */
+            source: "imap" | "postmark" | "mailgun" | "brevo" | "raw";
+            from_address: string;
+            from_name: string;
+            subject: string;
+            excerpt: string;
+            attachments: number;
+            /** @enum {string} */
+            reason: "unknown_sender" | "ambiguous_sender" | "project_to_choose" | "sender_mismatch" | "from_team" | "rate_limited" | "ticket_unmatched" | "closed_ticket" | "created" | "replied" | "auto_reply" | "no_sender" | "loop" | "unreadable" | "dismissed" | "";
+            client: components["schemas"]["TicketProject"] | null;
+            /** @description Projets du client deviné qui reçoivent des tickets. */
+            projects: components["schemas"]["InboundProject"][];
+        };
+        InboundPage: {
+            items: components["schemas"]["InboundItem"][];
+            total: number;
+            page: number;
+        };
+        InboundDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            received_at: string;
+            /** @enum {string} */
+            source: "imap" | "postmark" | "mailgun" | "brevo" | "raw";
+            from_address: string;
+            from_name: string;
+            subject: string;
+            excerpt: string;
+            attachments: number;
+            /** @enum {string} */
+            reason: "unknown_sender" | "ambiguous_sender" | "project_to_choose" | "sender_mismatch" | "from_team" | "rate_limited" | "ticket_unmatched" | "closed_ticket" | "created" | "replied" | "auto_reply" | "no_sender" | "loop" | "unreadable" | "dismissed" | "";
+            client: components["schemas"]["TicketProject"] | null;
+            /** @description Projets du client deviné qui reçoivent des tickets. */
+            projects: components["schemas"]["InboundProject"][];
+            /** @enum {string} */
+            status: "pending" | "processed" | "held" | "ignored" | "failed";
+            to: string[];
+            /** @description Texte complet, citations comprises. */
+            body: string;
+            files: {
+                filename: string;
+                size_bytes: number;
+            }[];
+            /** Format: uuid */
+            ticket_id: string | null;
+        };
+        ReplyTemplate: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            body: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ReplyTemplateList: {
+            items: components["schemas"]["ReplyTemplate"][];
+        };
+        ReplyTemplateRequest: {
+            title: string;
+            body: string;
+        };
+        AuditItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            at: string;
+            /** Format: uuid */
+            actor_id: string | null;
+            actor_email: string;
+            action: string;
+            target_type: string;
+            target_id: string;
+            ip: string;
+            user_agent: string;
+            details: {
+                [key: string]: unknown;
+            };
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditItem"][];
+            total: number;
+            page: number;
+            retention_days: number;
         };
     };
     responses: {
@@ -9116,6 +9526,476 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminIntegrationsMail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminIntegrationsMail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboundSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminIntegrationsMailRotate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Secret fixé par l'environnement */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    postAdminIntegrationsMailPoll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminInboundEmails: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminInboundEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postAdminInboundEmailTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    project_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Ticket ouvert */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        ticket_id: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Déjà trié */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminInboundEmailAttach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    numero: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        ticket_id: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Déjà trié */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminInboundEmailIgnore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Écarté */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Déjà trié */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAdminTicketReplyTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplyTemplateList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postAdminTicketReplyTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplyTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Créée */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplyTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminTicketReplyTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retirée */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    patchAdminTicketReplyTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplyTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplyTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminAudit: {
+        parameters: {
+            query?: {
+                /** @description Préfixe : « auth. », « account.role_changed »… */
+                action?: string;
+                actor_id?: string;
+                from?: string;
+                to?: string;
+                search?: string;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminAuditExport: {
+        parameters: {
+            query?: {
+                /** @description Préfixe : « auth. », « account.role_changed »… */
+                action?: string;
+                actor_id?: string;
+                from?: string;
+                to?: string;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postHookMail: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                provider: "postmark" | "mailgun" | "brevo" | "raw";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+                "multipart/form-data": Record<string, never>;
+                "message/rfc822": string;
+            };
+        };
+        responses: {
+            /** @description Déposé */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        stored: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
 }

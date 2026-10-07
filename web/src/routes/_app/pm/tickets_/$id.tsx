@@ -181,6 +181,7 @@ function TicketDetailPage() {
                 Déposé le <span className="tabular-nums">{formatDateTime(data.created_at)}</span>
                 {data.reporter !== null &&
                   ` par ${`${data.reporter.firstname} ${data.reporter.lastname}`.trim() || 'un compte sans nom'}`}
+                {data.reporter === null && data.requester !== null && ` par e-mail, par ${data.requester.name || data.requester.email}`}
               </p>
 
               {data.description !== '' && (
@@ -344,7 +345,15 @@ function TicketDetailPage() {
                 <Person person={data.assignee} absent="À prendre" />
               </Row>
               <Row label="Déposé par">
-                <Person person={data.reporter} absent="Inconnu" />
+                {data.reporter === null && data.requester !== null ? (
+                  // Sans compte du portail : les reponses partent a cette adresse.
+                  <a href={`mailto:${data.requester.email}`} className="flex min-w-0 flex-col text-[14px] text-[#1b1b1b] hover:underline">
+                    <span className="truncate">{data.requester.name || data.requester.email}</span>
+                    {data.requester.name !== '' && <span className="truncate text-[12px] text-[#73757c]">{data.requester.email}</span>}
+                  </a>
+                ) : (
+                  <Person person={data.reporter} absent="Inconnu" />
+                )}
               </Row>
             </PanelCard>
 
