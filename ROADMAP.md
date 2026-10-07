@@ -1,4 +1,4 @@
-# Roadmap vers la V1
+# Roadmap
 
 Piilot est l'outil de gestion de projet de l'agence. Il a **trois espaces**,
 un par population :
@@ -9,27 +9,32 @@ un par population :
 | **Team** | `team` | Produire : ses tâches, ses tickets, ses livrables, son temps, les projets sur lesquels on intervient |
 | **Client** | `client` | Suivre ses projets, valider les livrables, déposer et suivre ses tickets |
 
-La **V1** est atteinte quand chacun des trois espaces couvre son usage
-quotidien, sans écran factice ni recours à l'ancienne plateforme.
+La V1 est publiée. Le cap des trois prochains mois : **un portail client
+incontournable** — que le client y trouve ce qu'il venait demander par
+e-mail — sans laisser de côté ce qui rend la production sûre (sauvegardes,
+RGPD, audit) ni la reprise des données de l'ancienne plateforme (import CSV).
+Les trois avancent en parallèle, par petites versions, publiées au fil de
+l'eau.
 
 ## État actuel
 
-**Version : 0.3.0**, publiée le 2026-09-19.
+**Version : 1.0.0**, publiée le 2026-10-07.
 
-L'espace **Admin** porte le back-office complet : projets, tâches, tickets,
-livrables, saisie du temps, CRM avec pipeline et contacts. Le socle
-d'authentification et de rôles est en place. Les deux autres espaces sont des
-coquilles vides : **Team** voit les mêmes écrans qu'Admin avec des droits
-réduits, et **Client** a les routes de connexion mais aucun endpoint d'API.
+Les trois espaces couvrent leur usage quotidien. La 1.0 a été tournée vers le
+temps de l'équipe : palette Cmd+K, tâches en une ligne, chrono, filtres
+mémorisés, adresse et SIRET remplis par les API publiques, intégration GitHub
+et GitLab par webhook. Restent ouverts, parmi les critères de sortie annoncés
+pour la V1 : sauvegardes testées, export et suppression RGPD, journal
+d'audit, tests de bout en bout, recette avec des clients pilotes. Ils sont
+répartis dans les versions ci-dessous.
 
 ---
 
-## Roadmap : 0.4 → V1
+## Roadmap
 
-Chaque version apporte des fonctionnalités visibles. Les chantiers purement
-techniques (tests E2E, revue de sécurité, RGPD) et l'exploitation
-(déploiement, sauvegardes) sortent en correctifs au fil de l'eau ou
-deviennent des critères de sortie de la V1.
+Chaque version apporte des fonctionnalités visibles, et prend sa part des
+chantiers de fiabilisation. Les versions sont un ordre, pas des dates : une
+version sort quand ce qu'elle contient est prêt.
 
 <!-- roadmap:table -->
 | Statut | Version | Nom | Espace | Objectif |
@@ -43,7 +48,13 @@ deviennent des critères de sortie de la V1.
 | ✅ Livrée | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
 | ✅ Livrée | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
 | ✅ Livrée | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
-| 📍 Actuelle | **1.0.0** | V1 | Tous | Recette et critères de sortie |
+| 📍 Actuelle | **1.0.0** | V1 | Tous | Le temps de l'équipe : palette, chrono, Git, SIRET, adresse |
+| ⏳ À venir | 1.1.0 | Portail : livrables et prochaine étape | Client | Livrables sur la fiche projet, validation depuis l'e-mail, prochaine étape, interlocuteurs ; sauvegardes |
+| ⏳ À venir | 1.2.0 | E-mail ↔ tickets | Client | Répondre et créer un ticket par e-mail (IMAP et webhook) ; journal d'audit |
+| ⏳ À venir | 1.3.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
+| ⏳ À venir | 1.4.0 | Rapports | Admin | Temps par client et projet en CSV, activité de l'équipe, compte rendu PDF pour le client |
+| ⏳ À venir | 1.5.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité et certificat |
+| ⏳ À venir | 1.6.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
 <!-- /roadmap:table -->
 
 ---
@@ -283,35 +294,158 @@ portail.
 **Terminé quand** : le support client passe entièrement par le portail pendant
 deux semaines.
 
-### 1.0.0 — V1
+### 1.0.0 — V1 ✅
 
-**Recette** : deux à quatre semaines avec deux ou trois clients pilotes.
-Seules des corrections y entrent.
+Publiée le 2026-10-07. Palette Cmd+K, tâches en une ligne, Mon travail qui
+agit, chrono, filtres mémorisés, relance des livrables, invitation portail
+depuis un contact, adresse autocomplétée, logo par projet, jalon atteint par
+ses livrables, intégration GitHub/GitLab, session qui ne s'expire plus.
 
-**Critères de sortie**
+Critères de sortie encore ouverts, repris ci-dessous : sauvegardes (1.1),
+journal d'audit (1.2), export et suppression RGPD (1.3), tests de bout en
+bout et recette (1.6).
 
-- [ ] Admin, Team et Client couvrent leur usage quotidien, permissions
-      testées.
-- [ ] Aucun écran réservé, aucun widget factice : chaque écran est livré ou
-      retiré.
-- [ ] Isolation du portail couverte par des tests bloquants.
-- [ ] Parcours clés couverts par des tests de bout en bout.
-- [ ] Tests d'intégration : budget de performance (3 requêtes SQL max par
-      endpoint) vérifié.
-- [ ] Sauvegardes quotidiennes configurées, restauration testée.
-- [ ] Export et suppression RGPD opérationnels.
-- [ ] Journal d'audit des actions sensibles.
-- [ ] Gestion de projet et CRM ne passent plus par l'ancienne plateforme.
-- [ ] Documentation et guide utilisateur à jour.
+---
+
+### 1.1.0 — Portail : livrables et prochaine étape
+
+Le client voit ce qui vient et répond sans se connecter.
+
+**Agence**
+
+- Onglet **Livrables** sur la fiche projet : la liste, le statut, « Nouveau
+  livrable » avec le projet déjà choisi et le jalon proposé. Aujourd'hui il
+  faut passer par l'écran global filtré.
+- **Lien de rendez-vous** par membre de l'équipe (Cal.com, Calendly, Google),
+  dans Mon compte. Pas de créneaux dans Piilot : rien à synchroniser.
+
+**Portail**
+
+- **Validation depuis l'e-mail** : « Valider » et « Faire un retour » dans
+  l'e-mail de dépôt, par un lien signé à durée limitée. Un retour ouvre la
+  page avec le champ prêt.
+- **Prochaine étape** sur la fiche projet : le prochain jalon daté, ce qui
+  attend le client (livrables à valider, questions ouvertes), ce que
+  l'agence fait en ce moment.
+- **Interlocuteurs** : le chargé de compte et l'équipe du projet, avec
+  e-mail, téléphone et lien de rendez-vous.
+
+**Fiabilisation : sauvegardes**
+
+- Service `backup` dans le `docker-compose.yml` : dump quotidien de Postgres
+  et des fichiers, rétention (7 jours, 4 semaines, 3 mois), destination
+  locale ou S3 compatible (UE).
+- Restauration documentée et **testée en CI** : un dump restauré, l'API
+  démarre dessus.
+- Date de la dernière sauvegarde réussie visible dans Paramètres, alerte
+  aux admins quand elle manque.
+
+---
+
+### 1.2.0 — E-mail ↔ tickets
+
+Le client écrit un e-mail, Piilot en fait un ticket ; il répond à l'e-mail,
+sa réponse arrive sur le ticket.
+
+- **Réponse par e-mail** : chaque notification de ticket part avec un
+  identifiant de fil ; la réponse du client, reconnue par `In-Reply-To` et
+  par l'adresse `support+<ticket>@`, s'inscrit comme message du ticket, avec
+  ses pièces jointes.
+- **Création par e-mail** : un e-mail d'un contact connu, hors fil, crée un
+  ticket sur le projet déduit (un seul projet actif pour ce client, sinon
+  « à classer »). Un expéditeur inconnu est mis en attente, jamais rejeté
+  en silence.
+- **Deux branchements**, au choix dans Paramètres : une boîte **IMAP**
+  relevée par un job chaque minute (marche partout, rien à exposer), et un
+  **webhook entrant** du fournisseur d'e-mail (Brevo, Mailgun, Postmark)
+  pour l'instantané. Les deux écrivent en base ; les écrans lisent la base.
+- Réponses types sur les tickets, pour les demandes qui reviennent.
+
+**Fiabilisation : journal d'audit**
+
+- Table d'audit en ajout seul : connexions et échecs, changements de rôle et
+  de permission, invitations, suppressions, exports, accès au portail,
+  changements de secret. Qui, quand, d'où.
+- Écran *Paramètres > Audit*, filtrable, exportable en CSV. Rétention
+  réglable.
+
+---
+
+### 1.3.0 — Import et RGPD
+
+Ramener les données de l'ancienne plateforme, et savoir les rendre ou les
+effacer.
+
+- **Import CSV** depuis l'interface, par entité : clients, contacts, projets,
+  temps passé. Aperçu des premières lignes, correspondance des colonnes
+  mémorisée, détection des doublons (SIRET, e-mail, nom), rapport de ce qui
+  est entré et de ce qui a été ignoré, et un import rejouable sans doublon.
+  Sert aux autres agences autant qu'à la reprise.
+- **Export CSV** des mêmes entités, avec les mêmes colonnes : ce qui entre
+  peut ressortir.
+- **RGPD** : export de tout ce qui concerne un client ou un compte (JSON et
+  fichiers, dans une archive), suppression définitive avec délai de
+  rétractation, purge des comptes inactifs selon une durée réglable. Chaque
+  export et suppression au journal d'audit.
+
+---
+
+### 1.4.0 — Rapports
+
+Ce que l'agence a fait, pour elle et pour le client.
+
+- **Temps par client et par projet** sur une période, facturable ou non, par
+  personne et par prestation, export **CSV** pour la facturation, qui reste
+  sur l'ancienne plateforme.
+- **Activité de l'équipe** : charge par personne, temps saisi contre temps
+  attendu, tâches livrées, retards, tickets traités.
+- **Compte rendu PDF** pour le client, mensuel ou à la demande : temps passé,
+  tickets traités, livrables validés, mises en ligne. Posé sur le portail
+  et envoyé par e-mail. Génération par un job, jamais dans la requête.
+
+---
+
+### 1.5.0 — Portail : documents et santé du site
+
+Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
+
+- **Documents classés** par type — devis, contrat, compte rendu, maquette,
+  autre — avec versions, et un **accusé** d'un clic côté client (« lu »,
+  « accepté ») horodaté et visible de l'agence. Pas de signature
+  électronique : sans prestataire, elle n'aurait pas de valeur ; avec, c'est
+  une dépendance payante. Le devis signé reste un PDF déposé.
+- **Historique des mises en ligne** : les mises en ligne reçues par Git,
+  avec ce qui a changé (tickets clos, pull requests fusionnées).
+- **Santé du site** : un job appelle l'URL de production toutes les cinq
+  minutes — en ligne ou non, temps de réponse, certificat et sa date
+  d'expiration. Alerte à l'équipe au second échec, pastille « tout va bien »
+  sur le portail. Pas de SEO : ça reste sur l'ancienne plateforme.
+
+---
+
+### 1.6.0 — Fin de l'ancienne plateforme pour la gestion de projet et le CRM
+
+Ce qui manque encore pour ne plus y retourner, et clore la V1.
+
+- **Actions en masse** sur tâches, tickets et livrables : réassigner,
+  décaler, changer le statut, archiver.
+- **Tests de bout en bout** en CI sur les parcours clés : connexion, projet,
+  ticket, validation client, e-mail entrant, import.
+- **Recette** avec deux ou trois clients pilotes sur le portail ; seules des
+  corrections entrent pendant ce temps.
+- **Guide utilisateur** pour l'équipe et pour le client, servi depuis
+  l'application.
+- Critères de sortie de la V1 tous cochés ; l'ancienne plateforme ne garde
+  que la facturation, le SEO, le CMS et le RH.
 
 ---
 
 ## Exploitation et correctifs
 
-Sortent en correctifs (0.3.1, 0.3.2…), au fil de l'eau :
+Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 
-- **Infrastructure** : déploiement en production, sauvegardes avec
-  restauration testée, supervision (Uptime Kuma), alertes.
+- **Infrastructure** : supervision et alertes de l'instance elle-même
+  (les sauvegardes sont en 1.1, la santé des sites clients en 1.5).
 - **Sécurité** : revue de la surface portail, CSP, limitation de débit.
 - **Nettoyage** : correction des textes périmés, retrait des éléments
   factices qui reviennent plus tard.
@@ -326,5 +460,10 @@ Sortent en correctifs (0.3.1, 0.3.2…), au fil de l'eau :
 | **D2** | Domaine de production | Un sous-domaine unique. `COOKIE_DOMAIN` vide. |
 | **D3** | Nom affiché | « Piilot » pour le produit, « Plugiit » pour l'agence. |
 | **D4** | Fournisseur d'e-mails | Brevo ou Scaleway TEM (hébergé UE). |
-| **D5** | Données de l'ancienne plateforme | Saisie manuelle des projets en cours. Import scripté seulement si le volume le justifie. |
+| **D5** | Données de l'ancienne plateforme | Import CSV depuis l'interface (1.3), par entité, rejouable. Pas de lecture directe de l'ancienne base. |
 | **D6** | Stockage des fichiers | Disque local tant qu'une seule instance. Visibilité par fichier : interne par défaut. |
+| **D7** | E-mail entrant | Les deux : boîte IMAP relevée par un job (par défaut), webhook du fournisseur en option. Jamais dans la requête HTTP. |
+| **D8** | Rendez-vous | Un lien externe par membre (Cal.com, Calendly, Google). Pas de créneaux dans Piilot. |
+| **D9** | Devis et contrats sur le portail | PDF classés avec accusé « lu / accepté » horodaté. Pas de signature électronique. |
+| **D10** | Santé du site | Disponibilité, temps de réponse et certificat, par un job. Pas de SEO. |
+| **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
