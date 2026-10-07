@@ -2365,6 +2365,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/deliverables/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page de réponse à un livrable, depuis l'e-mail
+         * @description Sans session : le jeton signé porté par le lien de l'e-mail de dépôt tient lieu de preuve et désigne le compte qui répond. Rien n'est décidé à l'ouverture : un filtre anti-spam qui suit les liens ne valide rien. Le lien vaut 30 jours et ne désigne que la version courante.
+         */
+        get: operations["getPublicDeliverableReview"];
+        put?: never;
+        /**
+         * Répondre à un livrable depuis l'e-mail
+         * @description Enregistre la réponse au nom du compte du jeton, par le même chemin que depuis le portail : mêmes notifications, même journal, même refus (409) si la version a déjà reçu sa réponse. Des retours exigent un mot.
+         */
+        post: operations["postPublicDeliverableReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * État des sauvegardes
+         * @description Dernière sauvegarde réussie et journal des 20 dernières, écrits par le service backup du docker-compose. Exige system.update, accordée aux seuls admins.
+         */
+        get: operations["getAdminSystemBackups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2427,6 +2471,8 @@ export interface components {
              *     ]
              */
             permissions: string[];
+            /** @description Lien de prise de rendez-vous (Cal.com, Calendly, Google…), montré aux clients sur le portail. Vide sans lien. */
+            booking_url: string;
         };
         /** @description Reponse de login, refresh et me. Les jetons sont dans les cookies, jamais ici. */
         SessionResponse: {
@@ -3061,6 +3107,8 @@ export interface components {
             postal_code?: string;
             city?: string;
             country?: string;
+            /** @description Lien de prise de rendez-vous ; vide pour le retirer. Doit être une adresse http(s). */
+            booking_url?: string;
         };
         /** @description Le mot de passe courant est exige meme si l'appelant est authentifie : un jeton vole suffirait autrement a verrouiller le compte de son titulaire. Toutes les sessions sont revoquees, celle qui fait le changement comprise. */
         ChangePasswordRequest: {
@@ -3072,7 +3120,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available";
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available" | "backup_stale";
             /** @description De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message. */
             payload: {
                 [key: string]: unknown;
@@ -4315,6 +4363,9 @@ export interface components {
             /** @description Adresse du logo du projet, nulle sans logo. */
             logo_url: string | null;
             last_deployment: components["schemas"]["Deployment"] | null;
+            next_step: components["schemas"]["PortalNextStep"];
+            /** @description Le chargé de compte d'abord, puis l'équipe du projet. */
+            team: components["schemas"]["PortalContact"][];
         };
         PortalVersion: {
             numero: number;
@@ -4530,6 +4581,70 @@ export interface components {
             handled: boolean;
             note: string;
         };
+        PortalContact: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            initials: string;
+            avatar_url: string | null;
+            /** @description « Chargé·e de compte » ou « Équipe du projet ». */
+            role: string;
+            email: string;
+            phone: string;
+            /** @description Lien de rendez-vous du membre, vide s'il n'en a pas. */
+            booking_url: string;
+        };
+        PortalNextStep: {
+            /** @description Prochain jalon non atteint, nul quand tout est atteint ou rien posé. */
+            milestone: components["schemas"]["Milestone"] | null;
+            /** @description Livrables qui attendent la réponse du client. */
+            deliverables_pending: number;
+            tasks_done: number;
+            tasks_total: number;
+        };
+        PortalReview: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            project_name: string;
+            milestone: string | null;
+            /** @description Prénom du compte qui répond. */
+            firstname: string;
+            version: number;
+            url: string;
+            /** Format: uuid */
+            file_id: string | null;
+            /** @enum {string} */
+            status: "en_attente" | "valide" | "retours";
+            /** Format: date-time */
+            decided_at: string | null;
+        };
+        BackupInfo: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** @enum {string} */
+            status: "running" | "done" | "failed";
+            /** @description Où l'archive est posée : chemin local, et seau S3 le cas échéant. */
+            location: string;
+            /** Format: int64 */
+            size_bytes: number;
+            error: string;
+        };
+        BackupStatus: {
+            /** @description Dernière sauvegarde réussie, nulle tant qu'il n'y en a aucune. */
+            last_success: components["schemas"]["BackupInfo"] | null;
+            /** @description Délai (BACKUP_STALE_AFTER) au-delà duquel l'instance est jugée sans sauvegarde. */
+            stale_after: string;
+            stale: boolean;
+            /** @description Le journal, les 20 dernières, les plus récentes d'abord. */
+            items: components["schemas"]["BackupInfo"][];
+        };
     };
     responses: {
         /** @description Authentification requise ou session expiree */
@@ -4579,6 +4694,15 @@ export interface components {
         };
         /** @description Ressource introuvable */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Lien périmé, altéré, ou qui ne désigne plus la version courante */
+        LinkExpired: {
             headers: {
                 [name: string]: unknown;
             };
@@ -8903,6 +9027,95 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getPublicDeliverableReview: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le livrable et la version à juger */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalReview"];
+                };
+            };
+            410: components["responses"]["LinkExpired"];
+        };
+    };
+    postPublicDeliverableReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @enum {string} */
+                    decision: "valide" | "retours";
+                    feedback?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Réponse enregistrée */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalReview"];
+                };
+            };
+            /** @description Cette version a déjà reçu une réponse */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            410: components["responses"]["LinkExpired"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminSystemBackups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description État */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

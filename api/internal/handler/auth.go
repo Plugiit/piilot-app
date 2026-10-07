@@ -256,6 +256,7 @@ type updateProfileRequest struct {
 	PostalCode *string `json:"postal_code"`
 	City       *string `json:"city"`
 	Country    *string `json:"country"`
+	BookingURL *string `json:"booking_url"`
 }
 
 // UpdateMe modifie le compte appelant.
@@ -280,6 +281,7 @@ func (h *Auth) UpdateMe(c fiber.Ctx) error {
 		PostalCode: body.PostalCode,
 		City:       body.City,
 		Country:    body.Country,
+		BookingURL: body.BookingURL,
 	})
 	if err != nil {
 		return err

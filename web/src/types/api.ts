@@ -29,6 +29,7 @@ export type ApiError = components['schemas']['Error']
  * TypeScript la contrainte que le RBAC a justement supprimee.
  */
 export type User = components['schemas']['User']
+export type UpdateProfileRequest = components['schemas']['UpdateProfileRequest']
 
 /** Enveloppe rendue par login, refresh et me. Les jetons sont dans les cookies. */
 export type SessionResponse = components['schemas']['SessionResponse']
@@ -261,6 +262,10 @@ export type InteractionKind = Interaction['kind']
 export type PortalProject = components['schemas']['PortalProject']
 export type PortalProjectDetail = components['schemas']['PortalProjectDetail']
 export type PortalDeliverable = components['schemas']['PortalDeliverable']
+export type PortalReview = components['schemas']['PortalReview']
+export type PortalContact = components['schemas']['PortalContact']
+export type BackupStatus = components['schemas']['BackupStatus']
+export type BackupInfo = components['schemas']['BackupInfo']
 export type PortalDeliverableDetail = components['schemas']['PortalDeliverableDetail']
 export type PortalVersion = components['schemas']['PortalVersion']
 export type PortalFile = components['schemas']['PortalFile']
