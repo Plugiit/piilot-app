@@ -91,6 +91,49 @@ func TestUnJalonCompteSesLivrablesValides(t *testing.T) {
 	if err := milestones.AttachDeliverable(ctx, b.ID, nil); err != nil {
 		t.Fatalf("detachement : %v", err)
 	}
+
+	// Il ne reste que « Accueil », valide : le jalon est atteint de lui-meme.
+	auto, err := milestones.List(ctx, projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auto.Items[0].State != "done" {
+		t.Fatalf("tous les livrables valides, jalon attendu atteint : %+v", auto.Items[0])
+	}
+
+	// Un livrable de plus, non valide : l'atteinte automatique se retire.
+	c, err := deliverables.Create(ctx, usecase.CreateDeliverableInput{
+		ProjectID: projectID, Title: "Mentions", URL: "https://example.fr/c", CreatedBy: &author, MilestoneID: &m.ID,
+	})
+	if err != nil {
+		t.Fatalf("livrable c : %v", err)
+	}
+	reopened, err := milestones.List(ctx, projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Items[0].State == "done" {
+		t.Fatalf("un livrable non valide s'ajoute, jalon attendu rouvert : %+v", reopened.Items[0])
+	}
+
+	// Atteint a la main, il le reste meme si un livrable retombe.
+	done := true
+	if _, err := milestones.Update(ctx, m.ID, usecase.MilestoneInput{SetDone: true, Done: done}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deliverables.Decide(ctx, c.ID, "retours", "A revoir", &author); err != nil {
+		t.Fatalf("retours : %v", err)
+	}
+	manual, err := milestones.List(ctx, projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manual.Items[0].State != "done" {
+		t.Fatalf("une atteinte posee a la main ne se rouvre pas : %+v", manual.Items[0])
+	}
+	if err := milestones.AttachDeliverable(ctx, c.ID, nil); err != nil {
+		t.Fatal(err)
+	}
 	other := newProject(t, pool, 0)
 	foreign, err := milestones.Create(ctx, other, usecase.MilestoneInput{Title: &title}, author)
 	if err != nil {
@@ -100,7 +143,6 @@ func TestUnJalonCompteSesLivrablesValides(t *testing.T) {
 		t.Fatal("un livrable ne se rattache pas au jalon d'un autre projet")
 	}
 
-	done := true
 	m2, err := milestones.Update(ctx, m.ID, usecase.MilestoneInput{SetDone: true, Done: done})
 	if err != nil {
 		t.Fatal(err)
