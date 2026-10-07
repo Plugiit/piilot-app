@@ -1,5 +1,6 @@
 {{define "content"}}<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Bonjour{{if .Firstname}} {{.Firstname}}{{end}},</p>
 <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">{{if .IsFirst}}Un nouveau livrable vous attend{{else}}Une nouvelle version vous attend{{end}} pour le projet {{.ProjectName}} : <strong>{{.Deliverable}}</strong>{{if not .IsFirst}}, version {{.Version}}{{end}}.</p>
 <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Consultez-le dans votre espace client, puis validez-le ou dites-nous ce qui doit changer.</p>
-{{template "button" .}}
+{{if and .ValidateURL .FeedbackURL}}<p style="margin:24px 0 8px 0;"><a href="{{.ValidateURL}}" style="display:inline-block;background:#ff782b;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:8px;margin-right:8px;">Valider</a><a href="{{.FeedbackURL}}" style="display:inline-block;background:#ffffff;color:#1b1b1b;border:1px solid #d4d4d8;text-decoration:none;font-weight:600;font-size:15px;padding:11px 20px;border-radius:8px;">Faire un retour</a></p>
+<p style="margin:0 0 24px 0;font-size:13px;line-height:1.6;color:#73757c;">Ces deux liens vous sont personnels et valent 30 jours. Vous pouvez aussi <a href="{{.URL}}" style="color:#1b1b1b;">voir le livrable dans votre espace</a>.</p>{{else}}{{template "button" .}}{{end}}
 <p style="margin:0;font-size:13px;line-height:1.6;color:#73757c;">Vous recevez cet e-mail parce que vous suivez les projets de votre entreprise dans Piilot.</p>{{end}}

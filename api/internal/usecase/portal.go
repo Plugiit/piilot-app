@@ -127,6 +127,9 @@ type PortalService struct {
 	maxFile      int64
 	deliverables *DeliverableService
 	tickets      *TicketService
+	// Cle des liens de reponse envoyes par e-mail ; vide, aucun lien n'est
+	// accepte.
+	linkKey []byte
 }
 
 // NewPortalService construit le service. Les livrables et les tickets passent

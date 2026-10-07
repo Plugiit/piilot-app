@@ -68,7 +68,7 @@ func TestValidateRefuseUnExpediteurInvalide(t *testing.T) {
 }
 
 func TestDeliverableSubmittedDitLaVersion(t *testing.T) {
-	first, err := DeliverableSubmitted("c@example.fr", "Inès", "Refonte <Iris>", "Maquettes", 1, "https://p.test/client/livrables/x")
+	first, err := DeliverableSubmitted("c@example.fr", "Inès", "Refonte <Iris>", "Maquettes", 1, "https://p.test/client/livrables/x", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,13 +79,30 @@ func TestDeliverableSubmittedDitLaVersion(t *testing.T) {
 		t.Error("le nom du projet n'est pas echappe")
 	}
 
-	second, err := DeliverableSubmitted("c@example.fr", "", "Refonte", "Maquettes", 2, "https://p.test/client/livrables/x")
+	second, err := DeliverableSubmitted("c@example.fr", "", "Refonte", "Maquettes", 2, "https://p.test/client/livrables/x", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(second.Subject, "Nouvelle version") || !strings.Contains(second.Text, "version 2") ||
 		!strings.Contains(second.Text, "https://p.test/client/livrables/x") {
 		t.Errorf("seconde version : %q / %q", second.Subject, second.Text)
+	}
+	if strings.Contains(second.HTML, "Faire un retour") {
+		t.Error("sans liens signes, pas de boutons de reponse")
+	}
+}
+
+func TestDeliverableSubmittedPorteLesLiensDeReponse(t *testing.T) {
+	msg, err := DeliverableSubmitted("c@example.fr", "Inès", "Refonte", "Maquettes", 1, "https://p.test/client/livrables/x",
+		"https://p.test/client/livrables/x/repondre?token=t&decision=valide",
+		"https://p.test/client/livrables/x/repondre?token=t&decision=retours")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"decision=valide", "decision=retours", "Faire un retour", "30 jours"} {
+		if !strings.Contains(msg.HTML, want) || !strings.Contains(msg.Text, strings.TrimSpace(want)) && want != "Faire un retour" && want != "30 jours" {
+			t.Errorf("manque %q", want)
+		}
 	}
 }
 

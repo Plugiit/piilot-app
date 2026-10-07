@@ -115,8 +115,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// decision du client passe par les memes notifications et le meme journal.
 	deliverableService := usecase.NewDeliverableService(pool, notifyBus)
 	deliverableService.SetMail(cfg.URLFor(spaces.Client), sender.Configured())
+	// Les liens « Valider » et « Faire un retour » des e-mails de depot sont
+	// signes avec une cle derivee du secret des jetons.
+	deliverableService.SetLinkSecret(cfg.JWTSecret)
 	ticketService := usecase.NewTicketService(pool, notifyBus)
 	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), cfg.URLFor(spaces.Admin), sender.Configured())
+	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
+	portalService.SetLinkSecret(cfg.JWTSecret)
 
 	clientService := usecase.NewClientService(pool)
 	timeEntries := usecase.NewTimeEntryService(pool)
@@ -146,7 +151,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Notifications: handler.NewNotifications(notificationService, notifyBus),
 		Tickets:       handler.NewTickets(ticketService),
 		Deliverables:  handler.NewDeliverables(deliverableService),
-		Portal:        handler.NewPortal(usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)),
+		Portal:        handler.NewPortal(portalService),
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
 		TimeEntries:   handler.NewTimeEntries(timeEntries),
@@ -161,6 +166,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Templates:     handler.NewProjectTemplates(usecase.NewProjectTemplateService(pool)),
 		Interactions:  handler.NewInteractions(usecase.NewInteractionService(pool)),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
+		Backups:       handler.NewBackups(usecase.NewBackupService(pool, cfg.BackupStaleAfter)),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 
@@ -196,6 +202,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 	if cfg.UpdateCheck {
 		repository.StartReleaseCheck(ctx, pool, cfg.UpdateRepository, version, cfg.UpdateCheckInterval, log)
 	}
+
+	// Surveillance des sauvegardes : la commande backup (cmd/backup) les fait
+	// et les journalise, l'API previent les admins quand elles manquent.
+	repository.StartBackupWatch(ctx, pool, cfg.BackupStaleAfter, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.

@@ -23,6 +23,7 @@ type Deps struct {
 	TimeEntries   *TimeEntries
 	TimeReports   *TimeReports
 	Updates       *Updates
+	Backups       *Backups
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
@@ -59,6 +60,11 @@ func Register(app *fiber.App, deps Deps) {
 
 	// Webhooks entrants, sans session : la signature fait office de preuve.
 	v1.Post("/hooks/git", deps.Git.Webhook)
+
+	// Reponse a un livrable depuis l'e-mail, sans session : le jeton signe du
+	// lien fait office de preuve, et designe le compte qui repond.
+	v1.Get("/public/deliverables/:id/review", deps.Portal.Review)
+	v1.Post("/public/deliverables/:id/review", deps.Portal.ReviewDecide)
 }
 
 // registerClientRoutes monte le portail client.
@@ -171,6 +177,7 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Get("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Status)
 	r.Post("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Request)
 	r.Post("/system/update/check", deps.Guard.RequirePermission("system.update"), deps.Updates.Check)
+	r.Get("/system/backups", deps.Guard.RequirePermission("system.update"), deps.Backups.Status)
 
 	// Clients : le strict necessaire au champ « Client » du formulaire de
 	// projet — un menu deroulant, pas un ecran.

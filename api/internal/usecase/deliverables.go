@@ -107,11 +107,18 @@ type DeliverableService struct {
 	// Adresse publique de l'application et envoi des e-mails : le client est
 	// prevenu par e-mail de chaque version qui attend sa reponse.
 	baseURL     string
+	linkSecret  []byte
 	mailEnabled bool
 }
 
 func NewDeliverableService(pool *pgxpool.Pool, bus Bus) *DeliverableService {
 	return &DeliverableService{pool: pool, q: db.New(pool), bus: bus}
+}
+
+// SetLinkSecret donne la cle des liens « Valider » et « Faire un retour » des
+// e-mails de depot. Sans cle, l'e-mail ne porte que le lien vers le portail.
+func (s *DeliverableService) SetLinkSecret(secret []byte) {
+	s.linkSecret = secret
 }
 
 // SetMail active l'e-mail au client a chaque version deposee.
@@ -141,8 +148,14 @@ func (s *DeliverableService) notifyClient(ctx context.Context, q *db.Queries, de
 	}
 
 	url := fmt.Sprintf("%s/client/livrables/%s", s.baseURL, deliverableID)
+	now := time.Now()
 	for _, r := range recipients {
-		msg, err := mailer.DeliverableSubmitted(r.Email, r.Firstname, info.ProjectName, info.Title, int(info.Numero), url)
+		// Un lien par destinataire : il repond en son nom, sans se connecter.
+		var validate, feedback string
+		if locked.CurrentVersionID != nil {
+			validate, feedback = ReviewLinks(s.linkSecret, s.baseURL, deliverableID, *locked.CurrentVersionID, r.ID, now)
+		}
+		msg, err := mailer.DeliverableSubmitted(r.Email, r.Firstname, info.ProjectName, info.Title, int(info.Numero), url, validate, feedback)
 		if err != nil {
 			return err
 		}
