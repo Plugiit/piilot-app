@@ -260,6 +260,43 @@ export function useUploadProjectFile(id: string) {
   })
 }
 
+/**
+ * Depot du logo d'un projet.
+ *
+ * Le logo s'affiche partout ou le projet apparait : la fiche, les listes et
+ * les raccourcis sont relus.
+ */
+export function useUploadProjectLogo(id: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (file: File) =>
+      postFile<ProjectDetail>(`/api/v1/admin/projects/${id}/logo`, 'file', file),
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(id), project)
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.favorites() })
+    },
+  })
+}
+
+/** Retrait du logo d'un projet. */
+export function useDeleteProjectLogo(id: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.DELETE('/api/v1/admin/projects/{id}/logo', { params: { path: { id } } }),
+      ),
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(id), project)
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.favorites() })
+    },
+  })
+}
+
 /** Suppression d'une piece jointe. */
 export function useDeleteProjectFile(projectId: string) {
   const queryClient = useQueryClient()
