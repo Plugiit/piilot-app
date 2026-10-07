@@ -1,54 +1,64 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { HttpError, unwrap } from '@/lib/api'
+import { fetchWithRefresh } from './api'
 
-describe('unwrap', () => {
-  it('retourne la donnee quand la reponse est un succes', () => {
-    const data = { id: '1', name: 'Plugiit' }
+function response(status: number) {
+  return new Response(null, { status })
+}
 
-    expect(unwrap({ data, response: new Response(null, { status: 200 }) })).toBe(data)
+describe('fetchWithRefresh', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('rafraichit la session sur un 401 puis rejoue la requete', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: Request | string) => {
+      const url = typeof input === 'string' ? input : input.url
+      calls.push(new URL(url, 'http://x').pathname)
+      if (url.endsWith('/auth/refresh')) return response(200)
+      return response(calls.length === 1 ? 401 : 200)
+    }))
+
+    const res = await fetchWithRefresh(new Request('http://x/api/v1/admin/projects'))
+    expect(res.status).toBe(200)
+    expect(calls).toEqual(['/api/v1/admin/projects', '/api/v1/auth/refresh', '/api/v1/admin/projects'])
   })
 
-  it("transforme l'erreur de l'API en HttpError typee", () => {
-    const call = () =>
-      unwrap({
-        error: { code: 'VALIDATION_FAILED', message: 'Données invalides', details: { email: 'requis' } },
-        response: new Response(null, { status: 422 }),
-      })
+  it('ne rejoue pas quand le rafraichissement echoue', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: Request | string) => {
+      const url = typeof input === 'string' ? input : input.url
+      return response(url.endsWith('/auth/refresh') ? 401 : 401)
+    }))
 
-    expect(call).toThrow(HttpError)
-
-    try {
-      call()
-    } catch (error) {
-      const httpError = error as HttpError
-      expect(httpError.status).toBe(422)
-      expect(httpError.code).toBe('VALIDATION_FAILED')
-      expect(httpError.details).toEqual({ email: 'requis' })
-      expect(httpError.isUnauthorized).toBe(false)
-    }
+    const res = await fetchWithRefresh(new Request('http://x/api/v1/auth/me'))
+    expect(res.status).toBe(401)
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
   })
 
-  it('signale les sessions expirees via isUnauthorized', () => {
-    try {
-      unwrap({
-        error: { code: 'UNAUTHORIZED', message: 'Authentification requise' },
-        response: new Response(null, { status: 401 }),
-      })
-      expect.unreachable("unwrap aurait du lever")
-    } catch (error) {
-      expect((error as HttpError).isUnauthorized).toBe(true)
-    }
+  it('laisse la connexion et le rafraichissement repondre 401 sans insister', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response(401)))
+
+    await fetchWithRefresh(new Request('http://x/api/v1/auth/login', { method: 'POST' }))
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
-  it('reste exploitable quand le corps d erreur est vide', () => {
-    try {
-      unwrap({ error: {}, response: new Response(null, { status: 500 }) })
-      expect.unreachable("unwrap aurait du lever")
-    } catch (error) {
-      const httpError = error as HttpError
-      expect(httpError.code).toBe('UNKNOWN')
-      expect(httpError.details).toEqual({})
-    }
+  it('un seul rafraichissement pour plusieurs 401 simultanes', async () => {
+    let refreshes = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: Request | string) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/auth/refresh')) {
+        refreshes += 1
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        return response(200)
+      }
+      return response(refreshes === 0 ? 401 : 200)
+    }))
+
+    const results = await Promise.all([
+      fetchWithRefresh(new Request('http://x/api/v1/admin/projects')),
+      fetchWithRefresh(new Request('http://x/api/v1/admin/clients')),
+      fetchWithRefresh(new Request('http://x/api/v1/admin/tasks')),
+    ])
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200])
+    expect(refreshes).toBe(1)
   })
 })

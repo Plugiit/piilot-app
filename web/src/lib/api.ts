@@ -16,7 +16,59 @@ export const api = createClient<paths>({
   baseUrl: BASE_URL,
   credentials: 'include',
   headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  fetch: fetchWithRefresh,
 })
+
+/** Routes qui portent leur propre preuve : un 401 chez elles est definitif. */
+const NO_REFRESH = ['/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/auth/logout', '/api/v1/auth/invitations', '/api/v1/auth/password']
+
+let refreshing: Promise<boolean> | null = null
+
+/**
+ * Rafraichit la session, une seule fois a la fois.
+ *
+ * Dix requetes qui echouent ensemble a l'expiration du jeton d'acces ne
+ * doivent pas lancer dix rafraichissements : le jeton de rafraichissement
+ * tourne a chaque usage, et le second passage serait pris pour un rejeu —
+ * qui revoque toute la famille. Le premier appel rafraichit, les autres
+ * attendent sa reponse.
+ */
+function refreshSession(): Promise<boolean> {
+  refreshing ??= fetch(apiUrl('/api/v1/auth/refresh'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null
+    })
+
+  return refreshing
+}
+
+/**
+ * `fetch` qui survit a l'expiration du jeton d'acces.
+ *
+ * Le jeton d'acces vit quinze minutes ; la session, trente jours. Entre les
+ * deux, c'est le jeton de rafraichissement qui fait le lien — et c'est ici
+ * qu'il sert : un 401 declenche un rafraichissement, puis la requete repart
+ * telle quelle. Sans cela, chaque quart d'heure renvoyait a la connexion.
+ *
+ * La requete est clonee avant de partir : un corps deja lu ne se renvoie pas.
+ */
+export async function fetchWithRefresh(input: Request): Promise<Response> {
+  const path = new URL(input.url).pathname
+  const retry = NO_REFRESH.some((prefix) => path.startsWith(prefix)) ? null : input.clone()
+
+  const response = await fetch(input)
+  if (response.status !== 401 || retry === null) return response
+
+  if (!(await refreshSession())) return response
+
+  return fetch(retry)
+}
 
 /** Adresse absolue d'un chemin d'API — pour un lien que le navigateur suit lui-meme. */
 export function apiUrl(path: string): string {
@@ -40,12 +92,14 @@ export async function postFile<T>(path: string, field: string, file: File): Prom
   const form = new FormData()
   form.append(field, file)
 
-  const response = await fetch(apiUrl(path), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    body: form,
-  })
+  const response = await fetchWithRefresh(
+    new Request(apiUrl(path), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: form,
+    }),
+  )
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as Partial<ApiError>
