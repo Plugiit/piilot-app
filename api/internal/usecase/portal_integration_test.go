@@ -298,3 +298,134 @@ func TestLaReponseDuClientPrevientLEquipeEtNeSeRejouePas(t *testing.T) {
 		t.Fatalf("apres validation de la v2 : %+v", got)
 	}
 }
+
+func TestLeClientRepondDepuisLeLienDeLEmail(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	portal, deliverables, _ := newPortal(t, pool)
+	secret := []byte("une-cle-de-test-assez-longue-pour-signer")
+	deliverables.SetMail("https://piilot.test", true)
+	deliverables.SetLinkSecret(secret)
+	portal.SetLinkSecret(secret)
+
+	a := newPortalClient(t, pool)
+	member, _ := createUser(t, pool, "team")
+	addMember(t, pool, a.projectID, member)
+
+	item, err := deliverables.Create(ctx, usecase.CreateDeliverableInput{
+		ProjectID: a.projectID, Title: "Page d'accueil", URL: "https://example.fr/v1", CreatedBy: &member,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// L'e-mail porte les deux liens signes, propres au destinataire.
+	var text string
+	if err := pool.QueryRow(ctx,
+		`SELECT text_body FROM email_outbox WHERE to_address = $1 ORDER BY created_at DESC LIMIT 1`, a.email,
+	).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	prefix := "https://piilot.test/client/livrables/" + item.ID.String() + "/repondre?token="
+	start := strings.Index(text, prefix)
+	if start < 0 {
+		t.Fatalf("pas de lien de reponse dans l'e-mail : %q", text)
+	}
+	token := text[start+len(prefix):]
+	token = token[:strings.Index(token, "&")]
+
+	// Ouvrir le lien ne decide rien.
+	review, err := portal.Review(ctx, item.ID, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Status != "en_attente" || review.Firstname != "Inès" || review.Version != 1 {
+		t.Fatalf("page du lien : %+v", review)
+	}
+
+	// Un jeton altere ou etranger ne vaut rien.
+	if _, err := portal.Review(ctx, item.ID, token+"x"); !errors.Is(err, usecase.ErrReviewLinkExpired) {
+		t.Fatalf("jeton altere : %v", err)
+	}
+	other := newPortalClient(t, pool)
+	if _, err := portal.Review(ctx, other.projectID, token); !errors.Is(err, usecase.ErrReviewLinkExpired) {
+		t.Fatalf("jeton sur un autre livrable : %v", err)
+	}
+
+	// Des retours depuis le lien : au nom du compte du jeton, l'equipe prevenue.
+	got, err := portal.DecideByLink(ctx, item.ID, token, "retours", "Le logo est trop petit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "retours" {
+		t.Fatalf("apres retours : %+v", got)
+	}
+	detail, err := portal.Deliverable(ctx, a.userID, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Versions[0].DecidedBy != "Inès" || detail.Versions[0].Feedback != "Le logo est trop petit" {
+		t.Fatalf("decision enregistree : %+v", detail.Versions[0])
+	}
+	if kinds := notificationsOf(t, pool, member, "deliverable_id", item.ID); len(kinds) != 1 || kinds[0] != usecase.NotifyDeliverableFeedback {
+		t.Fatalf("notification de l'equipe : %v", kinds)
+	}
+
+	// Rejouer le lien ne rejoue pas la decision.
+	if _, err := portal.DecideByLink(ctx, item.ID, token, "valide", ""); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("seconde reponse : %v", err)
+	}
+
+	// Une v2 perime les liens de la v1.
+	if _, err := deliverables.Submit(ctx, item.ID, "https://example.fr/v2", &member); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := portal.Review(ctx, item.ID, token); !errors.Is(err, usecase.ErrReviewLinkExpired) {
+		t.Fatalf("lien de la v1 apres la v2 : %v", err)
+	}
+}
+
+func TestLePortailNommeLesInterlocuteursEtLaProchaineEtape(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	portal, _, _ := newPortal(t, pool)
+
+	a := newPortalClient(t, pool)
+	member, _ := createUser(t, pool, "team")
+	addMember(t, pool, a.projectID, member)
+	manager, _ := createUser(t, pool, "admin")
+	if _, err := pool.Exec(ctx, `UPDATE clients SET account_manager_id = $1 WHERE id = $2`, manager, a.clientID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE users SET booking_url = 'https://cal.com/manager/30min', phone = '+33 6 00 00 00 00' WHERE id = $1`, manager); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO milestones (project_id, title, position, due_on, completed_at) VALUES ($1, 'Cadrage', 1, '2026-01-10', now()), ($1, 'Maquettes', 2, '2026-02-10', NULL)`,
+		a.projectID); err != nil {
+		t.Fatal(err)
+	}
+
+	project, err := portal.Project(ctx, a.userID, a.projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(project.Team) != 2 || project.Team[0].ID != manager || project.Team[0].Role != "Chargé·e de compte" ||
+		project.Team[0].BookingURL != "https://cal.com/manager/30min" || project.Team[1].ID != member {
+		t.Fatalf("interlocuteurs : %+v", project.Team)
+	}
+	if project.NextStep.Milestone == nil || project.NextStep.Milestone.Title != "Maquettes" {
+		t.Fatalf("prochaine etape : %+v", project.NextStep)
+	}
+
+	// Un compte du portail de ce client n'est jamais un interlocuteur, et un
+	// autre client ne voit pas l'equipe.
+	for _, c := range project.Team {
+		if c.ID == a.userID {
+			t.Fatal("le compte client figure parmi les interlocuteurs")
+		}
+	}
+	if _, err := portal.Project(ctx, newPortalClient(t, pool).userID, a.projectID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("autre client : %v", err)
+	}
+}

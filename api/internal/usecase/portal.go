@@ -87,6 +87,37 @@ type PortalProjectDetail struct {
 	Files               []PortalFile        `json:"files"`
 	// La derniere mise en ligne connue, nulle s'il n'y en a pas eu.
 	LastDeployment *Deployment `json:"last_deployment"`
+	// Ce qui vient : le prochain jalon, ce qui attend le client, ou en est
+	// l'equipe.
+	NextStep PortalNextStep `json:"next_step"`
+	// Le charge de compte d'abord, puis l'equipe du projet.
+	Team []PortalContact `json:"team"`
+}
+
+// PortalNextStep est l'encart « Prochaine etape » d'un projet.
+type PortalNextStep struct {
+	// Prochain jalon non atteint, nul quand tout est atteint ou rien pose.
+	Milestone *Milestone `json:"milestone"`
+	// Livrables qui attendent la reponse du client.
+	DeliverablesPending int `json:"deliverables_pending"`
+	// Ou en est l'equipe : taches terminees sur le total, compteurs tenus par
+	// les declencheurs.
+	TasksDone  int `json:"tasks_done"`
+	TasksTotal int `json:"tasks_total"`
+}
+
+// PortalContact est un interlocuteur du client sur un projet.
+type PortalContact struct {
+	ID        uuid.UUID `json:"id"`
+	Firstname string    `json:"firstname"`
+	Lastname  string    `json:"lastname"`
+	Initials  string    `json:"initials"`
+	AvatarURL *string   `json:"avatar_url"`
+	// Charge de compte du client, ou membre de l'equipe du projet.
+	Role       string `json:"role"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone"`
+	BookingURL string `json:"booking_url"`
 }
 
 // PortalVersion est une version dans le fil d'un livrable.
@@ -207,6 +238,10 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 	if err != nil {
 		return PortalProjectDetail{}, fmt.Errorf("lecture des fichiers : %w", err)
 	}
+	team, err := s.q.PortalListProjectTeam(ctx, projectID)
+	if err != nil {
+		return PortalProjectDetail{}, fmt.Errorf("lecture des interlocuteurs : %w", err)
+	}
 
 	today := agencyToday(time.Now())
 	out := PortalProjectDetail{
@@ -223,12 +258,39 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 		Milestones:          make([]Milestone, 0, len(milestones)),
 		Deliverables:        make([]PortalDeliverable, 0, len(deliverables)),
 		Files:               make([]PortalFile, 0, len(files)),
+		NextStep: PortalNextStep{
+			DeliverablesPending: int(row.DeliverablesPending),
+			TasksDone:           int(row.TasksDone),
+			TasksTotal:          int(row.TasksTotal),
+		},
+		Team: make([]PortalContact, 0, len(team)),
+	}
+
+	for _, m := range team {
+		person := personOf(m.ID, m.Firstname, m.Lastname, m.AvatarUrl)
+		role := "Équipe du projet"
+		if m.IsAccountManager {
+			role = "Chargé·e de compte"
+		}
+		out.Team = append(out.Team, PortalContact{
+			ID: m.ID, Firstname: m.Firstname, Lastname: m.Lastname, Initials: person.Initials, AvatarURL: person.AvatarURL,
+			Role: role, Email: m.Email, Phone: m.Phone, BookingURL: m.BookingUrl,
+		})
 	}
 
 	index := make(map[uuid.UUID]int, len(milestones))
 	for i, m := range milestones {
 		out.Milestones = append(out.Milestones, milestoneOf(m, today))
 		index[m.ID] = i
+	}
+	// Le prochain jalon : le premier non atteint dans l'ordre de la frise,
+	// qu'il soit date ou non, en retard ou a venir.
+	for i := range out.Milestones {
+		if out.Milestones[i].State != "done" {
+			next := out.Milestones[i]
+			out.NextStep.Milestone = &next
+			break
+		}
 	}
 	// Sous chaque jalon, les seuls livrables soumis : un brouillon reste
 	// interne, meme rattache.
