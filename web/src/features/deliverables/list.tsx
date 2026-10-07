@@ -221,15 +221,20 @@ function Cell({
 export function DeliverableTable({
   items,
   empty,
+  showProject = true,
 }: {
   items: Deliverable[]
   empty: ReactNode
+  /** Faux dans la fiche d'un projet : elle dit deja le projet et le client. */
+  showProject?: boolean
 }) {
+  const columns = showProject ? COLUMNS : COLUMNS.filter((c) => c.key !== 'project' && c.key !== 'client')
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
       <div className="flex min-w-max flex-col">
         <div className="flex items-stretch">
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <Cell key={column.key} width={column.width} className="bg-[#f3f4f4]">
               {column.icon !== undefined && (
                 <HugeiconsIcon
@@ -252,7 +257,7 @@ export function DeliverableTable({
 
         {items.map((item) => (
           <div key={item.id} className="flex items-stretch bg-white">
-            {COLUMNS.map((column) => (
+            {columns.map((column) => (
               <Cell key={column.key} width={column.width}>
                 {column.cell(item)}
               </Cell>
