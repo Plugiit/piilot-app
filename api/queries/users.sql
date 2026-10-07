@@ -44,6 +44,7 @@ UPDATE users SET
     postal_code = COALESCE(sqlc.narg('postal_code')::text, postal_code),
     city        = COALESCE(sqlc.narg('city')::text, city),
     country     = COALESCE(sqlc.narg('country')::text, country),
+    booking_url = COALESCE(sqlc.narg('booking_url')::text, booking_url),
     updated_at  = now()
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;

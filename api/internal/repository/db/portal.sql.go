@@ -290,6 +290,73 @@ func (q *Queries) PortalListDeliverables(ctx context.Context, projectID uuid.UUI
 	return items, nil
 }
 
+const portalListProjectTeam = `-- name: PortalListProjectTeam :many
+SELECT
+    u.id,
+    u.firstname,
+    u.lastname,
+    u.email,
+    u.phone,
+    u.booking_url,
+    u.avatar_url,
+    (u.id = c.account_manager_id)::boolean AS is_account_manager
+FROM projects p
+JOIN clients c ON c.id = p.client_id
+JOIN users u
+  ON u.id = c.account_manager_id
+  OR u.id IN (SELECT pm.user_id FROM project_members pm WHERE pm.project_id = p.id)
+WHERE p.id = $1
+  AND u.role <> 'client'
+  AND u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+ORDER BY (u.id = c.account_manager_id) DESC, u.firstname, u.lastname, u.id
+LIMIT 20
+`
+
+type PortalListProjectTeamRow struct {
+	ID               uuid.UUID `json:"id"`
+	Firstname        string    `json:"firstname"`
+	Lastname         string    `json:"lastname"`
+	Email            string    `json:"email"`
+	Phone            string    `json:"phone"`
+	BookingUrl       string    `json:"booking_url"`
+	AvatarUrl        *string   `json:"avatar_url"`
+	IsAccountManager bool      `json:"is_account_manager"`
+}
+
+// Les interlocuteurs d'un projet : le charge de compte du client, puis les
+// membres de l'equipe du projet. Jamais un compte du portail, jamais un
+// compte ferme. Le telephone et le lien de rendez-vous sont ceux que chacun
+// a renseignes dans Mon compte.
+func (q *Queries) PortalListProjectTeam(ctx context.Context, projectID uuid.UUID) ([]PortalListProjectTeamRow, error) {
+	rows, err := q.db.Query(ctx, portalListProjectTeam, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PortalListProjectTeamRow{}
+	for rows.Next() {
+		var i PortalListProjectTeamRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Firstname,
+			&i.Lastname,
+			&i.Email,
+			&i.Phone,
+			&i.BookingUrl,
+			&i.AvatarUrl,
+			&i.IsAccountManager,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const portalListProjects = `-- name: PortalListProjects :many
 
 SELECT

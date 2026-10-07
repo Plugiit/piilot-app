@@ -6,12 +6,16 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	// Une sauvegarde restee « en cours » plus de six heures vient d'une commande
+	// interrompue : elle ne doit pas passer pour en route.
+	AbandonStaleBackups(ctx context.Context) error
 	// Au demarrage de l'updater : une demande restee « en cours » vient d'un
 	// updater interrompu en pleine mise a jour. Elle est close en echec plutot que
 	// de bloquer toute nouvelle demande.
@@ -81,6 +85,9 @@ type Querier interface {
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, role *string) (int64, error)
 	CountUsersByRole(ctx context.Context) ([]CountUsersByRoleRow, error)
+	// Sauvegardes : la commande `backup` ecrit ici, l'ecran des parametres et la
+	// tache de fond qui previent les admins y lisent.
+	CreateBackup(ctx context.Context) (AppBackup, error)
 	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
 	// cle etrangere composite exige qu'un contact principal lui appartienne deja.
 	CreateClient(ctx context.Context, name string) (Client, error)
@@ -162,6 +169,7 @@ type Querier interface {
 	DisableUser(ctx context.Context, id uuid.UUID) error
 	EnableUser(ctx context.Context, id uuid.UUID) error
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
+	FinishBackup(ctx context.Context, arg FinishBackupParams) error
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Question posee par la garde a chaque requete authentifiee : ce compte
 	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
@@ -209,6 +217,7 @@ type Querier interface {
 	// Rendue meme expiree ou deja acceptee : c'est l'appelant qui dit pourquoi le
 	// lien ne vaut plus, et l'ecran l'explique.
 	GetInvitationByToken(ctx context.Context, tokenHash []byte) (GetInvitationByTokenRow, error)
+	GetLastSuccessfulBackup(ctx context.Context) (AppBackup, error)
 	// Derniere demande, pour l'etat affiche a l'ecran.
 	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
 	GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, error)
@@ -269,6 +278,9 @@ type Querier interface {
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
 	// Un mot de passe change rend caducs les autres liens en circulation.
 	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
+	// Quand une alerte globale a ete emise pour la derniere fois, toutes
+	// personnes confondues : une alerte par jour suffit.
+	LastNotificationOfKind(ctx context.Context, kind string) (time.Time, error)
 	LinkPullRequestToTask(ctx context.Context, arg LinkPullRequestToTaskParams) error
 	LinkPullRequestToTicket(ctx context.Context, arg LinkPullRequestToTicketParams) error
 	// Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
@@ -279,6 +291,7 @@ type Querier interface {
 	// Affectations de plusieurs taches en une requete : meme parade au N+1 que
 	// pour les equipes de projets.
 	ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListAssigneesOfTasksRow, error)
+	ListBackups(ctx context.Context) ([]AppBackup, error)
 	// Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
 	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
 	// d'exception, sinon elle finit par etre oubliee la ou elle compte.
@@ -669,6 +682,11 @@ type Querier interface {
 	// Les livrables soumis d'un projet. Un brouillon — rien encore de depose —
 	// ne regarde pas le client.
 	PortalListDeliverables(ctx context.Context, projectID uuid.UUID) ([]PortalListDeliverablesRow, error)
+	// Les interlocuteurs d'un projet : le charge de compte du client, puis les
+	// membres de l'equipe du projet. Jamais un compte du portail, jamais un
+	// compte ferme. Le telephone et le lien de rendez-vous sont ceux que chacun
+	// a renseignes dans Mon compte.
+	PortalListProjectTeam(ctx context.Context, projectID uuid.UUID) ([]PortalListProjectTeamRow, error)
 	// Portail client.
 	//
 	// Chaque requete part de l'appelant : son compte, son role client, son client.
@@ -700,6 +718,8 @@ type Querier interface {
 	// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
 	// aux pieces jointes, et la route des logos ne doit servir qu'eux.
 	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)
+	// Le journal n'a pas a remonter plus loin que la retention la plus longue.
+	PruneBackupRows(ctx context.Context) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error

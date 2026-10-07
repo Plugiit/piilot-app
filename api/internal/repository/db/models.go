@@ -11,6 +11,16 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+type AppBackup struct {
+	ID         uuid.UUID  `json:"id"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+	Status     string     `json:"status"`
+	Location   string     `json:"location"`
+	SizeBytes  int64      `json:"size_bytes"`
+	Error      string     `json:"error"`
+}
+
 type AppReleaseCheck struct {
 	ID               bool       `json:"id"`
 	Version          string     `json:"version"`
@@ -532,4 +542,5 @@ type User struct {
 	Country      string     `json:"country"`
 	ClientID     *uuid.UUID `json:"client_id"`
 	DisabledAt   *time.Time `json:"disabled_at"`
+	BookingUrl   string     `json:"booking_url"`
 }
