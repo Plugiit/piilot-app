@@ -1,23 +1,26 @@
 import { MailSend01Icon, ShieldUserIcon, UserMultipleIcon } from '@hugeicons/core-free-icons'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { useState } from 'react'
 
 import { PageFrame } from '@/components/layout/page-frame'
 import { TabBar, type Tab } from '@/components/layout/tab-bar'
 import { invitationListQuery } from '@/features/accounts/api'
 import { InviteDialog } from '@/features/accounts/invite-dialog'
+import { AccountsToolbarSlot } from '@/features/accounts/toolbar'
 import { can, sessionQuery } from '@/lib/auth'
 
 /**
  * Ecran « Comptes et rôles » : qui a acces a Piilot, et avec quels droits.
  *
- * Trois onglets plutot que trois ecrans : on passe de l'un a l'autre dans une
- * meme tache — inviter quelqu'un, verifier que l'invitation est partie, regler
- * ce que son role permet.
+ * Meme chassis que les taches : la barre d'outils d'abord — la recherche et
+ * les filtres de l'onglet ouvert, puis « Inviter » au bout —, les onglets
+ * dessous, et le contenu sur toute la largeur.
  *
- * Le bouton « Inviter » vit dans le chassis : on invite depuis n'importe quel
- * onglet. Il n'apparait que pour qui porte `users.write` ; le serveur le
- * verifie de toute facon.
+ * La recherche et les filtres appartiennent a l'onglet « Comptes », mais la
+ * barre est au chassis : l'onglet y projette les siens par un portail (voir
+ * features/accounts/toolbar), les deux autres n'y mettent rien. « Inviter »
+ * reste, lui, sur tous les onglets.
  */
 export const Route = createFileRoute('/_app/parametres/comptes')({
   // Ecran d'administration : sans le droit, on retombe sur les referentiels.
@@ -31,6 +34,7 @@ function AccountsLayout() {
   const { data: session } = useQuery(sessionQuery)
   const canManage = session?.permissions.includes('users.write') === true
   const { data: invitations } = useQuery(invitationListQuery)
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null)
 
   const tabs: Tab[] = [
     { to: '/parametres/comptes', label: 'Comptes', icon: UserMultipleIcon },
@@ -46,14 +50,19 @@ function AccountsLayout() {
   return (
     <PageFrame title="Comptes et rôles">
       <div className="flex min-h-full flex-col">
-        {/* Centre et non aligne en bas : le bouton se tient a egale distance
-            des deux filets qui encadrent la barre d'onglets. */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8e8e9] px-4">
-          <TabBar tabs={tabs} layoutId="accounts-tab" />
+        <div className="flex flex-wrap items-center gap-2 p-4">
+          {/* Ce que l'onglet ouvert y met : recherche et filtres, ou rien. */}
+          <div ref={setSlot} className="flex min-w-0 flex-1 flex-wrap items-center gap-2" />
           {canManage && <InviteDialog />}
         </div>
 
-        <Outlet />
+        <div className="flex shrink-0 items-center border-b border-[#e8e8e9] pl-4">
+          <TabBar tabs={tabs} layoutId="accounts-tab" />
+        </div>
+
+        <AccountsToolbarSlot.Provider value={slot}>
+          <Outlet />
+        </AccountsToolbarSlot.Provider>
       </div>
     </PageFrame>
   )

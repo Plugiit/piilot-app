@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { roleMatrixQuery, useSetRolePermissions } from '@/features/accounts/api'
 import { roleOf } from '@/features/accounts/format'
+import { AccountsToolbar, matchesSearch, ToolbarSearch } from '@/features/accounts/toolbar'
 import { HttpError } from '@/lib/api'
 import { sessionQuery } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -50,15 +51,29 @@ function RolesPage() {
   const { data: matrix, isPending } = useQuery(roleMatrixQuery)
   const { data: session } = useQuery(sessionQuery)
   const canEdit = session?.permissions.includes('roles.write') === true
+  // Recherche locale sur les libelles : la matrice tient en un ecran.
+  const [query, setQuery] = useState('')
 
   if (isPending || matrix === undefined) {
     return <div className="m-4 h-[320px] animate-pulse rounded-[12px] bg-[#fafafa]" />
   }
 
-  return <RoleGrid key={JSON.stringify(matrix.roles.map((r) => r.permissions))} matrix={matrix} canEdit={canEdit} />
+  return (
+    <>
+      <AccountsToolbar>
+        <ToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Rechercher une permission"
+          label="Rechercher une permission"
+        />
+      </AccountsToolbar>
+      <RoleGrid key={JSON.stringify(matrix.roles.map((r) => r.permissions))} matrix={matrix} canEdit={canEdit} query={query} />
+    </>
+  )
 }
 
-function RoleGrid({ matrix, canEdit }: { matrix: RoleMatrix; canEdit: boolean }) {
+function RoleGrid({ matrix, canEdit, query }: { matrix: RoleMatrix; canEdit: boolean; query: string }) {
   const save = useSetRolePermissions()
 
   // Brouillon par role : on coche librement, puis on enregistre ou on
@@ -79,6 +94,7 @@ function RoleGrid({ matrix, canEdit }: { matrix: RoleMatrix; canEdit: boolean })
     return index === -1 ? GROUP_ORDER.length : index
   }
   for (const permission of [...matrix.permissions].sort((a, b) => rank(a.group) - rank(b.group))) {
+    if (!matchesSearch(query, permission.label, permission.code, permission.group)) continue
     groups.set(permission.group, [...(groups.get(permission.group) ?? []), permission])
   }
 
@@ -130,6 +146,12 @@ function RoleGrid({ matrix, canEdit }: { matrix: RoleMatrix; canEdit: boolean })
               </div>
             ))}
           </div>
+
+          {groups.size === 0 && (
+            <p className="px-3 py-10 text-center text-[14px] text-[#73757c]">
+              Aucune permission ne correspond à « {query} ».
+            </p>
+          )}
 
           {[...groups.entries()].map(([group, permissions]) => (
             <div key={group}>
