@@ -157,9 +157,16 @@ func (s *PortalService) Ticket(ctx context.Context, userID, ticketID uuid.UUID) 
 	}
 
 	for _, m := range messages {
+		author := firstnameOf(m.AuthorFirstname)
+		fromAgency := m.AuthorRole == nil || *m.AuthorRole != "client"
+		// Ecrit par e-mail : sans compte, c'est le client — ou un collegue a
+		// lui — qui a repondu ; avec un compte, son role le dit.
+		if m.ViaEmail && m.AuthorRole == nil {
+			author, fromAgency = firstWord(m.SenderName), false
+		}
 		out.Entries = append(out.Entries, PortalTicketEntry{
-			Kind: "message", At: m.CreatedAt, Author: firstnameOf(m.AuthorFirstname),
-			FromAgency: m.AuthorRole == nil || *m.AuthorRole != "client", Body: m.Body,
+			Kind: "message", At: m.CreatedAt, Author: author,
+			FromAgency: fromAgency, Body: m.Body,
 		})
 	}
 	// Un changement de statut ne s'affiche que s'il change quelque chose aux

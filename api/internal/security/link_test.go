@@ -27,3 +27,17 @@ func TestSignLinkEtVerifyLink(t *testing.T) {
 		t.Fatal("jeton illisible accepte")
 	}
 }
+
+func TestSealOpen(t *testing.T) {
+	key := DeriveKey([]byte("secret"), "imap")
+	sealed, err := Seal(key, "mot de passé")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Open(key, sealed); err != nil || got != "mot de passé" {
+		t.Fatalf("relecture : %q %v", got, err)
+	}
+	if _, err := Open(DeriveKey([]byte("autre"), "imap"), sealed); err == nil {
+		t.Fatal("autre cle acceptee")
+	}
+}

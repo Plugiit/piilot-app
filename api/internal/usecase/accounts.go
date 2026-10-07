@@ -760,6 +760,7 @@ func nonNil(list []string) []string {
 func enqueue(ctx context.Context, q *db.Queries, msg mailer.Message) error {
 	if err := q.EnqueueEmail(ctx, db.EnqueueEmailParams{
 		Kind: msg.Kind, ToAddress: msg.To, Subject: msg.Subject, TextBody: msg.Text, HtmlBody: msg.HTML,
+		ReplyTo: msg.ReplyTo, MessageID: msg.MessageID, InReplyTo: msg.InReplyTo,
 	}); err != nil {
 		return fmt.Errorf("mise en file de l'e-mail : %w", err)
 	}
