@@ -148,8 +148,12 @@ les reprendre une à une.
 L'agence dépose un livrable (maquette, prototype, recette), qui est ensuite
 validé ou renvoyé avec des retours. Chaque nouvelle soumission crée une
 version, et l'historique est conservé. Le client valide ou renvoie ses
-retours lui-même, depuis son portail ; l'agence peut aussi enregistrer une
-réponse reçue ailleurs.
+retours lui-même, depuis son portail ou directement depuis l'e-mail de dépôt ;
+l'agence peut aussi enregistrer une réponse reçue ailleurs.
+
+Les livrables se déposent depuis l'écran global ou depuis l'onglet
+**Livrables** de la fiche du projet, où le projet est déjà choisi et le
+prochain jalon à atteindre proposé.
 
 ![Livrables](docs/images/livrables.jpg)
 
@@ -191,12 +195,21 @@ et voit d'emblée ce qui attend sa réponse.
 
 ![Portail client](docs/images/portail-accueil.jpg)
 
-La page d'un projet montre ses étapes, ses livrables et les documents que
-l'agence a choisi de partager : un fichier de projet est interne tant qu'on ne
-le partage pas d'un clic. Sur un livrable, le client ouvre la version, la
-valide ou demande des retours en disant ce qui doit changer ; l'équipe du
-projet est notifiée aussitôt, et le client reçoit un e-mail à chaque nouvelle
-version.
+La page d'un projet s'ouvre sur la **prochaine étape** — le prochain jalon,
+ce qui attend le client, où en est l'équipe — puis montre ses étapes, ses
+livrables, ses **interlocuteurs** (le chargé de compte et l'équipe du projet,
+avec e-mail, téléphone et lien de rendez-vous) et les documents que l'agence a
+choisi de partager : un fichier de projet est interne tant qu'on ne le partage
+pas d'un clic. Sur un livrable, le client ouvre la version, la valide ou
+demande des retours en disant ce qui doit changer ; l'équipe du projet est
+notifiée aussitôt, et le client reçoit un e-mail à chaque nouvelle version.
+
+Cet e-mail porte deux boutons, **Valider** et **Faire un retour**, qui
+répondent sans se connecter : des liens signés, personnels, valables trente
+jours et pour la seule version déposée. Ouvrir le lien ne décide rien — un
+filtre anti-spam qui suit les liens d'un e-mail ne valide pas un livrable —,
+c'est le geste sur la page qui enregistre la réponse, au nom du compte du
+destinataire et par le même chemin que depuis le portail.
 
 <p>
   <img src="docs/images/portail-projet-mobile.jpg" alt="Projet dans le portail, sur mobile" width="300">
@@ -232,7 +245,9 @@ n'existe pas. Des tests d'isolation tournent à chaque intégration continue.
   SEO…), avec une couleur par service, réutilisé partout.
 - **Apps de la barre latérale** : les outils de l'agence en un clic. Leur logo
   est récupéré automatiquement par une tâche de fond.
-- **Compte** : profil, photo, mot de passe.
+- **Compte** : profil, photo, mot de passe, et pour l'équipe un lien de
+  rendez-vous (Cal.com, Calendly, Google Agenda…) que les clients voient sur
+  le portail.
 - **Rôles et permissions en base** : trois rôles système (`admin`, `team`,
   `client`) et 21 permissions. Un droit retiré prend effet immédiatement, sans
   attendre l'expiration d'une session.
@@ -650,6 +665,11 @@ que de la laisser répondre 500 à la première requête.
 | `DRAIN_DELAY` | `5s` | À l'arrêt, temps pendant lequel l'instance se déclare en arrêt et sert encore, que la passerelle l'écarte sans faire échouer de requête |
 | `DELIVERABLE_REMINDER_AFTER` | `72h` | Un livrable sans réponse du client est relancé par e-mail, une fois, au-delà de ce délai (SMTP requis). `0` pour ne jamais relancer |
 | `GIT_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks GitHub/GitLab. Vide : Piilot en tire un, visible dans *Paramètres > Dépôts Git*. Renseigné : c'est lui, et l'écran ne permet plus de le changer |
+| `BACKUP_STALE_AFTER` | `36h` | Sans sauvegarde réussie depuis ce délai, les admins sont prévenus dans la cloche. `0` pour une instance sauvegardée autrement |
+| `BACKUP_AT` | `03:00` | Heure (Europe/Paris) de la sauvegarde quotidienne du service `backup` |
+| `BACKUP_KEEP_DAILY` / `BACKUP_KEEP_WEEKLY` / `BACKUP_KEEP_MONTHLY` | `7` / `4` / `3` | Rétention des sauvegardes, sur le disque comme sur S3 |
+| `BACKUP_S3_ENDPOINT` / `BACKUP_S3_BUCKET` / `BACKUP_S3_ACCESS_KEY` / `BACKUP_S3_SECRET_KEY` | *(vides)* | Copie des sauvegardes vers un stockage S3 compatible. Les quatre vont ensemble |
+| `BACKUP_S3_REGION` / `BACKUP_S3_PREFIX` | `fr-par` / `piilot/` | Région de signature et préfixe des clés dans le seau |
 | `PIILOT_TAG` | `latest` | Tag de l'image : `latest` suit toutes les versions, `0.4` les seuls correctifs de la 0.4, `0.4.1` fige la version |
 | `UPDATE_CHECK` | `true` | Vérifie les nouvelles versions sur GitHub |
 | `UPDATE_CHECK_INTERVAL` | `15m` | Intervalle entre deux vérifications, 5 minutes au minimum |
@@ -705,28 +725,65 @@ l'administration : seuls les administrateurs les modifient.
 | `piilot-postgres` | Base de données | **Oui** |
 | `piilot-files` | Pièces jointes, photos de profil, logos | **Oui** |
 | `piilot-redis` | Compteurs de connexion, bus de notifications | Non, reconstructible |
+| `piilot-backups` | Archives du service `backup` | À copier hors du serveur (S3 ou autre), voir ci-dessous |
 
 ### Sauvegardes
 
-La base et les fichiers vont ensemble : une base restaurée sans ses pièces
-jointes pointe vers des fichiers absents.
+Le service **`backup`** du `docker-compose.yml` sauvegarde chaque nuit la
+base et les pièces jointes dans **une seule archive**, car les deux vont
+ensemble : une base restaurée sans ses fichiers pointe vers des fichiers
+absents. Chaque passage est noté en base : *Paramètres > Sauvegardes* montre
+la dernière réussie et le journal, et les administrateurs sont prévenus dans
+la cloche quand aucune sauvegarde n'a réussi depuis `BACKUP_STALE_AFTER`
+(36 h). Au premier démarrage, la première sauvegarde part tout de suite.
+
+- `BACKUP_AT` (`03:00`, heure de Paris) : l'heure quotidienne.
+- Rétention `BACKUP_KEEP_DAILY` / `WEEKLY` / `MONTHLY` (7 / 4 / 3) : toutes
+  celles des sept derniers jours, puis une par semaine, puis une par mois.
+- Les archives sont dans le volume `piilot-backups`
+  (`/app/data/backups/piilot-AAAAMMJJ-HHMMSS.tar`, qui contient `db.dump` au
+  format custom de `pg_dump` et `files.tar.gz`).
+
+**Les mettre à l'abri hors du serveur** : donner un seau S3 compatible,
+hébergé dans l'UE (Scaleway, OVH, Hetzner, Garage, MinIO…), et la même
+rétention s'y applique.
 
 ```bash
-# Base
-docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' \
-    > piilot-$(date +%F).dump
-
-# Pièces jointes
-docker run --rm -v piilot-app_piilot-files:/data -v "$PWD":/out alpine \
-    tar czf /out/piilot-files-$(date +%F).tar.gz -C /data .
+BACKUP_S3_ENDPOINT=https://s3.fr-par.scw.cloud
+BACKUP_S3_BUCKET=sauvegardes-agence
+BACKUP_S3_REGION=fr-par
+BACKUP_S3_ACCESS_KEY=…
+BACKUP_S3_SECRET_KEY=…
+BACKUP_S3_PREFIX=piilot/      # facultatif, pour partager le seau
 ```
 
-Le nom réel des volumes est préfixé par le nom du projet Compose
-(`piilot-app_` par défaut hors Coolify, un identifiant de ressource sous
-Coolify) : `docker volume ls | grep piilot` le donne. Ces commandes se
-planifient avec cron, et les archives doivent partir hors du serveur.
+Sans S3, copier le volume ailleurs par un autre moyen (rsync, restic…) : des
+sauvegardes sur le disque du serveur ne protègent pas de la perte du serveur.
 
-Une sauvegarde n'a de valeur que si sa restauration a été testée.
+**Restaurer** — la base cible doit exister (c'est le cas de la base de la
+pile) ; son contenu est remplacé, les fichiers sont ajoutés à ceux présents :
+
+```bash
+# La plus récente du volume
+docker compose exec backup backup restore
+
+# Une archive précise, ou une archive rapatriée depuis S3
+docker compose cp ./piilot-20261007-030000.tar backup:/tmp/
+docker compose exec backup backup restore /tmp/piilot-20261007-030000.tar
+
+# Puis redémarrer l'application, qui rejoue ses migrations si l'archive est
+# plus ancienne que la version installée
+docker compose restart server
+```
+
+`docker compose exec backup backup now` fait une sauvegarde sur-le-champ,
+`backup list` liste les archives du volume. **La restauration est testée à
+chaque intégration continue** : une base migrée et remplie est sauvegardée par
+cette commande, restaurée dans une base vide, et l'API démarre dessus.
+
+Le client Postgres embarqué dans l'image (`pg_dump`, `pg_restore`) est en
+version 17, comme le service `postgres` du compose : un `pg_dump` ne lit pas un
+serveur plus récent que lui.
 
 ### Comptes et invitations
 
@@ -954,6 +1011,7 @@ api/                        API Go
 ├── cmd/seed/               création de comptes (create-admin, seed)
 ├── cmd/updater/            mise à jour de l'application (service updater)
 ├── cmd/gateway/            passerelle devant l'application (service app)
+├── cmd/backup/             sauvegarde et restauration (service backup)
 ├── internal/               config, domaine, handlers, usecases, repository…
 ├── migrations/             SQL versionné, embarqué dans le binaire
 ├── queries/                requêtes SQL (source de sqlc)
@@ -966,7 +1024,7 @@ scripts/release.sh          publication d'une version
 scripts/roadmap.sh          statut des releases, recalculé depuis VERSION
 docs/images/                captures du README
 Dockerfile                  image unique : front + API
-docker-compose.yml          déploiement : passerelle, serveur, updater, Postgres, Redis
+docker-compose.yml          déploiement : passerelle, serveur, updater, backup, Postgres, Redis
 docker-compose.build.yml    construction de l'image depuis les sources
 docker-compose.selfhost.yml publication du port hors Coolify
 docker-compose.dev.yml      Postgres + Redis pour le développement
