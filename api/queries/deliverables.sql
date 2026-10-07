@@ -192,3 +192,27 @@ FROM deliverables d
 JOIN projects p ON p.id = d.project_id
 LEFT JOIN deliverable_versions v ON v.id = d.current_version_id
 WHERE d.id = $1;
+
+-- name: ListVersionsToRemind :many
+-- Les versions qui attendent une reponse depuis trop longtemps et n'ont pas
+-- encore ete relancees. Seule la version courante compte : une ancienne
+-- version en attente a ete remplacee.
+SELECT
+    v.id AS version_id,
+    v.numero,
+    v.submitted_at,
+    d.id AS deliverable_id,
+    d.title,
+    p.id AS project_id,
+    p.name AS project_name
+FROM deliverable_versions v
+JOIN deliverables d ON d.id = v.deliverable_id AND d.current_version_id = v.id AND d.deleted_at IS NULL
+JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL AND NOT p.is_internal
+WHERE v.decision = 'en_attente'
+  AND v.reminded_at IS NULL
+  AND v.submitted_at < now() - make_interval(secs => sqlc.arg('after_seconds')::double precision)
+ORDER BY v.submitted_at
+LIMIT 50;
+
+-- name: MarkVersionReminded :exec
+UPDATE deliverable_versions SET reminded_at = now() WHERE id = sqlc.arg('id');
