@@ -2,6 +2,7 @@ import {
   Attachment02Icon,
   Building03Icon,
   Calendar03Icon,
+  GitPullRequestIcon,
   Note01Icon,
   UserMultipleIcon,
 } from '@hugeicons/core-free-icons'
@@ -14,6 +15,7 @@ import { PageFrame } from '@/components/layout/page-frame'
 import { PanelCard } from '@/components/panel-card'
 import { fileUrl } from '@/features/projects/api'
 import { Avatars, StatusPill } from '@/features/projects/ui'
+import { TimerButton } from '@/features/time/timer-ui'
 import { ticketDetailQuery } from '@/features/tickets/api'
 import {
   TICKET_PRIORITY,
@@ -27,6 +29,7 @@ import { TicketDiscussion, TicketHistorique } from '@/features/tickets/registre'
 import { SlideTabs } from '@/features/tickets/tabs'
 import { TitreModifiable } from '@/features/tickets/titre'
 import type { TicketPerson } from '@/types/api'
+import { PullRequestChips } from '@/features/git/pull-request-chips'
 
 /**
  * Fiche d'un ticket.
@@ -171,6 +174,7 @@ function TicketDetailPage() {
                     pill={{ bg: '#fff2ea', border: '#ffd9c2', text: '#b84a0c' }}
                   />
                 )}
+                <TimerButton projectId={data.project.id} note={`Ticket #${data.numero} · ${data.subject}`} size="xs" className="ml-auto" />
               </div>
 
               <p className="text-[12.5px] text-[#73757c]">
@@ -284,6 +288,20 @@ function TicketDetailPage() {
               <Row label="Mis à jour">
                 <span className="tabular-nums">{formatDateTime(data.updated_at)}</span>
               </Row>
+            </PanelCard>
+
+            {/* Ce que le code en dit : les pull requests qui nomment ce
+                ticket, recues par webhook. Vide, le panneau explique comment
+                les faire venir — c'est le seul endroit ou on l'apprend. */}
+            <PanelCard icon={GitPullRequestIcon} title="DÉVELOPPEMENT">
+              {data.pull_requests.length === 0 ? (
+                <p className="py-1 text-[12px] text-[#a2a3a7]">
+                  Aucune pull request. Nommez <span className="font-medium text-[#73757c]">#{data.numero}</span> dans son titre ou sa
+                  branche pour la voir ici.
+                </p>
+              ) : (
+                <PullRequestChips items={data.pull_requests} className="py-1" />
+              )}
             </PanelCard>
 
             <PanelCard icon={Building03Icon} title="IDENTITÉ">

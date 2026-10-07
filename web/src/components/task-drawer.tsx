@@ -61,6 +61,8 @@ import type {
   TaskDetail,
   TaskPriority,
 } from '@/types/api'
+import { TimerButton } from '@/features/time/timer-ui'
+import { PullRequestChips } from '@/features/git/pull-request-chips'
 
 /**
  * Panneau de detail d'une tache.
@@ -654,6 +656,12 @@ function TaskProperties({ task }: { task: TaskDetail }) {
         />
       </PropertyRow>
 
+      {task.pull_requests.length > 0 && (
+        <PropertyRow label="Dév :">
+          <PullRequestChips items={task.pull_requests} />
+        </PropertyRow>
+      )}
+
       {shown.map((item) => (
         <PropertyRow key={item.key} label={`${item.label} :`}>
           {item.key === 'starts_on' && (
@@ -1163,6 +1171,13 @@ function TaskDrawerBody({ task, onClose }: { task: TaskDetail; onClose: () => vo
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="flex w-full flex-col gap-4 p-4">
           <TaskHeading task={task} />
+          <div className="flex items-center gap-3 self-start">
+            <TimerButton projectId={task.project_id} taskId={task.id} />
+            {/* Le numero a ecrire dans une branche ou une pull request. */}
+            <span className="text-[12px] text-[#8d8d8d] tabular-nums" title="Numéro de la tâche, à nommer dans une pull request">
+              T-{task.numero}
+            </span>
+          </div>
           <TaskProperties task={task} />
           <Attachments task={task} />
         </div>
