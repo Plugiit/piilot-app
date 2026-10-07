@@ -21,6 +21,7 @@ import (
 type PortalProject struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
+	LogoURL     *string   `json:"logo_url"`
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
 	Progress    int       `json:"progress"`
@@ -73,6 +74,7 @@ type PortalFile struct {
 type PortalProjectDetail struct {
 	ID                  uuid.UUID           `json:"id"`
 	Name                string              `json:"name"`
+	LogoURL             *string             `json:"logo_url"`
 	Description         string              `json:"description"`
 	ClientName          string              `json:"client_name"`
 	Status              string              `json:"status"`
@@ -83,6 +85,8 @@ type PortalProjectDetail struct {
 	Milestones          []Milestone         `json:"milestones"`
 	Deliverables        []PortalDeliverable `json:"deliverables"`
 	Files               []PortalFile        `json:"files"`
+	// La derniere mise en ligne connue, nulle s'il n'y en a pas eu.
+	LastDeployment *Deployment `json:"last_deployment"`
 }
 
 // PortalVersion est une version dans le fil d'un livrable.
@@ -155,6 +159,7 @@ func (s *PortalService) Projects(ctx context.Context, userID uuid.UUID) (PortalP
 		items = append(items, PortalProject{
 			ID:                  row.ID,
 			Name:                row.Name,
+			LogoURL:             projectLogoURL(row.LogoKey),
 			Description:         row.Description,
 			Status:              row.Status,
 			Progress:            int(row.Progress),
@@ -204,6 +209,7 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 	out := PortalProjectDetail{
 		ID:                  row.ID,
 		Name:                row.Name,
+		LogoURL:             projectLogoURL(row.LogoKey),
 		Description:         row.Description,
 		ClientName:          row.ClientName,
 		Status:              row.Status,
@@ -254,6 +260,15 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 		out.Files = append(out.Files, PortalFile{
 			ID: f.ID, Filename: f.Filename, ContentType: f.ContentType, SizeBytes: f.SizeBytes, CreatedAt: f.CreatedAt,
 		})
+	}
+
+	deployments, err := s.q.ListDeploymentsOfProject(ctx, db.ListDeploymentsOfProjectParams{ProjectID: projectID, MaxRows: 1})
+	if err != nil {
+		return PortalProjectDetail{}, fmt.Errorf("mises en ligne : %w", err)
+	}
+	if len(deployments) > 0 {
+		d := deploymentOf(deployments[0])
+		out.LastDeployment = &d
 	}
 
 	return out, nil

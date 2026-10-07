@@ -181,7 +181,10 @@ type ActivityEntry struct {
 // endpoint. Les charger ici ferait payer a chaque ouverture une liste que la
 // plupart des consultations ne regardent pas.
 type TaskDetail struct {
-	ID          uuid.UUID       `json:"id"`
+	ID uuid.UUID `json:"id"`
+	// Numero lisible, celui qu'on ecrit dans une branche ou une pull request
+	// (T-123) pour que l'integration Git retrouve la tache.
+	Numero      int64           `json:"numero"`
 	ProjectID   uuid.UUID       `json:"project_id"`
 	ProjectName string          `json:"project_name"`
 	ClientName  string          `json:"client_name"`
@@ -201,6 +204,8 @@ type TaskDetail struct {
 	Files       []Attachment    `json:"files"`
 	Activity    []ActivityEntry `json:"activity"`
 	Services    []ServiceTag    `json:"services"`
+	// Les pull requests qui la nomment, recues par webhook.
+	PullRequests []PullRequest `json:"pull_requests"`
 }
 
 // CreateTaskInput decrit une tache a creer.
@@ -548,27 +553,38 @@ func (s *TaskService) Get(ctx context.Context, id uuid.UUID) (TaskDetail, error)
 		assignees = people
 	}
 
+	prs, err := s.q.ListPullRequestsOfTask(ctx, &id)
+	if err != nil {
+		return TaskDetail{}, fmt.Errorf("pull requests de la tache : %w", err)
+	}
+	pullRequests := make([]PullRequest, 0, len(prs))
+	for _, pr := range prs {
+		pullRequests = append(pullRequests, pullRequestOf(pr))
+	}
+
 	return TaskDetail{
-		ID:          row.ID,
-		ProjectID:   row.ProjectID,
-		ProjectName: row.ProjectName,
-		ClientName:  row.ClientName,
-		Title:       row.Title,
-		Description: row.Description,
-		Status:      row.Status,
-		Tag:         row.Tag,
-		Priority:    row.Priority,
-		Note:        row.Note,
-		StartsOn:    formatDate(row.StartsOn),
-		DueOn:       formatDate(row.DueOn),
-		Hours:       row.Hours,
-		CompletedAt: row.CompletedAt,
-		CreatedAt:   row.CreatedAt,
-		Assignees:   assignees,
-		Services:    servicesOrEmpty(byService[id]),
-		Subtasks:    subtasks,
-		Files:       files,
-		Activity:    activity,
+		ID:           row.ID,
+		Numero:       row.Numero,
+		ProjectID:    row.ProjectID,
+		ProjectName:  row.ProjectName,
+		ClientName:   row.ClientName,
+		Title:        row.Title,
+		Description:  row.Description,
+		Status:       row.Status,
+		Tag:          row.Tag,
+		Priority:     row.Priority,
+		Note:         row.Note,
+		StartsOn:     formatDate(row.StartsOn),
+		DueOn:        formatDate(row.DueOn),
+		Hours:        row.Hours,
+		CompletedAt:  row.CompletedAt,
+		CreatedAt:    row.CreatedAt,
+		Assignees:    assignees,
+		Services:     servicesOrEmpty(byService[id]),
+		Subtasks:     subtasks,
+		Files:        files,
+		Activity:     activity,
+		PullRequests: pullRequests,
 	}, nil
 }
 
