@@ -20,6 +20,7 @@ import { projectListQuery } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
 import { useSearchField } from '@/lib/search-field'
 import type { DeliverableStatus } from '@/types/api'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Ecran « Livrables » du module.
@@ -61,6 +62,7 @@ export const Route = createFileRoute('/_app/pm/livrables/')({
 
 function LivrablesPage() {
   const search = Route.useSearch()
+  useRememberFilters('livrables', ['page'])
   const navigate = Route.useNavigate()
 
   const { data: projects } = useQuery(

@@ -26,6 +26,7 @@ import {
 import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
 import { useSearchField } from '@/lib/search-field'
 import type { TicketPriority, TicketStatus, TicketTracker } from '@/types/api'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Ecran « Tickets » du module.
@@ -82,6 +83,7 @@ const TABS: Tab[] = [
  */
 function TicketsLayout() {
   const search = Route.useSearch()
+  useRememberFilters('tickets', ['page'])
   const navigate = Route.useNavigate()
 
   const { data: projects } = useQuery(

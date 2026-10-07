@@ -17,6 +17,7 @@ import { ContactTable } from '@/features/contacts/list'
 import { NewContactDialog } from '@/features/contacts/new-contact-dialog'
 import { clientListQuery } from '@/features/projects/api'
 import { useSearchField } from '@/lib/search-field'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Ecran « Contacts » du CRM.
@@ -59,6 +60,7 @@ export const Route = createFileRoute('/_app/crm/contacts/')({
 
 function ContactsPage() {
   const search = Route.useSearch()
+  useRememberFilters('contacts', ['page'])
   const navigate = Route.useNavigate()
 
   const { data: page } = useQuery(contactListQuery(paramsOf(search)))
