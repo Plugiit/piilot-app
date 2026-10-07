@@ -18,3 +18,6 @@ services:
 
   updater:
     image: piilot-app:local
+
+  backup:
+    image: piilot-app:local

@@ -83,6 +83,9 @@ type Config struct {
 
 	// GitWebhookSecret, s'il est renseigne, remplace le secret tire au sort
 	// et garde en base : pour une installation decrite par son environnement.
+	// Au-dela de ce delai sans sauvegarde reussie, les admins sont prevenus.
+	// 0 pour une instance sauvegardee autrement, qui ne veut pas d'alerte.
+	BackupStaleAfter time.Duration
 	GitWebhookSecret string
 
 	// Serveur SMTP des e-mails (invitations, mot de passe oublie). Facultatif :
@@ -126,6 +129,7 @@ func Load() (Config, error) {
 		UpdateCheckInterval: envDuration("UPDATE_CHECK_INTERVAL", 15*time.Minute),
 
 		DeliverableReminderAfter: envDuration("DELIVERABLE_REMINDER_AFTER", 72*time.Hour),
+		BackupStaleAfter:         envDuration("BACKUP_STALE_AFTER", 36*time.Hour),
 		GitWebhookSecret:         os.Getenv("GIT_WEBHOOK_SECRET"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
@@ -278,4 +282,62 @@ func envList(key, fallback string) []string {
 		}
 	}
 	return out
+}
+
+// BackupConfig est la configuration de la commande backup, le conteneur qui
+// sauvegarde la base et les fichiers.
+type BackupConfig struct {
+	DatabaseURL string
+	LogLevel    string
+	// Pieces jointes de l'application, montees en lecture seule.
+	FilesDir string
+	// Ou les archives sont posees.
+	Dir string
+	// Heure locale de la sauvegarde quotidienne, « HH:MM ».
+	At string
+	// Retention : jours, semaines, mois.
+	KeepDaily   int
+	KeepWeekly  int
+	KeepMonthly int
+
+	// Destination S3, facultative.
+	S3Endpoint  string
+	S3Bucket    string
+	S3Region    string
+	S3AccessKey string
+	S3SecretKey string
+	S3Prefix    string
+}
+
+// LoadBackup lit la configuration de la commande backup.
+func LoadBackup() (BackupConfig, error) {
+	cfg := BackupConfig{
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		LogLevel:    env("LOG_LEVEL", "info"),
+		FilesDir:    env("FILES_DIR", "./data/files"),
+		Dir:         env("BACKUP_DIR", "./data/backups"),
+		At:          env("BACKUP_AT", "03:00"),
+		KeepDaily:   envInt("BACKUP_KEEP_DAILY", 7),
+		KeepWeekly:  envInt("BACKUP_KEEP_WEEKLY", 4),
+		KeepMonthly: envInt("BACKUP_KEEP_MONTHLY", 3),
+
+		S3Endpoint:  os.Getenv("BACKUP_S3_ENDPOINT"),
+		S3Bucket:    os.Getenv("BACKUP_S3_BUCKET"),
+		S3Region:    env("BACKUP_S3_REGION", "fr-par"),
+		S3AccessKey: os.Getenv("BACKUP_S3_ACCESS_KEY"),
+		S3SecretKey: os.Getenv("BACKUP_S3_SECRET_KEY"),
+		S3Prefix:    env("BACKUP_S3_PREFIX", "piilot/"),
+	}
+
+	if cfg.DatabaseURL == "" {
+		return BackupConfig{}, fmt.Errorf("DATABASE_URL est obligatoire")
+	}
+	if _, err := time.Parse("15:04", cfg.At); err != nil {
+		return BackupConfig{}, fmt.Errorf("BACKUP_AT doit etre une heure « HH:MM » (actuel : %q)", cfg.At)
+	}
+	if (cfg.S3Endpoint != "" || cfg.S3Bucket != "") && (cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "") {
+		return BackupConfig{}, fmt.Errorf("S3 : BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY et BACKUP_S3_SECRET_KEY vont ensemble")
+	}
+
+	return cfg, nil
 }
