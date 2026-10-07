@@ -69,6 +69,19 @@ type Attachment struct {
 	TicketID         *uuid.UUID `json:"ticket_id"`
 }
 
+type AuditLog struct {
+	ID         uuid.UUID  `json:"id"`
+	At         time.Time  `json:"at"`
+	ActorID    *uuid.UUID `json:"actor_id"`
+	ActorEmail string     `json:"actor_email"`
+	Action     string     `json:"action"`
+	TargetType string     `json:"target_type"`
+	TargetID   string     `json:"target_id"`
+	Ip         string     `json:"ip"`
+	UserAgent  string     `json:"user_agent"`
+	Details    []byte     `json:"details"`
+}
+
 type Client struct {
 	ID                uuid.UUID  `json:"id"`
 	Name              string     `json:"name"`
@@ -179,12 +192,52 @@ type EmailOutbox struct {
 	LastError     string     `json:"last_error"`
 	CreatedAt     time.Time  `json:"created_at"`
 	SentAt        *time.Time `json:"sent_at"`
+	ReplyTo       string     `json:"reply_to"`
+	MessageID     string     `json:"message_id"`
+	InReplyTo     string     `json:"in_reply_to"`
 }
 
 type GitWebhook struct {
 	ID        bool      `json:"id"`
 	Secret    string    `json:"secret"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type InboundEmail struct {
+	ID              uuid.UUID  `json:"id"`
+	ReceivedAt      time.Time  `json:"received_at"`
+	Source          string     `json:"source"`
+	MessageID       string     `json:"message_id"`
+	FromAddress     string     `json:"from_address"`
+	FromName        string     `json:"from_name"`
+	Subject         string     `json:"subject"`
+	Excerpt         string     `json:"excerpt"`
+	AttachmentCount int32      `json:"attachment_count"`
+	Raw             []byte     `json:"raw"`
+	Status          string     `json:"status"`
+	Reason          string     `json:"reason"`
+	ClientID        *uuid.UUID `json:"client_id"`
+	TicketID        *uuid.UUID `json:"ticket_id"`
+	Attempts        int32      `json:"attempts"`
+	Error           string     `json:"error"`
+	ProcessedAt     *time.Time `json:"processed_at"`
+}
+
+type InboundMailSetting struct {
+	ID              int32      `json:"id"`
+	Address         string     `json:"address"`
+	ImapEnabled     bool       `json:"imap_enabled"`
+	ImapHost        string     `json:"imap_host"`
+	ImapPort        int32      `json:"imap_port"`
+	ImapSecurity    string     `json:"imap_security"`
+	ImapUsername    string     `json:"imap_username"`
+	ImapPasswordEnc []byte     `json:"imap_password_enc"`
+	ImapFolder      string     `json:"imap_folder"`
+	WebhookSecret   string     `json:"webhook_secret"`
+	LastPollAt      *time.Time `json:"last_poll_at"`
+	LastPollError   string     `json:"last_poll_error"`
+	PollRequestedAt *time.Time `json:"poll_requested_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type Invitation struct {
@@ -463,20 +516,22 @@ type TaskService struct {
 }
 
 type Ticket struct {
-	ID            uuid.UUID  `json:"id"`
-	Numero        int64      `json:"numero"`
-	ProjectID     uuid.UUID  `json:"project_id"`
-	Subject       string     `json:"subject"`
-	Description   string     `json:"description"`
-	Tracker       string     `json:"tracker"`
-	Status        string     `json:"status"`
-	Priority      string     `json:"priority"`
-	AssigneeID    *uuid.UUID `json:"assignee_id"`
-	CreatedBy     *uuid.UUID `json:"created_by"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at"`
-	ClientVisible bool       `json:"client_visible"`
+	ID             uuid.UUID  `json:"id"`
+	Numero         int64      `json:"numero"`
+	ProjectID      uuid.UUID  `json:"project_id"`
+	Subject        string     `json:"subject"`
+	Description    string     `json:"description"`
+	Tracker        string     `json:"tracker"`
+	Status         string     `json:"status"`
+	Priority       string     `json:"priority"`
+	AssigneeID     *uuid.UUID `json:"assignee_id"`
+	CreatedBy      *uuid.UUID `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	DeletedAt      *time.Time `json:"deleted_at"`
+	ClientVisible  bool       `json:"client_visible"`
+	RequesterEmail *string    `json:"requester_email"`
+	RequesterName  string     `json:"requester_name"`
 }
 
 type TicketEvent struct {
@@ -490,13 +545,25 @@ type TicketEvent struct {
 }
 
 type TicketMessage struct {
-	ID         uuid.UUID  `json:"id"`
-	TicketID   uuid.UUID  `json:"ticket_id"`
-	AuthorID   *uuid.UUID `json:"author_id"`
-	Body       string     `json:"body"`
-	IsInternal bool       `json:"is_internal"`
-	CreatedAt  time.Time  `json:"created_at"`
-	DeletedAt  *time.Time `json:"deleted_at"`
+	ID          uuid.UUID  `json:"id"`
+	TicketID    uuid.UUID  `json:"ticket_id"`
+	AuthorID    *uuid.UUID `json:"author_id"`
+	Body        string     `json:"body"`
+	IsInternal  bool       `json:"is_internal"`
+	CreatedAt   time.Time  `json:"created_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+	ViaEmail    bool       `json:"via_email"`
+	SenderName  string     `json:"sender_name"`
+	SenderEmail string     `json:"sender_email"`
+}
+
+type TicketReplyTemplate struct {
+	ID        uuid.UUID  `json:"id"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	CreatedBy *uuid.UUID `json:"created_by"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 type TimeEntry struct {

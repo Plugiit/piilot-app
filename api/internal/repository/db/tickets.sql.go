@@ -94,14 +94,15 @@ const createTicket = `-- name: CreateTicket :one
 WITH nouveau AS (
     INSERT INTO tickets (
         project_id, subject, description, tracker, status, priority,
-        assignee_id, created_by, client_visible
+        assignee_id, created_by, client_visible, requester_email, requester_name
     )
     VALUES (
         $1, $2, $3,
         $4, $5, $6,
-        $7, $8, $9
+        $7, $8, $9,
+        $10, $11
     )
-    RETURNING id, numero, project_id, subject, description, tracker, status, priority, assignee_id, created_by, created_at, updated_at, deleted_at, client_visible
+    RETURNING id, numero, project_id, subject, description, tracker, status, priority, assignee_id, created_by, created_at, updated_at, deleted_at, client_visible, requester_email, requester_name
 )
 SELECT
     n.id,
@@ -119,15 +120,17 @@ JOIN projects p ON p.id = n.project_id
 `
 
 type CreateTicketParams struct {
-	ProjectID     uuid.UUID  `json:"project_id"`
-	Subject       string     `json:"subject"`
-	Description   string     `json:"description"`
-	Tracker       string     `json:"tracker"`
-	Status        string     `json:"status"`
-	Priority      string     `json:"priority"`
-	AssigneeID    *uuid.UUID `json:"assignee_id"`
-	CreatedBy     *uuid.UUID `json:"created_by"`
-	ClientVisible bool       `json:"client_visible"`
+	ProjectID      uuid.UUID  `json:"project_id"`
+	Subject        string     `json:"subject"`
+	Description    string     `json:"description"`
+	Tracker        string     `json:"tracker"`
+	Status         string     `json:"status"`
+	Priority       string     `json:"priority"`
+	AssigneeID     *uuid.UUID `json:"assignee_id"`
+	CreatedBy      *uuid.UUID `json:"created_by"`
+	ClientVisible  bool       `json:"client_visible"`
+	RequesterEmail *string    `json:"requester_email"`
+	RequesterName  string     `json:"requester_name"`
 }
 
 type CreateTicketRow struct {
@@ -161,6 +164,8 @@ func (q *Queries) CreateTicket(ctx context.Context, arg CreateTicketParams) (Cre
 		arg.AssigneeID,
 		arg.CreatedBy,
 		arg.ClientVisible,
+		arg.RequesterEmail,
+		arg.RequesterName,
 	)
 	var i CreateTicketRow
 	err := row.Scan(
@@ -215,16 +220,22 @@ func (q *Queries) CreateTicketEvent(ctx context.Context, arg CreateTicketEventPa
 }
 
 const createTicketMessage = `-- name: CreateTicketMessage :one
-INSERT INTO ticket_messages (ticket_id, author_id, body, is_internal)
-VALUES ($1, $2, $3, $4)
+INSERT INTO ticket_messages (ticket_id, author_id, body, is_internal, via_email, sender_name, sender_email)
+VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7
+)
 RETURNING id, created_at
 `
 
 type CreateTicketMessageParams struct {
-	TicketID   uuid.UUID  `json:"ticket_id"`
-	AuthorID   *uuid.UUID `json:"author_id"`
-	Body       string     `json:"body"`
-	IsInternal bool       `json:"is_internal"`
+	TicketID    uuid.UUID  `json:"ticket_id"`
+	AuthorID    *uuid.UUID `json:"author_id"`
+	Body        string     `json:"body"`
+	IsInternal  bool       `json:"is_internal"`
+	ViaEmail    bool       `json:"via_email"`
+	SenderName  string     `json:"sender_name"`
+	SenderEmail string     `json:"sender_email"`
 }
 
 type CreateTicketMessageRow struct {
@@ -239,6 +250,9 @@ func (q *Queries) CreateTicketMessage(ctx context.Context, arg CreateTicketMessa
 		arg.AuthorID,
 		arg.Body,
 		arg.IsInternal,
+		arg.ViaEmail,
+		arg.SenderName,
+		arg.SenderEmail,
 	)
 	var i CreateTicketMessageRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
@@ -268,7 +282,9 @@ SELECT
     t.created_by,
     r.firstname  AS reporter_firstname,
     r.lastname   AS reporter_lastname,
-    r.avatar_url AS reporter_avatar_url
+    r.avatar_url AS reporter_avatar_url,
+    t.requester_email,
+    t.requester_name
 FROM tickets t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
 LEFT JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
@@ -300,6 +316,8 @@ type GetTicketRow struct {
 	ReporterFirstname *string    `json:"reporter_firstname"`
 	ReporterLastname  *string    `json:"reporter_lastname"`
 	ReporterAvatarUrl *string    `json:"reporter_avatar_url"`
+	RequesterEmail    *string    `json:"requester_email"`
+	RequesterName     string     `json:"requester_name"`
 }
 
 // Fiche d'un ticket : son en-tete et ses coordonnees.
@@ -333,6 +351,39 @@ func (q *Queries) GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, er
 		&i.ReporterFirstname,
 		&i.ReporterLastname,
 		&i.ReporterAvatarUrl,
+		&i.RequesterEmail,
+		&i.RequesterName,
+	)
+	return i, err
+}
+
+const getTicketByNumero = `-- name: GetTicketByNumero :one
+SELECT t.id, t.numero, t.status, t.subject, t.project_id, p.client_id
+FROM tickets t
+JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
+WHERE t.numero = $1 AND t.deleted_at IS NULL
+`
+
+type GetTicketByNumeroRow struct {
+	ID        uuid.UUID `json:"id"`
+	Numero    int64     `json:"numero"`
+	Status    string    `json:"status"`
+	Subject   string    `json:"subject"`
+	ProjectID uuid.UUID `json:"project_id"`
+	ClientID  uuid.UUID `json:"client_id"`
+}
+
+// Le ticket que designe une adresse de reponse : son numero, son client.
+func (q *Queries) GetTicketByNumero(ctx context.Context, numero int64) (GetTicketByNumeroRow, error) {
+	row := q.db.QueryRow(ctx, getTicketByNumero, numero)
+	var i GetTicketByNumeroRow
+	err := row.Scan(
+		&i.ID,
+		&i.Numero,
+		&i.Status,
+		&i.Subject,
+		&i.ProjectID,
+		&i.ClientID,
 	)
 	return i, err
 }
@@ -407,7 +458,10 @@ SELECT
     u.firstname  AS author_firstname,
     u.lastname   AS author_lastname,
     u.avatar_url AS author_avatar_url,
-    u.role       AS author_role
+    u.role       AS author_role,
+    m.via_email,
+    m.sender_name,
+    m.sender_email
 FROM ticket_messages m
 LEFT JOIN users u ON u.id = m.author_id AND u.deleted_at IS NULL
 WHERE m.ticket_id = $1 AND m.deleted_at IS NULL
@@ -424,6 +478,9 @@ type ListTicketMessagesRow struct {
 	AuthorLastname  *string    `json:"author_lastname"`
 	AuthorAvatarUrl *string    `json:"author_avatar_url"`
 	AuthorRole      *string    `json:"author_role"`
+	ViaEmail        bool       `json:"via_email"`
+	SenderName      string     `json:"sender_name"`
+	SenderEmail     string     `json:"sender_email"`
 }
 
 // Ce qui s'est dit sur un ticket, du plus ancien au plus recent.
@@ -446,6 +503,9 @@ func (q *Queries) ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([
 			&i.AuthorLastname,
 			&i.AuthorAvatarUrl,
 			&i.AuthorRole,
+			&i.ViaEmail,
+			&i.SenderName,
+			&i.SenderEmail,
 		); err != nil {
 			return nil, err
 		}

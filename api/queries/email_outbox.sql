@@ -1,6 +1,11 @@
 -- name: EnqueueEmail :exec
-INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body)
-VALUES ($1, $2, $3, $4, $5);
+-- reply_to, message_id et in_reply_to filent les e-mails des tickets : la
+-- reponse du client revient sur le bon ticket. Vides pour les autres.
+INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body, reply_to, message_id, in_reply_to)
+VALUES (
+    sqlc.arg('kind'), sqlc.arg('to_address'), sqlc.arg('subject'), sqlc.arg('text_body'), sqlc.arg('html_body'),
+    sqlc.arg('reply_to'), sqlc.arg('message_id'), sqlc.arg('in_reply_to')
+);
 
 -- name: ClaimDueEmail :one
 -- Le prochain e-mail a envoyer, verrouille pour la transaction de l'envoi.

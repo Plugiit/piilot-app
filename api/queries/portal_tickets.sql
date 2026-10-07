@@ -74,7 +74,9 @@ SELECT
     m.body,
     m.created_at,
     u.firstname AS author_firstname,
-    u.role      AS author_role
+    u.role      AS author_role,
+    m.via_email,
+    m.sender_name
 FROM ticket_messages m
 LEFT JOIN users u ON u.id = m.author_id AND u.deleted_at IS NULL
 WHERE m.ticket_id = sqlc.arg('ticket_id')
@@ -118,7 +120,10 @@ SELECT
     c.name AS client_name,
     r.email     AS reporter_email,
     r.firstname AS reporter_firstname,
-    coalesce(r.role = 'client' AND r.deleted_at IS NULL AND r.disabled_at IS NULL, false)::boolean AS reporter_is_active_client
+    coalesce(r.role = 'client' AND r.deleted_at IS NULL AND r.disabled_at IS NULL, false)::boolean AS reporter_is_active_client,
+    -- Sans compte du portail : la personne qui a ecrit a l'adresse de support.
+    t.requester_email,
+    t.requester_name
 FROM tickets t
 JOIN projects p ON p.id = t.project_id
 JOIN clients c  ON c.id = p.client_id

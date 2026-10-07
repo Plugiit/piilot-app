@@ -74,7 +74,10 @@ SELECT
     c.name AS client_name,
     r.email     AS reporter_email,
     r.firstname AS reporter_firstname,
-    coalesce(r.role = 'client' AND r.deleted_at IS NULL AND r.disabled_at IS NULL, false)::boolean AS reporter_is_active_client
+    coalesce(r.role = 'client' AND r.deleted_at IS NULL AND r.disabled_at IS NULL, false)::boolean AS reporter_is_active_client,
+    -- Sans compte du portail : la personne qui a ecrit a l'adresse de support.
+    t.requester_email,
+    t.requester_name
 FROM tickets t
 JOIN projects p ON p.id = t.project_id
 JOIN clients c  ON c.id = p.client_id
@@ -91,6 +94,8 @@ type GetTicketMailContextRow struct {
 	ReporterEmail          *string `json:"reporter_email"`
 	ReporterFirstname      *string `json:"reporter_firstname"`
 	ReporterIsActiveClient bool    `json:"reporter_is_active_client"`
+	RequesterEmail         *string `json:"requester_email"`
+	RequesterName          string  `json:"requester_name"`
 }
 
 // De quoi ecrire les e-mails d'un ticket : son numero, son sujet, son projet,
@@ -107,6 +112,8 @@ func (q *Queries) GetTicketMailContext(ctx context.Context, ticketID uuid.UUID) 
 		&i.ReporterEmail,
 		&i.ReporterFirstname,
 		&i.ReporterIsActiveClient,
+		&i.RequesterEmail,
+		&i.RequesterName,
 	)
 	return i, err
 }
@@ -288,7 +295,9 @@ SELECT
     m.body,
     m.created_at,
     u.firstname AS author_firstname,
-    u.role      AS author_role
+    u.role      AS author_role,
+    m.via_email,
+    m.sender_name
 FROM ticket_messages m
 LEFT JOIN users u ON u.id = m.author_id AND u.deleted_at IS NULL
 WHERE m.ticket_id = $1
@@ -304,6 +313,8 @@ type PortalListTicketMessagesRow struct {
 	CreatedAt       time.Time `json:"created_at"`
 	AuthorFirstname *string   `json:"author_firstname"`
 	AuthorRole      *string   `json:"author_role"`
+	ViaEmail        bool      `json:"via_email"`
+	SenderName      string    `json:"sender_name"`
 }
 
 // Les messages publics d'un ticket. Les notes internes n'en sortent pas.
@@ -322,6 +333,8 @@ func (q *Queries) PortalListTicketMessages(ctx context.Context, ticketID uuid.UU
 			&i.CreatedAt,
 			&i.AuthorFirstname,
 			&i.AuthorRole,
+			&i.ViaEmail,
+			&i.SenderName,
 		); err != nil {
 			return nil, err
 		}
