@@ -6,6 +6,7 @@ import {
   Folder01Icon,
   Globe02Icon,
   Mail01Icon,
+  PlusSignIcon,
   SmartPhone01Icon,
   UserIcon,
   UserMultipleIcon,
@@ -27,10 +28,13 @@ import { ClientRowActions } from '@/features/clients/row-actions'
 import { ContactRowActions } from '@/features/contacts/row-actions'
 import { InteractionForm, InteractionList } from '@/features/interactions/journal'
 import { PROJECT_STATUS, tracksSchedule } from '@/features/projects/format'
-import { Avatars, Meter, StatusPill } from '@/features/projects/ui'
+import { Avatars, Meter, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { can, sessionQuery } from '@/lib/auth'
 import { formatPhone } from '@/lib/countries'
 import type { CrmClientDetail, ProjectStatus } from '@/types/api'
+import { InviteDialog } from '@/features/accounts/invite-dialog'
+import { NewContactDialog } from '@/features/contacts/new-contact-dialog'
+import { NewProjectDialog } from '@/routes/_app/pm/projets/-new-project'
 
 const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
@@ -220,6 +224,21 @@ function ClientDetailPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Les deux gestes qu'on fait depuis une fiche : lui ouvrir un
+                  projet, lui ajouter quelqu'un. Le client est deja choisi. */}
+              <NewProjectDialog
+                initialClient={{ id: client.id, name: client.name }}
+                trigger={
+                  <Button className="gap-1.5">
+                    <HugeiconsIcon icon={PlusSignIcon} size={16} strokeWidth={2} />
+                    Nouveau projet
+                  </Button>
+                }
+              />
+              <NewContactDialog
+                clientId={client.id}
+                trigger={<Button variant="outline">Nouveau contact</Button>}
+              />
               <EditClientDialog
                 client={client}
                 trigger={<Button variant="outline">Modifier</Button>}
@@ -319,13 +338,16 @@ function ClientDetailPage() {
                   return (
                     <Row key={project.id}>
                       <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <Link
-                          to="/pm/projets/$id"
-                          params={{ id: project.id }}
-                          className="truncate text-[14px] text-[#111] hover:underline"
-                        >
-                          {project.name}
-                        </Link>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProjectLogo url={project.logo_url} size={20} className="rounded-[5px]" />
+                          <Link
+                            to="/pm/projets/$id"
+                            params={{ id: project.id }}
+                            className="truncate text-[14px] text-[#111] hover:underline"
+                          >
+                            {project.name}
+                          </Link>
+                        </span>
                         {tracksSchedule(project.status as ProjectStatus) && (
                           <Meter ratio={project.progress} color={tint.color} />
                         )}
@@ -396,7 +418,14 @@ function ClientDetailPage() {
 
           <PanelCard icon={UserMultipleIcon} title="COMPTES PORTAIL">
             {client.accounts.length === 0 ? (
-              <Empty>Aucun compte. Rien ne permet encore d'en ouvrir un depuis l'interface.</Empty>
+              <div className="flex flex-col items-center gap-2 py-4">
+                <Empty>Aucun compte de portail.</Empty>
+                <InviteDialog
+                  defaultRole="client"
+                  initial={{ role: 'client', client_id: client.id }}
+                  trigger={<Button variant="outline" size="sm">Inviter sur le portail</Button>}
+                />
+              </div>
             ) : (
               <ul className="flex flex-col">
                 {client.accounts.map((account) => (

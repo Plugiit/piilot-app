@@ -1,6 +1,14 @@
-import { Clock01Icon, Contact01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
+import {
+  Call02Icon,
+  Clock01Icon,
+  Comment01Icon,
+  Contact01Icon,
+  Folder01Icon,
+  Mail01Icon,
+  MoreHorizontalIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 
@@ -14,6 +22,13 @@ import {
 import { Avatars } from '@/features/projects/ui'
 import { cn } from '@/lib/utils'
 import type { ClientStatus, CrmClient } from '@/types/api'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { requestCreate } from '@/lib/palette'
 
 /** Position du pointeur, quel que soit le type d'evenement rendu par le geste. */
 function pointerPosition(event: MouseEvent | TouchEvent | PointerEvent) {
@@ -120,11 +135,71 @@ function ClientCard({
           </span>
         </span>
 
-        {client.account_manager !== null && (
-          <Avatars people={[client.account_manager]} max={1} size={20} />
-        )}
+        <span className="flex items-center gap-1">
+          {client.account_manager !== null && (
+            <Avatars people={[client.account_manager]} max={1} size={20} />
+          )}
+          <CardMenu client={client} />
+        </span>
       </div>
     </motion.article>
+  )
+}
+
+/**
+ * Les gestes d'une carte sans ouvrir la fiche : appeler, ecrire, noter ce qui
+ * s'est dit, lancer un projet. Un pipeline sert a agir sur les cartes, pas
+ * seulement a les deplacer.
+ */
+function CardMenu({ client }: { client: CrmClient }) {
+  const navigate = useNavigate()
+  const email = client.primary_contact?.email ?? null
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Actions sur ${client.name}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          className="flex size-6 cursor-pointer items-center justify-center rounded-[6px] text-[#a2a3a7] hover:bg-[#f3f4f4] hover:text-[#1b1b1b]"
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} size={16} strokeWidth={1.8} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {client.phone !== '' && (
+          <DropdownMenuItem asChild>
+            <a href={`tel:${client.phone}`}>
+              <HugeiconsIcon icon={Call02Icon} size={16} strokeWidth={1.6} />
+              Appeler
+            </a>
+          </DropdownMenuItem>
+        )}
+        {email !== null && (
+          <DropdownMenuItem asChild>
+            <a href={`mailto:${email}`}>
+              <HugeiconsIcon icon={Mail01Icon} size={16} strokeWidth={1.6} />
+              Écrire au contact
+            </a>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={() => void navigate({ to: '/crm/clients/$id', params: { id: client.id }, hash: 'journal' })}>
+          <HugeiconsIcon icon={Comment01Icon} size={16} strokeWidth={1.6} />
+          Noter une interaction
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            // La fiche porte la fenetre de creation, deja renseignee du client.
+            requestCreate('project')
+            void navigate({ to: '/crm/clients/$id', params: { id: client.id } })
+          }}
+        >
+          <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={1.6} />
+          Nouveau projet
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

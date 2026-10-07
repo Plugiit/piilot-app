@@ -41,6 +41,7 @@ import { useCreateContact } from '@/features/contacts/api'
 import { clientListQuery } from '@/features/projects/api'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useCreateIntent } from '@/lib/palette'
 
 /**
  * Le client est facultatif : on rencontre quelqu'un avant de savoir chez qui
@@ -159,13 +160,22 @@ function ClientCombobox({
 }
 
 /** Creation d'un contact. */
-export function NewContactDialog({ trigger }: { trigger?: ReactNode } = {}) {
+export function NewContactDialog({
+  trigger,
+  clientId = '',
+}: {
+  trigger?: ReactNode
+  /** Client deja choisi : depuis sa fiche, le contact lui est rattache d'office. */
+  clientId?: string
+} = {}) {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('contact', () => setOpen(true))
   const create = useCreateContact()
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { client_id: '', firstname: '', lastname: '', role: '', email: '', phone: '' },
+    defaultValues: { client_id: clientId, firstname: '', lastname: '', role: '', email: '', phone: '' },
   })
 
   function submit(values: Values) {
