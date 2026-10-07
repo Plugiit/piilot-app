@@ -282,7 +282,13 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 0.7.0 | Projets et CRM avancés | Admin | Jalons, planning, modèles de projet, interactions |
 | ✅ Livrée | 0.8.0 | Portail : suivi | Client | Projets, jalons, validation des livrables |
 | ✅ Livrée | 0.9.0 | Portail : tickets | Client | Dépôt et suivi des tickets |
-| 📍 Actuelle | **1.0.0** | V1 | Tous | Recette et critères de sortie |
+| 📍 Actuelle | **1.0.0** | V1 | Tous | Le temps de l'équipe : palette, chrono, Git, SIRET, adresse |
+| ⏳ À venir | 1.1.0 | Portail : livrables et prochaine étape | Client | Livrables sur la fiche projet, validation depuis l'e-mail, prochaine étape, interlocuteurs ; sauvegardes |
+| ⏳ À venir | 1.2.0 | E-mail ↔ tickets | Client | Répondre et créer un ticket par e-mail (IMAP et webhook) ; journal d'audit |
+| ⏳ À venir | 1.3.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
+| ⏳ À venir | 1.4.0 | Rapports | Admin | Temps par client et projet en CSV, activité de l'équipe, compte rendu PDF pour le client |
+| ⏳ À venir | 1.5.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité et certificat |
+| ⏳ À venir | 1.6.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
 <!-- /roadmap:readme -->
 
 ## Publier une version
