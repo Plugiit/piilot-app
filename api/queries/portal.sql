@@ -164,3 +164,29 @@ WHERE p.id = sqlc.arg('project_id')
   AND u.deleted_at IS NULL
   AND u.disabled_at IS NULL
 LIMIT 50;
+
+-- name: PortalListProjectTeam :many
+-- Les interlocuteurs d'un projet : le charge de compte du client, puis les
+-- membres de l'equipe du projet. Jamais un compte du portail, jamais un
+-- compte ferme. Le telephone et le lien de rendez-vous sont ceux que chacun
+-- a renseignes dans Mon compte.
+SELECT
+    u.id,
+    u.firstname,
+    u.lastname,
+    u.email,
+    u.phone,
+    u.booking_url,
+    u.avatar_url,
+    (u.id = c.account_manager_id)::boolean AS is_account_manager
+FROM projects p
+JOIN clients c ON c.id = p.client_id
+JOIN users u
+  ON u.id = c.account_manager_id
+  OR u.id IN (SELECT pm.user_id FROM project_members pm WHERE pm.project_id = p.id)
+WHERE p.id = sqlc.arg('project_id')
+  AND u.role <> 'client'
+  AND u.deleted_at IS NULL
+  AND u.disabled_at IS NULL
+ORDER BY (u.id = c.account_manager_id) DESC, u.firstname, u.lastname, u.id
+LIMIT 20;
