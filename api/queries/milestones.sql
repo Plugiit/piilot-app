@@ -50,6 +50,12 @@ UPDATE milestones SET
         WHEN sqlc.arg('completed')::boolean THEN coalesce(completed_at, now())
         ELSE NULL
     END,
+    -- Une atteinte posee ou retiree a la main n'est plus celle des livrables :
+    -- le declencheur ne la rouvrira pas.
+    completed_by_deliverables = CASE
+        WHEN sqlc.arg('set_completed')::boolean THEN false
+        ELSE completed_by_deliverables
+    END,
     updated_at   = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;
