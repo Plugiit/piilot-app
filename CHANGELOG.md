@@ -11,6 +11,43 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.1.0] — Portail : livrables et prochaine étape · 2026-10-07
+
+Le client voit ce qui vient et répond sans se connecter. Et l'instance se sauvegarde toute seule.
+
+### Points forts
+
+- **Valider** et **Faire un retour** directement depuis l'e-mail de dépôt : des liens signés, personnels, valables trente jours. Ouvrir le lien ne décide rien — c'est le geste sur la page qui enregistre la réponse.
+- **Prochaine étape** et **interlocuteurs** sur la fiche d'un projet du portail : le prochain jalon, ce qui attend le client, où en est l'équipe, et qui joindre, avec un lien de rendez-vous.
+- **Sauvegardes** : un service `backup` dans le `docker-compose.yml`, une archive par nuit (base + fichiers), rétention 7 jours / 4 semaines / 3 mois, copie S3 facultative, restauration testée en CI, état dans *Paramètres > Sauvegardes* et alerte aux admins quand elle manque.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Onglet Livrables** sur la fiche d'un projet : la liste et l'état de ses livrables, sans passer par l'écran global filtré. « Déposer un livrable » y a le projet déjà choisi et propose le prochain jalon à atteindre.
+- **Lien de rendez-vous** dans Mon compte (Cal.com, Calendly, Google Agenda…) : les clients le voient sur le portail à côté de l'e-mail et du téléphone. Pas de créneaux dans Piilot, rien à synchroniser.
+- **Paramètres > Sauvegardes** (admins) : la dernière sauvegarde réussie, le journal des vingt derniers passages — échecs compris —, la marche à suivre pour restaurer. Une notification dans la cloche quand aucune sauvegarde n'a réussi depuis 36 h (`BACKUP_STALE_AFTER`), une fois par jour.
+
+#### Portail client
+
+- **Prochaine étape**, en tête de la fiche d'un projet : le prochain jalon non atteint et sa date, le nombre de livrables à valider (lien direct), les tâches terminées sur le total. Un site hébergé sans jalon ni livrable en attente n'affiche rien.
+- **Vos interlocuteurs** : le chargé de compte du client puis l'équipe du projet, avec e-mail, téléphone et « Prendre rendez-vous ». Jamais un compte du portail, jamais un compte fermé.
+- **Répondre depuis l'e-mail** : la page `/client/livrables/{id}/repondre` s'ouvre sans session, montre la version à juger, et enregistre la réponse au nom du compte destinataire par le même chemin que depuis le portail — mêmes notifications, même journal, même refus si la version a déjà sa réponse. Un lien altéré, périmé, ou qui désigne une version remplacée par une plus récente, renvoie vers l'espace client.
+
+#### Exploitation
+
+- **Service `backup`** : `pg_dump` au format custom et archive des pièces jointes dans un seul `.tar` posé sur le volume `piilot-backups` à `BACKUP_AT` (03:00, Europe/Paris) ; première sauvegarde tout de suite au premier démarrage, et dès que la dernière réussie date de plus de 24 h. Rétention `BACKUP_KEEP_DAILY` / `WEEKLY` / `MONTHLY`. Copie vers un S3 compatible (`BACKUP_S3_*`, signature v4 écrite dans le projet, sans SDK) avec la même rétention. `backup now`, `backup list`, `backup restore [archive]`.
+- **Restauration testée en CI** : une base migrée et remplie est sauvegardée par la commande, restaurée dans une base vide, et l'API démarre dessus.
+
+### À savoir pour le déploiement
+
+- Migration 000043, en ajout : `users.booking_url`, table `app_backups`, notification `backup_stale`.
+- Nouveau service **`backup`** et volume **`piilot-backups`** dans le `docker-compose.yml` : `docker compose up -d` les crée. Le service lit la base et les fichiers (montés en lecture seule) ; rien à configurer pour les sauvegardes locales, `BACKUP_S3_*` pour les mettre à l'abri hors du serveur.
+- L'image embarque désormais `postgresql17-client` (`pg_dump`, `pg_restore`).
+- Les liens de réponse sont signés avec une clé dérivée de `JWT_SECRET` : changer ce secret invalide les liens déjà envoyés.
+- Les anciennes commandes de sauvegarde à la main du README restent valables, mais le service les remplace.
+
 ## [1.0.0] — V1 : le temps de l'équipe · 2026-10-07
 
 Première version majeure. Elle est tournée vers un seul objectif : que l'équipe et le client passent moins de temps dans l'outil pour le même résultat. Chercher d'une touche, créer d'une ligne, agir sans changer d'écran, et laisser Git, le registre des entreprises et la Base Adresse remplir ce qu'on tapait à la main.
