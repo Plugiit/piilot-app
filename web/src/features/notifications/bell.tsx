@@ -91,6 +91,10 @@ function sentence(item: AppNotification): ReactNode {
       return `${who} a renvoyé des retours sur « ${title} »`
     case 'update_available':
       return `Piilot ${typeof item.payload.version === 'string' ? item.payload.version : ''} est disponible : installez-la depuis la carte au bas du menu`
+    case 'backup_stale':
+      return item.payload.last_success_at === null
+        ? 'Aucune sauvegarde n’a encore réussi sur cette instance'
+        : `Aucune sauvegarde réussie depuis ${typeof item.payload.last_success_at === 'string' ? since(item.payload.last_success_at) : 'longtemps'}`
   }
 }
 
@@ -202,6 +206,15 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
   if (item.ticket_id !== null) {
     return (
       <Link to="/pm/tickets/$id" params={{ id: item.ticket_id }} onClick={onOpen} className={className}>
+        {body}
+      </Link>
+    )
+  }
+
+  // L'alerte des sauvegardes mene a leur ecran.
+  if (item.kind === 'backup_stale') {
+    return (
+      <Link to="/parametres/sauvegardes" onClick={onOpen} className={className}>
         {body}
       </Link>
     )

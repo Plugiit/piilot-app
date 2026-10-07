@@ -6,7 +6,15 @@ import type { UpdateStatus } from '@/types/api'
 export const systemKeys = {
   update: ['system', 'update'] as const,
   liveVersion: ['system', 'live-version'] as const,
+  backups: ['system', 'backups'] as const,
 }
+
+/** Derniere sauvegarde reussie et journal, pour Paramètres > Sauvegardes. */
+export const backupStatusQuery = queryOptions({
+  queryKey: systemKeys.backups,
+  queryFn: async () => unwrap(await api.GET('/api/v1/admin/system/backups')),
+  refetchInterval: 60_000,
+})
 
 /**
  * Etat de la mise a jour, pour les admins.
