@@ -22,6 +22,7 @@ SELECT
     p.tasks_total,
     p.tasks_done,
     p.deliverables_pending,
+    p.logo_key,
     -- La jointure LATERAL rend des nuls quand il n'y a plus de jalon a venir :
     -- le titre devient vide plutot que nul, l'echeance reste nullable.
     coalesce(nm.title, '')::text AS next_milestone_title,
@@ -62,6 +63,7 @@ SELECT
     p.tasks_total,
     p.tasks_done,
     p.deliverables_pending,
+    p.logo_key,
     c.name AS client_name
 FROM users u
 JOIN projects p ON p.client_id = u.client_id AND p.deleted_at IS NULL AND NOT p.is_internal

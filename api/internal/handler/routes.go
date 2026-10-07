@@ -26,6 +26,9 @@ type Deps struct {
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
+	Search        *Search
+	Timer         *Timer
+	Git           *Git
 	Milestones    *Milestones
 	Templates     *ProjectTemplates
 	Interactions  *Interactions
@@ -53,6 +56,9 @@ func Register(app *fiber.App, deps Deps) {
 	registerAuthRoutes(v1.Group("/auth"), deps)
 	registerAdminRoutes(v1.Group("/admin"), deps)
 	registerClientRoutes(v1.Group("/client"), deps)
+
+	// Webhooks entrants, sans session : la signature fait office de preuve.
+	v1.Post("/hooks/git", deps.Git.Webhook)
 }
 
 // registerClientRoutes monte le portail client.
@@ -105,6 +111,10 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 	// Les photos se lisent entre comptes connectes : elles s'affichent dans les
 	// equipes et les affectations, pas seulement sur ses propres reglages.
 	r.Get("/avatars/:key", deps.Guard.Authenticated, deps.Auth.Avatar)
+	// Les logos de projet aussi : l'equipe les voit dans ses listes, un client
+	// sur son portail. Les cles sont tirees au sort et ne designent que des
+	// logos.
+	r.Get("/project-logos/:key", deps.Guard.Authenticated, deps.Projects.Logo)
 
 	// Parcours par lien, sans session : le jeton du lien fait office de preuve.
 	// Chacun est borne par adresse IP dans le handler.
@@ -205,6 +215,10 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// les comptes est un autre ecran, et une autre permission.
 	r.Get("/users", deps.Guard.RequirePermission("users.read"), deps.Projects.ListPeople)
 
+	// Palette de recherche : chaque famille suit sa propre permission, dans
+	// le handler. Aucune garde ici, au-dela de celles du groupe.
+	r.Get("/search", deps.Search.Get)
+
 	projects := r.Group("/projects")
 	projects.Get("", deps.Guard.RequirePermission("projects.read"), deps.Projects.List)
 	projects.Post("", deps.Guard.RequirePermission("projects.write"), deps.Projects.Create)
@@ -222,6 +236,12 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// l'identifiant du fichier : une fois deposee, une piece jointe se
 	// designe seule.
 	projects.Post("/:id/files", deps.Guard.RequirePermission("projects.write"), deps.Projects.UploadFile)
+
+	// Logo du projet : depose et retire depuis ses parametres. Il se lit sous
+	// /auth (voir plus haut), comme les photos de profil : le portail client
+	// l'affiche aussi.
+	projects.Post("/:id/logo", deps.Guard.RequirePermission("projects.write"), deps.Projects.UploadLogo)
+	projects.Delete("/:id/logo", deps.Guard.RequirePermission("projects.write"), deps.Projects.DeleteLogo)
 
 	// L'etoile est un marquage personnel : elle ne demande pas le droit
 	// d'ecrire sur le projet, seulement celui de le voir.
@@ -337,6 +357,18 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	temps.Post("", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Create)
 	temps.Patch("/:id", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Update)
 	temps.Delete("/:id", deps.Guard.RequirePermission("time.write"), deps.TimeEntries.Delete)
+
+	// Integration Git : l'adresse du webhook et son secret, pour les admins.
+	git := r.Group("/integrations/git")
+	git.Get("", deps.Guard.RequirePermission("users.write"), deps.Git.Settings)
+	git.Post("/rotate", deps.Guard.RequirePermission("users.write"), deps.Git.Rotate)
+
+	// Le chrono : un par personne, qui devient une saisie a l'arret.
+	timer := r.Group("/time-timer")
+	timer.Get("", deps.Guard.RequirePermission("time.write"), deps.Timer.Get)
+	timer.Post("", deps.Guard.RequirePermission("time.write"), deps.Timer.Start)
+	timer.Post("/stop", deps.Guard.RequirePermission("time.write"), deps.Timer.Stop)
+	timer.Delete("", deps.Guard.RequirePermission("time.write"), deps.Timer.Discard)
 
 	// Rapports de temps : le temps de toute l'equipe, d'ou une permission a
 	// part. Lire les heures des autres n'est pas le geste de pointer les siennes.

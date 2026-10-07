@@ -2193,6 +2193,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/projects/{id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Déposer le logo d'un projet
+         * @description SVG, PNG, JPEG, WEBP ou GIF, 512 Ko au plus. L'ancien logo est effacé. Exige projects.write.
+         */
+        post: operations["uploadProjectLogo"];
+        /** Retirer le logo d'un projet */
+        delete: operations["deleteProjectLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/project-logos/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Clé du logo, telle qu'elle figure dans logo_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Lire le logo d'un projet
+         * @description Ouvert à toute session : l'équipe le voit dans ses listes, un client sur son portail. Le type est deviné au contenu, jamais repris de ce qui a été annoncé au dépôt ; servi avec nosniff et une politique qui coupe tout script.
+         */
+        get: operations["getProjectLogo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recherche globale
+         * @description Projets, clients, contacts, taches et tickets dont le nom, le sujet ou le numero contient la saisie. Deux caracteres au moins ; en deca, tout est vide. Chaque famille suit sa permission (projects.read, clients.read, tasks.read, tickets.read).
+         */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-timer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chrono en cours */
+        get: operations["getTimer"];
+        put?: never;
+        /**
+         * Démarrer le chrono
+         * @description Sur un projet, et une tache si l'on veut. Un chrono qui tournait est arrete d'abord et son temps enregistre. Exige time.write.
+         */
+        post: operations["startTimer"];
+        /**
+         * Abandonner le chrono
+         * @description Sans rien ecrire.
+         */
+        delete: operations["discardTimer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/time-timer/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Arrêter le chrono
+         * @description Ecrit une saisie de temps du temps ecoule, arrondi a la minute superieure, sur le jour du demarrage.
+         */
+        post: operations["stopTimer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/git": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglage du webhook Git
+         * @description L'adresse du webhook et son secret, a copier dans GitHub (organisation ou depot) ou GitLab (groupe ou projet). Le secret est tire au sort a la premiere ouverture. Exige users.write.
+         */
+        get: operations["getGitSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/git/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Changer le secret du webhook
+         * @description Les webhooks configures avec l'ancien secret cessent d'etre acceptes. Refuse quand GIT_WEBHOOK_SECRET est defini.
+         */
+        post: operations["rotateGitSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hooks/git": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webhook GitHub ou GitLab
+         * @description Sans session : GitHub signe le corps (X-Hub-Signature-256, HMAC-SHA256 du secret), GitLab envoie le secret en clair (X-Gitlab-Token). Evenements lus : pull_request / merge_request (rattachement aux tickets #47 et taches T-123 nommes dans le titre, la branche ou la description ; ouverture → en revue, fusion → pret a deployer / tache terminee), release, push de tag et deployment_status / deployment reussis (mise en ligne : journal du client, jalon de mise en ligne atteint, tickets prets a deployer clos avec un mot au client). Le projet est retrouve par l'adresse du depot.
+         */
+        post: operations["gitWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2312,6 +2484,10 @@ export interface components {
             is_favorite: boolean;
             /** @description Prestations dont releve l'entite. Vide quand aucune. */
             services: components["schemas"]["ServiceTag"][];
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
+            /** @description Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot. */
+            repo_url: string;
         };
         /** @description Enveloppe de pagination, commune a toutes les listes de l'API. */
         ProjectPage: {
@@ -2437,6 +2613,10 @@ export interface components {
             services: components["schemas"]["ServiceTag"][];
             /** @description Projet de l'agence pour elle-meme : le temps qui y est saisi n'est pas facturable. */
             is_internal: boolean;
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
+            /** @description Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot. */
+            repo_url: string;
         };
         /** @description Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus. */
         ProjectShortcut: {
@@ -2445,6 +2625,8 @@ export interface components {
             name: string;
             /** @enum {string} */
             status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
         };
         /** @description Raccourcis du compte appelant. Bornee a vingt entrees et sans pagination : une liste de navigation qui aurait une page 2 ne serait plus un raccourci. */
         ProjectShortcutList: {
@@ -2675,6 +2857,12 @@ export interface components {
             activity: components["schemas"]["TaskActivity"][];
             /** @description Prestations dont releve l'entite. Vide quand aucune. */
             services: components["schemas"]["ServiceTag"][];
+            pull_requests: components["schemas"]["PullRequest"][];
+            /**
+             * Format: int64
+             * @description Numero lisible de la tache : T-123 dans une branche ou une pull request.
+             */
+            numero: number;
         };
         /** @description Le client se designe par client_id, ou par client_name pour un client encore inconnu : le formulaire propose une liste sans imposer un detour par un ecran de creation de client. */
         CreateProjectRequest: {
@@ -2717,6 +2905,8 @@ export interface components {
              * @description Modele dont le projet recoit les jalons, les taches et les services. Les echeances partent du debut du projet, ou du jour de creation.
              */
             template_id?: string | null;
+            /** @description Depot Git : https://github.com/org/depot, git@gitlab.agence.fr:groupe/depot.git… Normalise a l'enregistrement. */
+            repo_url?: string;
         };
         /** @description Mise a jour partielle. Une cle absente laisse la valeur en place ; une cle presente a null efface la date. */
         UpdateProjectRequest: {
@@ -2754,6 +2944,8 @@ export interface components {
             service_ids?: string[];
             /** @description Bascule le projet en interne ou en projet client. Reclasse tout son temps, passe compris. */
             is_internal?: boolean;
+            /** @description Depot Git : https://github.com/org/depot, git@gitlab.agence.fr:groupe/depot.git… Normalise a l'enregistrement. */
+            repo_url?: string;
         };
         /** @description Remplace l'ensemble : les identifiants absents sont retires. */
         MembersRequest: {
@@ -2996,6 +3188,8 @@ export interface components {
             progress: number;
             /** Format: date */
             due_on: string | null;
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
         };
         /** @description Compte de portail rattache au client. */
         PortalAccount: {
@@ -3203,6 +3397,8 @@ export interface components {
             field: "" | "status" | "priority" | "tracker" | "assignee" | "subject";
             old_value: string;
             new_value: string;
+            /** @description Sans auteur des l'origine : un geste de Piilot (integration Git, tache de fond), pas un compte disparu. */
+            automatic: boolean;
         };
         /** @description Fiche d'un ticket : son en-tete, ses coordonnees et son registre, en un appel. */
         TicketDetail: components["schemas"]["Ticket"] & {
@@ -3215,6 +3411,7 @@ export interface components {
             client_visible: boolean;
             /** @description Pieces jointes deposees avec la demande. */
             files: components["schemas"]["Attachment"][];
+            pull_requests: components["schemas"]["PullRequest"][];
         };
         /** @description Une entree a inscrire au registre. Les changements sont facultatifs mais au meme endroit que le message : repondre et faire avancer un ticket sont un seul geste. Seuls les changements reels sont journalises. */
         PostTicketMessage: {
@@ -3871,6 +4068,8 @@ export interface components {
             due_on: string | null;
             tasks_total: number;
             tasks_done: number;
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
         };
         /** @description Tout ce qu'affiche la page Mon travail. Chaque bloc est borne ; les totaux portent sur toutes les lignes. */
         MyWork: {
@@ -4003,7 +4202,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "note" | "call" | "meeting" | "email" | "project_created" | "deliverable_validated" | "ticket_opened";
+            kind: "note" | "call" | "meeting" | "email" | "project_created" | "deliverable_validated" | "ticket_opened" | "deployment";
             body: string;
             /** Format: date-time */
             occurred_at: string;
@@ -4059,6 +4258,8 @@ export interface components {
             next_milestone: components["schemas"]["PortalMilestoneRef"] | null;
             /** Format: date-time */
             last_activity_at: string;
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
         };
         PortalProjectList: {
             items: components["schemas"]["PortalProject"][];
@@ -4111,6 +4312,9 @@ export interface components {
             deliverables: components["schemas"]["PortalDeliverable"][];
             /** @description Fichiers explicitement partages par l'agence. */
             files: components["schemas"]["PortalFile"][];
+            /** @description Adresse du logo du projet, nulle sans logo. */
+            logo_url: string | null;
+            last_deployment: components["schemas"]["Deployment"] | null;
         };
         PortalVersion: {
             numero: number;
@@ -4199,6 +4403,132 @@ export interface components {
             /** @description Messages publics et changements de statut visibles. Les notes internes n'y figurent jamais. */
             entries: components["schemas"]["PortalTicketEntry"][];
             files: components["schemas"]["PortalFile"][];
+        };
+        SearchProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: string;
+            client_name: string;
+            logo_url: string | null;
+        };
+        SearchClient: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: string;
+            kind: string;
+        };
+        SearchContact: {
+            /** Format: uuid */
+            id: string;
+            firstname: string;
+            lastname: string;
+            email: string | null;
+            /** Format: uuid */
+            client_id: string | null;
+            client_name: string;
+        };
+        SearchTask: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            status: string;
+            /** Format: uuid */
+            project_id: string;
+            project_name: string;
+        };
+        SearchTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            numero: number;
+            subject: string;
+            status: string;
+            project_name: string;
+        };
+        /** @description Resultats de la palette Cmd+K : les cinq premiers de chaque famille que l'appelant a le droit de voir. Une famille hors permission est vide. */
+        SearchResult: {
+            projects: components["schemas"]["SearchProject"][];
+            clients: components["schemas"]["SearchClient"][];
+            contacts: components["schemas"]["SearchContact"][];
+            tasks: components["schemas"]["SearchTask"][];
+            tickets: components["schemas"]["SearchTicket"][];
+        };
+        NamedRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @description Le chrono d'une personne. Un seul a la fois : il devient une saisie de temps a l'arret. */
+        Timer: {
+            project: components["schemas"]["NamedRef"];
+            task: components["schemas"]["NamedRef"] | null;
+            note: string;
+            /** Format: date-time */
+            started_at: string;
+        };
+        TimerResponse: {
+            /** @description Nul quand rien ne tourne. */
+            timer: components["schemas"]["Timer"] | null;
+        };
+        StartTimerRequest: {
+            /** Format: uuid */
+            project_id: string;
+            /** Format: uuid */
+            task_id?: string | null;
+            note?: string;
+        };
+        StopTimerResponse: {
+            /** @description La saisie ecrite, nulle si rien ne tournait. */
+            entry: components["schemas"]["TimeEntry"] | null;
+        };
+        /** @description Une pull request (GitHub) ou merge request (GitLab) recue par webhook, qui nomme un ticket (#47) ou une tache (T-123). */
+        PullRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            provider: "github" | "gitlab";
+            /** Format: int64 */
+            number: number;
+            title: string;
+            url: string;
+            branch: string;
+            author: string;
+            /** @enum {string} */
+            state: "open" | "merged" | "closed";
+            /** Format: date-time */
+            opened_at: string | null;
+            /** Format: date-time */
+            merged_at: string | null;
+        };
+        /** @description Une mise en ligne : release publiee, tag pousse ou deploiement reussi. */
+        Deployment: {
+            /** Format: uuid */
+            id: string;
+            provider: string;
+            /** @enum {string} */
+            kind: "release" | "tag" | "deployment";
+            name: string;
+            url: string;
+            environment: string;
+            /** Format: date-time */
+            deployed_at: string;
+        };
+        GitSettings: {
+            /** @description L'adresse a donner a GitHub ou GitLab. */
+            webhook_url: string;
+            /** @description Le secret du webhook, a copier chez eux. */
+            secret: string;
+            /** @description Defini par GIT_WEBHOOK_SECRET : ne se change pas depuis l'ecran. */
+            from_env: boolean;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        /** @description Ce que l'evenement a produit. */
+        GitOutcome: {
+            handled: boolean;
+            note: string;
         };
     };
     responses: {
@@ -8285,6 +8615,293 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    uploadProjectLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Projet avec son nouveau logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteProjectLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projet sans logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getProjectLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Clé du logo, telle qu'elle figure dans logo_url */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier du logo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                /** @description Saisie */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getTimer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le chrono, ou nul */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimerResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    startTimer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartTimerRequest"];
+            };
+        };
+        responses: {
+            /** @description Le chrono lance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimerResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    discardTimer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Abandonne */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    stopTimer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La saisie ecrite */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopTimerResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getGitSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reglage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    rotateGitSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Nouveau reglage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Secret defini par l'environnement */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    gitWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-GitHub-Event"?: string;
+                "X-Hub-Signature-256"?: string;
+                "X-Gitlab-Event"?: string;
+                "X-Gitlab-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Evenement recu */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitOutcome"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationFailed"];
         };
     };

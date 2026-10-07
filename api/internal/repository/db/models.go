@@ -142,6 +142,18 @@ type DeliverableVersion struct {
 	DecidedAt     *time.Time `json:"decided_at"`
 	DecidedBy     *uuid.UUID `json:"decided_by"`
 	Feedback      string     `json:"feedback"`
+	RemindedAt    *time.Time `json:"reminded_at"`
+}
+
+type Deployment struct {
+	ID          uuid.UUID `json:"id"`
+	ProjectID   uuid.UUID `json:"project_id"`
+	Provider    string    `json:"provider"`
+	Kind        string    `json:"kind"`
+	Name        string    `json:"name"`
+	Url         string    `json:"url"`
+	Environment string    `json:"environment"`
+	DeployedAt  time.Time `json:"deployed_at"`
 }
 
 type EmailOutbox struct {
@@ -157,6 +169,12 @@ type EmailOutbox struct {
 	LastError     string     `json:"last_error"`
 	CreatedAt     time.Time  `json:"created_at"`
 	SentAt        *time.Time `json:"sent_at"`
+}
+
+type GitWebhook struct {
+	ID        bool      `json:"id"`
+	Secret    string    `json:"secret"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Invitation struct {
@@ -177,18 +195,19 @@ type Invitation struct {
 }
 
 type Milestone struct {
-	ID                    uuid.UUID  `json:"id"`
-	ProjectID             uuid.UUID  `json:"project_id"`
-	Title                 string     `json:"title"`
-	Description           string     `json:"description"`
-	DueOn                 *time.Time `json:"due_on"`
-	Position              int32      `json:"position"`
-	CompletedAt           *time.Time `json:"completed_at"`
-	DeliverablesTotal     int32      `json:"deliverables_total"`
-	DeliverablesValidated int32      `json:"deliverables_validated"`
-	CreatedBy             *uuid.UUID `json:"created_by"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	ID                      uuid.UUID  `json:"id"`
+	ProjectID               uuid.UUID  `json:"project_id"`
+	Title                   string     `json:"title"`
+	Description             string     `json:"description"`
+	DueOn                   *time.Time `json:"due_on"`
+	Position                int32      `json:"position"`
+	CompletedAt             *time.Time `json:"completed_at"`
+	DeliverablesTotal       int32      `json:"deliverables_total"`
+	DeliverablesValidated   int32      `json:"deliverables_validated"`
+	CreatedBy               *uuid.UUID `json:"created_by"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+	CompletedByDeliverables bool       `json:"completed_by_deliverables"`
 }
 
 type Notification struct {
@@ -244,6 +263,8 @@ type Project struct {
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
 	IsInternal          bool       `json:"is_internal"`
+	LogoKey             *string    `json:"logo_key"`
+	RepoUrl             string     `json:"repo_url"`
 }
 
 type ProjectFavorite struct {
@@ -293,6 +314,27 @@ type ProjectTemplateTask struct {
 	Priority    string    `json:"priority"`
 	OffsetDays  *int32    `json:"offset_days"`
 	Position    int32     `json:"position"`
+}
+
+type PullRequest struct {
+	ID        uuid.UUID  `json:"id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	Provider  string     `json:"provider"`
+	Number    int64      `json:"number"`
+	Title     string     `json:"title"`
+	Url       string     `json:"url"`
+	Branch    string     `json:"branch"`
+	Author    string     `json:"author"`
+	State     string     `json:"state"`
+	OpenedAt  *time.Time `json:"opened_at"`
+	MergedAt  *time.Time `json:"merged_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type PullRequestLink struct {
+	PullRequestID uuid.UUID  `json:"pull_request_id"`
+	TicketID      *uuid.UUID `json:"ticket_id"`
+	TaskID        *uuid.UUID `json:"task_id"`
 }
 
 type RefreshToken struct {
@@ -377,6 +419,7 @@ type Task struct {
 	SubtasksDone     int32      `json:"subtasks_done"`
 	CommentsCount    int32      `json:"comments_count"`
 	AttachmentsCount int32      `json:"attachments_count"`
+	Numero           int64      `json:"numero"`
 }
 
 type TaskActivity struct {
@@ -458,6 +501,14 @@ type TimeEntry struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+type TimeTimer struct {
+	UserID    uuid.UUID  `json:"user_id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	TaskID    *uuid.UUID `json:"task_id"`
+	Note      string     `json:"note"`
+	StartedAt time.Time  `json:"started_at"`
 }
 
 type User struct {

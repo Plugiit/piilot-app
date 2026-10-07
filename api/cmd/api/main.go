@@ -119,6 +119,11 @@ func run(cfg config.Config, log *slog.Logger) error {
 	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), cfg.URLFor(spaces.Admin), sender.Configured())
 
 	clientService := usecase.NewClientService(pool)
+	timeEntries := usecase.NewTimeEntryService(pool)
+	milestoneService := usecase.NewMilestoneService(pool)
+	// Les webhooks GitHub et GitLab : l'adresse publique du back-office est
+	// celle qu'ils appellent.
+	gitService := usecase.NewGitService(pool, ticketService, milestoneService, cfg.GitWebhookSecret, cfg.URLFor(spaces.Team), log)
 	contactService := usecase.NewContactService(pool)
 
 	cookies := handler.CookieConfig{
@@ -144,12 +149,15 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Portal:        handler.NewPortal(usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)),
 		Services:      handler.NewServices(usecase.NewServiceService(pool)),
 		SidebarApps:   handler.NewSidebarApps(usecase.NewSidebarAppService(pool, files)),
-		TimeEntries:   handler.NewTimeEntries(usecase.NewTimeEntryService(pool)),
+		TimeEntries:   handler.NewTimeEntries(timeEntries),
+		Timer:         handler.NewTimer(usecase.NewTimerService(pool, timeEntries)),
+		Git:           handler.NewGit(gitService),
 		TimeReports:   handler.NewTimeReports(usecase.NewTimeReportService(pool)),
 		Accounts:      handler.NewAccounts(usecase.NewAccountService(pool, cfg.URLFor(spaces.Auth), sender.Configured())),
 		AuthLinks:     handler.NewAuthLinks(authService, cookies, repository.NewRateLimiter(rdb), log),
 		MyWork:        handler.NewMyWork(usecase.NewMyWorkService(pool)),
-		Milestones:    handler.NewMilestones(usecase.NewMilestoneService(pool)),
+		Search:        handler.NewSearch(usecase.NewSearchService(pool)),
+		Milestones:    handler.NewMilestones(milestoneService),
 		Templates:     handler.NewProjectTemplates(usecase.NewProjectTemplateService(pool)),
 		Interactions:  handler.NewInteractions(usecase.NewInteractionService(pool)),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
@@ -179,6 +187,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// liens se copient depuis l'ecran des comptes.
 	if sender.Configured() {
 		repository.StartMailOutbox(ctx, pool, sender, log)
+		// Relance des livrables sans reponse : meme file d'envoi.
+		repository.StartDeliverableReminders(ctx, pool, cfg.URLFor(spaces.Client), cfg.DeliverableReminderAfter, log)
 	} else {
 		log.Info("envoi d'e-mails desactive : SMTP_HOST non renseigne")
 	}

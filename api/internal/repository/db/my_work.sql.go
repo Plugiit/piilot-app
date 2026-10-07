@@ -240,6 +240,7 @@ SELECT
     p.due_on,
     p.tasks_total,
     p.tasks_done,
+    p.logo_key,
     c.name AS client_name
 FROM project_members pm
 JOIN projects p ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status NOT IN ('livre', 'hebergement')
@@ -262,6 +263,7 @@ type ListMyProjectsRow struct {
 	DueOn      *time.Time `json:"due_on"`
 	TasksTotal int32      `json:"tasks_total"`
 	TasksDone  int32      `json:"tasks_done"`
+	LogoKey    *string    `json:"logo_key"`
 	ClientName string     `json:"client_name"`
 }
 
@@ -285,6 +287,7 @@ func (q *Queries) ListMyProjects(ctx context.Context, arg ListMyProjectsParams) 
 			&i.DueOn,
 			&i.TasksTotal,
 			&i.TasksDone,
+			&i.LogoKey,
 			&i.ClientName,
 		); err != nil {
 			return nil, err

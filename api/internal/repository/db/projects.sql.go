@@ -103,9 +103,9 @@ func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (i
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal
+INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by, repo_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal, logo_key, repo_url
 `
 
 type CreateProjectParams struct {
@@ -122,6 +122,7 @@ type CreateProjectParams struct {
 	ProdUrl     string     `json:"prod_url"`
 	PreprodUrl  string     `json:"preprod_url"`
 	CreatedBy   *uuid.UUID `json:"created_by"`
+	RepoUrl     string     `json:"repo_url"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
@@ -139,6 +140,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		arg.ProdUrl,
 		arg.PreprodUrl,
 		arg.CreatedBy,
+		arg.RepoUrl,
 	)
 	var i Project
 	err := row.Scan(
@@ -164,6 +166,8 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
 		&i.IsInternal,
+		&i.LogoKey,
+		&i.RepoUrl,
 	)
 	return i, err
 }
@@ -402,7 +406,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context, budgetWarning float64) 
 
 const getProject = `-- name: GetProject :one
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal, p.logo_key, p.repo_url,
     c.name AS client_name,
     -- L'interlocuteur du projet est le contact principal de son client. Joint
     -- a gauche : un client sans contact ne doit pas faire disparaitre le
@@ -448,6 +452,8 @@ type GetProjectRow struct {
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
 	IsInternal          bool       `json:"is_internal"`
+	LogoKey             *string    `json:"logo_key"`
+	RepoUrl             string     `json:"repo_url"`
 	ClientName          string     `json:"client_name"`
 	ClientContactName   string     `json:"client_contact_name"`
 	ClientContactRole   string     `json:"client_contact_role"`
@@ -481,6 +487,8 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProj
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
 		&i.IsInternal,
+		&i.LogoKey,
+		&i.RepoUrl,
 		&i.ClientName,
 		&i.ClientContactName,
 		&i.ClientContactRole,
@@ -494,7 +502,8 @@ const listFavoriteProjects = `-- name: ListFavoriteProjects :many
 SELECT
     p.id,
     p.name,
-    p.status
+    p.status,
+    p.logo_key
 FROM project_favorites f
 JOIN projects p ON p.id = f.project_id AND p.deleted_at IS NULL
 WHERE f.user_id = $1
@@ -503,9 +512,10 @@ LIMIT 20
 `
 
 type ListFavoriteProjectsRow struct {
-	ID     uuid.UUID `json:"id"`
-	Name   string    `json:"name"`
-	Status string    `json:"status"`
+	ID      uuid.UUID `json:"id"`
+	Name    string    `json:"name"`
+	Status  string    `json:"status"`
+	LogoKey *string   `json:"logo_key"`
 }
 
 // Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
@@ -523,7 +533,12 @@ func (q *Queries) ListFavoriteProjects(ctx context.Context, userID uuid.UUID) ([
 	items := []ListFavoriteProjectsRow{}
 	for rows.Next() {
 		var i ListFavoriteProjectsRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.LogoKey,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -626,7 +641,7 @@ func (q *Queries) ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([
 
 const listProjects = `-- name: ListProjects :many
 SELECT
-    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal,
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal, p.logo_key, p.repo_url,
     c.name AS client_name,
     -- L'etoile est personnelle : elle se lit pour l'appelant, pas dans l'absolu.
     EXISTS (
@@ -713,6 +728,8 @@ type ListProjectsRow struct {
 	PreprodUrl          string     `json:"preprod_url"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
 	IsInternal          bool       `json:"is_internal"`
+	LogoKey             *string    `json:"logo_key"`
+	RepoUrl             string     `json:"repo_url"`
 	ClientName          string     `json:"client_name"`
 	IsFavorite          bool       `json:"is_favorite"`
 }
@@ -769,6 +786,8 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.PreprodUrl,
 			&i.DeliverablesPending,
 			&i.IsInternal,
+			&i.LogoKey,
+			&i.RepoUrl,
 			&i.ClientName,
 			&i.IsFavorite,
 		); err != nil {
@@ -870,6 +889,21 @@ func (q *Queries) ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Att
 	return items, nil
 }
 
+const projectLogoKeyInUse = `-- name: ProjectLogoKeyInUse :one
+SELECT EXISTS (
+    SELECT 1 FROM projects WHERE logo_key = $1::text AND deleted_at IS NULL
+)
+`
+
+// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
+// aux pieces jointes, et la route des logos ne doit servir qu'eux.
+func (q *Queries) ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error) {
+	row := q.db.QueryRow(ctx, projectLogoKeyInUse, key)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const removeProjectFavorite = `-- name: RemoveProjectFavorite :exec
 DELETE FROM project_favorites WHERE user_id = $1 AND project_id = $2
 `
@@ -918,6 +952,50 @@ func (q *Queries) SetAttachmentShared(ctx context.Context, arg SetAttachmentShar
 	return result.RowsAffected(), nil
 }
 
+const setProjectLogo = `-- name: SetProjectLogo :one
+UPDATE projects SET logo_key = $1::text, updated_at = now()
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal, logo_key, repo_url
+`
+
+type SetProjectLogoParams struct {
+	LogoKey *string   `json:"logo_key"`
+	ID      uuid.UUID `json:"id"`
+}
+
+// Pose ou retire le logo. Nul retire.
+func (q *Queries) SetProjectLogo(ctx context.Context, arg SetProjectLogoParams) (Project, error) {
+	row := q.db.QueryRow(ctx, setProjectLogo, arg.LogoKey, arg.ID)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Name,
+		&i.Status,
+		&i.Progress,
+		&i.HoursSold,
+		&i.HoursSpent,
+		&i.StartsOn,
+		&i.DueOn,
+		&i.TasksTotal,
+		&i.TasksDone,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Description,
+		&i.Priority,
+		&i.FigmaUrl,
+		&i.ProdUrl,
+		&i.PreprodUrl,
+		&i.DeliverablesPending,
+		&i.IsInternal,
+		&i.LogoKey,
+		&i.RepoUrl,
+	)
+	return i, err
+}
+
 const setProjectServices = `-- name: SetProjectServices :exec
 DELETE FROM project_services WHERE project_id = $1
 `
@@ -953,17 +1031,18 @@ UPDATE projects SET
     figma_url   = COALESCE($5::text, figma_url),
     prod_url    = COALESCE($6::text, prod_url),
     preprod_url = COALESCE($7::text, preprod_url),
-    progress    = COALESCE($8::smallint, progress),
-    hours_sold  = COALESCE($9::numeric, hours_sold),
-    is_internal = COALESCE($10::boolean, is_internal),
-    client_id   = COALESCE($11::uuid, client_id),
-    starts_on   = CASE WHEN $12::boolean THEN NULL
-                       ELSE COALESCE($13::date, starts_on) END,
-    due_on      = CASE WHEN $14::boolean THEN NULL
-                       ELSE COALESCE($15::date, due_on) END,
+    repo_url    = COALESCE($8::text, repo_url),
+    progress    = COALESCE($9::smallint, progress),
+    hours_sold  = COALESCE($10::numeric, hours_sold),
+    is_internal = COALESCE($11::boolean, is_internal),
+    client_id   = COALESCE($12::uuid, client_id),
+    starts_on   = CASE WHEN $13::boolean THEN NULL
+                       ELSE COALESCE($14::date, starts_on) END,
+    due_on      = CASE WHEN $15::boolean THEN NULL
+                       ELSE COALESCE($16::date, due_on) END,
     updated_at  = now()
-WHERE id = $16 AND deleted_at IS NULL
-RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal
+WHERE id = $17 AND deleted_at IS NULL
+RETURNING id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal, logo_key, repo_url
 `
 
 type UpdateProjectParams struct {
@@ -974,6 +1053,7 @@ type UpdateProjectParams struct {
 	FigmaUrl      *string    `json:"figma_url"`
 	ProdUrl       *string    `json:"prod_url"`
 	PreprodUrl    *string    `json:"preprod_url"`
+	RepoUrl       *string    `json:"repo_url"`
 	Progress      *int16     `json:"progress"`
 	HoursSold     *float64   `json:"hours_sold"`
 	IsInternal    *bool      `json:"is_internal"`
@@ -997,6 +1077,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.FigmaUrl,
 		arg.ProdUrl,
 		arg.PreprodUrl,
+		arg.RepoUrl,
 		arg.Progress,
 		arg.HoursSold,
 		arg.IsInternal,
@@ -1031,6 +1112,8 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.PreprodUrl,
 		&i.DeliverablesPending,
 		&i.IsInternal,
+		&i.LogoKey,
+		&i.RepoUrl,
 	)
 	return i, err
 }

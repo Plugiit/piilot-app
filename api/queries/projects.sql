@@ -115,8 +115,8 @@ WHERE pm.project_id = ANY(sqlc.arg('project_ids')::uuid[])
 ORDER BY pm.project_id, u.firstname, u.lastname;
 
 -- name: CreateProject :one
-INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by, repo_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING *;
 
 -- name: UpdateProject :one
@@ -134,6 +134,7 @@ UPDATE projects SET
     figma_url   = COALESCE(sqlc.narg('figma_url')::text, figma_url),
     prod_url    = COALESCE(sqlc.narg('prod_url')::text, prod_url),
     preprod_url = COALESCE(sqlc.narg('preprod_url')::text, preprod_url),
+    repo_url    = COALESCE(sqlc.narg('repo_url')::text, repo_url),
     progress    = COALESCE(sqlc.narg('progress')::smallint, progress),
     hours_sold  = COALESCE(sqlc.narg('hours_sold')::numeric, hours_sold),
     is_internal = COALESCE(sqlc.narg('is_internal')::boolean, is_internal),
@@ -145,6 +146,19 @@ UPDATE projects SET
     updated_at  = now()
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;
+
+-- name: SetProjectLogo :one
+-- Pose ou retire le logo. Nul retire.
+UPDATE projects SET logo_key = sqlc.narg('logo_key')::text, updated_at = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ProjectLogoKeyInUse :one
+-- Dit si une cle du magasin est le logo d'un projet : le magasin est commun
+-- aux pieces jointes, et la route des logos ne doit servir qu'eux.
+SELECT EXISTS (
+    SELECT 1 FROM projects WHERE logo_key = sqlc.arg('key')::text AND deleted_at IS NULL
+);
 
 -- name: SoftDeleteProject :exec
 UPDATE projects SET deleted_at = now(), updated_at = now()
@@ -258,7 +272,8 @@ DELETE FROM attachments WHERE id = $1 RETURNING *;
 SELECT
     p.id,
     p.name,
-    p.status
+    p.status,
+    p.logo_key
 FROM project_favorites f
 JOIN projects p ON p.id = f.project_id AND p.deleted_at IS NULL
 WHERE f.user_id = $1

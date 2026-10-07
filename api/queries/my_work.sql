@@ -86,6 +86,7 @@ SELECT
     p.due_on,
     p.tasks_total,
     p.tasks_done,
+    p.logo_key,
     c.name AS client_name
 FROM project_members pm
 JOIN projects p ON p.id = pm.project_id AND p.deleted_at IS NULL AND p.status NOT IN ('livre', 'hebergement')

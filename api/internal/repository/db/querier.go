@@ -158,6 +158,7 @@ type Querier interface {
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
+	DeleteTimer(ctx context.Context, userID uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, id uuid.UUID) error
 	EnableUser(ctx context.Context, id uuid.UUID) error
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
@@ -201,6 +202,7 @@ type Querier interface {
 	// De quoi ecrire la notification d'une decision : le titre, le projet et le
 	// numero de la version tranchee, figes au moment du geste.
 	GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error)
+	GetGitWebhook(ctx context.Context) (GetGitWebhookRow, error)
 	GetInteraction(ctx context.Context, id uuid.UUID) (ClientInteraction, error)
 	GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, error)
 	// Page d'acceptation : l'invitation, qui l'a envoyee et pour quel client.
@@ -213,6 +215,7 @@ type Querier interface {
 	GetOpenInvitationByEmail(ctx context.Context, email string) (Invitation, error)
 	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
+	GetProjectByRepoURL(ctx context.Context, repoUrl string) (Project, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -229,6 +232,7 @@ type Querier interface {
 	// Tache et son contexte de projet : le tiroir affiche le nom du projet, et
 	// l'aller chercher a part ferait une requete de plus pour un seul mot.
 	GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
+	GetTaskByNumeroInProject(ctx context.Context, arg GetTaskByNumeroInProjectParams) (GetTaskByNumeroInProjectRow, error)
 	// Avancement des taches par nature, pour le tableau de bord.
 	//
 	// La nature est le champ libre `tag` — « Design », « Integration », « Contenu »
@@ -249,16 +253,24 @@ type Querier interface {
 	// ramener par jointure multiplierait l'en-tete par le nombre de lignes du
 	// registre.
 	GetTicket(ctx context.Context, id uuid.UUID) (GetTicketRow, error)
+	GetTicketByNumeroInProject(ctx context.Context, arg GetTicketByNumeroInProjectParams) (GetTicketByNumeroInProjectRow, error)
 	// De quoi ecrire les e-mails d'un ticket : son numero, son sujet, son projet,
 	// et la personne du portail qui l'a ouvert, si elle est toujours active.
 	GetTicketMailContext(ctx context.Context, ticketID uuid.UUID) (GetTicketMailContextRow, error)
 	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (GetTimeEntryRow, error)
+	// Le chrono d'une personne, avec de quoi le nommer a l'ecran.
+	GetTimer(ctx context.Context, userID uuid.UUID) (GetTimerRow, error)
 	GetUpdater(ctx context.Context) (AppUpdater, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
+	// Aucune ligne rendue quand la mise en ligne est deja connue : GitHub et
+	// GitLab renvoient volontiers un evenement deux fois.
+	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
 	// Un mot de passe change rend caducs les autres liens en circulation.
 	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
+	LinkPullRequestToTask(ctx context.Context, arg LinkPullRequestToTaskParams) error
+	LinkPullRequestToTicket(ctx context.Context, arg LinkPullRequestToTicketParams) error
 	// Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
 	// auquel un compte de portail est rattache.
 	// Les comptes actifs d'abord : un compte desactive est une archive, il ne
@@ -334,6 +346,7 @@ type Querier interface {
 	// sur `submitted_at`, que l'ecran compare a maintenant — une duree renvoyee ici
 	// serait fausse des la seconde suivante.
 	ListDeliverables(ctx context.Context, arg ListDeliverablesParams) ([]ListDeliverablesRow, error)
+	ListDeploymentsOfProject(ctx context.Context, arg ListDeploymentsOfProjectParams) ([]Deployment, error)
 	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
 	//
 	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
@@ -397,6 +410,7 @@ type Querier interface {
 	// comprises — c'est la qu'on les renvoie. Bornee : une agence n'a pas cent
 	// invitations en attente, et au-dela le probleme n'est pas l'affichage.
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
+	ListOpenMilestonesOfProject(ctx context.Context, projectID uuid.UUID) ([]ListOpenMilestonesOfProjectRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	// Permissions d'un role, servies telles quelles au front pour qu'il masque les
 	// actions inaccessibles. Le front cache des boutons, il ne protege rien : la
@@ -448,6 +462,8 @@ type Querier interface {
 	// Projets du client, tels que sa fiche les liste. Bornee : une fiche montre ce
 	// qui se lit d'un coup d'oeil, pas tout l'historique d'un gros compte.
 	ListProjectsOfClient(ctx context.Context, arg ListProjectsOfClientParams) ([]ListProjectsOfClientRow, error)
+	ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID) ([]PullRequest, error)
+	ListPullRequestsOfTicket(ctx context.Context, ticketID *uuid.UUID) ([]PullRequest, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
 	// permissions.
@@ -555,6 +571,9 @@ type Querier interface {
 	// La recherche porte sur le sujet et sur le numero : « 47 » doit retrouver le
 	// ticket #47, c'est ainsi qu'on le designe a l'oral.
 	ListTicketsAssignedTo(ctx context.Context, arg ListTicketsAssignedToParams) ([]ListTicketsAssignedToRow, error)
+	// Les tickets prets a deployer dont une pull request est fusionnee : une
+	// mise en ligne les clot.
+	ListTicketsAwaitingDeploy(ctx context.Context, projectID uuid.UUID) ([]ListTicketsAwaitingDeployRow, error)
 	// Toutes les cartes des deux kanbans, aux memes filtres que le tableau.
 	//
 	// Bornee et non paginee, comme les kanbans des taches et des clients : un
@@ -600,6 +619,10 @@ type Querier interface {
 	ListUpdateRecipients(ctx context.Context) ([]uuid.UUID, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	// Les versions qui attendent une reponse depuis trop longtemps et n'ont pas
+	// encore ete relancees. Seule la version courante compte : une ancienne
+	// version en attente a ete remplacee.
+	ListVersionsToRemind(ctx context.Context, afterSeconds float64) ([]ListVersionsToRemindRow, error)
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
 	// simultanees prendraient sinon le meme numero.
 	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
@@ -623,6 +646,7 @@ type Querier interface {
 	MarkReleaseNotified(ctx context.Context, notifiedVersion string) error
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
+	MarkVersionReminded(ctx context.Context, id uuid.UUID) error
 	// Deplacement d'une carte du kanban. Distincte de UpdateClient : glisser une
 	// carte ne doit pas reecrire les coordonnees de l'entreprise avec ce que
 	// l'ecran avait en memoire.
@@ -673,6 +697,9 @@ type Querier interface {
 	// Les notes internes ne sortent jamais d'ici : la requete des messages les
 	// ecarte elle-meme, plutot que de compter sur le code qui l'appelle.
 	PortalListTickets(ctx context.Context, arg PortalListTicketsParams) ([]PortalListTicketsRow, error)
+	// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
+	// aux pieces jointes, et la route des logos ne doit servir qu'eux.
+	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
@@ -708,6 +735,19 @@ type Querier interface {
 	// Passage rate : on garde la derniere version connue, on note l'erreur.
 	SaveReleaseCheckError(ctx context.Context, error string) error
 	SaveUpdaterHeartbeat(ctx context.Context, arg SaveUpdaterHeartbeatParams) error
+	SearchClients(ctx context.Context, arg SearchClientsParams) ([]SearchClientsRow, error)
+	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
+	// Recherche globale : la palette Cmd+K.
+	//
+	// Cinq requetes bornees a quelques lignes chacune : la palette montre les
+	// premiers resultats de chaque famille, pas une liste. Les index trigram poses
+	// en 000004 et 000012 servent les ILIKE sur les noms.
+	SearchProjects(ctx context.Context, arg SearchProjectsParams) ([]SearchProjectsRow, error)
+	SearchTasks(ctx context.Context, arg SearchTasksParams) ([]SearchTasksRow, error)
+	// Le numero compte : « 47 » doit retrouver le ticket #47.
+	// Le numero exact passe devant : « 3 » veut dire le ticket #3, pas ceux dont
+	// le sujet contient un 3.
+	SearchTickets(ctx context.Context, arg SearchTicketsParams) ([]SearchTicketsRow, error)
 	// Partage un fichier de projet avec le client, ou le reprend. Les pieces
 	// jointes de taches restent internes : le portail ne montre pas les taches.
 	SetAttachmentShared(ctx context.Context, arg SetAttachmentSharedParams) (int64, error)
@@ -717,12 +757,15 @@ type Querier interface {
 	// projet est verifie dans la requete : un identifiant de jalon venu d'un autre
 	// projet ne rattache rien.
 	SetDeliverableMilestone(ctx context.Context, arg SetDeliverableMilestoneParams) (int64, error)
+	SetGitWebhookSecret(ctx context.Context, secret string) error
 	// Designe le contact principal. `NULL` le retire.
 	//
 	// La condition sur `client_id` est une ceinture : la cle etrangere composite
 	// refuse deja le contact d'un autre client, mais elle rendrait une erreur de
 	// contrainte la ou un zero ligne touchee se traduit en « introuvable ».
 	SetPrimaryContact(ctx context.Context, arg SetPrimaryContactParams) error
+	// Pose ou retire le logo. Nul retire.
+	SetProjectLogo(ctx context.Context, arg SetProjectLogoParams) (Project, error)
 	// Remplace les services d'un projet par la liste fournie.
 	//
 	// Effacer puis reinserer plutot que calculer une difference : la liste est
@@ -758,6 +801,9 @@ type Querier interface {
 	// L'updater prend la demande en attente et la passe en cours, d'un seul
 	// geste : une demande n'est jamais executee deux fois.
 	StartPendingUpdateRequest(ctx context.Context) (AppUpdateRequest, error)
+	// Un chrono qui tourne deja fait echouer l'insertion : c'est a l'appelant de
+	// l'arreter d'abord, et de choisir ce qu'il en fait.
+	StartTimer(ctx context.Context, arg StartTimerParams) error
 	// Le temps saisi par une personne sur une semaine. Au plus quelques dizaines
 	// de lignes, lues par l'index (user_id, spent_on).
 	SumMyWeekMinutes(ctx context.Context, arg SumMyWeekMinutesParams) (int64, error)
@@ -856,6 +902,10 @@ type Querier interface {
 	// changent depuis l'administration des comptes, pas depuis ses propres
 	// reglages.
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
+	// Une pull request se recoit plusieurs fois : ouverture, mises a jour,
+	// fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
+	// posee, ne s'efface pas.
+	UpsertPullRequest(ctx context.Context, arg UpsertPullRequestParams) (PullRequest, error)
 }
 
 var _ Querier = (*Queries)(nil)

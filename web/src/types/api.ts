@@ -211,6 +211,9 @@ export type SidebarApp = components['schemas']['SidebarApp']
 
 /** Ligne de pointage. */
 export type TimeEntry = components['schemas']['TimeEntry']
+export type Timer = components['schemas']['Timer']
+export type PullRequest = components['schemas']['PullRequest']
+export type GitSettings = components['schemas']['GitSettings']
 
 /** Feuille de temps : les lignes d'une plage, leur total, et le total par jour. */
 export type TimeSheet = components['schemas']['TimeSheet']

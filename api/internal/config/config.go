@@ -77,6 +77,14 @@ type Config struct {
 	UpdateRepository    string
 	UpdateCheckInterval time.Duration
 
+	// DeliverableReminderAfter : delai sans reponse du client au-dela duquel
+	// un livrable est relance par e-mail, une fois. Nul pour ne jamais relancer.
+	DeliverableReminderAfter time.Duration
+
+	// GitWebhookSecret, s'il est renseigne, remplace le secret tire au sort
+	// et garde en base : pour une installation decrite par son environnement.
+	GitWebhookSecret string
+
 	// Serveur SMTP des e-mails (invitations, mot de passe oublie). Facultatif :
 	// sans lui, les liens se copient depuis l'ecran des comptes.
 	SMTPHost     string
@@ -116,6 +124,9 @@ func Load() (Config, error) {
 		// Un quart d'heure par defaut : les requetes sont conditionnelles, un
 		// « rien de nouveau » ne coute rien a GitHub.
 		UpdateCheckInterval: envDuration("UPDATE_CHECK_INTERVAL", 15*time.Minute),
+
+		DeliverableReminderAfter: envDuration("DELIVERABLE_REMINDER_AFTER", 72*time.Hour),
+		GitWebhookSecret:         os.Getenv("GIT_WEBHOOK_SECRET"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
 		SMTPPort:     envInt("SMTP_PORT", 587),

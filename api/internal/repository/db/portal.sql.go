@@ -167,6 +167,7 @@ SELECT
     p.tasks_total,
     p.tasks_done,
     p.deliverables_pending,
+    p.logo_key,
     c.name AS client_name
 FROM users u
 JOIN projects p ON p.client_id = u.client_id AND p.deleted_at IS NULL AND NOT p.is_internal
@@ -194,6 +195,7 @@ type PortalGetProjectRow struct {
 	TasksTotal          int32      `json:"tasks_total"`
 	TasksDone           int32      `json:"tasks_done"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
+	LogoKey             *string    `json:"logo_key"`
 	ClientName          string     `json:"client_name"`
 }
 
@@ -212,6 +214,7 @@ func (q *Queries) PortalGetProject(ctx context.Context, arg PortalGetProjectPara
 		&i.TasksTotal,
 		&i.TasksDone,
 		&i.DeliverablesPending,
+		&i.LogoKey,
 		&i.ClientName,
 	)
 	return i, err
@@ -300,6 +303,7 @@ SELECT
     p.tasks_total,
     p.tasks_done,
     p.deliverables_pending,
+    p.logo_key,
     -- La jointure LATERAL rend des nuls quand il n'y a plus de jalon a venir :
     -- le titre devient vide plutot que nul, l'echeance reste nullable.
     coalesce(nm.title, '')::text AS next_milestone_title,
@@ -339,6 +343,7 @@ type PortalListProjectsRow struct {
 	TasksTotal          int32      `json:"tasks_total"`
 	TasksDone           int32      `json:"tasks_done"`
 	DeliverablesPending int32      `json:"deliverables_pending"`
+	LogoKey             *string    `json:"logo_key"`
 	NextMilestoneTitle  string     `json:"next_milestone_title"`
 	NextMilestoneDueOn  *time.Time `json:"next_milestone_due_on"`
 	LastActivityAt      time.Time  `json:"last_activity_at"`
@@ -375,6 +380,7 @@ func (q *Queries) PortalListProjects(ctx context.Context, userID uuid.UUID) ([]P
 			&i.TasksTotal,
 			&i.TasksDone,
 			&i.DeliverablesPending,
+			&i.LogoKey,
 			&i.NextMilestoneTitle,
 			&i.NextMilestoneDueOn,
 			&i.LastActivityAt,
