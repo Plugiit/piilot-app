@@ -533,6 +533,7 @@ func (s *ClientService) SetPrimaryContact(ctx context.Context, clientID uuid.UUI
 type ClientProject struct {
 	ID       uuid.UUID `json:"id"`
 	Name     string    `json:"name"`
+	LogoURL  *string   `json:"logo_url"`
 	Status   string    `json:"status"`
 	Progress int       `json:"progress"`
 	DueOn    *string   `json:"due_on"`
@@ -655,6 +656,7 @@ func (s *ClientService) Get(ctx context.Context, id uuid.UUID) (CrmClientDetail,
 		item := ClientProject{
 			ID:       p.ID,
 			Name:     p.Name,
+			LogoURL:  projectLogoURL(p.LogoKey),
 			Status:   p.Status,
 			Progress: int(p.Progress),
 		}

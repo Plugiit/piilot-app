@@ -155,7 +155,7 @@ WHERE c.id = $1 AND c.deleted_at IS NULL;
 -- name: ListProjectsOfClient :many
 -- Projets du client, tels que sa fiche les liste. Bornee : une fiche montre ce
 -- qui se lit d'un coup d'oeil, pas tout l'historique d'un gros compte.
-SELECT id, name, status, progress, due_on
+SELECT id, name, status, progress, due_on, logo_key
 FROM projects
 WHERE client_id = sqlc.arg('client_id') AND deleted_at IS NULL
 ORDER BY (status = 'livre'), due_on NULLS LAST, id

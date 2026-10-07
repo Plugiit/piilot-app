@@ -70,15 +70,18 @@ type ProjectListItem struct {
 	// Etoile de l'appelant, pas du projet : deux comptes voient la meme liste
 	// dans un ordre different, et c'est voulu.
 	IsFavorite bool `json:"is_favorite"`
+	// Adresse du logo, nulle sans logo.
+	LogoURL *string `json:"logo_url"`
 }
 
 // ProjectShortcut est un projet etoile, tel que la barre laterale le montre :
 // de quoi faire un lien et poser une pastille, rien de plus. Un raccourci n'a
 // pas besoin des agregats d'une ligne de tableau.
 type ProjectShortcut struct {
-	ID     uuid.UUID `json:"id"`
-	Name   string    `json:"name"`
-	Status string    `json:"status"`
+	ID      uuid.UUID `json:"id"`
+	Name    string    `json:"name"`
+	Status  string    `json:"status"`
+	LogoURL *string   `json:"logo_url"`
 }
 
 // ProjectPage est une page de la liste.
@@ -114,11 +117,13 @@ type ProjectDetail struct {
 	FigmaURL           string    `json:"figma_url"`
 	ProdURL            string    `json:"prod_url"`
 	PreprodURL         string    `json:"preprod_url"`
+	RepoURL            string    `json:"repo_url"`
 	IsFavorite         bool      `json:"is_favorite"`
 	// Projet de l'agence pour elle-meme : son temps n'est pas facturable.
 	IsInternal bool         `json:"is_internal"`
 	Files      []Attachment `json:"files"`
 	Services   []ServiceTag `json:"services"`
+	LogoURL    *string      `json:"logo_url"`
 }
 
 // Attachment est une piece jointe, d'un projet ou d'une tache.
@@ -176,6 +181,7 @@ type CreateProjectInput struct {
 	FigmaURL    string
 	ProdURL     string
 	PreprodURL  string
+	RepoURL     string
 	Progress    int
 	HoursSold   float64
 	StartsOn    *time.Time
@@ -198,6 +204,7 @@ type UpdateProjectInput struct {
 	FigmaURL      *string
 	ProdURL       *string
 	PreprodURL    *string
+	RepoURL       *string
 	Progress      *int
 	HoursSold     *float64
 	IsInternal    *bool
@@ -360,6 +367,7 @@ func (s *ProjectService) List(ctx context.Context, f ProjectFilters) (ProjectPag
 		items = append(items, ProjectListItem{
 			ID:          row.ID,
 			Name:        row.Name,
+			LogoURL:     projectLogoURL(row.LogoKey),
 			Description: row.Description,
 			Priority:    row.Priority,
 			ClientID:    row.ClientID,
@@ -488,11 +496,13 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 	return ProjectDetail{
 		ID:                 row.ID,
 		Name:               row.Name,
+		LogoURL:            projectLogoURL(row.LogoKey),
 		Description:        row.Description,
 		Priority:           row.Priority,
 		FigmaURL:           row.FigmaUrl,
 		ProdURL:            row.ProdUrl,
 		PreprodURL:         row.PreprodUrl,
+		RepoURL:            row.RepoUrl,
 		IsFavorite:         row.IsFavorite,
 		IsInternal:         row.IsInternal,
 		Files:              files,
@@ -549,6 +559,11 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 	in.FigmaURL = strings.TrimSpace(in.FigmaURL)
 	in.ProdURL = strings.TrimSpace(in.ProdURL)
 	in.PreprodURL = strings.TrimSpace(in.PreprodURL)
+	if repo, err := cleanRepoURL(in.RepoURL); err != nil {
+		return ProjectDetail{}, err
+	} else {
+		in.RepoURL = repo
+	}
 
 	for _, link := range []struct {
 		field string
@@ -605,6 +620,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (Pro
 		FigmaUrl:    in.FigmaURL,
 		ProdUrl:     in.ProdURL,
 		PreprodUrl:  in.PreprodURL,
+		RepoUrl:     in.RepoURL,
 		Progress:    int16(in.Progress),
 		HoursSold:   in.HoursSold,
 		StartsOn:    in.StartsOn,
@@ -744,6 +760,13 @@ func (s *ProjectService) Update(ctx context.Context, id, viewer uuid.UUID, in Up
 
 		*link.value = &trimmed
 	}
+	if in.RepoURL != nil {
+		repo, err := cleanRepoURL(*in.RepoURL)
+		if err != nil {
+			return ProjectDetail{}, err
+		}
+		in.RepoURL = &repo
+	}
 	if in.Progress != nil && (*in.Progress < 0 || *in.Progress > 100) {
 		return ProjectDetail{}, domain.ErrValidation.WithDetails(map[string]any{
 			"progress": "L'avancement va de 0 à 100",
@@ -765,6 +788,7 @@ func (s *ProjectService) Update(ctx context.Context, id, viewer uuid.UUID, in Up
 		FigmaUrl:      in.FigmaURL,
 		ProdUrl:       in.ProdURL,
 		PreprodUrl:    in.PreprodURL,
+		RepoUrl:       in.RepoURL,
 		Progress:      progress,
 		HoursSold:     in.HoursSold,
 		IsInternal:    in.IsInternal,
@@ -1352,7 +1376,7 @@ func (s *ProjectService) ListFavorites(ctx context.Context, viewer uuid.UUID) ([
 
 	items := make([]ProjectShortcut, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, ProjectShortcut{ID: row.ID, Name: row.Name, Status: row.Status})
+		items = append(items, ProjectShortcut{ID: row.ID, Name: row.Name, Status: row.Status, LogoURL: projectLogoURL(row.LogoKey)})
 	}
 
 	return items, nil
@@ -1390,4 +1414,19 @@ func (s *ProjectService) ShareFile(ctx context.Context, fileID uuid.UUID, shared
 	}
 
 	return nil
+}
+
+// cleanRepoURL normalise l'adresse du depot, ou refuse ce qui n'en est pas une.
+func cleanRepoURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	normalized := NormalizeRepoURL(raw)
+	if normalized == "" {
+		return "", domain.ErrValidation.WithDetails(map[string]any{
+			"repo_url": "Adresse de dépôt attendue : https://github.com/organisation/depot ou git@…",
+		})
+	}
+	return normalized, nil
 }

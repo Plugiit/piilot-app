@@ -20,7 +20,7 @@ VALUES (
     (SELECT coalesce(max(position), 0) + 1 FROM milestones WHERE project_id = $1),
     $5
 )
-RETURNING id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at
+RETURNING id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at, completed_by_deliverables
 `
 
 type CreateMilestoneParams struct {
@@ -53,6 +53,7 @@ func (q *Queries) CreateMilestone(ctx context.Context, arg CreateMilestoneParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CompletedByDeliverables,
 	)
 	return i, err
 }
@@ -94,7 +95,7 @@ func (q *Queries) DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, err
 }
 
 const getMilestone = `-- name: GetMilestone :one
-SELECT id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at FROM milestones WHERE id = $1
+SELECT id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at, completed_by_deliverables FROM milestones WHERE id = $1
 `
 
 func (q *Queries) GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, error) {
@@ -113,6 +114,7 @@ func (q *Queries) GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, er
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CompletedByDeliverables,
 	)
 	return i, err
 }
@@ -288,7 +290,7 @@ func (q *Queries) ListPlanning(ctx context.Context, arg ListPlanningParams) ([]L
 
 const listProjectMilestones = `-- name: ListProjectMilestones :many
 
-SELECT id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at
+SELECT id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at, completed_by_deliverables
 FROM milestones
 WHERE project_id = $1
 ORDER BY due_on NULLS LAST, position, created_at
@@ -320,6 +322,7 @@ func (q *Queries) ListProjectMilestones(ctx context.Context, projectID uuid.UUID
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CompletedByDeliverables,
 		); err != nil {
 			return nil, err
 		}
@@ -372,9 +375,15 @@ UPDATE milestones SET
         WHEN $6::boolean THEN coalesce(completed_at, now())
         ELSE NULL
     END,
+    -- Une atteinte posee ou retiree a la main n'est plus celle des livrables :
+    -- le declencheur ne la rouvrira pas.
+    completed_by_deliverables = CASE
+        WHEN $5::boolean THEN false
+        ELSE completed_by_deliverables
+    END,
     updated_at   = now()
 WHERE id = $7
-RETURNING id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at
+RETURNING id, project_id, title, description, due_on, position, completed_at, deliverables_total, deliverables_validated, created_by, created_at, updated_at, completed_by_deliverables
 `
 
 type UpdateMilestoneParams struct {
@@ -413,6 +422,7 @@ func (q *Queries) UpdateMilestone(ctx context.Context, arg UpdateMilestoneParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CompletedByDeliverables,
 	)
 	return i, err
 }

@@ -470,6 +470,66 @@ func (q *Queries) ListDeliverables(ctx context.Context, arg ListDeliverablesPara
 	return items, nil
 }
 
+const listVersionsToRemind = `-- name: ListVersionsToRemind :many
+SELECT
+    v.id AS version_id,
+    v.numero,
+    v.submitted_at,
+    d.id AS deliverable_id,
+    d.title,
+    p.id AS project_id,
+    p.name AS project_name
+FROM deliverable_versions v
+JOIN deliverables d ON d.id = v.deliverable_id AND d.current_version_id = v.id AND d.deleted_at IS NULL
+JOIN projects p ON p.id = d.project_id AND p.deleted_at IS NULL AND NOT p.is_internal
+WHERE v.decision = 'en_attente'
+  AND v.reminded_at IS NULL
+  AND v.submitted_at < now() - make_interval(secs => $1::double precision)
+ORDER BY v.submitted_at
+LIMIT 50
+`
+
+type ListVersionsToRemindRow struct {
+	VersionID     uuid.UUID `json:"version_id"`
+	Numero        int32     `json:"numero"`
+	SubmittedAt   time.Time `json:"submitted_at"`
+	DeliverableID uuid.UUID `json:"deliverable_id"`
+	Title         string    `json:"title"`
+	ProjectID     uuid.UUID `json:"project_id"`
+	ProjectName   string    `json:"project_name"`
+}
+
+// Les versions qui attendent une reponse depuis trop longtemps et n'ont pas
+// encore ete relancees. Seule la version courante compte : une ancienne
+// version en attente a ete remplacee.
+func (q *Queries) ListVersionsToRemind(ctx context.Context, afterSeconds float64) ([]ListVersionsToRemindRow, error) {
+	rows, err := q.db.Query(ctx, listVersionsToRemind, afterSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVersionsToRemindRow{}
+	for rows.Next() {
+		var i ListVersionsToRemindRow
+		if err := rows.Scan(
+			&i.VersionID,
+			&i.Numero,
+			&i.SubmittedAt,
+			&i.DeliverableID,
+			&i.Title,
+			&i.ProjectID,
+			&i.ProjectName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDeliverable = `-- name: LockDeliverable :one
 SELECT id, project_id, current_version_id
 FROM deliverables
@@ -490,6 +550,15 @@ func (q *Queries) LockDeliverable(ctx context.Context, id uuid.UUID) (LockDelive
 	var i LockDeliverableRow
 	err := row.Scan(&i.ID, &i.ProjectID, &i.CurrentVersionID)
 	return i, err
+}
+
+const markVersionReminded = `-- name: MarkVersionReminded :exec
+UPDATE deliverable_versions SET reminded_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkVersionReminded(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markVersionReminded, id)
+	return err
 }
 
 const nextDeliverableVersionNumero = `-- name: NextDeliverableVersionNumero :one

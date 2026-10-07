@@ -834,7 +834,7 @@ func (q *Queries) ListPortalUsersOfClient(ctx context.Context, arg ListPortalUse
 }
 
 const listProjectsOfClient = `-- name: ListProjectsOfClient :many
-SELECT id, name, status, progress, due_on
+SELECT id, name, status, progress, due_on, logo_key
 FROM projects
 WHERE client_id = $1 AND deleted_at IS NULL
 ORDER BY (status = 'livre'), due_on NULLS LAST, id
@@ -852,6 +852,7 @@ type ListProjectsOfClientRow struct {
 	Status   string     `json:"status"`
 	Progress int16      `json:"progress"`
 	DueOn    *time.Time `json:"due_on"`
+	LogoKey  *string    `json:"logo_key"`
 }
 
 // Projets du client, tels que sa fiche les liste. Bornee : une fiche montre ce
@@ -871,6 +872,7 @@ func (q *Queries) ListProjectsOfClient(ctx context.Context, arg ListProjectsOfCl
 			&i.Status,
 			&i.Progress,
 			&i.DueOn,
+			&i.LogoKey,
 		); err != nil {
 			return nil, err
 		}

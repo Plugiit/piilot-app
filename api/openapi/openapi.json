@@ -7598,6 +7598,476 @@
           }
         }
       }
+    },
+    "/api/v1/admin/projects/{id}/logo": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Déposer le logo d'un projet",
+        "description": "SVG, PNG, JPEG, WEBP ou GIF, 512 Ko au plus. L'ancien logo est effacé. Exige projects.write.",
+        "operationId": "uploadProjectLogo",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Projet avec son nouveau logo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Retirer le logo d'un projet",
+        "operationId": "deleteProjectLogo",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projet sans logo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/project-logos/{key}": {
+      "parameters": [
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "description": "Clé du logo, telle qu'elle figure dans logo_url",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Lire le logo d'un projet",
+        "description": "Ouvert à toute session : l'équipe le voit dans ses listes, un client sur son portail. Le type est deviné au contenu, jamais repris de ce qui a été annoncé au dépôt ; servi avec nosniff et une politique qui coupe tout script.",
+        "operationId": "getProjectLogo",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fichier du logo",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/search": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Recherche globale",
+        "description": "Projets, clients, contacts, taches et tickets dont le nom, le sujet ou le numero contient la saisie. Deux caracteres au moins ; en deca, tout est vide. Chaque famille suit sa permission (projects.read, clients.read, tasks.read, tickets.read).",
+        "operationId": "search",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Saisie"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/time-timer": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Chrono en cours",
+        "operationId": "getTimer",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Le chrono, ou nul",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Démarrer le chrono",
+        "description": "Sur un projet, et une tache si l'on veut. Un chrono qui tournait est arrete d'abord et son temps enregistre. Exige time.write.",
+        "operationId": "startTimer",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartTimerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Le chrono lance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Abandonner le chrono",
+        "description": "Sans rien ecrire.",
+        "operationId": "discardTimer",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Abandonne"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/time-timer/stop": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Arrêter le chrono",
+        "description": "Ecrit une saisie de temps du temps ecoule, arrondi a la minute superieure, sur le jour du demarrage.",
+        "operationId": "stopTimer",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La saisie ecrite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopTimerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/integrations/git": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglage du webhook Git",
+        "description": "L'adresse du webhook et son secret, a copier dans GitHub (organisation ou depot) ou GitLab (groupe ou projet). Le secret est tire au sort a la premiere ouverture. Exige users.write.",
+        "operationId": "getGitSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reglage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/integrations/git/rotate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Changer le secret du webhook",
+        "description": "Les webhooks configures avec l'ancien secret cessent d'etre acceptes. Refuse quand GIT_WEBHOOK_SECRET est defini.",
+        "operationId": "rotateGitSecret",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nouveau reglage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Secret defini par l'environnement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hooks/git": {
+      "post": {
+        "tags": [
+          "hooks"
+        ],
+        "summary": "Webhook GitHub ou GitLab",
+        "description": "Sans session : GitHub signe le corps (X-Hub-Signature-256, HMAC-SHA256 du secret), GitLab envoie le secret en clair (X-Gitlab-Token). Evenements lus : pull_request / merge_request (rattachement aux tickets #47 et taches T-123 nommes dans le titre, la branche ou la description ; ouverture → en revue, fusion → pret a deployer / tache terminee), release, push de tag et deployment_status / deployment reussis (mise en ligne : journal du client, jalon de mise en ligne atteint, tickets prets a deployer clos avec un mot au client). Le projet est retrouve par l'adresse du depot.",
+        "operationId": "gitWebhook",
+        "parameters": [
+          {
+            "name": "X-GitHub-Event",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Hub-Signature-256",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Gitlab-Event",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Gitlab-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Evenement recu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7845,7 +8315,9 @@
           "tasks_done",
           "team",
           "is_favorite",
-          "services"
+          "services",
+          "logo_url",
+          "repo_url"
         ],
         "properties": {
           "id": {
@@ -7948,6 +8420,17 @@
               "$ref": "#/components/schemas/ServiceTag"
             },
             "description": "Prestations dont releve l'entite. Vide quand aucune."
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
+          },
+          "repo_url": {
+            "type": "string",
+            "description": "Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot."
           }
         }
       },
@@ -8156,7 +8639,9 @@
           "prod_url",
           "preprod_url",
           "services",
-          "is_internal"
+          "is_internal",
+          "logo_url",
+          "repo_url"
         ],
         "properties": {
           "id": {
@@ -8294,6 +8779,17 @@
           "is_internal": {
             "type": "boolean",
             "description": "Projet de l'agence pour elle-meme : le temps qui y est saisi n'est pas facturable."
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
+          },
+          "repo_url": {
+            "type": "string",
+            "description": "Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot."
           }
         }
       },
@@ -8303,7 +8799,8 @@
         "required": [
           "id",
           "name",
-          "status"
+          "status",
+          "logo_url"
         ],
         "properties": {
           "id": {
@@ -8322,6 +8819,13 @@
               "livre",
               "hebergement"
             ]
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
           }
         }
       },
@@ -8916,7 +9420,9 @@
           "files",
           "activity",
           "priority",
-          "services"
+          "services",
+          "pull_requests",
+          "numero"
         ],
         "properties": {
           "id": {
@@ -9027,6 +9533,17 @@
               "$ref": "#/components/schemas/ServiceTag"
             },
             "description": "Prestations dont releve l'entite. Vide quand aucune."
+          },
+          "pull_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PullRequest"
+            }
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Numero lisible de la tache : T-123 dans une branche ou une pull request."
           }
         }
       },
@@ -9131,6 +9648,10 @@
             "format": "uuid",
             "nullable": true,
             "description": "Modele dont le projet recoit les jalons, les taches et les services. Les echeances partent du debut du projet, ou du jour de creation."
+          },
+          "repo_url": {
+            "type": "string",
+            "description": "Depot Git : https://github.com/org/depot, git@gitlab.agence.fr:groupe/depot.git… Normalise a l'enregistrement."
           }
         }
       },
@@ -9217,6 +9738,10 @@
           "is_internal": {
             "type": "boolean",
             "description": "Bascule le projet en interne ou en projet client. Reclasse tout son temps, passe compris."
+          },
+          "repo_url": {
+            "type": "string",
+            "description": "Depot Git : https://github.com/org/depot, git@gitlab.agence.fr:groupe/depot.git… Normalise a l'enregistrement."
           }
         }
       },
@@ -9921,7 +10446,8 @@
           "name",
           "status",
           "progress",
-          "due_on"
+          "due_on",
+          "logo_url"
         ],
         "properties": {
           "id": {
@@ -9950,6 +10476,13 @@
               "null"
             ],
             "format": "date"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
           }
         }
       },
@@ -10549,7 +11082,8 @@
           "is_internal",
           "field",
           "old_value",
-          "new_value"
+          "new_value",
+          "automatic"
         ],
         "properties": {
           "id": {
@@ -10600,6 +11134,10 @@
           },
           "new_value": {
             "type": "string"
+          },
+          "automatic": {
+            "type": "boolean",
+            "description": "Sans auteur des l'origine : un geste de Piilot (integration Git, tache de fond), pas un compte disparu."
           }
         }
       },
@@ -10618,7 +11156,8 @@
               "reporter",
               "entries",
               "client_visible",
-              "files"
+              "files",
+              "pull_requests"
             ],
             "properties": {
               "description": {
@@ -10657,6 +11196,12 @@
                   "$ref": "#/components/schemas/Attachment"
                 },
                 "description": "Pieces jointes deposees avec la demande."
+              },
+              "pull_requests": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PullRequest"
+                }
               }
             }
           }
@@ -12582,7 +13127,8 @@
           "progress",
           "due_on",
           "tasks_total",
-          "tasks_done"
+          "tasks_done",
+          "logo_url"
         ],
         "properties": {
           "id": {
@@ -12618,6 +13164,13 @@
           },
           "tasks_done": {
             "type": "integer"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
           }
         }
       },
@@ -13100,7 +13653,8 @@
               "email",
               "project_created",
               "deliverable_validated",
-              "ticket_opened"
+              "ticket_opened",
+              "deployment"
             ]
           },
           "body": {
@@ -13223,7 +13777,8 @@
           "due_on",
           "deliverables_pending",
           "next_milestone",
-          "last_activity_at"
+          "last_activity_at",
+          "logo_url"
         ],
         "properties": {
           "id": {
@@ -13274,6 +13829,13 @@
           "last_activity_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
           }
         }
       },
@@ -13398,7 +13960,9 @@
           "deliverables_pending",
           "milestones",
           "deliverables",
-          "files"
+          "files",
+          "logo_url",
+          "last_deployment"
         ],
         "properties": {
           "id": {
@@ -13460,6 +14024,23 @@
               "$ref": "#/components/schemas/PortalFile"
             },
             "description": "Fichiers explicitement partages par l'agence."
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Adresse du logo du projet, nulle sans logo."
+          },
+          "last_deployment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Deployment"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -13789,6 +14370,465 @@
             }
           }
         }
+      },
+      "SearchProject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "client_name",
+          "logo_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SearchClient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchContact": {
+        "type": "object",
+        "required": [
+          "id",
+          "firstname",
+          "lastname",
+          "email",
+          "client_id",
+          "client_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "client_name": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchTask": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "project_id",
+          "project_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_name": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchTicket": {
+        "type": "object",
+        "required": [
+          "id",
+          "numero",
+          "subject",
+          "status",
+          "project_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "description": "Resultats de la palette Cmd+K : les cinq premiers de chaque famille que l'appelant a le droit de voir. Une famille hors permission est vide.",
+        "required": [
+          "projects",
+          "clients",
+          "contacts",
+          "tasks",
+          "tickets"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchProject"
+            }
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchClient"
+            }
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchContact"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchTask"
+            }
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchTicket"
+            }
+          }
+        }
+      },
+      "NamedRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Timer": {
+        "type": "object",
+        "description": "Le chrono d'une personne. Un seul a la fois : il devient une saisie de temps a l'arret.",
+        "required": [
+          "project",
+          "task",
+          "note",
+          "started_at"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/NamedRef"
+          },
+          "task": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NamedRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TimerResponse": {
+        "type": "object",
+        "required": [
+          "timer"
+        ],
+        "properties": {
+          "timer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nul quand rien ne tourne."
+          }
+        }
+      },
+      "StartTimerRequest": {
+        "type": "object",
+        "required": [
+          "project_id"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "task_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "StopTimerResponse": {
+        "type": "object",
+        "required": [
+          "entry"
+        ],
+        "properties": {
+          "entry": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimeEntry"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "La saisie ecrite, nulle si rien ne tournait."
+          }
+        }
+      },
+      "PullRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "number",
+          "title",
+          "url",
+          "branch",
+          "author",
+          "state",
+          "opened_at",
+          "merged_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitlab"
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "merged",
+              "closed"
+            ]
+          },
+          "opened_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "merged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "Une pull request (GitHub) ou merge request (GitLab) recue par webhook, qui nomme un ticket (#47) ou une tache (T-123)."
+      },
+      "Deployment": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "kind",
+          "name",
+          "url",
+          "environment",
+          "deployed_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "release",
+              "tag",
+              "deployment"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Une mise en ligne : release publiee, tag pousse ou deploiement reussi."
+      },
+      "GitSettings": {
+        "type": "object",
+        "required": [
+          "webhook_url",
+          "secret",
+          "from_env",
+          "updated_at"
+        ],
+        "properties": {
+          "webhook_url": {
+            "type": "string",
+            "description": "L'adresse a donner a GitHub ou GitLab."
+          },
+          "secret": {
+            "type": "string",
+            "description": "Le secret du webhook, a copier chez eux."
+          },
+          "from_env": {
+            "type": "boolean",
+            "description": "Defini par GIT_WEBHOOK_SECRET : ne se change pas depuis l'ecran."
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "GitOutcome": {
+        "type": "object",
+        "required": [
+          "handled",
+          "note"
+        ],
+        "properties": {
+          "handled": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "description": "Ce que l'evenement a produit."
       }
     }
   }

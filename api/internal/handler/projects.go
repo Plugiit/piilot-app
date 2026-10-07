@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -28,6 +29,9 @@ type ProjectService interface {
 	Update(ctx context.Context, id, viewer uuid.UUID, in usecase.UpdateProjectInput) (usecase.ProjectDetail, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	SetTeam(ctx context.Context, id, viewer uuid.UUID, userIDs []uuid.UUID) (usecase.ProjectDetail, error)
+	SetLogoFile(ctx context.Context, id, viewer uuid.UUID, contentType string, content io.Reader) (usecase.ProjectDetail, error)
+	RemoveLogo(ctx context.Context, id, viewer uuid.UUID) (usecase.ProjectDetail, error)
+	OpenLogo(ctx context.Context, key string) (io.ReadCloser, error)
 	AddFile(ctx context.Context, projectID, uploader uuid.UUID, filename, contentType string, content io.Reader) (usecase.Attachment, error)
 	OpenFile(ctx context.Context, fileID uuid.UUID) (usecase.Attachment, io.ReadCloser, error)
 	DeleteFile(ctx context.Context, fileID uuid.UUID) error
@@ -64,6 +68,7 @@ type createProjectRequest struct {
 	FigmaURL    string   `json:"figma_url"`
 	ProdURL     string   `json:"prod_url"`
 	PreprodURL  string   `json:"preprod_url"`
+	RepoURL     string   `json:"repo_url"`
 	Progress    int      `json:"progress"`
 	HoursSold   float64  `json:"hours_sold"`
 	StartsOn    *string  `json:"starts_on"`
@@ -87,6 +92,7 @@ type updateProjectRequest struct {
 	FigmaURL    *string  `json:"figma_url"`
 	ProdURL     *string  `json:"prod_url"`
 	PreprodURL  *string  `json:"preprod_url"`
+	RepoURL     *string  `json:"repo_url"`
 	Progress    *int     `json:"progress"`
 	HoursSold   *float64 `json:"hours_sold"`
 	IsInternal  *bool    `json:"is_internal"`
@@ -225,6 +231,7 @@ func (h *Projects) Create(c fiber.Ctx) error {
 		FigmaURL:    req.FigmaURL,
 		ProdURL:     req.ProdURL,
 		PreprodURL:  req.PreprodURL,
+		RepoURL:     req.RepoURL,
 		Progress:    req.Progress,
 		HoursSold:   req.HoursSold,
 		CreatedBy:   actor,
@@ -303,6 +310,7 @@ func (h *Projects) Update(c fiber.Ctx) error {
 		FigmaURL:    req.FigmaURL,
 		ProdURL:     req.ProdURL,
 		PreprodURL:  req.PreprodURL,
+		RepoURL:     req.RepoURL,
 		Progress:    req.Progress,
 		HoursSold:   req.HoursSold,
 		IsInternal:  req.IsInternal,
@@ -697,4 +705,92 @@ func contentDisposition(filename string) string {
 
 	return fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`,
 		string(ascii), url.PathEscape(filename))
+}
+
+// UploadLogo depose le logo d'un projet.
+func (h *Projects) UploadLogo(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{
+			"file": "Aucun fichier reçu sous le champ « file »",
+		})
+	}
+
+	content, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("lecture du fichier envoye : %w", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	project, err := h.svc.SetLogoFile(c.Context(), id, actor, header.Header.Get("Content-Type"), content)
+	if err != nil {
+		return err
+	}
+
+	return h.sendProject(c, fiber.StatusOK, project)
+}
+
+// DeleteLogo retire le logo d'un projet.
+func (h *Projects) DeleteLogo(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	actor, ok := middleware.UserIDFrom(c)
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	project, err := h.svc.RemoveLogo(c.Context(), id, actor)
+	if err != nil {
+		return err
+	}
+
+	return h.sendProject(c, fiber.StatusOK, project)
+}
+
+// maxProjectLogoBytes borne ce que la lecture d'un logo met en memoire. Aligne
+// sur la limite posee au depot.
+const maxProjectLogoBytes = 512 << 10
+
+// Logo sert le fichier d'un logo de projet, selon les memes regles que les
+// logos d'apps : type devine au contenu, SVG reconnu a sa racine et servi
+// sous une politique qui coupe tout script.
+func (h *Projects) Logo(c fiber.Ctx) error {
+	content, err := h.svc.OpenLogo(c.Context(), c.Params("key"))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = content.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(content, maxProjectLogoBytes))
+	if err != nil {
+		return fmt.Errorf("lecture du logo : %w", err)
+	}
+
+	kind := http.DetectContentType(data)
+	if !strings.HasPrefix(kind, "image/") {
+		if !looksLikeSVG(data) {
+			return domain.ErrNotFound
+		}
+		kind = "image/svg+xml"
+	}
+
+	c.Set(fiber.HeaderContentType, kind)
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	c.Set(fiber.HeaderCacheControl, "private, max-age=604800, immutable")
+
+	return c.Send(data)
 }

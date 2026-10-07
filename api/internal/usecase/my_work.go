@@ -71,6 +71,7 @@ type WorkDeliverable struct {
 type WorkProject struct {
 	ID         uuid.UUID `json:"id"`
 	Name       string    `json:"name"`
+	LogoURL    *string   `json:"logo_url"`
 	ClientName string    `json:"client_name"`
 	Status     string    `json:"status"`
 	Progress   int       `json:"progress"`
@@ -198,6 +199,7 @@ func (s *MyWorkService) at(ctx context.Context, userID uuid.UUID, now time.Time)
 		work.Projects = append(work.Projects, WorkProject{
 			ID:         row.ID,
 			Name:       row.Name,
+			LogoURL:    projectLogoURL(row.LogoKey),
 			ClientName: row.ClientName,
 			Status:     row.Status,
 			Progress:   int(row.Progress),

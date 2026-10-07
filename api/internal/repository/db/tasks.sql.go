@@ -204,7 +204,7 @@ VALUES (
      WHERE project_id = $1 AND status = $4 AND deleted_at IS NULL),
     $11
 )
-RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count
+RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count, numero
 `
 
 type CreateTaskParams struct {
@@ -258,6 +258,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.SubtasksDone,
 		&i.CommentsCount,
 		&i.AttachmentsCount,
+		&i.Numero,
 	)
 	return i, err
 }
@@ -321,7 +322,7 @@ func (q *Queries) GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
 
 const getTask = `-- name: GetTask :one
 SELECT
-    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count,
+    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, t.numero,
     p.name AS project_name,
     c.name AS client_name
 FROM tasks t
@@ -352,6 +353,7 @@ type GetTaskRow struct {
 	SubtasksDone     int32      `json:"subtasks_done"`
 	CommentsCount    int32      `json:"comments_count"`
 	AttachmentsCount int32      `json:"attachments_count"`
+	Numero           int64      `json:"numero"`
 	ProjectName      string     `json:"project_name"`
 	ClientName       string     `json:"client_name"`
 }
@@ -383,6 +385,7 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (GetTaskRow, error)
 		&i.SubtasksDone,
 		&i.CommentsCount,
 		&i.AttachmentsCount,
+		&i.Numero,
 		&i.ProjectName,
 		&i.ClientName,
 	)
@@ -701,7 +704,7 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count,
+    t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, t.numero,
     p.name AS project_name
 FROM tasks t
 JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
@@ -778,6 +781,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTas
 			&i.Task.SubtasksDone,
 			&i.Task.CommentsCount,
 			&i.Task.AttachmentsCount,
+			&i.Task.Numero,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -807,7 +811,7 @@ WITH ranked AS (
     AND ($4::uuid IS NULL OR t.project_id = $4::uuid)
     AND ($5::text IS NULL OR t.title ILIKE '%' || $5::text || '%')
 )
-SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, p.name AS project_name
+SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, t.numero, p.name AS project_name
 FROM ranked r
 JOIN tasks t ON t.id = r.id
 JOIN projects p ON p.id = t.project_id
@@ -868,6 +872,7 @@ func (q *Queries) ListTasksBoard(ctx context.Context, arg ListTasksBoardParams) 
 			&i.Task.SubtasksDone,
 			&i.Task.CommentsCount,
 			&i.Task.AttachmentsCount,
+			&i.Task.Numero,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -892,7 +897,7 @@ WITH ranked AS (
     FROM tasks t
     WHERE t.project_id = $2 AND t.deleted_at IS NULL
 )
-SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
+SELECT t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, t.numero
 FROM ranked r
 JOIN tasks t ON t.id = r.id
 WHERE r.column_rank <= $1::bigint
@@ -950,6 +955,7 @@ func (q *Queries) ListTasksOfProject(ctx context.Context, arg ListTasksOfProject
 			&i.Task.SubtasksDone,
 			&i.Task.CommentsCount,
 			&i.Task.AttachmentsCount,
+			&i.Task.Numero,
 		); err != nil {
 			return nil, err
 		}
@@ -997,7 +1003,7 @@ UPDATE tasks AS t SET
     ),
     updated_at = now()
 WHERE t.id = $3 AND t.deleted_at IS NULL
-RETURNING t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count
+RETURNING t.id, t.project_id, t.title, t.description, t.status, t.tag, t.starts_on, t.due_on, t.hours, t.note, t.position, t.completed_at, t.created_by, t.created_at, t.updated_at, t.deleted_at, t.priority, t.subtasks_total, t.subtasks_done, t.comments_count, t.attachments_count, t.numero
 `
 
 type MoveTaskParams struct {
@@ -1034,6 +1040,7 @@ func (q *Queries) MoveTask(ctx context.Context, arg MoveTaskParams) (Task, error
 		&i.SubtasksDone,
 		&i.CommentsCount,
 		&i.AttachmentsCount,
+		&i.Numero,
 	)
 	return i, err
 }
@@ -1129,7 +1136,7 @@ UPDATE tasks SET
                        ELSE COALESCE($11::date, due_on) END,
     updated_at  = now()
 WHERE id = $12 AND deleted_at IS NULL
-RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count
+RETURNING id, project_id, title, description, status, tag, starts_on, due_on, hours, note, position, completed_at, created_by, created_at, updated_at, deleted_at, priority, subtasks_total, subtasks_done, comments_count, attachments_count, numero
 `
 
 type UpdateTaskParams struct {
@@ -1185,6 +1192,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.SubtasksDone,
 		&i.CommentsCount,
 		&i.AttachmentsCount,
+		&i.Numero,
 	)
 	return i, err
 }
