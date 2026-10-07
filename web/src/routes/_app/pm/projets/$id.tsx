@@ -6,6 +6,7 @@ import {
   Exchange01Icon,
   File01Icon,
   Flag02Icon,
+  PackageIcon,
   KanbanIcon,
   Link04Icon,
   ListViewIcon,
@@ -26,6 +27,7 @@ import { z } from 'zod'
 
 import { PageFrame, type Crumb } from '@/components/layout/page-frame'
 import { TabBar, type Tab } from '@/components/layout/tab-bar'
+import { NewDeliverableDialog } from '@/features/deliverables/new-deliverable-dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -142,6 +144,7 @@ const TABS: Tab[] = [
   { to: '/pm/projets/$id/taches', label: 'Tâches', icon: CheckmarkSquare02Icon },
   { to: '/pm/projets/$id/tickets', label: 'Tickets', icon: Ticket02Icon },
   { to: '/pm/projets/$id/jalons', label: 'Jalons', icon: Flag02Icon },
+  { to: '/pm/projets/$id/livrables', label: 'Livrables', icon: PackageIcon },
 ]
 
 // Deux tailles pour un meme rendu : les tracés n'occupent pas la meme part de
@@ -477,6 +480,7 @@ function ProjectLayout() {
   const matchRoute = useMatchRoute()
   const surTickets = matchRoute({ to: '/pm/projets/$id/tickets', params: { id } }) !== false
   const surJalons = matchRoute({ to: '/pm/projets/$id/jalons', params: { id } }) !== false
+  const surLivrables = matchRoute({ to: '/pm/projets/$id/livrables', params: { id } }) !== false
 
   // Le loader a deja rempli le cache : ce cas ne se produit qu'au tout premier
   // rendu d'une navigation sans prefetch.
@@ -692,9 +696,13 @@ function ProjectLayout() {
               est ancre au bas de son lien, et une rangee plus haute que les
               onglets les centrerait en decollant le filet du bord. */}
           <div className="flex items-center gap-2">
-            {/* Les jalons n'ont qu'une vue : une frise, pas de kanban. */}
+            {/* Les jalons n'ont qu'une vue : une frise, pas de kanban. Les
+                livrables non plus : un tableau, et le depot avec le projet
+                deja choisi. */}
             {surJalons ? (
               can(session, 'projects.write') && <MilestoneDialog projectId={project.id} />
+            ) : surLivrables ? (
+              can(session, 'deliverables.write') && <NewDeliverableDialog projectId={project.id} />
             ) : (
               <>
                 <ViewSwitch />

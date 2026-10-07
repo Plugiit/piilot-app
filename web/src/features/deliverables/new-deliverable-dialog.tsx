@@ -27,6 +27,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -57,7 +58,6 @@ const schema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis'),
   description: z.string(),
   url: z.string().trim().min(1, 'Le lien est requis'),
-  milestone_id: z.string(),
 })
 
 /** Valeur du choix « aucun jalon » : Radix refuse la chaine vide. */
@@ -78,7 +78,6 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
     title: '',
     description: '',
     url: '',
-    milestone_id: SANS_JALON,
   }
 
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: vierge })
@@ -94,13 +93,22 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
     enabled: open && chosen !== '',
   })
 
+  // Le jalon propose : le prochain non atteint. C'est presque toujours lui
+  // qu'on vise, et le choisir a la main a chaque depot etait un clic de trop.
+  // Le champ vit hors du formulaire : les jalons arrivent apres l'ouverture,
+  // et la proposition doit s'afficher a leur arrivee sans ecraser un choix
+  // fait entre-temps. `picked` est ce choix, nul tant qu'on n'a pas touche.
+  const proposed = milestones?.items.find((m) => m.state !== 'done')?.id ?? SANS_JALON
+  const [picked, setPicked] = useState<string | null>(null)
+  const milestone = picked ?? proposed
+
   function onSubmit(values: Values) {
     create.mutate(
       {
         title: values.title.trim(),
         description: values.description.trim(),
         url: values.url.trim(),
-        milestone_id: values.milestone_id === SANS_JALON ? null : values.milestone_id,
+        milestone_id: milestone === SANS_JALON ? null : milestone,
       },
       {
         onSuccess: (item) => {
@@ -119,7 +127,10 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next) form.reset(vierge)
+        if (next) {
+          form.reset(vierge)
+          setPicked(null)
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -167,33 +178,27 @@ export function NewDeliverableDialog({ projectId }: { projectId?: string }) {
             )}
 
             {(milestones?.items.length ?? 0) > 0 && (
-              <FormField
-                control={form.control}
-                name="milestone_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Jalon</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={SANS_JALON}>
-                          <span className="text-[#73757c]">Aucun jalon</span>
-                        </SelectItem>
-                        {(milestones?.items ?? []).map((milestone) => (
-                          <SelectItem key={milestone.id} value={milestone.id}>
-                            {milestone.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="deliverable-milestone">Jalon</Label>
+                <Select value={milestone} onValueChange={setPicked}>
+                  <SelectTrigger id="deliverable-milestone" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SANS_JALON}>
+                      <span className="text-[#73757c]">Aucun jalon</span>
+                    </SelectItem>
+                    {(milestones?.items ?? []).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {picked === null && proposed !== SANS_JALON && (
+                  <p className="text-[13px] text-[#73757c]">Proposé : le prochain jalon à atteindre.</p>
                 )}
-              />
+              </div>
             )}
 
             <FormField
