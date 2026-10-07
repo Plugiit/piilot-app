@@ -112,6 +112,12 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # starttls (port 587), tls (port 465) ou none (serveur local de test).
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      # Un livrable sans reponse du client est relance par e-mail, une fois,
+      # au-dela de ce delai. 0 pour ne jamais relancer.
+      DELIVERABLE_REMINDER_AFTER: ${DELIVERABLE_REMINDER_AFTER:-72h}
+      # Secret des webhooks GitHub/GitLab. Vide, Piilot en tire un et le montre
+      # dans Paramètres > Dépôts Git ; renseigné, c'est lui qui vaut.
+      GIT_WEBHOOK_SECRET: ${GIT_WEBHOOK_SECRET:-}
 
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
