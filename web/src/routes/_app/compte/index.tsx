@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
 
 import { reportError } from './-shared'
+import { AddressInput } from '@/components/address-input'
 
 export const Route = createFileRoute('/_app/compte/')({
   component: PersonalPage,
@@ -226,7 +227,17 @@ function ContactForm({ user }: { user: User }) {
         </Field>
 
         <Field label="Adresse" error={form.formState.errors.address?.message}>
-          <Input autoComplete="street-address" className={CHAMP} {...form.register('address')} />
+          <AddressInput
+            className={CHAMP}
+            value={form.watch('address')}
+            onChange={(value) => form.setValue('address', value, { shouldDirty: true })}
+            onPick={(parts) => {
+              form.setValue('address', parts.address, { shouldDirty: true })
+              form.setValue('postal_code', parts.postalCode, { shouldDirty: true })
+              form.setValue('city', parts.city, { shouldDirty: true })
+              form.setValue('country', 'France', { shouldDirty: true })
+            }}
+          />
         </Field>
 
         {/* Code postal et ville sur une ligne : on les lit et on les saisit
