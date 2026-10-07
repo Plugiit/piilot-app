@@ -12,18 +12,18 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
-import { DashboardCard } from '@/components/dashboard-card'
+import { PanelCard } from '@/components/panel-card'
 import { StatCard } from '@/components/stat-card'
 import { PageFrame } from '@/components/layout/page-frame'
 import { myWorkQuery } from '@/features/my-work/api'
+import { WorkTaskCheckbox, WorkTaskStatus, WorkTaskTime } from '@/features/my-work/task-row-actions'
 import {
   DONE_COLOR,
   parseApiDate,
   PROGRESS_COLOR,
   PROJECT_STATUS,
-  TASK_STATUS,
 } from '@/features/projects/format'
-import { Meter, PriorityTag, StatusPill } from '@/features/projects/ui'
+import { Meter, PriorityTag, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { formatDuration } from '@/features/time/format'
 import { TICKET_PRIORITY, TICKET_STATUS } from '@/features/tickets/format'
 import { HttpError } from '@/lib/api'
@@ -233,9 +233,10 @@ function TasksCard({ work }: { work: MyWork }) {
 
   return (
     <div id="taches" className="scroll-mt-4">
-      <DashboardCard
+      <PanelCard
+        contentClassName="p-3"
         icon={CheckmarkSquare02Icon}
-        title="Mes tâches"
+        title="MES TÂCHES"
         action={<SeeAll to="/pm/taches">Toutes les tâches</SeeAll>}
         className="h-full"
       >
@@ -269,28 +270,33 @@ function TasksCard({ work }: { work: MyWork }) {
             <More shown={work.tasks.length} total={work.tasks_total} />
           </div>
         )}
-      </DashboardCard>
+      </PanelCard>
     </div>
   )
 }
 
+/**
+ * Une tache, avec ses gestes : la case termine, la pastille change le statut,
+ * l'horloge pose le temps du jour. Seul le libelle ouvre la tache — la ligne
+ * entiere en lien avalerait les boutons.
+ */
 function TaskRow({ task, today }: { task: WorkTask; today: string }) {
-  const status = TASK_STATUS[task.status]
-
   return (
-    <Link
-      to="/pm/projets/$id/taches"
-      params={{ id: task.project.id }}
-      search={{ tache: task.id }}
-      className="-mx-1.5 flex items-center gap-3 rounded-[8px] border-b border-[#f3f4f4] px-1.5 py-2 transition-colors last:border-b-0 hover:bg-[#fafafa]"
-    >
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[14px] text-[#1b1b1b]">{task.title}</span>
+    <div className="-mx-1.5 flex items-center gap-3 rounded-[8px] border-b border-[#f3f4f4] px-1.5 py-2 transition-colors last:border-b-0 hover:bg-[#fafafa]">
+      <WorkTaskCheckbox task={task} />
+
+      <Link
+        to="/pm/projets/$id/taches"
+        params={{ id: task.project.id }}
+        search={{ tache: task.id }}
+        className="flex min-w-0 flex-1 flex-col gap-0.5"
+      >
+        <span className="truncate text-[14px] text-[#1b1b1b] hover:underline">{task.title}</span>
         <span className="truncate text-[12px] text-[#8d8d8d]">{task.project.name}</span>
-      </span>
+      </Link>
 
       <PriorityTag priority={task.priority} className="hidden sm:inline-flex" />
-      <StatusPill label={status.label} color={status.color} pill={status.pill} className="hidden md:inline-flex" />
+      <WorkTaskStatus task={task} className="hidden md:inline-flex" />
 
       <span
         className={cn(
@@ -300,16 +306,19 @@ function TaskRow({ task, today }: { task: WorkTask; today: string }) {
       >
         {dueLabel(task.due_on, today)}
       </span>
-    </Link>
+
+      <WorkTaskTime task={task} today={today} />
+    </div>
   )
 }
 
 function TicketsCard({ work }: { work: MyWork }) {
   return (
     <div id="tickets" className="scroll-mt-4">
-      <DashboardCard
+      <PanelCard
+        contentClassName="p-3"
         icon={Ticket02Icon}
-        title="Tickets qui m’attendent"
+        title="TICKETS QUI M’ATTENDENT"
         action={<SeeAll to="/pm/tickets">Mes tickets</SeeAll>}
       >
         {work.tickets.length === 0 ? (
@@ -322,7 +331,7 @@ function TicketsCard({ work }: { work: MyWork }) {
             <More shown={work.tickets.length} total={work.tickets_total} />
           </div>
         )}
-      </DashboardCard>
+      </PanelCard>
     </div>
   )
 }
@@ -351,9 +360,10 @@ function TicketRow({ ticket }: { ticket: WorkTicket }) {
 
 function DeliverablesCard({ work }: { work: MyWork }) {
   return (
-    <DashboardCard
+    <PanelCard
+      contentClassName="p-3"
       icon={DeliveryBox01Icon}
-      title="Livrables à déposer"
+      title="LIVRABLES À DÉPOSER"
       action={<SeeAll to="/pm/livrables">Tous les livrables</SeeAll>}
     >
       {work.deliverables.length === 0 ? (
@@ -366,7 +376,7 @@ function DeliverablesCard({ work }: { work: MyWork }) {
           <More shown={work.deliverables.length} total={work.deliverables_total} />
         </div>
       )}
-    </DashboardCard>
+    </PanelCard>
   )
 }
 
@@ -402,9 +412,10 @@ function DeliverableRow({ deliverable }: { deliverable: WorkDeliverable }) {
 
 function ProjectsCard({ projects, today }: { projects: WorkProject[]; today: string }) {
   return (
-    <DashboardCard
+    <PanelCard
+      contentClassName="p-3"
       icon={Folder01Icon}
-      title="Mes projets"
+      title="MES PROJETS"
       action={<SeeAll to="/pm/projets">Tous les projets</SeeAll>}
     >
       {projects.length === 0 ? (
@@ -416,7 +427,7 @@ function ProjectsCard({ projects, today }: { projects: WorkProject[]; today: str
           ))}
         </div>
       )}
-    </DashboardCard>
+    </PanelCard>
   )
 }
 
@@ -431,6 +442,7 @@ function ProjectTile({ project, today }: { project: WorkProject; today: string }
       className="flex flex-col gap-2 rounded-[10px] border border-[#ebebeb] p-3 transition-colors hover:border-[#d8d8d8] hover:bg-[#fcfcfc]"
     >
       <span className="flex items-start gap-2">
+        <ProjectLogo url={project.logo_url} size={28} className="mt-0.5" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-[14px] font-medium text-[#1b1b1b]">{project.name}</span>
           <span className="truncate text-[12px] text-[#8d8d8d]">{project.client_name}</span>
