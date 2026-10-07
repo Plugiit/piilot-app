@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	netmail "net/mail"
 	"os"
 	"os/signal"
 	"syscall"
@@ -120,6 +121,14 @@ func run(cfg config.Config, log *slog.Logger) error {
 	deliverableService.SetLinkSecret(cfg.JWTSecret)
 	ticketService := usecase.NewTicketService(pool, notifyBus)
 	ticketService.SetMail(cfg.URLFor(spaces.Client), cfg.URLFor(spaces.Team), cfg.URLFor(spaces.Admin), sender.Configured())
+	// Les e-mails des tickets portent une adresse de reponse signee : la
+	// reponse du client rejoint le ticket.
+	ticketService.SetThreading(cfg.JWTSecret, cfg.Inbound.Address)
+	inboundService := usecase.NewInboundService(
+		pool, ticketService, files, cfg.MaxUploadMiB*(1<<20), notifyBus, cfg.Inbound, cfg.JWTSecret,
+		cfg.URLFor(spaces.Team), smtpFromAddress(cfg.SMTPFrom), log,
+	)
+	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
 	portalService.SetLinkSecret(cfg.JWTSecret)
 
@@ -167,6 +176,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Interactions:  handler.NewInteractions(usecase.NewInteractionService(pool)),
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Backups:       handler.NewBackups(usecase.NewBackupService(pool, cfg.BackupStaleAfter)),
+		Inbound:       handler.NewInbound(inboundService),
+		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
+		Audit:         handler.NewAudit(auditService, log),
 		Guard:         middleware.NewGuard(signer, authService),
 	})
 
@@ -206,6 +218,11 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Surveillance des sauvegardes : la commande backup (cmd/backup) les fait
 	// et les journalise, l'API previent les admins quand elles manquent.
 	repository.StartBackupWatch(ctx, pool, cfg.BackupStaleAfter, log)
+
+	// E-mail entrant : releve IMAP et rangement des e-mails recus, quel que
+	// soit leur chemin. Purge quotidienne du journal d'audit.
+	repository.StartInboundMail(ctx, inboundService, log)
+	repository.StartAuditPurge(ctx, auditService, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
@@ -316,4 +333,12 @@ func allowedOrigins(cfg config.Config) []string {
 		origins = append(origins, cfg.Spaces.AuthURL, cfg.Spaces.TeamURL, cfg.Spaces.AdminURL, cfg.Spaces.ClientURL)
 	}
 	return origins
+}
+
+// smtpFromAddress rend l'adresse seule de SMTP_FROM (« Piilot <x@y> »).
+func smtpFromAddress(from string) string {
+	if a, err := netmail.ParseAddress(from); err == nil {
+		return a.Address
+	}
+	return from
 }

@@ -126,6 +126,10 @@ func (h *Auth) Login(c fiber.Ctx) error {
 	// retrouver son mot de passe ne doivent pas le penaliser ensuite.
 	h.resetLoginRate(c, email)
 
+	// Le journal d'audit nomme le compte, que la session pas encore ouverte
+	// ne lui donne pas.
+	c.Locals(auditActorKey, session.Profile.ID)
+
 	setSession(c, session, h.cookies)
 
 	return c.JSON(sessionResponse{User: session.Profile})

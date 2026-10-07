@@ -8225,6 +8225,889 @@
           }
         }
       }
+    },
+    "/api/v1/admin/integrations/mail": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglages de l'e-mail entrant",
+        "description": "Adresse de support, relève IMAP (sans le mot de passe), adresses des webhooks et état de la relève. Les variables INBOUND_* priment et sont signalées. Exige users.write.",
+        "operationId": "getAdminIntegrationsMail",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier l'e-mail entrant",
+        "description": "Le mot de passe IMAP est chiffré en base (AES-GCM, clé dérivée de JWT_SECRET). Rien n'est tenté vers le serveur IMAP ici : la relève le fait en tâche de fond. Exige users.write.",
+        "operationId": "putAdminIntegrationsMail",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboundSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/integrations/mail/rotate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Nouveau secret des webhooks",
+        "description": "Les webhooks configurés avec l'ancien cessent d'être acceptés. 409 si INBOUND_WEBHOOK_SECRET le fixe.",
+        "operationId": "postAdminIntegrationsMailRotate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Secret fixé par l'environnement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/integrations/mail/poll": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Relever la boîte maintenant",
+        "description": "Enregistre une demande ; la tâche de fond relève dans les dix secondes. L'écran relit l'état.",
+        "operationId": "postAdminIntegrationsMailPoll",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/inbound-emails": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "E-mails à trier",
+        "description": "Ceux que Piilot n'a pas su ranger seul : expéditeur inconnu, projet à choisir, réponse d'une autre adresse, transfert d'un collègue. 25 par page. Exige tickets.write.",
+        "operationId": "getAdminInboundEmails",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/inbound-emails/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Un e-mail à trier",
+        "operationId": "getAdminInboundEmail",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/inbound-emails/{id}/ticket": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ouvrir un ticket depuis l'e-mail",
+        "description": "Sur le projet choisi. L'expéditeur reçoit l'accusé de réception, et ses réponses rejoindront le ticket.",
+        "operationId": "postAdminInboundEmailTicket",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket ouvert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ticket_id"
+                  ],
+                  "properties": {
+                    "ticket_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "409": {
+            "description": "Déjà trié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/inbound-emails/{id}/attach": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ajouter l'e-mail à un ticket",
+        "description": "Au fil du ticket désigné par son numéro. Un collègue y écrit une note interne ; une autre personne, un message public.",
+        "operationId": "postAdminInboundEmailAttach",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "numero"
+                ],
+                "properties": {
+                  "numero": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ticket_id"
+                  ],
+                  "properties": {
+                    "ticket_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "409": {
+            "description": "Déjà trié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/inbound-emails/{id}/ignore": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Écarter l'e-mail",
+        "operationId": "postAdminInboundEmailIgnore",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Écarté"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Déjà trié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ticket-reply-templates": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réponses types",
+        "description": "Toutes, par titre. {prenom}, {numero}, {sujet} et {projet} se remplacent à l'insertion.",
+        "operationId": "getAdminTicketReplyTemplates",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplyTemplateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ajouter une réponse type",
+        "operationId": "postAdminTicketReplyTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Créée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplyTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ticket-reply-templates/{id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier une réponse type",
+        "operationId": "patchAdminTicketReplyTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplyTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Retirer une réponse type",
+        "operationId": "deleteAdminTicketReplyTemplate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Retirée"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Journal d'audit",
+        "description": "Qui a fait quoi, quand, d'où : connexions et échecs, rôles et permissions, invitations, suppressions, exports, accès au portail, secrets. 50 par page. Exige audit.read.",
+        "operationId": "getAdminAudit",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Préfixe : « auth. », « account.role_changed »…"
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/export": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Exporter le journal d'audit",
+        "description": "CSV (séparateur « ; », UTF-8 avec BOM), 50 000 lignes au plus : au-delà, 422 invite à resserrer les dates. L'export est lui-même journalisé.",
+        "operationId": "getAdminAuditExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Préfixe : « auth. », « account.role_changed »…"
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fichier CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/hooks/mail/{provider}": {
+      "post": {
+        "tags": [
+          "hooks"
+        ],
+        "summary": "E-mail entrant poussé par un fournisseur",
+        "description": "Sans session : le jeton de l'adresse (?token=) fait office de preuve. postmark (JSON Inbound), mailgun (formulaire d'une route ; body-mime si l'adresse finit par /mime), brevo (JSON Inbound parsing, sans pièces jointes), raw (le corps est l'e-mail MIME). L'e-mail est déposé et rangé en tâche de fond ; un e-mail déjà reçu n'est pas déposé deux fois.",
+        "operationId": "postHookMail",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "postmark",
+                "mailgun",
+                "brevo",
+                "raw"
+              ]
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "message/rfc822": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Déposé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "stored"
+                  ],
+                  "properties": {
+                    "stored": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10302,7 +11185,8 @@
               "deliverable_validated",
               "deliverable_feedback",
               "update_available",
-              "backup_stale"
+              "backup_stale",
+              "inbound_email_held"
             ]
           },
           "payload": {
@@ -11260,7 +12144,10 @@
           "field",
           "old_value",
           "new_value",
-          "automatic"
+          "automatic",
+          "via_email",
+          "sender",
+          "sender_email"
         ],
         "properties": {
           "id": {
@@ -11315,6 +12202,17 @@
           "automatic": {
             "type": "boolean",
             "description": "Sans auteur des l'origine : un geste de Piilot (integration Git, tache de fond), pas un compte disparu."
+          },
+          "via_email": {
+            "type": "boolean",
+            "description": "Arrivé par e-mail."
+          },
+          "sender": {
+            "type": "string",
+            "description": "Nom de qui a écrit l'e-mail, même sans compte."
+          },
+          "sender_email": {
+            "type": "string"
           }
         }
       },
@@ -11334,7 +12232,8 @@
               "entries",
               "client_visible",
               "files",
-              "pull_requests"
+              "pull_requests",
+              "requester"
             ],
             "properties": {
               "description": {
@@ -11379,6 +12278,29 @@
                 "items": {
                   "$ref": "#/components/schemas/PullRequest"
                 }
+              },
+              "requester": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "email"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Ouvert par e-mail par quelqu'un sans compte du portail : les réponses lui partent à cette adresse."
               }
             }
           }
@@ -15250,6 +16172,572 @@
               "$ref": "#/components/schemas/BackupInfo"
             },
             "description": "Le journal, les 20 dernières, les plus récentes d'abord."
+          }
+        }
+      },
+      "InboundSettings": {
+        "type": "object",
+        "required": [
+          "address",
+          "address_from_env",
+          "reply_enabled",
+          "imap",
+          "webhook",
+          "status"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "address_from_env": {
+            "type": "boolean"
+          },
+          "reply_enabled": {
+            "type": "boolean",
+            "description": "Les e-mails des tickets invitent à répondre : l'adresse de support est posée."
+          },
+          "imap": {
+            "type": "object",
+            "required": [
+              "enabled",
+              "host",
+              "port",
+              "security",
+              "username",
+              "password_set",
+              "folder",
+              "from_env"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "security": {
+                "type": "string",
+                "enum": [
+                  "tls",
+                  "none"
+                ]
+              },
+              "username": {
+                "type": "string"
+              },
+              "password_set": {
+                "type": "boolean",
+                "description": "Le mot de passe n'est jamais renvoyé, seulement s'il est renseigné."
+              },
+              "folder": {
+                "type": "string"
+              },
+              "from_env": {
+                "type": "boolean"
+              }
+            }
+          },
+          "webhook": {
+            "type": "object",
+            "required": [
+              "secret",
+              "from_env",
+              "urls"
+            ],
+            "properties": {
+              "secret": {
+                "type": "string"
+              },
+              "from_env": {
+                "type": "boolean"
+              },
+              "urls": {
+                "type": "object",
+                "description": "Adresse à donner à chaque fournisseur : postmark, mailgun, brevo, raw.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "object",
+            "required": [
+              "last_poll_at",
+              "last_poll_error",
+              "poll_pending",
+              "pending",
+              "held",
+              "processed_day",
+              "failed_week"
+            ],
+            "properties": {
+              "last_poll_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "last_poll_error": {
+                "type": "string"
+              },
+              "poll_pending": {
+                "type": "boolean"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "held": {
+                "type": "integer"
+              },
+              "processed_day": {
+                "type": "integer"
+              },
+              "failed_week": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "InboundSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "imap_enabled": {
+            "type": "boolean"
+          },
+          "imap_host": {
+            "type": "string"
+          },
+          "imap_port": {
+            "type": "integer"
+          },
+          "imap_security": {
+            "type": "string",
+            "enum": [
+              "tls",
+              "none"
+            ]
+          },
+          "imap_username": {
+            "type": "string"
+          },
+          "imap_password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent ou nul : garde le mot de passe en place. Chaîne vide : le retire."
+          },
+          "imap_folder": {
+            "type": "string"
+          }
+        }
+      },
+      "InboundProject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "InboundItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "received_at",
+          "source",
+          "from_address",
+          "from_name",
+          "subject",
+          "excerpt",
+          "attachments",
+          "reason",
+          "client",
+          "projects"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "imap",
+              "postmark",
+              "mailgun",
+              "brevo",
+              "raw"
+            ]
+          },
+          "from_address": {
+            "type": "string"
+          },
+          "from_name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "unknown_sender",
+              "ambiguous_sender",
+              "project_to_choose",
+              "sender_mismatch",
+              "from_team",
+              "rate_limited",
+              "ticket_unmatched",
+              "closed_ticket",
+              "created",
+              "replied",
+              "auto_reply",
+              "no_sender",
+              "loop",
+              "unreadable",
+              "dismissed",
+              ""
+            ]
+          },
+          "client": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TicketProject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboundProject"
+            },
+            "description": "Projets du client deviné qui reçoivent des tickets."
+          }
+        }
+      },
+      "InboundPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboundItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "InboundDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "received_at",
+          "source",
+          "from_address",
+          "from_name",
+          "subject",
+          "excerpt",
+          "attachments",
+          "reason",
+          "client",
+          "projects",
+          "status",
+          "to",
+          "body",
+          "files",
+          "ticket_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "imap",
+              "postmark",
+              "mailgun",
+              "brevo",
+              "raw"
+            ]
+          },
+          "from_address": {
+            "type": "string"
+          },
+          "from_name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "unknown_sender",
+              "ambiguous_sender",
+              "project_to_choose",
+              "sender_mismatch",
+              "from_team",
+              "rate_limited",
+              "ticket_unmatched",
+              "closed_ticket",
+              "created",
+              "replied",
+              "auto_reply",
+              "no_sender",
+              "loop",
+              "unreadable",
+              "dismissed",
+              ""
+            ]
+          },
+          "client": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TicketProject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboundProject"
+            },
+            "description": "Projets du client deviné qui reçoivent des tickets."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processed",
+              "held",
+              "ignored",
+              "failed"
+            ]
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "type": "string",
+            "description": "Texte complet, citations comprises."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "filename",
+                "size_bytes"
+              ],
+              "properties": {
+                "filename": {
+                  "type": "string"
+                },
+                "size_bytes": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "ticket_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ReplyTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReplyTemplateList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplyTemplate"
+            }
+          }
+        }
+      },
+      "ReplyTemplateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "body"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "actor_id",
+          "actor_email",
+          "action",
+          "target_type",
+          "target_id",
+          "ip",
+          "user_agent",
+          "details"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "actor_email": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target_type": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "user_agent": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AuditPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "retention_days"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "retention_days": {
+            "type": "integer"
           }
         }
       }

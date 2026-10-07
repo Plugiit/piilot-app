@@ -24,6 +24,9 @@ type Deps struct {
 	TimeReports   *TimeReports
 	Updates       *Updates
 	Backups       *Backups
+	Inbound       *Inbound
+	Replies       *ReplyTemplates
+	Audit         *Audit
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
@@ -53,6 +56,11 @@ func Register(app *fiber.App, deps Deps) {
 	app.Get("/openapi.json", openapiSpec)
 
 	v1 := app.Group("/api/v1")
+	// Le journal d'audit voit passer toutes les routes de l'API et n'ecrit que
+	// celles que sa table nomme.
+	if deps.Audit != nil {
+		v1.Use(deps.Audit.Middleware)
+	}
 
 	registerAuthRoutes(v1.Group("/auth"), deps)
 	registerAdminRoutes(v1.Group("/admin"), deps)
@@ -65,6 +73,10 @@ func Register(app *fiber.App, deps Deps) {
 	// lien fait office de preuve, et designe le compte qui repond.
 	v1.Get("/public/deliverables/:id/review", deps.Portal.Review)
 	v1.Post("/public/deliverables/:id/review", deps.Portal.ReviewDecide)
+
+	// E-mails entrants pousses par un fournisseur : le jeton de l'adresse fait
+	// office de preuve.
+	v1.Post("/hooks/mail/:provider", deps.Inbound.Webhook)
 }
 
 // registerClientRoutes monte le portail client.
@@ -178,6 +190,30 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Post("/system/update", deps.Guard.RequirePermission("system.update"), deps.Updates.Request)
 	r.Post("/system/update/check", deps.Guard.RequirePermission("system.update"), deps.Updates.Check)
 	r.Get("/system/backups", deps.Guard.RequirePermission("system.update"), deps.Backups.Status)
+
+	// Journal d'audit, aux seuls admins.
+	r.Get("/audit", deps.Guard.RequirePermission("audit.read"), deps.Audit.List)
+	r.Get("/audit/export", deps.Guard.RequirePermission("audit.read"), deps.Audit.Export)
+
+	// E-mail entrant : le reglage aux admins, le tri a qui traite les tickets.
+	mail := r.Group("/integrations/mail")
+	mail.Get("", deps.Guard.RequirePermission("users.write"), deps.Inbound.Settings)
+	mail.Put("", deps.Guard.RequirePermission("users.write"), deps.Inbound.UpdateSettings)
+	mail.Post("/rotate", deps.Guard.RequirePermission("users.write"), deps.Inbound.Rotate)
+	mail.Post("/poll", deps.Guard.RequirePermission("users.write"), deps.Inbound.Poll)
+
+	inbound := r.Group("/inbound-emails")
+	inbound.Get("", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Held)
+	inbound.Get("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Detail)
+	inbound.Post("/:id/ticket", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.OpenTicket)
+	inbound.Post("/:id/attach", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Attach)
+	inbound.Post("/:id/ignore", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Dismiss)
+
+	replies := r.Group("/ticket-reply-templates")
+	replies.Get("", deps.Guard.RequirePermission("tickets.read"), deps.Replies.List)
+	replies.Post("", deps.Guard.RequirePermission("tickets.write"), deps.Replies.Create)
+	replies.Patch("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Replies.Update)
+	replies.Delete("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Replies.Delete)
 
 	// Clients : le strict necessaire au champ « Client » du formulaire de
 	// projet — un menu deroulant, pas un ecran.
