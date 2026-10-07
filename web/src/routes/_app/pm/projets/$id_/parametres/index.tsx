@@ -1,4 +1,4 @@
-import { Delete02Icon, File01Icon, Upload04Icon } from '@hugeicons/core-free-icons'
+import { Delete02Icon, File01Icon, Image02Icon, Upload04Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -12,13 +12,16 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
-  projectDetailQuery,
   fileUrl,
+  projectDetailQuery,
   useDeleteProjectFile,
+  useDeleteProjectLogo,
   useUpdateProject,
   useUploadProjectFile,
+  useUploadProjectLogo,
 } from '@/features/projects/api'
 import { PRIORITY_TONE } from '@/features/projects/format'
+import { ProjectLogo } from '@/features/projects/ui'
 import { ServicesPicker } from '@/features/services/tag'
 import { HttpError } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -51,6 +54,8 @@ const schema = z.object({
   figma_url: lien,
   prod_url: lien,
   preprod_url: lien,
+  // Adresse de depot : https://… ou git@… ; le serveur la normalise.
+  repo_url: z.string().trim(),
 })
 
 type Values = z.infer<typeof schema>
@@ -189,6 +194,77 @@ function Documents({ project }: { project: ProjectDetail }) {
   )
 }
 
+/**
+ * Logo du projet. Hors du formulaire : le depot part tout de suite, il n'a pas
+ * de bouton Enregistrer a attendre.
+ */
+function Logo({ project }: { project: ProjectDetail }) {
+  const input = useRef<HTMLInputElement>(null)
+  const upload = useUploadProjectLogo(project.id)
+  const remove = useDeleteProjectLogo(project.id)
+
+  return (
+    <Field label="Logo" hint="SVG, PNG, JPEG, WEBP ou GIF, 512 Ko au maximum. Il apparaît à côté du nom du projet, dans Piilot et sur le portail client.">
+      {/* Remis a zero apres coup pour que redeposer le meme fichier declenche
+          bien un nouvel evenement `change`. */}
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file === undefined) return
+
+          upload.mutate(file, {
+            onSuccess: () => toast.success('Logo déposé'),
+            onError: (error) =>
+              toast.error(error instanceof HttpError ? error.message : 'Dépôt impossible'),
+          })
+        }}
+      />
+
+      <div className="flex items-center gap-4">
+        {project.logo_url == null ? (
+          <span className="flex size-16 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-[#d0d1d3] bg-white text-[#8d8d8d]">
+            <HugeiconsIcon icon={Image02Icon} size={22} strokeWidth={1.6} />
+          </span>
+        ) : (
+          <ProjectLogo url={project.logo_url} size={64} className="rounded-[10px] p-1" />
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={upload.isPending}
+            onClick={() => input.current?.click()}
+          >
+            {upload.isPending ? 'Envoi…' : project.logo_url == null ? 'Déposer un logo' : 'Remplacer le logo'}
+          </Button>
+          {project.logo_url != null && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={remove.isPending}
+              onClick={() =>
+                remove.mutate(undefined, {
+                  onSuccess: () => toast.success('Logo retiré'),
+                  onError: (error) =>
+                    toast.error(error instanceof HttpError ? error.message : 'Retrait impossible'),
+                })
+              }
+            >
+              Retirer
+            </Button>
+          )}
+        </div>
+      </div>
+    </Field>
+  )
+}
+
 function GeneralPage() {
   const { id } = Route.useParams()
   const { data: project } = useQuery(projectDetailQuery(id))
@@ -212,6 +288,7 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
       figma_url: project.figma_url,
       prod_url: project.prod_url,
       preprod_url: project.preprod_url,
+      repo_url: project.repo_url,
     },
   })
 
@@ -231,6 +308,8 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
   return (
     <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3 p-4">
       <Card title="Informations du projet">
+        <Logo project={project} />
+
         <Field label="Nom du projet" error={errors.name?.message}>
           <Input {...form.register('name')} placeholder="Refonte du site vitrine" className={CHAMP} />
         </Field>
@@ -300,6 +379,14 @@ function GeneralForm({ project }: { project: ProjectDetail }) {
             placeholder="https://preprod.exemple.fr"
             className={CHAMP}
           />
+        </Field>
+
+        <Field
+          label="Dépôt Git"
+          hint="Les pull requests et mises en ligne de ce dépôt font avancer les tickets et tâches qu’elles nomment (#47, T-123). Le webhook se règle dans Paramètres > Dépôts Git."
+          error={errors.repo_url?.message}
+        >
+          <Input {...form.register('repo_url')} placeholder="https://github.com/organisation/depot" className={CHAMP} />
         </Field>
       </Card>
 

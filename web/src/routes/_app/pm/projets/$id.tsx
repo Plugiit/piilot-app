@@ -48,7 +48,7 @@ import {
 } from '@/features/projects/api'
 import { MilestoneDialog } from '@/features/milestones/milestone-dialog'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate, tracksSchedule } from '@/features/projects/format'
-import { Avatars, BudgetBar, PriorityTag, ProgressBar, StatusPill } from '@/features/projects/ui'
+import { Avatars, BudgetBar, PriorityTag, ProgressBar, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { ServicePills } from '@/features/services/tag'
 import { NewTicketDialog } from '@/features/tickets/new-ticket-dialog'
@@ -72,10 +72,11 @@ const LONG_DATE = new Intl.DateTimeFormat('fr-FR', {
  * « le kanban de ce projet » se partage par lien.
  */
 //
-// Optionnelle et sans valeur de repli inscrite : le tableau est ce qu'on voit
-// sans rien demander, et `?vue=table` n'apprendrait rien a une adresse. La
-// declarer requise obligerait par ailleurs chaque lien vers un projet — il y en
-// a dans les listes, les tableaux et les cartes — a porter une vue.
+// Optionnelle et sans valeur de repli inscrite : le kanban est ce qu'on voit
+// sans rien demander — c'est la vue de travail d'un projet —, et
+// `?vue=kanban` n'apprendrait rien a une adresse. La declarer requise
+// obligerait par ailleurs chaque lien vers un projet — il y en a dans les
+// listes, les tableaux et les cartes — a porter une vue.
 const searchSchema = z.object({
   vue: z.enum(['table', 'kanban']).optional().catch(undefined),
 })
@@ -172,7 +173,7 @@ function ViewSwitch() {
   return (
     <div className="bg-surface-sunken flex items-center gap-1 rounded-[12px]">
       {VUES.map((item) => {
-        const active = (vue ?? 'table') === item.vue
+        const active = (vue ?? 'kanban') === item.vue
 
         return (
           <Link
@@ -498,9 +499,12 @@ function ProjectLayout() {
                 le bloc d'informations : ce n'est pas une valeur qu'on releve,
                 c'est ce que le projet est. */}
             <div className="flex min-w-0 flex-col gap-1">
-              <h1 className="truncate text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
-                {project.name}
-              </h1>
+              <div className="flex min-w-0 items-center gap-3">
+                <ProjectLogo url={project.logo_url} size={40} className="rounded-[8px]" />
+                <h1 className="truncate text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
+                  {project.name}
+                </h1>
+              </div>
 
               {project.description !== '' && (
                 <p className="text-[14px] leading-[1.5] text-[#73757c]">{project.description}</p>

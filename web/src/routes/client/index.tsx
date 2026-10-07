@@ -6,7 +6,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { portalProjectsQuery } from '@/features/portal/api'
 import { PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
 import { DONE_COLOR, parseApiDate, PROGRESS_COLOR, tracksSchedule } from '@/features/projects/format'
-import { Meter, StatusPill } from '@/features/projects/ui'
+import { Meter, ProjectLogo, StatusPill } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import type { PortalProject } from '@/types/api'
 
@@ -94,6 +94,7 @@ function ProjectCard({ project }: { project: PortalProject }) {
       className="flex flex-col gap-4 rounded-[14px] border border-[#e8e8e9] bg-white p-4 transition-shadow hover:shadow-[0_6px_20px_-8px_rgb(16_24_40/0.18)]"
     >
       <span className="flex items-start gap-3">
+        <ProjectLogo url={project.logo_url} size={36} className="rounded-[8px]" />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-[17px] font-medium text-[#1b1b1b]">{project.name}</span>
           {project.description !== '' && (

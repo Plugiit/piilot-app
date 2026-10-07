@@ -99,6 +99,36 @@ export function Tile({
 }
 
 /**
+ * Logo d'un projet, dans un carre a coins arrondis.
+ *
+ * Rien sans logo : un projet n'en a pas forcement, et une case vide a cote de
+ * chaque nom qui n'en a pas trouerait les listes. `object-contain` : un logo
+ * se montre entier, jamais rogne.
+ */
+export function ProjectLogo({
+  url,
+  size = 24,
+  className,
+}: {
+  url: string | null | undefined
+  size?: number
+  className?: string
+}) {
+  if (url == null) return null
+
+  return (
+    <img
+      src={url}
+      alt=""
+      width={size}
+      height={size}
+      className={cn('shrink-0 rounded-[6px] border border-[#e8e8e9] bg-white object-contain p-px', className)}
+      style={{ width: size, height: size }}
+    />
+  )
+}
+
+/**
  * Vignette d'etat : fond clair, bordure a peine plus soutenue, point plein.
  *
  * La meme forme sert aux statuts de projet et de tache — seule la palette
