@@ -42,6 +42,9 @@ const (
 	// Ecrite par la tache de verification des versions, pour ceux qui peuvent
 	// installer la mise a jour.
 	NotifyUpdateAvailable = "update_available"
+
+	// Un e-mail entrant attend d'etre trie a la main.
+	NotifyInboundEmailHeld = "inbound_email_held"
 )
 
 // Notification est une ligne du panneau.
