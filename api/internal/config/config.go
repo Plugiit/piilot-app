@@ -83,6 +83,12 @@ type Config struct {
 
 	// GitWebhookSecret, s'il est renseigne, remplace le secret tire au sort
 	// et garde en base : pour une installation decrite par son environnement.
+	// E-mail entrant. Vides, il se regle dans Paramètres > E-mails entrants ;
+	// renseignees, elles priment et l'ecran les montre en lecture seule.
+	Inbound InboundEnv
+	// Retention du journal d'audit.
+	AuditRetention time.Duration
+
 	// Au-dela de ce delai sans sauvegarde reussie, les admins sont prevenus.
 	// 0 pour une instance sauvegardee autrement, qui ne veut pas d'alerte.
 	BackupStaleAfter time.Duration
@@ -130,7 +136,18 @@ func Load() (Config, error) {
 
 		DeliverableReminderAfter: envDuration("DELIVERABLE_REMINDER_AFTER", 72*time.Hour),
 		BackupStaleAfter:         envDuration("BACKUP_STALE_AFTER", 36*time.Hour),
-		GitWebhookSecret:         os.Getenv("GIT_WEBHOOK_SECRET"),
+		AuditRetention:           envDuration("AUDIT_RETENTION", 365*24*time.Hour),
+		Inbound: InboundEnv{
+			Address:       strings.TrimSpace(os.Getenv("INBOUND_ADDRESS")),
+			IMAPHost:      strings.TrimSpace(os.Getenv("INBOUND_IMAP_HOST")),
+			IMAPPort:      envInt("INBOUND_IMAP_PORT", 993),
+			IMAPSecurity:  env("INBOUND_IMAP_SECURITY", "tls"),
+			IMAPUsername:  os.Getenv("INBOUND_IMAP_USERNAME"),
+			IMAPPassword:  os.Getenv("INBOUND_IMAP_PASSWORD"),
+			IMAPFolder:    env("INBOUND_IMAP_FOLDER", "INBOX"),
+			WebhookSecret: os.Getenv("INBOUND_WEBHOOK_SECRET"),
+		},
+		GitWebhookSecret: os.Getenv("GIT_WEBHOOK_SECRET"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
 		SMTPPort:     envInt("SMTP_PORT", 587),
@@ -142,6 +159,9 @@ func Load() (Config, error) {
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL est obligatoire")
+	}
+	if cfg.Inbound.IMAPSecurity != "tls" && cfg.Inbound.IMAPSecurity != "none" {
+		return Config{}, fmt.Errorf("INBOUND_IMAP_SECURITY attend tls ou none (actuel : %q)", cfg.Inbound.IMAPSecurity)
 	}
 
 	if len(cfg.JWTSecret) < 32 {
@@ -340,4 +360,16 @@ func LoadBackup() (BackupConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// InboundEnv est l'e-mail entrant fixe par l'environnement.
+type InboundEnv struct {
+	Address       string
+	IMAPHost      string
+	IMAPPort      int
+	IMAPSecurity  string
+	IMAPUsername  string
+	IMAPPassword  string
+	IMAPFolder    string
+	WebhookSecret string
 }
