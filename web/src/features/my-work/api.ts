@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api, unwrap } from '@/lib/api'
 
@@ -21,3 +21,23 @@ export const myWorkQuery = queryOptions({
   // Le cache s'affiche pendant ce temps : la page ne clignote pas.
   staleTime: 0,
 })
+
+/**
+ * Changer le statut d'une tache depuis « Mon travail ».
+ *
+ * La page est relue, et avec elle tout ce qui montre des taches : la liste du
+ * module, le tableau du projet et ses compteurs.
+ */
+export function useWorkTaskMove() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: 'todo' | 'progress' | 'review' | 'done' }) =>
+      unwrap(await api.POST('/api/v1/admin/tasks/{id}/move', { params: { path: { id } }, body: { status } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: myWorkKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
