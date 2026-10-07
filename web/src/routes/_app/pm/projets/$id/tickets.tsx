@@ -33,7 +33,7 @@ export const Route = createFileRoute('/_app/pm/projets/$id/tickets')({
   // Seule la vue ouverte est prechargee : le kanban et le tableau lisent deux
   // endpoints, et charger les deux ferait deux requetes pour un seul ecran.
   loader: async ({ context, params, deps }) => {
-    if (deps.vue === 'kanban') {
+    if (deps.vue !== 'table') {
       await context.queryClient.query({
         ...projectTicketsBoardQuery(params.id),
         staleTime: 'static',
@@ -56,7 +56,7 @@ const VIDE = 'Aucun ticket sur ce projet. Déposez le premier depuis « Déposer
 function ProjectTicketsPage() {
   const { vue } = Route.useSearch()
 
-  return vue === 'kanban' ? <KanbanView /> : <TableView />
+  return vue === 'table' ? <TableView /> : <KanbanView />
 }
 
 function TableView() {
