@@ -517,7 +517,7 @@ function ProjectCard({ project }: { project: Project }) {
       <div className="flex flex-col gap-1.5">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
-            <ProjectLogo url={project.logo_url} size={24} />
+            <ProjectLogo url={project.logo_url} size={24} bare />
             <Link
               to="/pm/projets/$id"
               params={{ id: project.id }}
@@ -809,7 +809,7 @@ function ProjectsPage() {
         )}
 
         {!isError && isPending && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 6 }, (_, index) => (
               <div
                 key={index}
@@ -820,7 +820,7 @@ function ProjectsPage() {
         )}
 
         {!isError && !isPending && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {rows.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}

@@ -500,7 +500,7 @@ function ProjectLayout() {
                 c'est ce que le projet est. */}
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex min-w-0 items-center gap-3">
-                <ProjectLogo url={project.logo_url} size={40} className="rounded-[8px]" />
+                <ProjectLogo url={project.logo_url} size={40} bare className="rounded-[8px]" />
                 <h1 className="truncate text-[24px] leading-[1.5] font-medium text-[#1b1b1b]">
                   {project.name}
                 </h1>
