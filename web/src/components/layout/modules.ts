@@ -9,6 +9,9 @@ import {
   Folder01Icon,
   DatabaseIcon,
   GitBranchIcon,
+  MailReceive01Icon,
+  SecurityCheckIcon,
+  TextIcon,
   Home03Icon,
   LayoutTable01Icon,
   LockKeyIcon,
@@ -129,6 +132,7 @@ export const MODULES: AppModule[] = [
         items: [
           { icon: Tag01Icon, label: 'Services', to: '/parametres/services' },
           { icon: LayoutTable01Icon, label: 'Modèles de projet', to: '/parametres/modeles' },
+          { icon: TextIcon, label: 'Réponses types', to: '/parametres/reponses-types', permission: 'tickets.write' },
         ],
       },
       {
@@ -146,13 +150,20 @@ export const MODULES: AppModule[] = [
         label: 'Apparence',
         items: [
           { icon: PlugSocketIcon, label: 'Apps du rail', to: '/parametres/apps', permission: 'users.write' },
+        ],
+      },
+      {
+        label: 'Intégrations',
+        items: [
           { icon: GitBranchIcon, label: 'Dépôts Git', to: '/parametres/git', permission: 'users.write' },
+          { icon: MailReceive01Icon, label: 'E-mails entrants', to: '/parametres/emails', permission: 'users.write' },
         ],
       },
       {
         label: 'Système',
         items: [
           { icon: DatabaseIcon, label: 'Sauvegardes', to: '/parametres/sauvegardes', permission: 'system.update' },
+          { icon: SecurityCheckIcon, label: 'Journal d’audit', to: '/parametres/audit', permission: 'audit.read' },
         ],
       },
     ],
