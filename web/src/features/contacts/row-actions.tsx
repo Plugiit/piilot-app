@@ -1,4 +1,9 @@
-import { Delete02Icon, MoreHorizontalIcon, PencilEdit02Icon } from '@hugeicons/core-free-icons'
+import {
+  Delete02Icon,
+  MoreHorizontalIcon,
+  PencilEdit02Icon,
+  UserAdd01Icon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
@@ -35,6 +40,7 @@ import { Input } from '@/components/ui/input'
 import { useDeleteContact, useUpdateContact } from '@/features/contacts/api'
 import { HttpError } from '@/lib/api'
 import type { CrmContact } from '@/types/api'
+import { InviteDialog } from '@/features/accounts/invite-dialog'
 
 /** Mêmes règles qu'à la création : un prénom ou un nom suffit. */
 const schema = z.object({
@@ -62,6 +68,7 @@ type Values = z.infer<typeof schema>
 export function ContactRowActions({ contact }: { contact: CrmContact }) {
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [inviting, setInviting] = useState(false)
 
   const update = useUpdateContact()
   const remove = useDeleteContact()
@@ -148,6 +155,15 @@ export function ContactRowActions({ contact }: { contact: CrmContact }) {
             Modifier
           </DropdownMenuItem>
 
+          {/* Tout est deja connu du contact : l'invitation part sans rien
+              retaper. Un contact sans client n'a pas de portail a rejoindre. */}
+          {contact.client_id !== null && contact.email !== null && (
+            <DropdownMenuItem onSelect={() => setInviting(true)}>
+              <HugeiconsIcon icon={UserAdd01Icon} size={16} strokeWidth={1.6} />
+              Inviter sur le portail
+            </DropdownMenuItem>
+          )}
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
@@ -156,6 +172,22 @@ export function ContactRowActions({ contact }: { contact: CrmContact }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {contact.client_id !== null && (
+        <InviteDialog
+          trigger={null}
+          open={inviting}
+          onOpenChange={setInviting}
+          defaultRole="client"
+          initial={{
+            role: 'client',
+            client_id: contact.client_id,
+            firstname: contact.firstname,
+            lastname: contact.lastname,
+            email: contact.email ?? '',
+          }}
+        />
+      )}
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent>

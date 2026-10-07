@@ -1,7 +1,7 @@
 import { CheckmarkCircle02Icon, UserAdd01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -38,21 +38,44 @@ import type { SentLink } from '@/types/api'
  * quand il atterrit dans les indesirables, et le seul moyen de le transmettre
  * quand l'instance n'envoie pas d'e-mails.
  */
-export function InviteDialog({ defaultRole = 'team' }: { defaultRole?: RoleCode }) {
-  const [open, setOpen] = useState(false)
+export function InviteDialog({
+  defaultRole = 'team',
+  trigger,
+  initial,
+  open: controlled,
+  onOpenChange,
+}: {
+  defaultRole?: RoleCode
+  /** Bouton d'ouverture ; `null` pour une fenetre pilotee de l'exterieur. */
+  trigger?: ReactNode | null
+  /** Champs deja connus : depuis la fiche d'un contact, tout est connu. */
+  initial?: Partial<InviteValues>
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [own, setOwn] = useState(false)
+  const open = controlled ?? own
+  function setOpen(next: boolean) {
+    setOwn(next)
+    onOpenChange?.(next)
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="lg" className="gap-1.5">
-          <HugeiconsIcon icon={UserAdd01Icon} size={16} strokeWidth={2} />
-          Inviter
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button size="lg" className="gap-1.5">
+              <HugeiconsIcon icon={UserAdd01Icon} size={16} strokeWidth={2} />
+              Inviter
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-[520px]">
         {/* Monte a l'ouverture : chaque invitation repart d'un formulaire vide. */}
-        {open && <InviteFlow defaultRole={defaultRole} onDone={() => setOpen(false)} />}
+        {open && <InviteFlow defaultRole={defaultRole} initial={initial} onDone={() => setOpen(false)} />}
       </DialogContent>
     </Dialog>
   )
@@ -62,7 +85,15 @@ interface Sent extends SentLink {
   email: string
 }
 
-function InviteFlow({ defaultRole, onDone }: { defaultRole: RoleCode; onDone: () => void }) {
+function InviteFlow({
+  defaultRole,
+  initial,
+  onDone,
+}: {
+  defaultRole: RoleCode
+  initial?: Partial<InviteValues>
+  onDone: () => void
+}) {
   const [sent, setSent] = useState<Sent | null>(null)
   const [key, setKey] = useState(0)
 
@@ -111,15 +142,17 @@ function InviteFlow({ defaultRole, onDone }: { defaultRole: RoleCode; onDone: ()
     )
   }
 
-  return <InviteForm key={key} defaultRole={defaultRole} onSent={setSent} onCancel={onDone} />
+  return <InviteForm key={key} defaultRole={defaultRole} initial={initial} onSent={setSent} onCancel={onDone} />
 }
 
 function InviteForm({
   defaultRole,
+  initial,
   onSent,
   onCancel,
 }: {
   defaultRole: RoleCode
+  initial?: Partial<InviteValues>
   onSent: (sent: Sent) => void
   onCancel: () => void
 }) {
@@ -132,6 +165,7 @@ function InviteForm({
     lastname: '',
     role: defaultRole,
     client_id: null,
+    ...initial,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   // Invitation deja en attente pour l'adresse : on propose de la renvoyer
