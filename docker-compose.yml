@@ -121,6 +121,26 @@ services:
       # Sans sauvegarde reussie depuis ce delai, les admins sont prevenus
       # dans la cloche. 0 pour une instance sauvegardee autrement.
       BACKUP_STALE_AFTER: ${BACKUP_STALE_AFTER:-36h}
+      # Duree de conservation du journal d'audit.
+      AUDIT_RETENTION: ${AUDIT_RETENTION:-8760h}
+
+      # --- E-mail entrant ---------------------------------------------------
+      # Tickets par e-mail. Tout se regle aussi dans Paramètres > E-mails
+      # entrants ; renseignees ici, ces valeurs priment et l'ecran les montre
+      # en lecture seule. Vides : rien ne change, les tickets passent par le
+      # portail comme avant.
+      # Adresse de support, que les clients connaissent : support@agence.fr.
+      INBOUND_ADDRESS: ${INBOUND_ADDRESS:-}
+      # Boite a relever chaque minute (IMAP, port 993 en TLS).
+      INBOUND_IMAP_HOST: ${INBOUND_IMAP_HOST:-}
+      INBOUND_IMAP_PORT: ${INBOUND_IMAP_PORT:-993}
+      INBOUND_IMAP_SECURITY: ${INBOUND_IMAP_SECURITY:-tls}
+      INBOUND_IMAP_USERNAME: ${INBOUND_IMAP_USERNAME:-}
+      INBOUND_IMAP_PASSWORD: ${INBOUND_IMAP_PASSWORD:-}
+      INBOUND_IMAP_FOLDER: ${INBOUND_IMAP_FOLDER:-INBOX}
+      # Secret des webhooks des fournisseurs (Postmark, Mailgun, Brevo). Vide,
+      # Piilot en tire un, visible a l'ecran.
+      INBOUND_WEBHOOK_SECRET: ${INBOUND_WEBHOOK_SECRET:-}
 
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
