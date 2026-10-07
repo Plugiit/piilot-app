@@ -14,6 +14,7 @@ import { useForm, useWatch, type UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { AddressInput } from '@/components/address-input'
 import { AutoHeight } from '@/components/auto-height'
 import { PhoneField } from '@/components/phone-field'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,7 @@ import { HttpError } from '@/lib/api'
 import { useSlideTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { ClientKind } from '@/types/api'
+import { useCreateIntent } from '@/lib/palette'
 
 /**
  * Un seul schema pour les deux types de client : les champs de l'un restent
@@ -306,7 +308,17 @@ function AddressFields({ form }: { form: UseFormReturn<Values> }) {
           <FormItem>
             <FormLabel>Adresse</FormLabel>
             <FormControl>
-              <Input placeholder="12 rue des Lilas" autoComplete="street-address" {...field} />
+              <AddressInput
+                placeholder="12 rue des Lilas"
+                value={field.value}
+                onChange={field.onChange}
+                onPick={(parts) => {
+                  field.onChange(parts.address)
+                  form.setValue('postal_code', parts.postalCode, { shouldDirty: true })
+                  form.setValue('city', parts.city, { shouldDirty: true })
+                  form.setValue('country', 'France', { shouldDirty: true })
+                }}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -543,6 +555,8 @@ function PrivateFields({ form }: { form: UseFormReturn<Values> }) {
  */
 export function NewClientDialog({ trigger }: { trigger?: ReactNode } = {}) {
   const [open, setOpen] = useState(false)
+  // La palette Cmd+K sait creer d'ici sans passer par le bouton.
+  useCreateIntent('client', () => setOpen(true))
   const create = useCreateClient()
   const transition = useSlideTransition()
 

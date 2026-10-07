@@ -5,6 +5,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { AddressInput } from '@/components/address-input'
 import { PhoneField } from '@/components/phone-field'
 import { Button } from '@/components/ui/button'
 import {
@@ -325,7 +326,16 @@ export function EditClientDialog({
                   <FormItem>
                     <FormLabel>Adresse</FormLabel>
                     <FormControl>
-                      <Input autoComplete="street-address" {...field} />
+                      <AddressInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        onPick={(parts) => {
+                          field.onChange(parts.address)
+                          form.setValue('postal_code', parts.postalCode, { shouldDirty: true })
+                          form.setValue('city', parts.city, { shouldDirty: true })
+                          form.setValue('country', 'France', { shouldDirty: true })
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
