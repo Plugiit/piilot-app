@@ -135,6 +135,32 @@ func DeliverableSubmitted(to, firstname, projectName, deliverable string, versio
 	return compose("deliverable_submitted", to, v, "deliverable_submitted.html", text)
 }
 
+// DeliverableReminder relance un client dont un livrable attend la reponse
+// depuis `days` jours. Envoye une fois par version, par la tache de fond.
+func DeliverableReminder(to, firstname, projectName, deliverable string, version int, days int, url string) (Message, error) {
+	first := version <= 1
+	since := fmt.Sprintf("%d jour%s", days, ifElse(days > 1, "s", ""))
+	v := view{
+		Subject:     "Un livrable attend votre réponse : " + deliverable,
+		Title:       "Un livrable attend votre réponse",
+		Action:      "Voir le livrable",
+		URL:         url,
+		Firstname:   firstname,
+		ProjectName: projectName,
+		Deliverable: deliverable,
+		Version:     version,
+		IsFirst:     first,
+		Lead:        since,
+	}
+
+	text := fmt.Sprintf("Bonjour%s,\n\nLe livrable « %s »%s du projet %s attend votre réponse depuis %s.\n\nUn coup d'œil suffit : validez-le, ou dites-nous ce qui doit changer :\n\n%s\n",
+		prefixed(firstname), deliverable,
+		ifElse(first, "", fmt.Sprintf(", version %d,", version)),
+		projectName, since, url)
+
+	return compose("deliverable_reminder", to, v, "deliverable_reminder.html", text)
+}
+
 // TicketToClient previent la personne qui a ouvert une demande : l'agence a
 // repondu, ou la demande a change de statut. `status` est le libelle du
 // nouveau statut, vide quand il n'a pas bouge ; `quote`, la reponse, vide
