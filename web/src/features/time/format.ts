@@ -34,11 +34,11 @@ export function parseDuration(raw: string): number | null {
     return Math.round(Number(value) * 60)
   }
 
-  // « 90 » : des minutes, tout simplement. C'est la forme la plus courte, donc
-  // celle qu'on tape le plus souvent.
-  const entier = /^(\d+)$/.exec(value)
+  // « 90 », « 45m », « 45 min » : des minutes, tout simplement. C'est la
+  // forme la plus courte, donc celle qu'on tape le plus souvent.
+  const entier = /^(\d+)\s*(?:m|min|mn)?$/.exec(value)
   if (entier !== null) {
-    return Number(value)
+    return Number(entier[1])
   }
 
   return null

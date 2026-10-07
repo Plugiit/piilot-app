@@ -5,6 +5,8 @@ import { formatDuration, parseDuration } from '@/features/time/format'
 describe('parseDuration', () => {
   it('lit les minutes seules', () => {
     expect(parseDuration('90')).toBe(90)
+    expect(parseDuration('45m')).toBe(45)
+    expect(parseDuration('45 min')).toBe(45)
     expect(parseDuration('5')).toBe(5)
   })
 

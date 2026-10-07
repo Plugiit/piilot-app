@@ -2,6 +2,7 @@ import { CheckListIcon, Menu01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import { NotificationBell } from '@/features/notifications/bell'
+import { TimerIndicator } from '@/features/time/timer-ui'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Fragment, useState, type ReactNode } from 'react'
 
@@ -119,7 +120,8 @@ function FrameHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        {/* Admins seuls, et seulement quand une version est a installer. */}
+        {/* Le chrono qui tourne, visible d'ou que l'on soit. */}
+        <TimerIndicator />
         <NotificationBell />
 
         {/* Ne s'affiche que sur les ecrans qui ont un panneau a replier, et
