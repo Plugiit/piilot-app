@@ -59,6 +59,7 @@ import {
   tintOf,
   tracksSchedule,
 } from '@/features/projects/format'
+import { ProjectLogo } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { can, sessionQuery } from '@/lib/auth'
 import { useSearchField } from '@/lib/search-field'
@@ -67,6 +68,7 @@ import { cn } from '@/lib/utils'
 import type { BudgetState, Person, Project, ProjectStatus } from '@/types/api'
 
 import { NewProjectDialog } from './-new-project'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /** Neuf projets par page : trois rangees pleines de la grille a trois colonnes. */
 const PAGE_SIZE = 9
@@ -514,13 +516,16 @@ function ProjectCard({ project }: { project: Project }) {
 
       <div className="flex flex-col gap-1.5">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <Link
-            to="/pm/projets/$id"
-            params={{ id: project.id }}
-            className="truncate text-[16px] leading-[1.5] font-medium text-[#1b1b1b] hover:underline"
-          >
-            {project.name}
-          </Link>
+          <span className="flex min-w-0 items-center gap-2">
+            <ProjectLogo url={project.logo_url} size={24} />
+            <Link
+              to="/pm/projets/$id"
+              params={{ id: project.id }}
+              className="truncate text-[16px] leading-[1.5] font-medium text-[#1b1b1b] hover:underline"
+            >
+              {project.name}
+            </Link>
+          </span>
           {/* A defaut de resume, le client : une carte sans deuxieme ligne se
               tasse et la grille perd son alignement. */}
           <p className="truncate text-[14px] leading-[1.5] text-[#73757c]">
@@ -653,6 +658,7 @@ function SortMenu({
 
 function ProjectsPage() {
   const search = Route.useSearch()
+  useRememberFilters('projets', ['page'], { sort: 'due', dir: 'asc' })
   const navigate = Route.useNavigate()
 
   // Les budgets sont un outil de direction : sans le droit, ni filtre ni tri

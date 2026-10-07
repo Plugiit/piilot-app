@@ -8,6 +8,7 @@ import { InteractionList } from '@/features/interactions/journal'
 import { NewInteractionDialog } from '@/features/interactions/new-interaction-dialog'
 import { clientListQuery } from '@/features/projects/api'
 import { can } from '@/lib/auth'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Interactions : le journal de la relation, tous clients confondus.
@@ -34,6 +35,7 @@ const SOURCES: Option[] = [
 
 function InteractionsPage() {
   const search = Route.useSearch()
+  useRememberFilters('interactions', [])
   const navigate = Route.useNavigate()
   const { user } = Route.useRouteContext()
   const { data: clients } = useQuery(clientListQuery())

@@ -15,6 +15,7 @@ import type { TaskListParams } from '@/features/tasks/api'
 import { NewTaskDialog } from '@/features/tasks/new-task-dialog'
 import { useSearchField } from '@/lib/search-field'
 import type { TaskStatus } from '@/types/api'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Ecran « Tâches » du module.
@@ -66,6 +67,7 @@ const TABS: Tab[] = [
  */
 function TasksLayout() {
   const search = Route.useSearch()
+  useRememberFilters('taches', ['page', 'tache'])
   const navigate = Route.useNavigate()
 
   const { data: projects } = useQuery(

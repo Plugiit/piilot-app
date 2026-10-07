@@ -6,6 +6,7 @@ import { CLIENTS_PAGE_SIZE, clientListQuery } from '@/features/clients/api'
 import { ClientTable } from '@/features/clients/list'
 
 import { paramsOf } from '../clients'
+import { useRememberFilters } from '@/lib/remember-filters'
 
 /**
  * Vue liste de l'ecran « Clients ».
@@ -22,6 +23,7 @@ export const Route = createFileRoute('/_app/crm/clients/')({
 
 function ClientListPage() {
   const search = Route.useSearch()
+  useRememberFilters('clients', ['page'])
   const navigate = Route.useNavigate()
 
   const { data: page } = useQuery(clientListQuery(paramsOf(search)))
