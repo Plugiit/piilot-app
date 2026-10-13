@@ -48,6 +48,7 @@ import {
   useUpdateProject,
   useUploadProjectFile,
 } from '@/features/projects/api'
+import { MissingStatisticsNotice } from '@/features/analytics/missing-notice'
 import { MilestoneDialog } from '@/features/milestones/milestone-dialog'
 import { PROJECT_STATUS, PROJECT_STATUS_ORDER, parseApiDate, tracksSchedule } from '@/features/projects/format'
 import { Avatars, BudgetBar, PriorityTag, ProgressBar, ProjectLogo, StatusPill } from '@/features/projects/ui'
@@ -622,6 +623,8 @@ function ProjectLayout() {
               </div>
             </div>
           </div>
+
+          {project.missing_statistics && <MissingStatisticsNotice projectId={project.id} canEdit={can(session, 'projects.write')} />}
 
           <div className="flex flex-col gap-4">
             {/* En tete du bloc : un projet appartient d'abord a quelqu'un. */}

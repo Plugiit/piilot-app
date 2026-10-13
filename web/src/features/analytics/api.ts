@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { projectKeys } from '@/features/projects/api'
 import { api, unwrap } from '@/lib/api'
 import type { AnalyticsSettings, ProjectAnalytics } from '@/types/api'
 
@@ -83,6 +84,8 @@ export function useSetProjectWebsites(id: string) {
     onSuccess: (view: ProjectAnalytics) => {
       queryClient.setQueryData(analyticsKeys.project(id), view)
       void queryClient.invalidateQueries({ queryKey: analyticsKeys.allWebsites })
+      // La fiche du projet dit s'il manque ses statistiques.
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) })
     },
   })
 }

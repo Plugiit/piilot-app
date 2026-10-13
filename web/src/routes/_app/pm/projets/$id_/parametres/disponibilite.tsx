@@ -9,6 +9,8 @@ import { SearchPicker } from '@/components/search-picker'
 import { Card, SaveBar } from '@/components/settings-ui'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MissingStatisticsNotice } from '@/features/analytics/missing-notice'
+import { projectDetailQuery } from '@/features/projects/api'
 import { projectUptimeQuery, uptimeMonitorsQuery, useSetProjectSites } from '@/features/uptime/api'
 import { ENVIRONMENT, formatUptime } from '@/features/uptime/format'
 import { IncidentList, MonitorStatus, UptimeStrip } from '@/features/uptime/ui'
@@ -43,6 +45,7 @@ function choicesOf(view: ProjectUptime): Choice[] {
 function AvailabilityPage() {
   const { id } = Route.useParams()
   const { data } = useQuery(projectUptimeQuery(id))
+  const { data: project } = useQuery(projectDetailQuery(id))
   const { data: session } = useQuery(sessionQuery)
 
   if (data === undefined) return null
@@ -70,6 +73,7 @@ function AvailabilityPage() {
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      {project?.missing_statistics === true && <MissingStatisticsNotice projectId={id} canEdit={can(session, 'projects.write')} />}
       <SitesForm key={data.sites.map((s) => s.monitor_id + s.environment).join()} projectId={id} view={data} canEdit={can(session, 'projects.write')} />
       {data.sites.length > 0 && (
         <>
