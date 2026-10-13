@@ -24,6 +24,7 @@ import {
   plainLabel,
   referrerLabel,
   variation,
+  localDate,
 } from '@/features/analytics/format'
 import { portalProjectQuery } from '@/features/portal/api'
 import { StatTile } from '@/features/portal/dashboard'
@@ -62,14 +63,6 @@ const DAY_LONG = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numer
 const MONTH = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit' })
 const MONTH_LONG = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' })
 const WHEN = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-
-/** Un pas « 2026-10-12T14:00:00 », lu comme une heure locale. */
-function localDate(at: string): Date {
-  const [d, t = '00:00:00'] = at.split('T')
-  const [y, m, day] = (d ?? '').split('-').map(Number)
-  const [h, min] = t.split(':').map(Number)
-  return new Date(y ?? 1970, (m ?? 1) - 1, day ?? 1, h ?? 0, min ?? 0)
-}
 
 function StatisticsPage() {
   const { id } = Route.useParams()
