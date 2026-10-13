@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [1.4.1] — Portail : bandeau des sites
+## [1.4.1] — Portail : bandeau des sites · 2026-10-13
 
 Le portail montre à chaque client l'audience et la disponibilité de ses sites, dès la page Projets. Et les sites des équipes Umami sont enfin lus.
 
