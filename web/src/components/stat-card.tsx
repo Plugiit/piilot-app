@@ -16,6 +16,7 @@ export function StatCard({
   value,
   footer,
   tone,
+  chart,
   className,
 }: {
   label: string
@@ -24,6 +25,11 @@ export function StatCard({
   footer: ReactNode
   /** `alert` passe la valeur en rouge : un retard, un depassement. */
   tone?: 'alert'
+  /**
+   * Un graphique sous la valeur, pose au ras du bas de la carte blanche : il
+   * prend la place du rembourrage, et son zero tombe sur le bord.
+   */
+  chart?: ReactNode
   className?: string
 }) {
   return (
@@ -33,7 +39,7 @@ export function StatCard({
         className,
       )}
     >
-      <div className="flex w-full flex-col gap-1 rounded-[10px] bg-white p-2">
+      <div className={cn('flex w-full flex-col gap-1 overflow-hidden rounded-[10px] bg-white p-2', chart !== undefined && 'pb-0')}>
         <p className="w-full text-sm leading-[1.5] text-[#111]">{label}</p>
         <p
           className={cn(
@@ -43,6 +49,7 @@ export function StatCard({
         >
           {value}
         </p>
+        {chart !== undefined && <div className="-mx-2 mt-1 h-[40px]">{chart}</div>}
       </div>
 
       <div className="bg-surface flex w-full items-center justify-center gap-2.5 px-2 py-1.5">{footer}</div>

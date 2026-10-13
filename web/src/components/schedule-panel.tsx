@@ -169,7 +169,7 @@ export function SchedulePanel({ className }: { className?: string }) {
                       className={cn(
                         'flex size-8 cursor-pointer items-center justify-center rounded-full text-center text-[14px] leading-[1.5] font-semibold transition-colors',
                         active
-                          ? 'bg-white text-[#ff782b] drop-shadow-[0px_4px_2px_rgba(0,0,0,0.06)]'
+                          ? 'bg-white text-[#ff782b]'
                           : toDay(date) === today
                             ? 'text-[#ff782b] hover:bg-[#f0f0f0]'
                             : 'text-[#111] hover:bg-[#f0f0f0]',
