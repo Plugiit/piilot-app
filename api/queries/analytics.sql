@@ -47,6 +47,14 @@ RETURNING id;
 UPDATE analytics_websites SET present = false
 WHERE provider = sqlc.arg('provider') AND present AND NOT (id = ANY (sqlc.arg('seen')::uuid[]));
 
+-- name: DeleteUnlinkedAbsentAnalyticsWebsites :execrows
+-- Les sites disparus d'Umami qu'aucun projet n'utilise : rien a garder, ils
+-- partent avec leur cache. Un site encore lie reste, marque absent, pour que
+-- l'equipe voie ce qui manque au lieu d'un lien rompu en silence.
+DELETE FROM analytics_websites w
+WHERE w.provider = sqlc.arg('provider') AND NOT w.present
+  AND NOT EXISTS (SELECT 1 FROM project_analytics_websites l WHERE l.website_id = w.id);
+
 -- name: CountAnalyticsWebsites :one
 SELECT count(*)::integer FROM analytics_websites
 WHERE sqlc.arg('q')::text = '' OR name ILIKE '%' || sqlc.arg('q') || '%' OR domain ILIKE '%' || sqlc.arg('q') || '%';

@@ -108,6 +108,23 @@ func (q *Queries) DeleteProjectAnalyticsWebsites(ctx context.Context, projectID 
 	return err
 }
 
+const deleteUnlinkedAbsentAnalyticsWebsites = `-- name: DeleteUnlinkedAbsentAnalyticsWebsites :execrows
+DELETE FROM analytics_websites w
+WHERE w.provider = $1 AND NOT w.present
+  AND NOT EXISTS (SELECT 1 FROM project_analytics_websites l WHERE l.website_id = w.id)
+`
+
+// Les sites disparus d'Umami qu'aucun projet n'utilise : rien a garder, ils
+// partent avec leur cache. Un site encore lie reste, marque absent, pour que
+// l'equipe voie ce qui manque au lieu d'un lien rompu en silence.
+func (q *Queries) DeleteUnlinkedAbsentAnalyticsWebsites(ctx context.Context, provider string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUnlinkedAbsentAnalyticsWebsites, provider)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAnalyticsActive = `-- name: GetAnalyticsActive :one
 SELECT visitors, fetched_at FROM analytics_active WHERE website_id = $1
 `
