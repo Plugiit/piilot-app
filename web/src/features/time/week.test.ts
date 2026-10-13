@@ -12,6 +12,7 @@ function entry(id: string, day: string, minutes: number, project: string, task?:
     project: { id: project, name: project.toUpperCase() },
     task: task === undefined ? null : { id: task, name: task },
     service: null,
+    intervention: null,
   }
 }
 

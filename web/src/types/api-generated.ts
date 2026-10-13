@@ -2994,6 +2994,402 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/maintenance-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Formules de maintenance
+         * @description Exige projects.read.
+         */
+        get: operations["getAdminMaintenancePlans"];
+        put?: never;
+        /**
+         * Créer une formule
+         * @description Exige reports.write.
+         */
+        post: operations["postAdminMaintenancePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/maintenance-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la formule */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Modifier une formule
+         * @description Exige reports.write.
+         */
+        put: operations["putAdminMaintenancePlan"];
+        post?: never;
+        /**
+         * Supprimer une formule
+         * @description Seulement si elle n'a jamais servi ; sinon 409, la désactiver. Exige reports.write.
+         */
+        delete: operations["deleteAdminMaintenancePlan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Formule d'un projet
+         * @description Exige projects.read.
+         */
+        get: operations["getAdminProjectMaintenance"];
+        /**
+         * Changer la formule d'un projet
+         * @description À partir du 1er du mois donné : la période en cours s'arrête la veille. Exige projects.write.
+         */
+        put: operations["putAdminProjectMaintenance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/interventions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Interventions d'un mois
+         * @description De toute l'équipe, avec le bilan consommé / inclus de chaque projet. Exige time.read.
+         */
+        get: operations["getAdminInterventions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/projects/{id}/interventions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Interventions d'un projet
+         * @description Les interventions visibles, avec la note destinée au client, et le bilan du mois en cours sous formule. 404 pour le projet d'un autre client.
+         */
+        get: operations["getClientProjectInterventions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rapports d'un mois
+         * @description Le mois écoulé par défaut. Exige reports.write.
+         */
+        get: operations["getAdminReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Générer les brouillons d'un mois
+         * @description Pour les projets sous formule sans rapport, ou un seul. Tout vient de tables locales : aucun service extérieur n'est appelé. Exige reports.write.
+         */
+        post: operations["postAdminReportsGenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages d'envoi
+         * @description Exige reports.write.
+         */
+        get: operations["getAdminReportSettings"];
+        /**
+         * Enregistrer les réglages d'envoi
+         * @description Exige reports.write.
+         */
+        put: operations["putAdminReportSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Un rapport
+         * @description Exige reports.write.
+         */
+        get: operations["getAdminReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/editorial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mot du mois
+         * @description Brouillon seulement. Exige reports.write.
+         */
+        put: operations["putAdminReportEditorial"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Régénérer un brouillon
+         * @description Refait les données avec la formule du mois. Exige reports.write.
+         */
+        post: operations["postAdminReportRegenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Valider un rapport
+         * @description Le brouillon est figé, prêt à partir. Exige reports.write.
+         */
+        post: operations["postAdminReportValidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/unvalidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Repasser en brouillon
+         * @description Un rapport validé, pas encore envoyé. Exige reports.write.
+         */
+        post: operations["postAdminReportUnvalidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Envoyer un rapport
+         * @description Un e-mail par destinataire ; le rapport ne change plus jamais. 422 sans destinataire, 409 si l'envoi d'e-mails n'est pas configuré. Exige reports.write.
+         */
+        post: operations["postAdminReportSend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/report-recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Destinataires des rapports d'un projet
+         * @description Les comptes du portail du client, exclus ou non, et les adresses ajoutées. Exige projects.read.
+         */
+        get: operations["getAdminProjectReportRecipients"];
+        /**
+         * Changer les destinataires
+         * @description Remplace les exclusions et les adresses ajoutées (10 au plus). Exige projects.write.
+         */
+        put: operations["putAdminProjectReportRecipients"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/projects/{id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Rapports d'un projet
+         * @description Les rapports envoyés, du plus récent au plus ancien. 404 pour le projet d'un autre client.
+         */
+        get: operations["getClientProjectReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Un rapport
+         * @description Un rapport envoyé, pour le client du projet seulement.
+         */
+        get: operations["getClientReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4228,6 +4624,8 @@ export interface components {
             task: components["schemas"]["DeliverableRef"] | null;
             /** @description Prestation sur laquelle l'heure compte. Une seule par ligne. */
             service: components["schemas"]["ServiceTag"] | null;
+            /** @description Nulle pour un temps ordinaire. */
+            intervention: components["schemas"]["Intervention"] | null;
         };
         TimeDay: {
             /** Format: date */
@@ -4967,6 +5365,8 @@ export interface components {
             team: components["schemas"]["PortalContact"][];
             /** @description Module de statistiques actif et site de production lié : la page « Statistiques » existe. */
             statistics: boolean;
+            /** @description Sous formule ou avec des interventions visibles : la page « Maintenance » existe. */
+            maintenance: boolean;
         };
         PortalVersion: {
             numero: number;
@@ -5759,6 +6159,260 @@ export interface components {
             visitors: number | null;
             /** Format: date-time */
             fetched_at: string | null;
+        };
+        /** @description Une saisie de maintenance : sa nature, et ce que le client en voit. */
+        Intervention: {
+            /** @enum {string} */
+            kind: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre";
+            client_visible: boolean;
+            client_note: string;
+        };
+        MaintenancePlan: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Temps inclus par mois, non cumulable. */
+            included_minutes: number;
+            sections: ("availability" | "audience" | "interventions" | "deployments" | "updates" | "backups" | "domain")[];
+            active: boolean;
+        };
+        MaintenancePlanRequest: {
+            name: string;
+            included_minutes: number;
+            sections: ("availability" | "audience" | "interventions" | "deployments" | "updates" | "backups" | "domain")[];
+            active: boolean;
+        };
+        MaintenancePlanList: {
+            items: components["schemas"]["MaintenancePlan"][];
+        };
+        MaintenancePeriod: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            plan_id: string;
+            plan_name: string;
+            included_minutes: number;
+            /** Format: date */
+            starts_on: string;
+            /** Format: date */
+            ends_on: string | null;
+        };
+        ProjectMaintenance: {
+            current: components["schemas"]["MaintenancePeriod"] | null;
+            history: components["schemas"]["MaintenancePeriod"][];
+        };
+        ProjectMaintenanceRequest: {
+            /**
+             * Format: uuid
+             * @description Nul : le projet sort de la maintenance à partir de ce mois.
+             */
+            plan_id: string | null;
+            /** @description Premier mois de la nouvelle formule, AAAA-MM. */
+            month: string;
+        };
+        MaintenanceSummary: {
+            project: components["schemas"]["DeliverableRef"];
+            plan_name: string | null;
+            included_minutes: number | null;
+            consumed_minutes: number;
+            /** @description Au-delà du temps inclus, zéro sinon. Sans montant. */
+            overrun_minutes: number;
+            /** @description La part visible du client ; le reste est interne. */
+            visible_minutes: number;
+        };
+        InterventionItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            spent_on: string;
+            minutes: number;
+            /** @enum {string} */
+            kind: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre";
+            note: string;
+            client_visible: boolean;
+            client_note: string;
+            project: components["schemas"]["DeliverableRef"];
+            person: components["schemas"]["Person"] | null;
+        };
+        InterventionPage: {
+            month: string;
+            items: components["schemas"]["InterventionItem"][];
+            total: number;
+            page: number;
+            summaries: components["schemas"]["MaintenanceSummary"][];
+        };
+        PortalIntervention: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            spent_on: string;
+            minutes: number;
+            /** @enum {string} */
+            kind: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre";
+            /** @description La note destinée au client. */
+            note: string;
+        };
+        PortalInterventionPage: {
+            items: components["schemas"]["PortalIntervention"][];
+            total: number;
+            page: number;
+            /** @description Nul sans formule ce mois-ci. */
+            current_month: components["schemas"]["MaintenanceSummary"] | null;
+        };
+        ReportSite: {
+            name: string;
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            url: string;
+            uptime: number | null;
+            avg_response_ms: number | null;
+            /** @description Jours avant l'expiration du certificat, le jour de la génération. */
+            cert_days: number | null;
+            cert_valid: boolean | null;
+            days: components["schemas"]["UptimeDay"][];
+        };
+        ReportIncident: {
+            site: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            ended_at: string | null;
+            duration_seconds: number | null;
+            message: string;
+        };
+        ReportAvailability: {
+            sites: components["schemas"]["ReportSite"][];
+            incidents: components["schemas"]["ReportIncident"][];
+        };
+        ReportAudience: {
+            /** @description La photo du mois d'Umami n'était pas disponible à la génération. */
+            unavailable: boolean;
+            website: string;
+            domain: string;
+            data: components["schemas"]["StatisticsData"] | null;
+        };
+        ReportIntervention: {
+            /** Format: date */
+            spent_on: string;
+            /** @enum {string} */
+            kind: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre";
+            minutes: number;
+            note: string;
+        };
+        ReportInterventions: {
+            items: components["schemas"]["ReportIntervention"][];
+            /** @description Toutes les interventions du mois, visibles ou non. */
+            consumed_minutes: number;
+            visible_minutes: number;
+            included_minutes: number;
+            overrun_minutes: number;
+        };
+        ReportDeployment: {
+            name: string;
+            environment: string;
+            url: string;
+            /** Format: date-time */
+            deployed_at: string;
+        };
+        ReportDeployments: {
+            items: components["schemas"]["ReportDeployment"][];
+        };
+        /** @description Contenu figé d'un rapport. Une section nulle n'est pas dans la formule, ou n'a pas de données ce mois-là. */
+        ReportData: {
+            month: string;
+            project: {
+                name: string;
+                client_name: string;
+            };
+            plan: {
+                name: string;
+                included_minutes: number;
+            };
+            availability: components["schemas"]["ReportAvailability"] | null;
+            audience: components["schemas"]["ReportAudience"] | null;
+            interventions: components["schemas"]["ReportInterventions"] | null;
+            deployments: components["schemas"]["ReportDeployments"] | null;
+        };
+        Report: {
+            /** Format: uuid */
+            id: string;
+            project: components["schemas"]["DeliverableRef"];
+            client_name: string;
+            month: string;
+            /** @enum {string} */
+            status: "draft" | "validated" | "sent";
+            sections: ("availability" | "audience" | "interventions" | "deployments" | "updates" | "backups" | "domain")[];
+            data: components["schemas"]["ReportData"];
+            editorial: string;
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date-time */
+            validated_at: string | null;
+            /** Format: date-time */
+            sent_at: string | null;
+            /** @description Envoyé : à qui il est parti. Sinon : à qui il partirait. */
+            recipients: string[];
+        };
+        ReportListItem: {
+            /** Format: uuid */
+            id: string;
+            project: components["schemas"]["DeliverableRef"];
+            client_name: string;
+            /** @enum {string} */
+            status: "draft" | "validated" | "sent";
+            plan_name: string;
+            has_editorial: boolean;
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date-time */
+            sent_at: string | null;
+        };
+        ReportPage: {
+            month: string;
+            items: components["schemas"]["ReportListItem"][];
+            total: number;
+            page: number;
+            counts: {
+                drafts: number;
+                validated: number;
+                sent: number;
+            };
+            /** @description Projets sous formule ce mois-là sans rapport encore. */
+            pending: number;
+        };
+        ReportSettings: {
+            /** @description Valider et envoyer seuls les rapports du mois, le jour dit. Désactivé par défaut. */
+            auto_send: boolean;
+            send_day: number;
+            /** @description Jours d'attente de la photo d'Umami avant de générer sans l'audience. */
+            wait_days: number;
+        };
+        ReportContact: {
+            person: components["schemas"]["Person"] | null;
+            email: string;
+            excluded: boolean;
+        };
+        ReportRecipients: {
+            contacts: components["schemas"]["ReportContact"][];
+            extra: string[];
+        };
+        PortalReportItem: {
+            /** Format: uuid */
+            id: string;
+            month: string;
+            plan_name: string;
+            /** Format: date-time */
+            sent_at: string | null;
+        };
+        PortalReport: {
+            /** Format: uuid */
+            id: string;
+            project: components["schemas"]["DeliverableRef"];
+            month: string;
+            data: components["schemas"]["ReportData"];
+            editorial: string;
+            /** Format: date-time */
+            sent_at: string | null;
         };
     };
     responses: {
@@ -8979,6 +9633,15 @@ export interface operations {
                     spent_on: string;
                     minutes: number;
                     note?: string;
+                    /**
+                     * @description Absente ou nulle : un temps ordinaire.
+                     * @enum {string|null}
+                     */
+                    intervention_kind?: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre" | null;
+                    /** @description Visible par le client ; exige client_note. */
+                    client_visible?: boolean;
+                    /** @description Ce que le client lit. */
+                    client_note?: string;
                 };
             };
         };
@@ -9044,6 +9707,15 @@ export interface operations {
                     spent_on: string;
                     minutes: number;
                     note?: string;
+                    /**
+                     * @description Absente ou nulle : un temps ordinaire.
+                     * @enum {string|null}
+                     */
+                    intervention_kind?: "contenu" | "correctif" | "mise_a_jour" | "support" | "autre" | null;
+                    /** @description Visible par le client ; exige client_note. */
+                    client_visible?: boolean;
+                    /** @description Ce que le client lit. */
+                    client_note?: string;
                 };
             };
         };
@@ -11195,6 +11867,667 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActiveVisitors"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminMaintenancePlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePlanList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postAdminMaintenancePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenancePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Créée */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePlan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    putAdminMaintenancePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la formule */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenancePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePlan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminMaintenancePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant de la formule */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Supprimée */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Formule en usage */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAdminProjectMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMaintenance"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMaintenance"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminInterventions: {
+        parameters: {
+            query?: {
+                /** @description AAAA-MM, le mois en cours par défaut. */
+                month?: string;
+                project?: string;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterventionPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getClientProjectInterventions: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalInterventionPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminReports: {
+        parameters: {
+            query?: {
+                month?: string;
+                status?: "draft" | "validated" | "sent";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminReportsGenerate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    month: string;
+                    /** Format: uuid */
+                    project_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminReportSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminReportSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminReportEditorial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    editorial: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminReportRegenerate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminReportValidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminReportUnvalidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminReportSend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectReportRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportRecipients"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectReportRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    excluded: string[];
+                    extra: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportRecipients"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getClientProjectReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["PortalReportItem"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getClientReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalReport"];
                 };
             };
             401: components["responses"]["Unauthorized"];

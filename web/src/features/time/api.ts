@@ -30,6 +30,10 @@ export interface TimeEntryValues {
   spent_on: string
   minutes: number
   note?: string
+  /** Une intervention de maintenance ; absente ou nulle, un temps ordinaire. */
+  intervention_kind?: 'contenu' | 'correctif' | 'mise_a_jour' | 'support' | 'autre' | null
+  client_visible?: boolean
+  client_note?: string
 }
 
 export function useCreateTimeEntry() {
@@ -45,6 +49,8 @@ export function useCreateTimeEntry() {
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       void queryClient.invalidateQueries({ queryKey: ['my-work'] })
+      // Une intervention change le journal et le bilan du mois.
+      void queryClient.invalidateQueries({ queryKey: ['maintenance'] })
     },
   })
 }
@@ -65,6 +71,8 @@ export function useUpdateTimeEntry(id: string) {
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       void queryClient.invalidateQueries({ queryKey: ['my-work'] })
+      // Une intervention change le journal et le bilan du mois.
+      void queryClient.invalidateQueries({ queryKey: ['maintenance'] })
     },
   })
 }
@@ -80,6 +88,8 @@ export function useDeleteTimeEntry(id: string) {
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       void queryClient.invalidateQueries({ queryKey: ['my-work'] })
+      // Une intervention change le journal et le bilan du mois.
+      void queryClient.invalidateQueries({ queryKey: ['maintenance'] })
     },
   })
 }
