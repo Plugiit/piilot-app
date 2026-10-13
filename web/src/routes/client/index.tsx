@@ -65,7 +65,7 @@ function Dashboard({ data }: { data: PortalDashboard }) {
   return (
     // La disposition du tableau de bord de l'agence : une colonne de cartes,
     // et le panneau de droite qui la longe sur toute la hauteur.
-    <div className="flex flex-1 flex-col overflow-hidden rounded-t-[20px] bg-white xl:flex-row">
+    <div className="flex flex-1 flex-col xl:flex-row">
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-4">
         {/* Les quatre chiffres. */}
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
