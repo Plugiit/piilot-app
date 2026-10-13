@@ -7,6 +7,7 @@ import {
   Coins01Icon,
   Settings02Icon,
   UserGroupIcon,
+  Wrench01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
@@ -43,6 +44,7 @@ const TABS: Tab[] = [
   { to: '/pm/projets/$id/parametres/planning', label: 'Planning', icon: Calendar03Icon },
   { to: '/pm/projets/$id/parametres/budget', label: 'Budget', icon: Coins01Icon },
   { to: '/pm/projets/$id/parametres/equipe', label: 'Équipe', icon: UserGroupIcon },
+  { to: '/pm/projets/$id/parametres/maintenance', label: 'Maintenance', icon: Wrench01Icon },
   { to: '/pm/projets/$id/parametres/disponibilite', label: 'Disponibilité', icon: ActivityIcon },
   { to: '/pm/projets/$id/parametres/statistiques', label: 'Statistiques', icon: ChartLineData01Icon },
   { to: '/pm/projets/$id/parametres/zone-de-danger', label: 'Zone de danger', icon: Alert02Icon },
@@ -111,7 +113,7 @@ function SettingsLayout() {
             l'autre passe a `auto` par la meme occasion. Le filet de l'onglet
             actif, pose a `-bottom-px`, depassait alors d'un pixel et rendait la
             barre defilante verticalement — imperceptible a l'oeil, les barres
-            etant masquees partout, mais sensible au doigt. Les sept onglets
+            etant masquees partout, mais sensible au doigt. Les huit onglets
             tiennent a 1024px, la plus petite largeur ou le panneau est
             affiche, en mode compact : sans icone et en 14px sous 1536px. */}
         <div className="flex items-center border-b border-[#e8e8e9] pl-4">
