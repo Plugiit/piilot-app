@@ -95,6 +95,9 @@ type PortalProjectDetail struct {
 	// Le module de statistiques est actif et un site de production est lie :
 	// la page « Statistiques » existe.
 	Statistics bool `json:"statistics"`
+	// Le projet est sous formule, ou a des interventions visibles : la page
+	// « Maintenance » existe.
+	Maintenance bool `json:"maintenance"`
 }
 
 // PortalNextStep est l'encart « Prochaine etape » d'un projet.
@@ -332,6 +335,9 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 
 	if out.Statistics, err = s.q.PortalProjectHasStatistics(ctx, projectID); err != nil {
 		return PortalProjectDetail{}, fmt.Errorf("statistiques du projet : %w", err)
+	}
+	if out.Maintenance, err = s.q.PortalProjectHasMaintenance(ctx, projectID); err != nil {
+		return PortalProjectDetail{}, fmt.Errorf("maintenance du projet : %w", err)
 	}
 
 	deployments, err := s.q.ListDeploymentsOfProject(ctx, db.ListDeploymentsOfProjectParams{ProjectID: projectID, MaxRows: 1})
