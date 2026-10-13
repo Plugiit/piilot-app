@@ -9108,6 +9108,914 @@
           }
         }
       }
+    },
+    "/api/v1/client/dashboard": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Tableau de bord du portail",
+        "description": "Accueil du client : avancement moyen, livrables à valider, demandes par état, prochaine étape, projets, ce que l'agence a livré sur douze mois et le fil de l'activité récente. Tous les compteurs sont tenus par des déclencheurs, rien n'est recompté à l'affichage.",
+        "operationId": "getClientDashboard",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tableau de bord",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalDashboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Projet à suivre. Absent : le plus récemment actif. Un projet d'un autre client répond 404."
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/modules": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modules activables",
+        "description": "Exige users.write.",
+        "operationId": "getAdminModules",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/uptime": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglages du module de disponibilité",
+        "description": "Exige users.write.",
+        "operationId": "getAdminModuleUptime",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Enregistrer le module de disponibilité",
+        "description": "Demande aussi une relève, pour que l'écran dise aussitôt si l'adresse et la clé conviennent. Exige users.write.",
+        "operationId": "putAdminModuleUptime",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UptimeSettingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/uptime/rotate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Nouveau secret de webhook",
+        "description": "Le webhook déclaré dans Kuma avec l'ancien cesse d'être accepté. Exige users.write.",
+        "operationId": "postAdminModuleUptimeRotate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/uptime/poll": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Tester la connexion",
+        "description": "Demande une relève, faite par la tâche de fond dans les quinze secondes : la requête n'appelle pas Kuma. Exige users.write.",
+        "operationId": "postAdminModuleUptimePoll",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/uptime/monitors": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Sites surveillés",
+        "description": "Avec leur disponibilité sur trente jours, lue sur les agrégats journaliers. Exige projects.write : sert aussi au choix d'un site pour un projet.",
+        "operationId": "getAdminModuleUptimeMonitors",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeMonitorPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtre sur le nom ou l'adresse."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/modules/uptime/incidents": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Incidents de disponibilité",
+        "description": "Les plus récents d'abord. Exige users.write.",
+        "operationId": "getAdminModuleUptimeIncidents",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UptimeIncidentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/projects/{id}/uptime": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Disponibilité d'un projet",
+        "description": "Ses sites, leur frise sur trente jours, ses derniers incidents. Exige projects.read.",
+        "operationId": "getAdminProjectUptime",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectUptime"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lier des sites à un projet",
+        "description": "Remplace la liste ; vide, elle détache tout. Exige projects.write.",
+        "operationId": "putAdminProjectUptime",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectUptime"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUptimeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hooks/uptime/{provider}": {
+      "post": {
+        "tags": [
+          "hooks"
+        ],
+        "summary": "Changement d'état poussé par le service de disponibilité",
+        "description": "Sans session : le jeton de l'adresse (?token=) fait office de preuve. kuma : notification « Webhook » d'Uptime Kuma, corps JSON. Une panne ouvre un incident, un retour le ferme ; l'essai d'une notification est accepté et ignoré.",
+        "operationId": "postHookUptime",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "kuma"
+              ]
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reçu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "outcome"
+                  ],
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "recorded",
+                        "ignored"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/analytics": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglages du module de statistiques",
+        "description": "Exige users.write.",
+        "operationId": "getAdminModuleAnalytics",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Enregistrer le module de statistiques",
+        "description": "Demande aussi une vérification. Exige users.write.",
+        "operationId": "putAdminModuleAnalytics",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsSettingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/analytics/check": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Tester la connexion",
+        "description": "Demande une vérification à la tâche de fond : la requête n'appelle pas Umami. Exige users.write.",
+        "operationId": "postAdminModuleAnalyticsCheck",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/analytics/websites": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Sites d'Umami",
+        "description": "Tels que la dernière vérification les a vus. Exige projects.write : sert aussi au choix d'un site pour un projet.",
+        "operationId": "getAdminModuleAnalyticsWebsites",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsWebsitePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/projects/{id}/analytics": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Sites de statistiques d'un projet",
+        "description": "Exige projects.read.",
+        "operationId": "getAdminProjectAnalytics",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAnalytics"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lier des sites de statistiques à un projet",
+        "description": "Remplace la liste ; une production au plus, c'est elle que voit le client. Exige projects.write.",
+        "operationId": "putAdminProjectAnalytics",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAnalytics"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectAnalyticsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/client/projects/{id}/statistics": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Statistiques du site d'un projet",
+        "description": "Lues dans le cache local, jamais chez le service pendant la requête. Une vue absente devient une demande servie par la tâche de fond : status pending, relire. Une période personnalisée couvre 24 mois au plus ; un compte en demande 20 par heure au plus. 404 pour un projet d'un autre client, un module inactif ou un projet sans site de production.",
+        "operationId": "getClientProjectStatistics",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Statistics"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "month",
+                "prev_month",
+                "12m",
+                "custom"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Avec period=custom."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Avec period=custom."
+          }
+        ]
+      }
+    },
+    "/api/v1/client/projects/{id}/statistics/active": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Visiteurs du moment",
+        "description": "Relevés chaque minute par la tâche tant qu'un écran les lit.",
+        "operationId": "getClientProjectStatisticsActive",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveVisitors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9529,7 +10437,9 @@
           "budget",
           "workload",
           "team",
-          "activity"
+          "activity",
+          "projects_by_status",
+          "months"
         ],
         "properties": {
           "projects": {
@@ -9573,6 +10483,20 @@
             "description": "Activite de l'annee civile en cours, precalculee. Un element par jour actif, dans l'ordre ; un jour absent est un jour sans activite.",
             "items": {
               "$ref": "#/components/schemas/DayActivity"
+            }
+          },
+          "projects_by_status": {
+            "type": "array",
+            "description": "Projets par statut, pour la barre de la tuile des projets.",
+            "items": {
+              "$ref": "#/components/schemas/StatusCount"
+            }
+          },
+          "months": {
+            "type": "array",
+            "description": "Les douze derniers mois, le plus ancien d'abord : les courbes des tuiles des clients et des heures vendues.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardMonth"
             }
           }
         }
@@ -15063,7 +15987,8 @@
           "logo_url",
           "last_deployment",
           "next_step",
-          "team"
+          "team",
+          "statistics"
         ],
         "properties": {
           "id": {
@@ -15152,6 +16077,10 @@
               "$ref": "#/components/schemas/PortalContact"
             },
             "description": "Le chargé de compte d'abord, puis l'équipe du projet."
+          },
+          "statistics": {
+            "type": "boolean",
+            "description": "Module de statistiques actif et site de production lié : la page « Statistiques » existe."
           }
         }
       },
@@ -16738,6 +17667,1412 @@
           },
           "retention_days": {
             "type": "integer"
+          }
+        }
+      },
+      "PortalTicketStats": {
+        "type": "object",
+        "required": [
+          "received",
+          "in_progress",
+          "ready",
+          "resolved"
+        ],
+        "properties": {
+          "received": {
+            "type": "integer"
+          },
+          "in_progress": {
+            "type": "integer"
+          },
+          "ready": {
+            "type": "integer"
+          },
+          "resolved": {
+            "type": "integer"
+          }
+        }
+      },
+      "PortalActivityItem": {
+        "type": "object",
+        "required": [
+          "kind",
+          "at",
+          "title",
+          "project",
+          "ref_id",
+          "number"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deliverable_submitted",
+              "deliverable_validated",
+              "milestone_reached",
+              "deployment",
+              "ticket_replied"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "ref_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer"
+          }
+        }
+      },
+      "PortalDashboard": {
+        "type": "object",
+        "required": [
+          "progress_average",
+          "active_projects",
+          "deliverables_pending",
+          "validated_this_month",
+          "tickets_resolved_this_month",
+          "next_milestone",
+          "projects",
+          "tickets",
+          "activity",
+          "focus",
+          "focus_tickets",
+          "actions",
+          "ticket_days"
+        ],
+        "properties": {
+          "progress_average": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Moyenne de l'avancement des projets en cours, nulle sans projet en cours."
+          },
+          "active_projects": {
+            "type": "integer"
+          },
+          "deliverables_pending": {
+            "type": "integer"
+          },
+          "validated_this_month": {
+            "type": "integer"
+          },
+          "tickets_resolved_this_month": {
+            "type": "integer"
+          },
+          "next_milestone": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "title",
+                  "due_on",
+                  "project"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "due_on": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date"
+                  },
+                  "project": {
+                    "$ref": "#/components/schemas/DeliverableRef"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalProject"
+            }
+          },
+          "tickets": {
+            "$ref": "#/components/schemas/PortalTicketStats"
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalActivityItem"
+            },
+            "description": "L'historique du projet suivi, 20 entrées au plus, de la plus récente à la plus ancienne."
+          },
+          "focus": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PortalProjectDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Le projet suivi : celui demandé par project_id, ou le plus récemment actif."
+          },
+          "focus_tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalTicket"
+            },
+            "description": "Les 10 demandes du projet suivi les plus récemment actives."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalAction"
+            },
+            "description": "Livrables à valider et projets en attente de retour, tous projets confondus."
+          },
+          "ticket_days": {
+            "type": "array",
+            "description": "Demandes résolues par jour, du plus ancien à aujourd'hui ; un jour sans rien vaut zéro. Trente-six jours : trente affichés, et six pour amorcer le lissage du bord gauche.",
+            "items": {
+              "$ref": "#/components/schemas/PortalTicketDay"
+            }
+          }
+        }
+      },
+      "PortalAction": {
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "project",
+          "ref_id",
+          "since",
+          "overdue"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deliverable",
+              "project_waiting"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "ref_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Attend depuis plus de trois jours."
+          }
+        }
+      },
+      "PortalTicketDay": {
+        "type": "object",
+        "required": [
+          "day",
+          "resolved"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "resolved": {
+            "type": "integer"
+          }
+        }
+      },
+      "StatusCount": {
+        "type": "object",
+        "required": [
+          "status",
+          "projects"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "cadrage",
+              "production",
+              "attente",
+              "livre",
+              "hebergement"
+            ]
+          },
+          "projects": {
+            "type": "integer"
+          }
+        }
+      },
+      "DashboardMonth": {
+        "type": "object",
+        "required": [
+          "month",
+          "clients_total",
+          "hours_sold"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "description": "Premier jour du mois."
+          },
+          "clients_total": {
+            "type": "integer",
+            "description": "Clients existants à la fin du mois."
+          },
+          "hours_sold": {
+            "type": "number",
+            "description": "Heures vendues sur les projets ouverts dans le mois."
+          }
+        }
+      },
+      "Module": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "provider",
+          "description",
+          "enabled",
+          "state"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "uptime",
+              "analytics"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "pending",
+              "ok",
+              "error"
+            ],
+            "description": "off : inactif ; pending : actif, pas encore relevé ; error : la dernière relève a échoué."
+          }
+        }
+      },
+      "ModuleList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Module"
+            }
+          }
+        }
+      },
+      "UptimeStatus": {
+        "type": "object",
+        "required": [
+          "state",
+          "last_poll_at",
+          "last_poll_error",
+          "poll_pending",
+          "webhook_last_at",
+          "monitors",
+          "up",
+          "down"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "pending",
+              "ok",
+              "error"
+            ]
+          },
+          "last_poll_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_poll_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "poll_pending": {
+            "type": "boolean",
+            "description": "Une relève demandée n'a pas encore eu lieu."
+          },
+          "webhook_last_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Dernier évènement reçu par le webhook."
+          },
+          "monitors": {
+            "type": "integer",
+            "description": "Sites vus à la dernière relève."
+          },
+          "up": {
+            "type": "integer"
+          },
+          "down": {
+            "type": "integer"
+          }
+        }
+      },
+      "UptimeSettings": {
+        "type": "object",
+        "description": "Réglages du module de disponibilité. La clé d'API n'en sort jamais. KUMA_URL et KUMA_API_KEY priment et sont signalées.",
+        "required": [
+          "enabled",
+          "provider",
+          "base_url",
+          "base_url_from_env",
+          "api_key_set",
+          "api_key_from_env",
+          "poll_minutes",
+          "webhook_url",
+          "status"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "kuma"
+            ]
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "base_url_from_env": {
+            "type": "boolean"
+          },
+          "api_key_set": {
+            "type": "boolean"
+          },
+          "api_key_from_env": {
+            "type": "boolean"
+          },
+          "poll_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "webhook_url": {
+            "type": "string",
+            "description": "Adresse à déclarer dans Kuma comme notification « Webhook » (corps JSON)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/UptimeStatus"
+          }
+        }
+      },
+      "UptimeSettingsRequest": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "base_url",
+          "poll_minutes"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Adresse de l'instance Kuma, sans /metrics."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absente ou nulle : la clé en base est gardée. Vide : elle est effacée."
+          },
+          "poll_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        }
+      },
+      "UptimeMonitor": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "url",
+          "hostname",
+          "status",
+          "response_ms",
+          "cert_days",
+          "cert_valid",
+          "present",
+          "status_changed_at",
+          "last_seen_at",
+          "uptime_30d",
+          "avg_ping_30d",
+          "projects"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "pending",
+              "maintenance"
+            ]
+          },
+          "response_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cert_days": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cert_valid": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "present": {
+            "type": "boolean",
+            "description": "Vu à la dernière relève. Faux : le site a disparu de Kuma, son historique reste."
+          },
+          "status_changed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uptime_30d": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Disponibilité sur trente jours, en %. Les relèves ratées n'y entrent pas."
+          },
+          "avg_ping_30d": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Projets liés."
+          }
+        }
+      },
+      "UptimeMonitorPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UptimeMonitor"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "UptimeIncident": {
+        "type": "object",
+        "required": [
+          "id",
+          "monitor_id",
+          "monitor_name",
+          "started_at",
+          "ended_at",
+          "duration_seconds",
+          "message",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monitor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monitor_name": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Nulle tant que la panne dure."
+          },
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "webhook",
+              "poll"
+            ]
+          }
+        }
+      },
+      "UptimeIncidentPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UptimeIncident"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "UptimeDay": {
+        "type": "object",
+        "required": [
+          "day",
+          "uptime"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "uptime": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProjectUptimeSite": {
+        "type": "object",
+        "required": [
+          "environment",
+          "monitor_id",
+          "name",
+          "url",
+          "status",
+          "response_ms",
+          "cert_days",
+          "cert_valid",
+          "present",
+          "status_changed_at",
+          "uptime_30d",
+          "days"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "monitor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "pending",
+              "maintenance"
+            ]
+          },
+          "response_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cert_days": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cert_valid": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "status_changed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uptime_30d": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UptimeDay"
+            },
+            "description": "Trente jours, du plus ancien à aujourd'hui."
+          }
+        }
+      },
+      "ProjectUptime": {
+        "type": "object",
+        "required": [
+          "module_enabled",
+          "sites",
+          "incidents"
+        ],
+        "properties": {
+          "module_enabled": {
+            "type": "boolean"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectUptimeSite"
+            }
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UptimeIncident"
+            },
+            "description": "Les cinq derniers incidents des sites du projet."
+          }
+        }
+      },
+      "ProjectUptimeRequest": {
+        "type": "object",
+        "required": [
+          "sites"
+        ],
+        "properties": {
+          "sites": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": [
+                "monitor_id",
+                "environment"
+              ],
+              "properties": {
+                "monitor_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "prod",
+                    "preprod"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AnalyticsStatus": {
+        "type": "object",
+        "required": [
+          "state",
+          "last_check_at",
+          "last_check_error",
+          "last_check_note",
+          "check_pending",
+          "websites",
+          "linked"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "pending",
+              "ok",
+              "error"
+            ]
+          },
+          "last_check_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_check_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_check_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ce que la vérification a remarqué sans échouer : une version d'Umami qui change."
+          },
+          "check_pending": {
+            "type": "boolean"
+          },
+          "websites": {
+            "type": "integer"
+          },
+          "linked": {
+            "type": "integer",
+            "description": "Sites liés à au moins un projet."
+          }
+        }
+      },
+      "AnalyticsSettings": {
+        "type": "object",
+        "description": "Réglages du module de statistiques. Aucun secret n'en sort. UMAMI_* priment et sont signalées.",
+        "required": [
+          "enabled",
+          "provider",
+          "base_url",
+          "base_url_from_env",
+          "auth_mode",
+          "auth_from_env",
+          "username",
+          "password_set",
+          "api_key_set",
+          "api_version",
+          "version_pinned",
+          "cache_minutes",
+          "status"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "umami"
+            ]
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "base_url_from_env": {
+            "type": "boolean"
+          },
+          "auth_mode": {
+            "type": "string",
+            "enum": [
+              "login",
+              "api_key"
+            ]
+          },
+          "auth_from_env": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password_set": {
+            "type": "boolean"
+          },
+          "api_key_set": {
+            "type": "boolean"
+          },
+          "api_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2,
+              3
+            ],
+            "description": "Version majeure lue ou choisie ; 0 inconnue."
+          },
+          "version_pinned": {
+            "type": "boolean",
+            "description": "Choisie à la main : la détection ne la change pas."
+          },
+          "cache_minutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 15
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnalyticsStatus"
+          }
+        }
+      },
+      "AnalyticsSettingsRequest": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "base_url",
+          "auth_mode",
+          "username",
+          "api_version",
+          "cache_minutes"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Racine de l'instance, ou https://api.umami.is/v1 pour Umami Cloud."
+          },
+          "auth_mode": {
+            "type": "string",
+            "enum": [
+              "login",
+              "api_key"
+            ]
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent ou nul : gardé. Vide : effacé."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absente ou nulle : gardée. Vide : effacée."
+          },
+          "api_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2,
+              3
+            ],
+            "description": "0 : détection automatique ; 2 ou 3 : choix manuel, en secours."
+          },
+          "cache_minutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 15
+          }
+        }
+      },
+      "AnalyticsWebsite": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "domain",
+          "present",
+          "last_seen_at",
+          "projects"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AnalyticsWebsitePage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsWebsite"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "ProjectAnalyticsSite": {
+        "type": "object",
+        "required": [
+          "environment",
+          "website_id",
+          "name",
+          "domain",
+          "present"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "website_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProjectAnalytics": {
+        "type": "object",
+        "required": [
+          "module_enabled",
+          "sites"
+        ],
+        "properties": {
+          "module_enabled": {
+            "type": "boolean"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectAnalyticsSite"
+            }
+          }
+        }
+      },
+      "ProjectAnalyticsRequest": {
+        "type": "object",
+        "required": [
+          "sites"
+        ],
+        "properties": {
+          "sites": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": [
+                "website_id",
+                "environment"
+              ],
+              "properties": {
+                "website_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "prod",
+                    "preprod"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "StatisticsTotals": {
+        "type": "object",
+        "required": [
+          "visitors",
+          "visits",
+          "pageviews",
+          "bounces",
+          "total_time"
+        ],
+        "properties": {
+          "visitors": {
+            "type": "integer"
+          },
+          "visits": {
+            "type": "integer"
+          },
+          "pageviews": {
+            "type": "integer"
+          },
+          "bounces": {
+            "type": "integer"
+          },
+          "total_time": {
+            "type": "integer",
+            "description": "Temps total passé, en secondes."
+          }
+        }
+      },
+      "StatisticsPoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "pageviews",
+          "visitors"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "Heure locale de l'agence, sans décalage : 2026-10-12T00:00:00."
+          },
+          "pageviews": {
+            "type": "integer"
+          },
+          "visitors": {
+            "type": "integer"
+          }
+        }
+      },
+      "StatisticsRow": {
+        "type": "object",
+        "required": [
+          "value",
+          "count"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "StatisticsData": {
+        "type": "object",
+        "required": [
+          "period",
+          "totals",
+          "previous",
+          "series",
+          "pages",
+          "referrers",
+          "countries",
+          "devices",
+          "browsers",
+          "os",
+          "events"
+        ],
+        "properties": {
+          "period": {
+            "type": "object",
+            "required": [
+              "key",
+              "from",
+              "to",
+              "unit",
+              "timezone"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "hour",
+                  "day",
+                  "month"
+                ]
+              },
+              "timezone": {
+                "type": "string"
+              }
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatisticsTotals"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/StatisticsTotals"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsPoint"
+            }
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "referrers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "countries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "browsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "os": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatisticsRow"
+            }
+          }
+        }
+      },
+      "Statistics": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "website",
+          "fetched_at",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "pending",
+              "error"
+            ],
+            "description": "pending : la tâche prépare la vue, relire dans quelques secondes."
+          },
+          "message": {
+            "type": "string"
+          },
+          "website": {
+            "type": "object",
+            "required": [
+              "name",
+              "domain"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "domain": {
+                "type": "string"
+              }
+            }
+          },
+          "fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StatisticsData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ActiveVisitors": {
+        "type": "object",
+        "required": [
+          "visitors",
+          "fetched_at"
+        ],
+        "properties": {
+          "visitors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Nul tant que la tâche ne les a pas relevés."
+          },
+          "fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       }

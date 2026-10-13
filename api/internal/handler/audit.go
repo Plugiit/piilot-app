@@ -17,6 +17,7 @@ import (
 	"github.com/plugiit/piilot-app/api/internal/domain"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
 	"github.com/plugiit/piilot-app/api/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/zone"
 )
 
 // AuditService est le contrat du journal d'audit.
@@ -84,6 +85,11 @@ var auditRules = map[string]auditRule{
 	"POST /api/v1/admin/integrations/git/rotate":         {action: "secret.git_rotated"},
 	"PUT /api/v1/admin/integrations/mail":                {action: "settings.inbound_mail_updated", fields: []string{"address", "imap_enabled", "imap_host", "imap_username"}},
 	"POST /api/v1/admin/integrations/mail/rotate":        {action: "secret.inbound_webhook_rotated"},
+	"PUT /api/v1/admin/modules/uptime":                   {action: "settings.uptime_updated", fields: []string{"enabled", "base_url", "poll_minutes"}},
+	"POST /api/v1/admin/modules/uptime/rotate":           {action: "secret.uptime_webhook_rotated"},
+	"PUT /api/v1/admin/projects/:id/uptime":              {action: "project.uptime_sites_updated", target: "project", param: "id"},
+	"PUT /api/v1/admin/modules/analytics":                {action: "settings.analytics_updated", fields: []string{"enabled", "base_url", "auth_mode", "username", "api_version", "cache_minutes"}},
+	"PUT /api/v1/admin/projects/:id/analytics":           {action: "project.analytics_sites_updated", target: "project", param: "id"},
 	"POST /api/v1/admin/inbound-emails/:id/ticket":       {action: "inbound.ticket_created", target: "inbound_email", param: "id", fields: []string{"project_id"}},
 	"POST /api/v1/admin/inbound-emails/:id/attach":       {action: "inbound.attached", target: "inbound_email", param: "id", fields: []string{"numero"}},
 	"POST /api/v1/admin/inbound-emails/:id/ignore":       {action: "inbound.dismissed", target: "inbound_email", param: "id"},
@@ -230,7 +236,7 @@ func auditFilters(c fiber.Ctx) (usecase.AuditFilters, error) {
 		if v == "" {
 			continue
 		}
-		t, err := time.ParseInLocation("2006-01-02", v, paris)
+		t, err := time.ParseInLocation("2006-01-02", v, zone.Location())
 		if err != nil {
 			return f, domain.ErrValidation.WithDetails(map[string]any{d.key: "Date attendue : AAAA-MM-JJ"})
 		}
@@ -239,15 +245,6 @@ func auditFilters(c fiber.Ctx) (usecase.AuditFilters, error) {
 	}
 	return f, nil
 }
-
-// paris : les bornes de dates sont celles de l'agence.
-var paris = func() *time.Location {
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}()
 
 // List rend une page du journal.
 func (h *Audit) List(c fiber.Ctx) error {
@@ -285,7 +282,7 @@ func (h *Audit) Export(c fiber.Ctx) error {
 	for _, it := range items {
 		details, _ := json.Marshal(it.Details)
 		_ = w.Write([]string{
-			it.At.In(paris).Format("2006-01-02 15:04:05"), csvCell(it.ActorEmail), it.Action, it.TargetType,
+			it.At.In(zone.Location()).Format("2006-01-02 15:04:05"), csvCell(it.ActorEmail), it.Action, it.TargetType,
 			csvCell(it.TargetID), it.IP, csvCell(it.UserAgent), csvCell(string(details)),
 		})
 	}
@@ -295,7 +292,7 @@ func (h *Audit) Export(c fiber.Ctx) error {
 	}
 
 	c.Set(fiber.HeaderContentType, "text/csv; charset=utf-8")
-	c.Set(fiber.HeaderContentDisposition, `attachment; filename="piilot-audit_`+time.Now().In(paris).Format("2006-01-02")+`.csv"`)
+	c.Set(fiber.HeaderContentDisposition, `attachment; filename="piilot-audit_`+time.Now().In(zone.Location()).Format("2006-01-02")+`.csv"`)
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	return c.Send(buf.Bytes())
 }

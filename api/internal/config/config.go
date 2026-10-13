@@ -86,6 +86,14 @@ type Config struct {
 	// E-mail entrant. Vides, il se regle dans Paramètres > E-mails entrants ;
 	// renseignees, elles priment et l'ecran les montre en lecture seule.
 	Inbound InboundEnv
+	// Fuseau de l'agence (APP_TIMEZONE) : « aujourd'hui », les semaines, les
+	// mois, les dates des e-mails et des exports. Europe/Paris par defaut.
+	Timezone *time.Location
+	// Module de disponibilite. Vides, il se regle dans Paramètres > Modules ;
+	// renseignees, elles priment et l'ecran les montre en lecture seule.
+	Uptime UptimeEnv
+	// Module de statistiques (Umami). Memes regles que le precedent.
+	Analytics AnalyticsEnv
 	// Retention du journal d'audit.
 	AuditRetention time.Duration
 
@@ -147,6 +155,16 @@ func Load() (Config, error) {
 			IMAPFolder:    env("INBOUND_IMAP_FOLDER", "INBOX"),
 			WebhookSecret: os.Getenv("INBOUND_WEBHOOK_SECRET"),
 		},
+		Analytics: AnalyticsEnv{
+			UmamiURL:      strings.TrimSpace(os.Getenv("UMAMI_URL")),
+			UmamiUsername: strings.TrimSpace(os.Getenv("UMAMI_USERNAME")),
+			UmamiPassword: os.Getenv("UMAMI_PASSWORD"),
+			UmamiAPIKey:   strings.TrimSpace(os.Getenv("UMAMI_API_KEY")),
+		},
+		Uptime: UptimeEnv{
+			KumaURL:    strings.TrimSpace(os.Getenv("KUMA_URL")),
+			KumaAPIKey: strings.TrimSpace(os.Getenv("KUMA_API_KEY")),
+		},
 		GitWebhookSecret: os.Getenv("GIT_WEBHOOK_SECRET"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
@@ -162,6 +180,24 @@ func Load() (Config, error) {
 	}
 	if cfg.Inbound.IMAPSecurity != "tls" && cfg.Inbound.IMAPSecurity != "none" {
 		return Config{}, fmt.Errorf("INBOUND_IMAP_SECURITY attend tls ou none (actuel : %q)", cfg.Inbound.IMAPSecurity)
+	}
+
+	tz := env("APP_TIMEZONE", "Europe/Paris")
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return Config{}, fmt.Errorf("APP_TIMEZONE attend un fuseau IANA comme Europe/Paris ou America/Montreal (actuel : %q)", tz)
+	}
+	cfg.Timezone = loc
+
+	if u := cfg.Analytics.UmamiURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+		return Config{}, fmt.Errorf("UMAMI_URL attend une adresse http(s) (actuel : %q)", u)
+	}
+	if cfg.Analytics.UmamiAPIKey != "" && cfg.Analytics.UmamiUsername != "" {
+		return Config{}, fmt.Errorf("UMAMI_API_KEY et UMAMI_USERNAME s'excluent : la clé pour Umami Cloud, l'identifiant pour une instance")
+	}
+
+	if u := cfg.Uptime.KumaURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+		return Config{}, fmt.Errorf("KUMA_URL attend une adresse http(s) (actuel : %q)", u)
 	}
 
 	if len(cfg.JWTSecret) < 32 {
@@ -360,6 +396,24 @@ func LoadBackup() (BackupConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// AnalyticsEnv est l'instance Umami fixee par l'environnement : une
+// instance par identifiant et mot de passe, ou Umami Cloud par cle d'API.
+type AnalyticsEnv struct {
+	UmamiURL      string
+	UmamiUsername string
+	UmamiPassword string
+	UmamiAPIKey   string
+}
+
+// AuthFromEnv dit si les identifiants viennent de l'environnement.
+func (e AnalyticsEnv) AuthFromEnv() bool { return e.UmamiUsername != "" || e.UmamiAPIKey != "" }
+
+// UptimeEnv est l'instance Uptime Kuma fixee par l'environnement.
+type UptimeEnv struct {
+	KumaURL    string
+	KumaAPIKey string
 }
 
 // InboundEnv est l'e-mail entrant fixe par l'environnement.

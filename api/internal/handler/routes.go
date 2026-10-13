@@ -25,6 +25,9 @@ type Deps struct {
 	Updates       *Updates
 	Backups       *Backups
 	Inbound       *Inbound
+	Uptime        *Uptime
+	Analytics     *Analytics
+	Modules       *Modules
 	Replies       *ReplyTemplates
 	Audit         *Audit
 	Accounts      *Accounts
@@ -77,6 +80,10 @@ func Register(app *fiber.App, deps Deps) {
 	// E-mails entrants pousses par un fournisseur : le jeton de l'adresse fait
 	// office de preuve.
 	v1.Post("/hooks/mail/:provider", deps.Inbound.Webhook)
+
+	// Changements d'etat pousses par le service de disponibilite : le jeton
+	// de l'adresse fait office de preuve.
+	v1.Post("/hooks/uptime/:provider", deps.Uptime.Webhook)
 }
 
 // registerClientRoutes monte le portail client.
@@ -88,8 +95,13 @@ func Register(app *fiber.App, deps Deps) {
 func registerClientRoutes(r fiber.Router, deps Deps) {
 	r.Use(deps.Guard.Authenticated, deps.Guard.RequireRole("client"))
 
+	r.Get("/dashboard", deps.Guard.RequirePermission("projects.read"), deps.Portal.Dashboard)
 	r.Get("/projects", deps.Guard.RequirePermission("projects.read"), deps.Portal.Projects)
 	r.Get("/projects/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.Project)
+	// Statistiques du site du projet : lues dans le cache local, jamais chez
+	// le service pendant la requete.
+	r.Get("/projects/:id/statistics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Statistics)
+	r.Get("/projects/:id/statistics/active", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Active)
 	r.Get("/deliverables/:id", deps.Guard.RequirePermission("deliverables.read"), deps.Portal.Deliverable)
 	r.Post("/deliverables/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Portal.Decide)
 	r.Get("/files/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.DownloadFile)
@@ -202,6 +214,23 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	mail.Post("/rotate", deps.Guard.RequirePermission("users.write"), deps.Inbound.Rotate)
 	mail.Post("/poll", deps.Guard.RequirePermission("users.write"), deps.Inbound.Poll)
 
+	// Modules : leur reglage aux admins.
+	r.Get("/modules", deps.Guard.RequirePermission("users.write"), deps.Modules.List)
+	upt := r.Group("/modules/uptime")
+	upt.Get("", deps.Guard.RequirePermission("users.write"), deps.Uptime.Settings)
+	upt.Put("", deps.Guard.RequirePermission("users.write"), deps.Uptime.UpdateSettings)
+	upt.Post("/rotate", deps.Guard.RequirePermission("users.write"), deps.Uptime.Rotate)
+	upt.Post("/poll", deps.Guard.RequirePermission("users.write"), deps.Uptime.Poll)
+	// Les sites : la liste du module, et le choix d'un site pour un projet.
+	upt.Get("/monitors", deps.Guard.RequirePermission("projects.write"), deps.Uptime.Monitors)
+	upt.Get("/incidents", deps.Guard.RequirePermission("users.write"), deps.Uptime.Incidents)
+
+	ana := r.Group("/modules/analytics")
+	ana.Get("", deps.Guard.RequirePermission("users.write"), deps.Analytics.Settings)
+	ana.Put("", deps.Guard.RequirePermission("users.write"), deps.Analytics.UpdateSettings)
+	ana.Post("/check", deps.Guard.RequirePermission("users.write"), deps.Analytics.Check)
+	ana.Get("/websites", deps.Guard.RequirePermission("projects.write"), deps.Analytics.Websites)
+
 	inbound := r.Group("/inbound-emails")
 	inbound.Get("", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Held)
 	inbound.Get("/:id", deps.Guard.RequirePermission("tickets.write"), deps.Inbound.Detail)
@@ -270,6 +299,10 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// sont montees, la plus specifique doit donc passer la premiere.
 	projects.Get("/favorites", deps.Guard.RequirePermission("projects.read"), deps.Projects.Favorites)
 	projects.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.Get)
+	projects.Get("/:id/uptime", deps.Guard.RequirePermission("projects.read"), deps.Uptime.Project)
+	projects.Put("/:id/uptime", deps.Guard.RequirePermission("projects.write"), deps.Uptime.SetProject)
+	projects.Get("/:id/analytics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Project)
+	projects.Put("/:id/analytics", deps.Guard.RequirePermission("projects.write"), deps.Analytics.SetProject)
 	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
 	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)
 	projects.Put("/:id/team", deps.Guard.RequirePermission("projects.write"), deps.Projects.SetTeam)

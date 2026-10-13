@@ -11,6 +11,69 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+type AnalyticsActive struct {
+	WebsiteID  uuid.UUID  `json:"website_id"`
+	Visitors   *int32     `json:"visitors"`
+	FetchedAt  *time.Time `json:"fetched_at"`
+	LastReadAt time.Time  `json:"last_read_at"`
+}
+
+type AnalyticsCache struct {
+	WebsiteID  uuid.UUID `json:"website_id"`
+	PeriodKey  string    `json:"period_key"`
+	Payload    []byte    `json:"payload"`
+	FetchedAt  time.Time `json:"fetched_at"`
+	LastReadAt time.Time `json:"last_read_at"`
+}
+
+type AnalyticsRequest struct {
+	ID          uuid.UUID  `json:"id"`
+	WebsiteID   uuid.UUID  `json:"website_id"`
+	PeriodKey   string     `json:"period_key"`
+	RequestedBy *uuid.UUID `json:"requested_by"`
+	RequestedAt time.Time  `json:"requested_at"`
+	ServedAt    *time.Time `json:"served_at"`
+	Error       *string    `json:"error"`
+}
+
+type AnalyticsSetting struct {
+	ID               int32      `json:"id"`
+	Enabled          bool       `json:"enabled"`
+	Provider         string     `json:"provider"`
+	BaseUrl          string     `json:"base_url"`
+	AuthMode         string     `json:"auth_mode"`
+	Username         string     `json:"username"`
+	PasswordEnc      []byte     `json:"password_enc"`
+	ApiKeyEnc        []byte     `json:"api_key_enc"`
+	TokenEnc         []byte     `json:"token_enc"`
+	ApiVersion       int16      `json:"api_version"`
+	VersionPinned    bool       `json:"version_pinned"`
+	CacheMinutes     int32      `json:"cache_minutes"`
+	LastCheckAt      *time.Time `json:"last_check_at"`
+	LastCheckError   *string    `json:"last_check_error"`
+	LastCheckNote    *string    `json:"last_check_note"`
+	CheckRequestedAt *time.Time `json:"check_requested_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+type AnalyticsSnapshot struct {
+	WebsiteID uuid.UUID `json:"website_id"`
+	Month     time.Time `json:"month"`
+	Payload   []byte    `json:"payload"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AnalyticsWebsite struct {
+	ID         uuid.UUID `json:"id"`
+	Provider   string    `json:"provider"`
+	ExternalID string    `json:"external_id"`
+	Name       string    `json:"name"`
+	Domain     string    `json:"domain"`
+	Present    bool      `json:"present"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type AppBackup struct {
 	ID         uuid.UUID  `json:"id"`
 	StartedAt  time.Time  `json:"started_at"`
@@ -32,6 +95,12 @@ type AppReleaseCheck struct {
 	Etag             string     `json:"etag"`
 	CheckRequestedAt *time.Time `json:"check_requested_at"`
 	NotifiedVersion  string     `json:"notified_version"`
+}
+
+type AppSetting struct {
+	ID        int32     `json:"id"`
+	Timezone  string    `json:"timezone"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type AppUpdateRequest struct {
@@ -108,6 +177,13 @@ type Client struct {
 	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
 }
 
+type ClientActivityMonth struct {
+	ClientID              uuid.UUID `json:"client_id"`
+	Month                 time.Time `json:"month"`
+	DeliverablesValidated int32     `json:"deliverables_validated"`
+	TicketsResolved       int32     `json:"tickets_resolved"`
+}
+
 type ClientInteraction struct {
 	ID         uuid.UUID  `json:"id"`
 	ClientID   uuid.UUID  `json:"client_id"`
@@ -118,6 +194,21 @@ type ClientInteraction struct {
 	ProjectID  *uuid.UUID `json:"project_id"`
 	Payload    []byte     `json:"payload"`
 	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type ClientTicketDay struct {
+	ClientID uuid.UUID `json:"client_id"`
+	Day      time.Time `json:"day"`
+	Resolved int32     `json:"resolved"`
+}
+
+type ClientTicketStat struct {
+	ClientID   uuid.UUID `json:"client_id"`
+	Received   int32     `json:"received"`
+	InProgress int32     `json:"in_progress"`
+	Ready      int32     `json:"ready"`
+	Resolved   int32     `json:"resolved"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type Contact struct {
@@ -330,6 +421,13 @@ type Project struct {
 	RepoUrl             string     `json:"repo_url"`
 }
 
+type ProjectAnalyticsWebsite struct {
+	ProjectID   uuid.UUID `json:"project_id"`
+	WebsiteID   uuid.UUID `json:"website_id"`
+	Environment string    `json:"environment"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type ProjectFavorite struct {
 	UserID    uuid.UUID `json:"user_id"`
 	ProjectID uuid.UUID `json:"project_id"`
@@ -377,6 +475,13 @@ type ProjectTemplateTask struct {
 	Priority    string    `json:"priority"`
 	OffsetDays  *int32    `json:"offset_days"`
 	Position    int32     `json:"position"`
+}
+
+type ProjectUptimeMonitor struct {
+	ProjectID   uuid.UUID `json:"project_id"`
+	MonitorID   uuid.UUID `json:"monitor_id"`
+	Environment string    `json:"environment"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type PullRequest struct {
@@ -586,6 +691,63 @@ type TimeTimer struct {
 	TaskID    *uuid.UUID `json:"task_id"`
 	Note      string     `json:"note"`
 	StartedAt time.Time  `json:"started_at"`
+}
+
+type UptimeDaily struct {
+	MonitorID     uuid.UUID `json:"monitor_id"`
+	Day           time.Time `json:"day"`
+	ChecksTotal   int32     `json:"checks_total"`
+	ChecksUp      int32     `json:"checks_up"`
+	ChecksDown    int32     `json:"checks_down"`
+	ChecksMissing int32     `json:"checks_missing"`
+	PingSum       int64     `json:"ping_sum"`
+	PingCount     int32     `json:"ping_count"`
+	PingMin       *int32    `json:"ping_min"`
+	PingMax       *int32    `json:"ping_max"`
+}
+
+type UptimeIncident struct {
+	ID              uuid.UUID  `json:"id"`
+	MonitorID       uuid.UUID  `json:"monitor_id"`
+	StartedAt       time.Time  `json:"started_at"`
+	EndedAt         *time.Time `json:"ended_at"`
+	DurationSeconds *int32     `json:"duration_seconds"`
+	Message         string     `json:"message"`
+	Source          string     `json:"source"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+type UptimeMonitor struct {
+	ID              uuid.UUID `json:"id"`
+	Provider        string    `json:"provider"`
+	ExternalKey     string    `json:"external_key"`
+	Name            string    `json:"name"`
+	Kind            string    `json:"kind"`
+	Url             string    `json:"url"`
+	Hostname        string    `json:"hostname"`
+	Status          int16     `json:"status"`
+	ResponseMs      *int32    `json:"response_ms"`
+	CertDays        *int32    `json:"cert_days"`
+	CertValid       *bool     `json:"cert_valid"`
+	Present         bool      `json:"present"`
+	StatusChangedAt time.Time `json:"status_changed_at"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type UptimeSetting struct {
+	ID              int32      `json:"id"`
+	Enabled         bool       `json:"enabled"`
+	Provider        string     `json:"provider"`
+	BaseUrl         string     `json:"base_url"`
+	ApiKeyEnc       []byte     `json:"api_key_enc"`
+	PollMinutes     int32      `json:"poll_minutes"`
+	WebhookSecret   string     `json:"webhook_secret"`
+	WebhookLastAt   *time.Time `json:"webhook_last_at"`
+	LastPollAt      *time.Time `json:"last_poll_at"`
+	LastPollError   *string    `json:"last_poll_error"`
+	PollRequestedAt *time.Time `json:"poll_requested_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type User struct {
