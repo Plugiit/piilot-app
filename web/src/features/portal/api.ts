@@ -1,4 +1,4 @@
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api, apiUrl, postFile, unwrap } from '@/lib/api'
 import type { PortalFile } from '@/types/api'
@@ -26,6 +26,21 @@ export function portalReviewQuery(id: string, token: string) {
     queryKey: portalKeys.review(id, token),
     queryFn: async () =>
       unwrap(await api.GET('/api/v1/public/deliverables/{id}/review', { params: { path: { id }, query: { token } } })),
+  })
+}
+
+/**
+ * L'accueil du portail, centre sur un projet : celui demande, ou le plus
+ * recemment actif. Relu au retour sur l'onglet : c'est l'ecran qu'on garde
+ * ouvert pour savoir ou l'on en est.
+ */
+export function portalDashboardQuery(projectId?: string) {
+  return queryOptions({
+    queryKey: [...portalKeys.all, 'dashboard', projectId ?? null] as const,
+    queryFn: async () =>
+      unwrap(await api.GET('/api/v1/client/dashboard', { params: { query: { project_id: projectId } } })),
+    refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   })
 }
 
