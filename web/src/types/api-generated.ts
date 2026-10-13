@@ -3390,6 +3390,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sites du client
+         * @description Les sites de production des projets du client : audience sur trente jours (Umami) et disponibilité sur trente jours (Uptime Kuma), lues dans les tables locales des modules. Une liste est vide quand son module est coupé.
+         */
+        get: operations["getClientSites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3648,6 +3668,8 @@ export interface components {
             logo_url: string | null;
             /** @description Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot. */
             repo_url: string;
+            /** @description Le site de production est surveillé, le module de statistiques est actif, mais aucun site Umami de production n'est lié : le client ne voit que la disponibilité. */
+            missing_statistics: boolean;
         };
         /** @description Projet etoile, tel que la barre laterale le montre : de quoi faire un lien et poser une pastille, rien de plus. */
         ProjectShortcut: {
@@ -6413,6 +6435,41 @@ export interface components {
             editorial: string;
             /** Format: date-time */
             sent_at: string | null;
+        };
+        AudiencePoint: {
+            /** @description Le jour, à l'heure locale de l'agence */
+            at: string;
+            /** Format: int64 */
+            visitors: number;
+        };
+        AudienceSite: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            domain: string;
+            project_ids: string[];
+            /**
+             * Format: int64
+             * @description Visiteurs sur les trente jours
+             */
+            visitors: number;
+            series: components["schemas"]["AudiencePoint"][];
+        };
+        PortalUptimeSite: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            name: string;
+            url: string;
+            /** @enum {string} */
+            status: "up" | "down" | "pending" | "maintenance";
+            /** @description En pourcentage, deux décimales ; nul tant qu'aucun contrôle n'a abouti sur la période */
+            uptime_30d: number | null;
+        };
+        ClientSites: {
+            audience: components["schemas"]["AudienceSite"][];
+            uptime: components["schemas"]["PortalUptimeSite"][];
         };
     };
     responses: {
@@ -12533,6 +12590,28 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getClientSites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientSites"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

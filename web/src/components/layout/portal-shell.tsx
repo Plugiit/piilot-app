@@ -1,9 +1,10 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowDown01Icon, CustomerSupportIcon, DashboardSquare01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { LogOut } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import logoUrl from '@/assets/sidebar/logo-mark.svg'
@@ -15,6 +16,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { portalSitesQuery } from '@/features/portal/api'
+import { AudienceBand, defaultSite } from '@/features/portal/audience-band'
 import { logout } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
@@ -77,6 +80,20 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
   const active = (to: PortalNavItem['to']) => to === section
   const wide = section === '/client'
 
+  // Le bandeau des sites. Sur la liste des projets : l'audience, le site le
+  // plus visite d'abord, un selecteur pour les autres. Sur la page d'un
+  // projet : son site seul, avec sa disponibilite ; sans statistiques, la
+  // disponibilite seule. Un choix vaut pour la page ou il a ete fait.
+  const projectPage = /^\/client\/projets(?:\/([^/]+))?\/?$/.exec(pathname)
+  const { data: clientSites } = useQuery({ ...portalSitesQuery, enabled: projectPage !== null })
+  const projectId = projectPage?.[1]
+  const allSites = clientSites?.audience ?? []
+  const sites = projectId === undefined ? allSites : allSites.filter((s) => s.project_ids.includes(projectId))
+  const uptime = projectId === undefined ? [] : (clientSites?.uptime ?? []).filter((u) => u.project_id === projectId)
+  const [choice, setChoice] = useState<{ path: string; site: string } | null>(null)
+  const selected = (choice?.path === pathname ? choice.site : defaultSite(sites)) ?? ''
+  const showAudience = projectPage !== null && (sites.length > 0 || uptime.length > 0)
+
   const links = nav.map(({ to, label }) => (
     <Link
       key={to}
@@ -131,6 +148,24 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
           {links}
         </nav>
       </header>
+
+      {/* La barre s'ouvre en douceur sur le bandeau, et se referme de meme. Il
+          defile avec la page : colle en haut, il mangerait l'ecran d'un
+          telephone. */}
+      <AnimatePresence initial={false}>
+        {showAudience && (
+          <motion.div
+            key="audience"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <AudienceBand sites={sites} uptime={uptime} selected={selected} onSelect={(site) => setChoice({ path: pathname, site })} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* La feuille va jusqu'au bas de la fenetre. Le tableau de bord la veut
           blanche et sans marge, il place lui-meme ses colonnes ; les autres
