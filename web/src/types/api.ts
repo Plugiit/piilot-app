@@ -283,6 +283,8 @@ export type AuditItem = components['schemas']['AuditItem']
 export type PortalDashboard = components['schemas']['PortalDashboard']
 export type PortalActivityItem = components['schemas']['PortalActivityItem']
 export type PortalAction = components['schemas']['PortalAction']
+export type PortalJourney = components['schemas']['PortalJourney']
+export type PortalJourneyStep = components['schemas']['PortalJourneyStep']
 
 // Modules et disponibilite des sites
 export type Module = components['schemas']['Module']

@@ -144,7 +144,7 @@ export function History({ items }: { items: PortalActivityItem[] }) {
       </div>
 
       {days.length === 0 ? (
-        <p className="text-[14px] text-[#111]/50">{q === '' ? 'Rien encore : l’activité du projet s’affichera ici.' : 'Rien ne correspond.'}</p>
+        <p className="text-[14px] text-[#111]/50">{q === '' ? 'Rien encore : l’activité de vos projets s’affichera ici.' : 'Rien ne correspond.'}</p>
       ) : (
         days.map((day) => (
           <section key={day.label} className="flex flex-col gap-3">

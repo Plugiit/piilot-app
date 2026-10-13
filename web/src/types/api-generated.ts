@@ -5843,7 +5843,7 @@ export interface components {
             } | null;
             projects: components["schemas"]["PortalProject"][];
             tickets: components["schemas"]["PortalTicketStats"];
-            /** @description L'historique du projet suivi, 20 entrées au plus, de la plus récente à la plus ancienne. */
+            /** @description L'historique du projet demandé (paramètre projet), ou de tous les projets du client : 20 entrées au plus, de la plus récente à la plus ancienne. */
             activity: components["schemas"]["PortalActivityItem"][];
             /** @description Le projet suivi : celui demandé par project_id, ou le plus récemment actif. */
             focus: components["schemas"]["PortalProjectDetail"] | null;
@@ -5853,6 +5853,8 @@ export interface components {
             actions: components["schemas"]["PortalAction"][];
             /** @description Demandes résolues par jour, du plus ancien à aujourd'hui ; un jour sans rien vaut zéro. Trente-six jours : trente affichés, et six pour amorcer le lissage du bord gauche. */
             ticket_days: components["schemas"]["PortalTicketDay"][];
+            /** @description Les étapes de chaque projet en cours, dans l'ordre de la liste des projets : les frises du tableau de bord. */
+            journeys: components["schemas"]["PortalJourney"][];
         };
         PortalAction: {
             /** @enum {string} */
@@ -6470,6 +6472,18 @@ export interface components {
         ClientSites: {
             audience: components["schemas"]["AudienceSite"][];
             uptime: components["schemas"]["PortalUptimeSite"][];
+        };
+        PortalJourneyStep: {
+            title: string;
+            /** Format: date */
+            due_on: string | null;
+            /** @enum {string} */
+            state: "done" | "late" | "upcoming";
+        };
+        PortalJourney: {
+            /** Format: uuid */
+            project_id: string;
+            steps: components["schemas"]["PortalJourneyStep"][];
         };
     };
     responses: {
