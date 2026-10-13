@@ -24,6 +24,8 @@ import {
   Ticket02Icon,
   UserCircleIcon,
   UserMultipleIcon,
+  Wrench01Icon,
+  FileChartLineIcon,
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { useRouterState } from '@tanstack/react-router'
@@ -89,6 +91,8 @@ export const MODULES: AppModule[] = [
         label: 'Production',
         items: [
           { icon: CheckmarkSquare02Icon, label: 'Tâches', to: '/pm/taches', permission: 'tasks.read' },
+          { icon: Wrench01Icon, label: 'Interventions', to: '/pm/interventions', permission: 'time.read' },
+          { icon: FileChartLineIcon, label: 'Rapports mensuels', to: '/pm/rapports', permission: 'reports.write' },
           {
             icon: Clock01Icon,
             label: 'Suivi du temps',
@@ -134,6 +138,7 @@ export const MODULES: AppModule[] = [
           { icon: Tag01Icon, label: 'Services', to: '/parametres/services' },
           { icon: LayoutTable01Icon, label: 'Modèles de projet', to: '/parametres/modeles' },
           { icon: TextIcon, label: 'Réponses types', to: '/parametres/reponses-types', permission: 'tickets.write' },
+          { icon: Wrench01Icon, label: 'Formules de maintenance', to: '/parametres/formules', permission: 'reports.write' },
         ],
       },
       {
