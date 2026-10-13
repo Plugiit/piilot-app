@@ -91,8 +91,8 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
   return (
     // Essai : la barre a la couleur de la marque. Sur le tableau de bord, le
     // fond aussi, pour que les coins arrondis de la feuille blanche s'y posent.
-    <div className={cn('flex min-h-screen flex-col', wide ? 'bg-brand' : 'bg-surface')}>
-      <header className="bg-brand sticky top-0 z-30">
+    <div className={cn('flex min-h-screen flex-col print:bg-white', wide ? 'bg-brand' : 'bg-surface')}>
+      <header className="bg-brand sticky top-0 z-30 print:hidden">
         <div className={cn('mx-auto flex h-10 items-center gap-2 px-4', wide ? 'max-w-none' : 'max-w-[1040px]')}>
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {/* Le motif seul, sans son carre, centre dans la barre. */}
