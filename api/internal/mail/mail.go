@@ -74,6 +74,9 @@ type view struct {
 
 	// Le destinataire peut repondre a l'e-mail : sa reponse rejoint le ticket.
 	CanReply bool
+
+	// Le rapport mensuel, pour son gabarit.
+	Report *ReportMail
 }
 
 // Invitation compose l'e-mail d'invitation.
