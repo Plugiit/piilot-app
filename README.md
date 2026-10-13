@@ -288,8 +288,9 @@ n'existe pas. Des tests d'isolation tournent à chaque intégration continue.
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** : suivi des projets, validation des livrables, documents partagés | ✅ En place |
 | **Portail client** : support et tickets | ✅ En place |
-| Module de disponibilité des sites (Uptime Kuma) | 🚧 En cours (1.3.0) |
-| Module de statistiques des sites (Umami), page « Statistiques » du portail | 🚧 En cours (1.3.0) |
+| Module de disponibilité des sites (Uptime Kuma) | ✅ En place |
+| Module de statistiques des sites (Umami), page « Statistiques » du portail | ✅ En place |
+| Journal des interventions, formules de maintenance, rapport mensuel | ✅ En place |
 
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
@@ -1059,6 +1060,43 @@ une requête :
 Un client ne voit que les sites de ses propres projets : pour un autre
 projet, un module coupé ou un projet sans site de production, la page
 répond « introuvable ».
+
+### Maintenance et rapport mensuel
+
+**Interventions.** Une intervention est une saisie de temps qualifiée : sa
+nature (contenu, correctif, mise à jour, support, autre), une note pour
+l'équipe, et, si elle est visible, ce que le client en lit. Le temps n'est
+saisi qu'une fois et compte aussi dans les rapports de temps. *Gestion de
+projet → Interventions* les montre mois par mois, avec, pour chaque projet,
+le temps consommé sur le temps inclus.
+
+**Formules.** *Paramètres → Formules de maintenance* : un temps inclus par
+mois, qui ne se reporte pas, et les sections du rapport. *Paramètres du
+projet → Maintenance* applique une formule à partir d'un mois ; en changer
+ne réécrit pas les mois passés. Seules les interventions comptent sur le
+temps inclus ; le dépassement s'affiche (« +35 min »), sans montant.
+
+**Rapport mensuel.** Le 1er de chaque mois, un brouillon est préparé pour
+chaque projet sous formule — en attendant, quelques jours au plus, la photo
+du mois d'Umami (*Paramètres → Formules de maintenance → Rapports
+mensuels*). Il réunit la disponibilité (Uptime Kuma), l'audience (Umami),
+les interventions et les mises en ligne ; une section sans données
+n'apparaît pas. Dans *Gestion de projet → Rapports mensuels*, l'agence le
+relit, écrit le mot du mois, le valide puis l'envoie.
+
+- **Figé** : un rapport repose sur les données copiées à sa génération. Un
+  rapport validé ne change pas sans repasser en brouillon ; un rapport envoyé
+  ne change plus jamais, la base le refuse.
+- **Destinataires** : les comptes du portail du client, moins ceux qu'on
+  exclut, plus des adresses ajoutées au projet (*Paramètres du projet →
+  Maintenance*).
+- **E-mail** : chiffres clés, incidents, interventions, pages et sources en
+  barres ; pas de graphique, les messageries n'affichent pas le SVG. Le
+  lien mène au rapport complet dans l'espace client, après connexion.
+- **PDF** : *Télécharger en PDF* sur le rapport, par l'impression du
+  navigateur.
+- **Envoi automatique** : prévu, désactivé. Activé, les brouillons du mois
+  sont validés et envoyés tels quels le jour choisi.
 
 ### Journal d'audit
 
