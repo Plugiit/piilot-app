@@ -167,13 +167,13 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
         )}
       </AnimatePresence>
 
-      {/* La feuille va jusqu'au bas de la fenetre. Le tableau de bord la veut
-          blanche et sans marge, il place lui-meme ses colonnes ; les autres
-          pages posent leurs cartes blanches sur le gris de la surface. */}
+      {/* La feuille, blanche, va jusqu'au bas de la fenetre. Le tableau de
+          bord la veut sans marge, il place lui-meme ses colonnes. */}
       <main
         className={cn(
           'flex w-full flex-1 flex-col overflow-hidden rounded-t-[20px] print:rounded-none',
-          wide ? 'bg-white' : 'bg-surface px-4 pt-4 pb-8 sm:pt-5',
+          'bg-white',
+          !wide && 'px-4 pt-4 pb-8 sm:pt-5',
         )}
       >
         {children}
