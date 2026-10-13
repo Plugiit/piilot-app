@@ -30,6 +30,7 @@ export function TabBar({
   params = {},
   layoutId,
   keepSearch = false,
+  compact = false,
 }: {
   tabs: Tab[]
   /** Vide par defaut : tous les ecrans a onglets n'ont pas de parametre d'adresse. */
@@ -43,6 +44,12 @@ export function TabBar({
    * les routes qui ne declarent pas ces parametres les refuseraient.
    */
   keepSearch?: boolean
+  /**
+   * Sous 1536px, les onglets perdent leur icone, une part de leur marge et
+   * deux points de corps : pour une barre qui en porte trop pour tenir
+   * autrement.
+   */
+  compact?: boolean
 }) {
   const matchRoute = useMatchRoute()
   const transition = useSlideTransition()
@@ -58,17 +65,18 @@ export function TabBar({
             to={tab.to}
             params={params}
             search={keepSearch ? (prev) => prev : undefined}
-            className="relative flex shrink-0 items-center gap-2 px-3.5 py-2"
+            className={cn('relative flex shrink-0 items-center gap-2 py-2', compact ? 'px-2 2xl:px-3.5' : 'px-3.5')}
           >
             <HugeiconsIcon
               icon={tab.icon}
               size={20}
               strokeWidth={1.6}
-              className={cn('shrink-0 transition-colors', active ? 'text-brand' : 'text-[#73757c]')}
+              className={cn('shrink-0 transition-colors', active ? 'text-brand' : 'text-[#73757c]', compact && 'hidden 2xl:block')}
             />
             <span
               className={cn(
-                'text-[16px] whitespace-nowrap transition-colors',
+                'whitespace-nowrap transition-colors',
+                compact ? 'text-[14px] 2xl:text-[16px]' : 'text-[16px]',
                 active ? 'font-medium text-brand' : 'text-[#73757c]',
               )}
             >

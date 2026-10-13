@@ -1,4 +1,5 @@
 import {
+  ChartLineData01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Calendar03Icon,
@@ -12,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { buttonVariants } from '@/components/ui/button'
 import { MILESTONE_STATE } from '@/features/milestones/format'
 import { portalFileUrl, portalProjectQuery } from '@/features/portal/api'
 import { fileSize, PORTAL_DELIVERABLE_STATUS, PORTAL_PROJECT_STATUS, since } from '@/features/portal/format'
@@ -51,7 +53,7 @@ function NotFound({ message }: { message?: string }) {
 
 function BackLink() {
   return (
-    <Link to="/client" className="flex items-center gap-1 text-[14px] text-[#73757c] hover:text-[#1b1b1b]">
+    <Link to="/client/projets" className="flex items-center gap-1 text-[14px] text-[#73757c] hover:text-[#1b1b1b]">
       <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
       Mes projets
     </Link>
@@ -83,7 +85,19 @@ function ClientProjectPage() {
                 {project.description !== '' && <p className="text-[15px] text-[#73757c]">{project.description}</p>}
               </div>
             </div>
-            <StatusPill label={status.label} color={status.color} pill={status.pill} />
+            <div className="flex flex-wrap items-center gap-2">
+              {project.statistics && (
+                <Link
+                  to="/client/projets/$id/statistiques"
+                  params={{ id: project.id }}
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                >
+                  <HugeiconsIcon icon={ChartLineData01Icon} size={14} strokeWidth={1.8} />
+                  Statistiques du site
+                </Link>
+              )}
+              <StatusPill label={status.label} color={status.color} pill={status.pill} />
+            </div>
           </div>
 
           {tracksSchedule(project.status) ? (
