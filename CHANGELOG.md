@@ -11,6 +11,46 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.3.0] — Modules : disponibilité et statistiques
+
+Piilot lit désormais la surveillance et l'audience des sites de l'agence — Uptime Kuma et Umami — sans jamais les appeler pendant une requête. Et le portail client s'ouvre sur un vrai tableau de bord.
+
+### Points forts
+
+- **Disponibilité des sites (Uptime Kuma)** : relève de `/metrics` toutes les 1 à 5 minutes, agrégats quotidiens gardés sans limite, incidents ouverts et fermés à la seconde par webhook — déduits des relèves à défaut. Un contrôle manquant ne compte ni pour ni contre la disponibilité.
+- **Statistiques des sites (Umami)** : une page « Statistiques » sur le portail, pour le site de production du projet — visiteurs, visites, pages vues, rebond, durée, comparés à la période précédente, courbe, pages, sources, pays, appareils, visiteurs du moment. Tout est servi depuis un cache local rempli par une tâche de fond.
+- **Tableau de bord du portail** repensé : quatre chiffres, un projet suivi mis en avant (onglets quand le client en a plusieurs), ses étapes, livrables, demandes et interlocuteurs, les actions requises et l'historique.
+- **Fuseau de l'agence** réglable : `APP_TIMEZONE` remplace l'Europe/Paris écrite en dur.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Paramètres › Modules** : les intégrations en cartes, chaque module sur sa page à onglets (réglages, sites, incidents). Adresse et clé chiffrées en base, « Tester la connexion » servi par la tâche de fond ; les variables `KUMA_*` et `UMAMI_*` priment et l'écran les montre en lecture seule.
+- **Umami** : instance auto-hébergée (compte, jeton renouvelé seul) ou Umami Cloud (clé d'API). Version 2.x ou 3.x détectée d'après les réponses, changement de version reconnu et signalé, choix manuel possible.
+- **Paramètres du projet › Disponibilité** et **› Statistiques** : lier un ou plusieurs sites, en production ou en préproduction, par une recherche qui s'ouvre au focus. Trente derniers jours, certificat, incidents ; un seul site de production par projet pour les statistiques.
+- **Tableau de bord** : les tuiles « Projets », « Clients » et « Heures vendues » portent leur graphique (statuts empilés, courbe cumulée, barres mensuelles). Plus d'ombre sur le jour choisi de l'agenda.
+- Les onglets des paramètres du projet passent en mode compact sous 1536 px pour tenir à 1024 px.
+- Après une mise à jour, les onglets ouverts se rechargent d'eux-mêmes au premier moment sûr, au lieu d'un bandeau.
+
+#### Portail client
+
+- Tableau de bord : avancement moyen, livrables à valider, demandes en cours (courbe lissée sur trente jours), prochaine échéance ; projet suivi avec ses étapes et livrables ; actions requises, en rouge passé trois jours.
+- *Projets* liste chaque projet avec son avancement et sa prochaine étape.
+- Barre de navigation orange, compacte, avec une icône par page.
+- Bouton **Statistiques du site** sur un projet dont le site de production est lié. Périodes prêtes (7 et 30 jours, mois en cours, mois précédent, 12 mois) ou personnalisées, vingt-quatre mois au plus.
+
+### Corrections
+
+- La fiche d'un projet du portail échouait quand le client n'avait pas de chargé de compte.
+
+### À savoir pour le déploiement
+
+- Migrations 000045 à 000049, en ajout : compteurs du tableau de bord du portail tenus par déclencheurs (avec un historique quotidien des demandes), tables du module de disponibilité, fuseau de l'agence recopié en base (`app_timezone()`), tables du module de statistiques (cache, demandes, visiteurs du moment, photo du mois).
+- Nouvelles variables, toutes facultatives : `APP_TIMEZONE` (Europe/Paris ; un fuseau inconnu empêche le démarrage), `KUMA_URL`, `KUMA_API_KEY`, `UMAMI_URL`, `UMAMI_USERNAME`, `UMAMI_PASSWORD`, `UMAMI_API_KEY`. Sans réglage, les modules restent éteints.
+- La clé d'API de Kuma, le mot de passe et la clé d'API d'Umami sont chiffrés avec une clé dérivée de `JWT_SECRET` : le changer oblige à les ressaisir.
+- Pour des incidents à la seconde, ajouter dans Kuma une notification *Webhook* vers l'adresse affichée dans Piilot.
+
 ## [1.2.0] — E-mail ↔ tickets · 2026-10-07
 
 Le client écrit un e-mail, Piilot en fait un ticket ; il répond à l'e-mail, sa réponse arrive sur le ticket. Et chaque geste sensible laisse une trace.
