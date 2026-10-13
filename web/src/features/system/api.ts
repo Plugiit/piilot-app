@@ -77,15 +77,16 @@ export function useRequestUpdate() {
 /**
  * Version du serveur, lue sur la sonde de vivacite.
  *
- * Relue au retour sur l'onglet et toutes les deux minutes : c'est ce qui dit a
- * un onglet reste ouvert qu'une nouvelle version a ete deployee pendant ce
- * temps.
+ * Relue au retour sur l'onglet et toutes les trente secondes : c'est ce qui
+ * dit a un onglet reste ouvert qu'une nouvelle version a ete deployee, pour
+ * qu'il se recharge de lui-meme. La sonde ne touche ni la base ni Redis :
+ * trente secondes ne coutent rien.
  */
 export const liveVersionQuery = queryOptions({
   queryKey: systemKeys.liveVersion,
   queryFn: async () => unwrap(await api.GET('/health/live')).version,
-  refetchInterval: 2 * 60_000,
+  refetchInterval: 30_000,
   refetchOnWindowFocus: true,
-  staleTime: 30_000,
+  staleTime: 15_000,
   retry: false,
 })
