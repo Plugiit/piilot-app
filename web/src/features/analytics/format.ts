@@ -89,3 +89,11 @@ export function referrerLabel(v: string): string {
 export function plainLabel(v: string): string {
   return v === '' ? 'Inconnu' : v
 }
+
+/** Un pas « 2026-10-12T14:00:00 », lu comme une heure locale. */
+export function localDate(at: string): Date {
+  const [d, t = '00:00:00'] = at.split('T')
+  const [y, m, day] = (d ?? '').split('-').map(Number)
+  const [h, min] = t.split(':').map(Number)
+  return new Date(y ?? 1970, (m ?? 1) - 1, day ?? 1, h ?? 0, min ?? 0)
+}
