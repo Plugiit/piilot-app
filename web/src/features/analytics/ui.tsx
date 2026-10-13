@@ -1,5 +1,7 @@
+import type { IconSvgElement } from '@hugeicons/react'
 import type { ReactNode } from 'react'
 
+import { PanelCard } from '@/components/panel-card'
 import { formatNumber, formatVariation } from '@/features/analytics/format'
 import type { StatisticsRow } from '@/types/api'
 
@@ -24,15 +26,24 @@ export function Legend({ color, label }: { color: string; label: string }) {
   )
 }
 
-export function Panel({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+/** Un panneau au chassis des cartes de l'admin : coque grise, titre, carte blanche. */
+export function Panel({
+  icon,
+  title,
+  aside,
+  children,
+  contentClassName,
+}: {
+  icon: IconSvgElement
+  title: string
+  aside?: ReactNode
+  children: ReactNode
+  contentClassName?: string
+}) {
   return (
-    <section className="flex flex-col gap-3 rounded-[14px] border border-[#e8e8e9] bg-white p-4 break-inside-avoid">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-medium text-[#1b1b1b]">{title}</h2>
-        {aside}
-      </header>
+    <PanelCard icon={icon} title={title} action={aside} className="break-inside-avoid" contentClassName={contentClassName}>
       {children}
-    </section>
+    </PanelCard>
   )
 }
 
@@ -40,10 +51,22 @@ export function Panel({ title, aside, children }: { title: string; aside?: React
  * Un classement : la valeur, son compte, et une barre proportionnelle au
  * premier de la liste, posee sous le texte.
  */
-export function TopList({ title, unit, rows, label }: { title: string; unit: string; rows: StatisticsRow[]; label: (v: string) => ReactNode }) {
+export function TopList({
+  icon,
+  title,
+  unit,
+  rows,
+  label,
+}: {
+  icon: IconSvgElement
+  title: string
+  unit: string
+  rows: StatisticsRow[]
+  label: (v: string) => ReactNode
+}) {
   const max = Math.max(1, ...rows.map((r) => r.count))
   return (
-    <Panel title={title} aside={<span className="text-[12px] text-[#8d8d8d]">{unit}</span>}>
+    <Panel icon={icon} title={title} aside={<span className="text-[12px] text-[#8d8d8d]">{unit}</span>}>
       {rows.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[#73757c]">Rien sur cette période.</p>
       ) : (
