@@ -1,7 +1,6 @@
 import {
   Alert02Icon,
   ArrowDown01Icon,
-  ArrowRight01Icon,
   ArrowUp01Icon,
   ArrowUpDownIcon,
   Calendar03Icon,
@@ -481,17 +480,18 @@ function ProgressRing({ value }: { value: number }) {
 /**
  * Carte d'un projet.
  *
- * Trois etages, comme la maquette : l'etat et l'equipe en haut, l'identite au
- * milieu, ce qu'on peut en faire en bas. Le titre porte le lien plutot que la
- * carte entiere — une carte cliquable avalerait le menu d'actions et
- * n'offrirait pas de cible au clic-milieu.
+ * L'etat et l'equipe en haut, l'identite au milieu, puis une ligne de reperes
+ * — echeance, priorite, budget, avancement. Toute la carte ouvre le projet :
+ * le lien du titre s'etend sur elle par un pseudo-element, ce qui garde le
+ * clic-milieu et la lecture d'un vrai lien ; le menu d'actions et l'equipe
+ * passent au-dessus et restent cliquables.
  */
 function ProjectCard({ project }: { project: Project }) {
   const drift = driftOf(project)
   const due = parseApiDate(project.due_on)
 
   return (
-    <article className="flex flex-col gap-3 rounded-[12px] border border-[#e8e8e9] bg-white p-3">
+    <article className="relative flex flex-col gap-3 rounded-[12px] border border-[#e8e8e9] bg-white p-3 transition-colors hover:border-[#d0d1d3] hover:bg-[#fcfcfc]">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           {/* Dit pourquoi la carte est en tete : l'ordre vient du serveur, qui
@@ -508,7 +508,7 @@ function ProjectCard({ project }: { project: Project }) {
           )}
           <StatusPill status={project.status} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="relative z-10 flex items-center gap-1">
           <TeamStack team={project.team} />
           <RowActions project={project} />
         </div>
@@ -521,7 +521,7 @@ function ProjectCard({ project }: { project: Project }) {
             <Link
               to="/pm/projets/$id"
               params={{ id: project.id }}
-              className="truncate text-[16px] leading-[1.5] font-medium text-[#1b1b1b] hover:underline"
+              className="truncate text-[16px] leading-[1.5] font-medium text-[#1b1b1b] after:absolute after:inset-0 after:rounded-[12px] focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-brand/30"
             >
               {project.name}
             </Link>
@@ -533,53 +533,43 @@ function ProjectCard({ project }: { project: Project }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {/* Un projet heberge n'a plus d'echeance : l'ancienne date de
-              livraison, passee, se lirait comme un retard. */}
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            {/* Un projet heberge n'a plus d'echeance : l'ancienne date de
+                livraison, passee, se lirait comme un retard. */}
+            {tracksSchedule(project.status) && (
+              <span
+                className={cn(
+                  'flex items-center gap-1 text-[12px] whitespace-nowrap',
+                  drift.late ? 'font-medium text-[#e5484d]' : 'text-[#73757c]',
+                )}
+              >
+                <HugeiconsIcon
+                  icon={drift.late ? Alert02Icon : Calendar03Icon}
+                  size={16}
+                  strokeWidth={1.6}
+                />
+                {due === null ? 'Sans échéance' : DATE_FORMAT.format(due)}
+              </span>
+            )}
+
+            <span className="flex items-center gap-1 text-[12px] whitespace-nowrap text-[#73757c]">
+              <HugeiconsIcon icon={Flag02Icon} size={16} strokeWidth={1.6} />
+              {PRIORITY[project.priority].label}
+            </span>
+
+            <BudgetMention project={project} />
+          </div>
+
           {tracksSchedule(project.status) && (
-            <span
-              className={cn(
-                'flex items-center gap-1 text-[12px] whitespace-nowrap',
-                drift.late ? 'font-medium text-[#e5484d]' : 'text-[#73757c]',
-              )}
-            >
-              <HugeiconsIcon
-                icon={drift.late ? Alert02Icon : Calendar03Icon}
-                size={16}
-                strokeWidth={1.6}
-              />
-              {due === null ? 'Sans échéance' : DATE_FORMAT.format(due)}
+            <span className="flex shrink-0 items-center gap-1 rounded-[8px] bg-[#f3f4f4] p-1.5 text-[12px] font-medium text-[#1b1b1b]">
+              <ProgressRing value={project.progress} />
+              <span className="tabular-nums">{project.progress} %</span>
             </span>
           )}
-
-          <span className="flex items-center gap-1 text-[12px] whitespace-nowrap text-[#73757c]">
-            <HugeiconsIcon icon={Flag02Icon} size={16} strokeWidth={1.6} />
-            {PRIORITY[project.priority].label}
-          </span>
-
-          <BudgetMention project={project} />
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <Button
-          asChild
-          variant="outline"
-          className="h-8 gap-2 rounded-[8px] px-2.5 text-[12px]"
-        >
-          <Link to="/pm/projets/$id" params={{ id: project.id }}>
-            Voir le détail
-            <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.6} />
-          </Link>
-        </Button>
-
-        {tracksSchedule(project.status) && (
-          <span className="flex shrink-0 items-center gap-1 rounded-[8px] bg-[#f3f4f4] p-1.5 text-[12px] font-medium text-[#1b1b1b]">
-            <ProgressRing value={project.progress} />
-            <span className="tabular-nums">{project.progress} %</span>
-          </span>
-        )}
-      </div>
     </article>
   )
 }
