@@ -168,4 +168,21 @@ func TestUnProjetQuiDepasseSesHeuresVenduesPasseHorsBudget(t *testing.T) {
 	if summary.Budget.Over < 1 {
 		t.Errorf("budget.over = %d, attendu au moins 1", summary.Budget.Over)
 	}
+
+	// Les courbes d'en-tete : douze mois, et un projet de plus dans la barre
+	// des statuts. Le projet vient d'etre cree : ses heures comptent pour le
+	// mois en cours.
+	if len(summary.Months) != 12 {
+		t.Fatalf("courbes : %d mois, attendu 12", len(summary.Months))
+	}
+	if last := summary.Months[11]; last.HoursSold < 10 || last.ClientsTotal < 1 {
+		t.Errorf("mois en cours : %+v", last)
+	}
+	counted := 0
+	for _, st := range summary.ProjectsByStatus {
+		counted += st.Projects
+	}
+	if float64(counted) != summary.Projects.Value {
+		t.Errorf("barre des statuts : %d projets, tuile : %v", counted, summary.Projects.Value)
+	}
 }
