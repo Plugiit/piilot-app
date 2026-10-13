@@ -1,10 +1,21 @@
-import { ArrowLeft01Icon } from '@hugeicons/core-free-icons'
+import {
+  ArrowLeft01Icon,
+  BrowserIcon,
+  ChartLineData01Icon,
+  ComputerIcon,
+  Cursor01Icon,
+  File02Icon,
+  Globe02Icon,
+  Link04Icon,
+  SmartPhone01Icon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
 
 import { Delta, Legend, Panel, TopList } from '@/features/analytics/ui'
+import { WorldMap } from '@/features/analytics/world-map'
 import { z } from 'zod'
 
 import { LineChart } from '@/components/line-chart'
@@ -309,6 +320,7 @@ function Dashboard({ data }: { data: StatisticsData }) {
       </div>
 
       <Panel
+        icon={ChartLineData01Icon}
         title="Visiteurs et pages vues"
         aside={
           <span className="flex items-center gap-4 text-[12px] text-[#73757c]">
@@ -333,29 +345,54 @@ function Dashboard({ data }: { data: StatisticsData }) {
         )}
       </Panel>
 
+      <CountriesPanel rows={data.countries} />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <TopList title="Pages les plus vues" unit="vues" rows={data.pages} label={(v) => (v === '' ? '/' : v)} />
-        <TopList title="Sources de trafic" unit="visiteurs" rows={data.referrers} label={referrerLabel} />
-        <TopList
-          title="Pays"
-          unit="visiteurs"
-          rows={data.countries}
-          label={(v) => {
-            const c = countryLabel(v)
-            return (
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden>{c.flag}</span>
-                <span className="truncate">{c.name}</span>
-              </span>
-            )
-          }}
-        />
-        <TopList title="Appareils" unit="visiteurs" rows={data.devices} label={deviceLabel} />
-        <TopList title="Navigateurs" unit="visiteurs" rows={data.browsers} label={browserLabel} />
-        <TopList title="Systèmes" unit="visiteurs" rows={data.os} label={plainLabel} />
-        {data.events.length > 0 && <TopList title="Évènements" unit="fois" rows={data.events} label={plainLabel} />}
+        <TopList icon={File02Icon} title="Pages les plus vues" unit="vues" rows={data.pages} label={(v) => (v === '' ? '/' : v)} />
+        <TopList icon={Link04Icon} title="Sources de trafic" unit="visiteurs" rows={data.referrers} label={referrerLabel} />
+        <TopList icon={SmartPhone01Icon} title="Appareils" unit="visiteurs" rows={data.devices} label={deviceLabel} />
+        <TopList icon={BrowserIcon} title="Navigateurs" unit="visiteurs" rows={data.browsers} label={browserLabel} />
+        <TopList icon={ComputerIcon} title="Systèmes" unit="visiteurs" rows={data.os} label={plainLabel} />
+        {data.events.length > 0 && <TopList icon={Cursor01Icon} title="Évènements" unit="fois" rows={data.events} label={plainLabel} />}
       </div>
     </div>
   )
 }
 
+/**
+ * Les pays : la carte du monde, et a cote les dix premiers. Umami en rend
+ * cinquante, pour que la carte ne s'arrete pas au dixieme.
+ */
+function CountriesPanel({ rows }: { rows: StatisticsData['countries'] }) {
+  const top = rows.slice(0, 10)
+  const max = Math.max(1, ...top.map((r) => r.count))
+  return (
+    <Panel
+      icon={Globe02Icon}
+      title="Pays"
+      aside={<span className="text-[12px] text-[#8d8d8d]">visiteurs</span>}
+      contentClassName="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+    >
+      <WorldMap rows={rows} />
+      {top.length === 0 ? (
+        <p className="py-6 text-center text-[13px] text-[#73757c]">Rien sur cette période.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {top.map((r) => {
+            const c = countryLabel(r.value)
+            return (
+              <li key={r.value} className="relative flex items-center gap-3 overflow-hidden rounded-[8px] px-2 py-1.5 text-[13px] text-[#1b1b1b]">
+                <span aria-hidden className="absolute inset-y-0 left-0 rounded-[8px] bg-[#fff2ea]" style={{ width: `${(r.count / max) * 100}%` }} />
+                <span className="relative flex min-w-0 flex-1 items-center gap-2">
+                  <span aria-hidden>{c.flag}</span>
+                  <span className="truncate">{c.name}</span>
+                </span>
+                <span className="relative shrink-0 tabular-nums">{formatNumber(r.count)}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Panel>
+  )
+}

@@ -1,3 +1,4 @@
+import { File02Icon, Link04Icon } from '@hugeicons/core-free-icons'
 import type { ReactNode } from 'react'
 
 import { LineChart } from '@/components/line-chart'
@@ -159,8 +160,8 @@ function Audience({ section }: { section: NonNullable<ReportData['audience']> })
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <TopList title="Pages les plus vues" unit="vues" rows={d.pages.slice(0, 6)} label={(v) => (v === '' ? '/' : v)} />
-        <TopList title="Sources de trafic" unit="visiteurs" rows={d.referrers.slice(0, 6)} label={referrerLabel} />
+        <TopList icon={File02Icon} title="Pages les plus vues" unit="vues" rows={d.pages.slice(0, 6)} label={(v) => (v === '' ? '/' : v)} />
+        <TopList icon={Link04Icon} title="Sources de trafic" unit="visiteurs" rows={d.referrers.slice(0, 6)} label={referrerLabel} />
       </div>
     </Section>
   )
