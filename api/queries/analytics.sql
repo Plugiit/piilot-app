@@ -209,3 +209,20 @@ SELECT EXISTS (
     JOIN analytics_settings s ON s.id = 1 AND s.enabled
     WHERE l.project_id = sqlc.arg('project_id') AND l.environment = 'prod'
 );
+
+-- name: PortalAudienceSites :many
+-- Les sites de production des projets du client, module actif, avec leurs
+-- trente jours en cache : le bandeau d'audience du portail. Un site lie a
+-- plusieurs projets ne compte qu'une fois.
+SELECT w.id, w.name, w.domain,
+       array_agg(DISTINCT p.id ORDER BY p.id)::uuid[] AS project_ids,
+       c.payload
+FROM project_analytics_websites l
+JOIN analytics_websites w ON w.id = l.website_id
+JOIN projects p ON p.id = l.project_id AND p.deleted_at IS NULL
+JOIN analytics_settings s ON s.id = 1 AND s.enabled
+JOIN analytics_cache c ON c.website_id = w.id AND c.period_key = '30d'
+WHERE p.client_id = sqlc.arg('client_id') AND l.environment = 'prod'
+GROUP BY w.id, w.name, w.domain, c.payload
+ORDER BY lower(w.name), w.id
+LIMIT 10;

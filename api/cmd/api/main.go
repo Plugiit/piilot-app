@@ -195,6 +195,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Maintenance:   handler.NewMaintenance(usecase.NewMaintenanceService(pool)),
 		Reports:       handler.NewReports(reportService),
 		Modules:       handler.NewModules(uptimeService, analyticsService),
+		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
 		Guard:         middleware.NewGuard(signer, authService),

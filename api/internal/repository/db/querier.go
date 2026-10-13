@@ -849,6 +849,10 @@ type Querier interface {
 	// Le site de production d'un projet du client, module actif. Rien pour le
 	// projet d'un autre client : c'est le controle d'acces.
 	PortalAnalyticsWebsite(ctx context.Context, arg PortalAnalyticsWebsiteParams) (PortalAnalyticsWebsiteRow, error)
+	// Les sites de production des projets du client, module actif, avec leurs
+	// trente jours en cache : le bandeau d'audience du portail. Un site lie a
+	// plusieurs projets ne compte qu'une fois.
+	PortalAudienceSites(ctx context.Context, clientID uuid.UUID) ([]PortalAudienceSitesRow, error)
 	// Tableau de bord du portail client. Chaque requete part du client de
 	// l'appelant, comme le reste du portail.
 	PortalClientOf(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error)
@@ -913,6 +917,10 @@ type Querier interface {
 	// etapes atteintes, mises en ligne, reponses de l'agence. Chaque source est
 	// bornee avant la fusion.
 	PortalRecentActivity(ctx context.Context, arg PortalRecentActivityParams) ([]PortalRecentActivityRow, error)
+	// Les sites de production surveilles des projets du client, module actif,
+	// et leurs agregats depuis une date : la disponibilite du portail. Un releve
+	// manque ne compte ni pour ni contre.
+	PortalUptimeSites(ctx context.Context, arg PortalUptimeSitesParams) ([]PortalUptimeSitesRow, error)
 	// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
 	// aux pieces jointes, et la route des logos ne doit servir qu'eux.
 	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)

@@ -30,6 +30,7 @@ type Deps struct {
 	Maintenance   *Maintenance
 	Reports       *Reports
 	Modules       *Modules
+	ClientSites   *ClientSites
 	Replies       *ReplyTemplates
 	Audit         *Audit
 	Accounts      *Accounts
@@ -104,6 +105,9 @@ func registerClientRoutes(r fiber.Router, deps Deps) {
 	// le service pendant la requete.
 	r.Get("/projects/:id/statistics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Statistics)
 	r.Get("/projects/:id/statistics/active", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Active)
+	// Bandeau des sites de la page Projets : audience et disponibilite, lues
+	// dans les tables locales des deux modules.
+	r.Get("/sites", deps.Guard.RequirePermission("projects.read"), deps.ClientSites.Get)
 	r.Get("/projects/:id/interventions", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.PortalInterventions)
 	r.Get("/projects/:id/reports", deps.Guard.RequirePermission("projects.read"), deps.Reports.PortalReports)
 	r.Get("/reports/:id", deps.Guard.RequirePermission("projects.read"), deps.Reports.PortalReport)

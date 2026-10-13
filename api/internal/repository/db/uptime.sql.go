@@ -547,6 +547,69 @@ func (q *Queries) OpenUptimeIncident(ctx context.Context, arg OpenUptimeIncident
 	return err
 }
 
+const portalUptimeSites = `-- name: PortalUptimeSites :many
+SELECT m.id, m.name, m.url, m.hostname, m.status, l.project_id,
+       coalesce(sum(d.checks_up), 0)::bigint AS checks_up,
+       coalesce(sum(d.checks_down), 0)::bigint AS checks_down
+FROM project_uptime_monitors l
+JOIN uptime_monitors m ON m.id = l.monitor_id AND m.present
+JOIN projects p ON p.id = l.project_id AND p.deleted_at IS NULL
+JOIN uptime_settings s ON s.id = 1 AND s.enabled
+LEFT JOIN uptime_daily d ON d.monitor_id = m.id AND d.day >= $1::date
+WHERE p.client_id = $2 AND l.environment = 'prod'
+GROUP BY m.id, m.name, m.url, m.hostname, m.status, l.project_id
+ORDER BY lower(m.name), m.id, l.project_id
+LIMIT 50
+`
+
+type PortalUptimeSitesParams struct {
+	Since    time.Time `json:"since"`
+	ClientID uuid.UUID `json:"client_id"`
+}
+
+type PortalUptimeSitesRow struct {
+	ID         uuid.UUID `json:"id"`
+	Name       string    `json:"name"`
+	Url        string    `json:"url"`
+	Hostname   string    `json:"hostname"`
+	Status     int16     `json:"status"`
+	ProjectID  uuid.UUID `json:"project_id"`
+	ChecksUp   int64     `json:"checks_up"`
+	ChecksDown int64     `json:"checks_down"`
+}
+
+// Les sites de production surveilles des projets du client, module actif,
+// et leurs agregats depuis une date : la disponibilite du portail. Un releve
+// manque ne compte ni pour ni contre.
+func (q *Queries) PortalUptimeSites(ctx context.Context, arg PortalUptimeSitesParams) ([]PortalUptimeSitesRow, error) {
+	rows, err := q.db.Query(ctx, portalUptimeSites, arg.Since, arg.ClientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PortalUptimeSitesRow{}
+	for rows.Next() {
+		var i PortalUptimeSitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Url,
+			&i.Hostname,
+			&i.Status,
+			&i.ProjectID,
+			&i.ChecksUp,
+			&i.ChecksDown,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordUptimePoll = `-- name: RecordUptimePoll :exec
 UPDATE uptime_settings
 SET last_poll_at = now(), last_poll_error = $1, poll_requested_at = NULL

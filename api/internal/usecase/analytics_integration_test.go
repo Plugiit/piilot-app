@@ -152,6 +152,10 @@ func TestLesStatistiquesPassentParLeCache(t *testing.T) {
 	if view.Data.Totals.Pageviews != 120 || view.Data.Previous.Visitors != 50 || len(view.Data.Series) != 1 || len(view.Data.Pages) != 2 || view.Website.Name != "Vitrine" {
 		t.Errorf("vue : %+v", view.Data)
 	}
+	// Le bandeau de la page Projets lit les memes trente jours.
+	if audience, err := svc.PortalAudience(ctx, client.userID); err != nil || len(audience.Sites) != 1 || audience.Sites[0].Name != "Vitrine" || len(audience.Sites[0].Series) != 1 || audience.Sites[0].ProjectIDs[0] != client.projectID {
+		t.Errorf("audience : %+v, %v", audience, err)
+	}
 
 	// Une periode jamais lue : une demande, servie au passage suivant. Le
 	// service n'est pas appele pendant la lecture.
@@ -217,6 +221,9 @@ func TestLesStatistiquesPassentParLeCache(t *testing.T) {
 	if _, err := svc.PortalActive(ctx, other.userID, client.projectID); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("autre client, visiteurs : %v", err)
 	}
+	if audience, err := svc.PortalAudience(ctx, other.userID); err != nil || len(audience.Sites) != 0 {
+		t.Errorf("autre client, audience : %+v, %v", audience, err)
+	}
 
 	// Module coupe : la page disparait.
 	if _, err := pool.Exec(ctx, `UPDATE analytics_settings SET enabled = false`); err != nil {
@@ -224,6 +231,9 @@ func TestLesStatistiquesPassentParLeCache(t *testing.T) {
 	}
 	if _, err := svc.PortalStatistics(ctx, client.userID, client.projectID, "30d"); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("module coupe : %v", err)
+	}
+	if audience, err := svc.PortalAudience(ctx, client.userID); err != nil || len(audience.Sites) != 0 {
+		t.Errorf("module coupe, audience : %+v, %v", audience, err)
 	}
 }
 
