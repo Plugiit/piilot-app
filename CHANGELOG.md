@@ -11,6 +11,37 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.4.1] — Portail : bandeau des sites
+
+Le portail montre à chaque client l'audience et la disponibilité de ses sites, dès la page Projets. Et les sites des équipes Umami sont enfin lus.
+
+### Points forts
+
+- **Bandeau des sites** sous la barre des pages Projets : les visiteurs sur trente jours, en escalier, un site à la fois. Sur la page d'un projet, son site seul et sa disponibilité (« En ligne · 99,98 % sur 30 jours ») ; sans statistiques, la disponibilité seule.
+- **Barre du portail épurée** et pages en pleine largeur, posées sur l'orange de la marque en feuille aux coins hauts arrondis.
+
+### Nouveautés
+
+#### Admin et Team
+
+- Un projet dont le site de production est surveillé mais sans site Umami lié le signale, sur sa fiche et dans son onglet Disponibilité : le client n'en voit que la disponibilité. Un lien mène au choix du site Umami.
+
+#### Portail client
+
+- Sur la liste des projets, le site le plus visité d'abord, un sélecteur pour les autres. Au survol, les visiteurs du jour.
+- La disponibilité est montrée à tous les clients dès qu'un site de production est surveillé ; hors ligne, l'étiquette passe en blanc plein pour se voir.
+- La barre perd son filet et son bouton « + » ; l'adresse du compte, avec un chevron, ouvre le menu. Survol et état actif ont le même style.
+
+### Corrections
+
+- Umami : seuls les sites du compte étaient lus, pas ceux de ses équipes. Les équipes sont désormais lues une à une, quelle que soit la version d'Umami et le rôle du compte dans l'équipe.
+
+### À savoir pour le déploiement
+
+- Aucune migration, aucune nouvelle variable.
+- Après la mise à jour, « Tester la connexion » dans *Paramètres › Modules › Umami* fait apparaître tout de suite les sites des équipes ; sinon, à la vérification horaire.
+- L'endpoint du bandeau est `GET /api/v1/client/sites`, lu dans les tables locales des deux modules.
+
 ## [1.4.0] — Maintenance et rapport mensuel · 2026-10-13
 
 Le temps passé en maintenance devient visible pour le client : les interventions sont tracées, comptées sur la formule du projet, et réunies chaque mois dans un rapport relu par l'agence avant d'être envoyé.
