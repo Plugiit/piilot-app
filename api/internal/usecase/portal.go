@@ -92,6 +92,9 @@ type PortalProjectDetail struct {
 	NextStep PortalNextStep `json:"next_step"`
 	// Le charge de compte d'abord, puis l'equipe du projet.
 	Team []PortalContact `json:"team"`
+	// Le module de statistiques est actif et un site de production est lie :
+	// la page « Statistiques » existe.
+	Statistics bool `json:"statistics"`
 }
 
 // PortalNextStep est l'encart « Prochaine etape » d'un projet.
@@ -325,6 +328,10 @@ func (s *PortalService) Project(ctx context.Context, userID, projectID uuid.UUID
 		out.Files = append(out.Files, PortalFile{
 			ID: f.ID, Filename: f.Filename, ContentType: f.ContentType, SizeBytes: f.SizeBytes, CreatedAt: f.CreatedAt,
 		})
+	}
+
+	if out.Statistics, err = s.q.PortalProjectHasStatistics(ctx, projectID); err != nil {
+		return PortalProjectDetail{}, fmt.Errorf("statistiques du projet : %w", err)
 	}
 
 	deployments, err := s.q.ListDeploymentsOfProject(ctx, db.ListDeploymentsOfProjectParams{ProjectID: projectID, MaxRows: 1})
