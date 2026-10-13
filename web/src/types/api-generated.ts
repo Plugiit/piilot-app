@@ -2666,6 +2666,334 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tableau de bord du portail
+         * @description Accueil du client : avancement moyen, livrables à valider, demandes par état, prochaine étape, projets, ce que l'agence a livré sur douze mois et le fil de l'activité récente. Tous les compteurs sont tenus par des déclencheurs, rien n'est recompté à l'affichage.
+         */
+        get: operations["getClientDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Modules activables
+         * @description Exige users.write.
+         */
+        get: operations["getAdminModules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/uptime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages du module de disponibilité
+         * @description Exige users.write.
+         */
+        get: operations["getAdminModuleUptime"];
+        /**
+         * Enregistrer le module de disponibilité
+         * @description Demande aussi une relève, pour que l'écran dise aussitôt si l'adresse et la clé conviennent. Exige users.write.
+         */
+        put: operations["putAdminModuleUptime"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/uptime/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nouveau secret de webhook
+         * @description Le webhook déclaré dans Kuma avec l'ancien cesse d'être accepté. Exige users.write.
+         */
+        post: operations["postAdminModuleUptimeRotate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/uptime/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tester la connexion
+         * @description Demande une relève, faite par la tâche de fond dans les quinze secondes : la requête n'appelle pas Kuma. Exige users.write.
+         */
+        post: operations["postAdminModuleUptimePoll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/uptime/monitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sites surveillés
+         * @description Avec leur disponibilité sur trente jours, lue sur les agrégats journaliers. Exige projects.write : sert aussi au choix d'un site pour un projet.
+         */
+        get: operations["getAdminModuleUptimeMonitors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/uptime/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Incidents de disponibilité
+         * @description Les plus récents d'abord. Exige users.write.
+         */
+        get: operations["getAdminModuleUptimeIncidents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/uptime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Disponibilité d'un projet
+         * @description Ses sites, leur frise sur trente jours, ses derniers incidents. Exige projects.read.
+         */
+        get: operations["getAdminProjectUptime"];
+        /**
+         * Lier des sites à un projet
+         * @description Remplace la liste ; vide, elle détache tout. Exige projects.write.
+         */
+        put: operations["putAdminProjectUptime"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hooks/uptime/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Changement d'état poussé par le service de disponibilité
+         * @description Sans session : le jeton de l'adresse (?token=) fait office de preuve. kuma : notification « Webhook » d'Uptime Kuma, corps JSON. Une panne ouvre un incident, un retour le ferme ; l'essai d'une notification est accepté et ignoré.
+         */
+        post: operations["postHookUptime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages du module de statistiques
+         * @description Exige users.write.
+         */
+        get: operations["getAdminModuleAnalytics"];
+        /**
+         * Enregistrer le module de statistiques
+         * @description Demande aussi une vérification. Exige users.write.
+         */
+        put: operations["putAdminModuleAnalytics"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/analytics/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tester la connexion
+         * @description Demande une vérification à la tâche de fond : la requête n'appelle pas Umami. Exige users.write.
+         */
+        post: operations["postAdminModuleAnalyticsCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/analytics/websites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sites d'Umami
+         * @description Tels que la dernière vérification les a vus. Exige projects.write : sert aussi au choix d'un site pour un projet.
+         */
+        get: operations["getAdminModuleAnalyticsWebsites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Sites de statistiques d'un projet
+         * @description Exige projects.read.
+         */
+        get: operations["getAdminProjectAnalytics"];
+        /**
+         * Lier des sites de statistiques à un projet
+         * @description Remplace la liste ; une production au plus, c'est elle que voit le client. Exige projects.write.
+         */
+        put: operations["putAdminProjectAnalytics"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/projects/{id}/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Statistiques du site d'un projet
+         * @description Lues dans le cache local, jamais chez le service pendant la requête. Une vue absente devient une demande servie par la tâche de fond : status pending, relire. Une période personnalisée couvre 24 mois au plus ; un compte en demande 20 par heure au plus. 404 pour un projet d'un autre client, un module inactif ou un projet sans site de production.
+         */
+        get: operations["getClientProjectStatistics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/projects/{id}/statistics/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Visiteurs du moment
+         * @description Relevés chaque minute par la tâche tant qu'un écran les lit.
+         */
+        get: operations["getClientProjectStatisticsActive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2815,6 +3143,10 @@ export interface components {
             team: components["schemas"]["TeamDay"][];
             /** @description Activite de l'annee civile en cours, precalculee. Un element par jour actif, dans l'ordre ; un jour absent est un jour sans activite. */
             activity: components["schemas"]["DayActivity"][];
+            /** @description Projets par statut, pour la barre de la tuile des projets. */
+            projects_by_status: components["schemas"]["StatusCount"][];
+            /** @description Les douze derniers mois, le plus ancien d'abord : les courbes des tuiles des clients et des heures vendues. */
+            months: components["schemas"]["DashboardMonth"][];
         };
         HealthLive: {
             /**
@@ -4633,6 +4965,8 @@ export interface components {
             next_step: components["schemas"]["PortalNextStep"];
             /** @description Le chargé de compte d'abord, puis l'équipe du projet. */
             team: components["schemas"]["PortalContact"][];
+            /** @description Module de statistiques actif et site de production lié : la page « Statistiques » existe. */
+            statistics: boolean;
         };
         PortalVersion: {
             numero: number;
@@ -5054,6 +5388,377 @@ export interface components {
             total: number;
             page: number;
             retention_days: number;
+        };
+        PortalTicketStats: {
+            received: number;
+            in_progress: number;
+            ready: number;
+            resolved: number;
+        };
+        PortalActivityItem: {
+            /** @enum {string} */
+            kind: "deliverable_submitted" | "deliverable_validated" | "milestone_reached" | "deployment" | "ticket_replied";
+            /** Format: date-time */
+            at: string;
+            title: string;
+            project: components["schemas"]["DeliverableRef"];
+            /** Format: uuid */
+            ref_id: string;
+            number: number;
+        };
+        PortalDashboard: {
+            /** @description Moyenne de l'avancement des projets en cours, nulle sans projet en cours. */
+            progress_average: number | null;
+            active_projects: number;
+            deliverables_pending: number;
+            validated_this_month: number;
+            tickets_resolved_this_month: number;
+            next_milestone: {
+                title: string;
+                /** Format: date */
+                due_on: string | null;
+                project: components["schemas"]["DeliverableRef"];
+            } | null;
+            projects: components["schemas"]["PortalProject"][];
+            tickets: components["schemas"]["PortalTicketStats"];
+            /** @description L'historique du projet suivi, 20 entrées au plus, de la plus récente à la plus ancienne. */
+            activity: components["schemas"]["PortalActivityItem"][];
+            /** @description Le projet suivi : celui demandé par project_id, ou le plus récemment actif. */
+            focus: components["schemas"]["PortalProjectDetail"] | null;
+            /** @description Les 10 demandes du projet suivi les plus récemment actives. */
+            focus_tickets: components["schemas"]["PortalTicket"][];
+            /** @description Livrables à valider et projets en attente de retour, tous projets confondus. */
+            actions: components["schemas"]["PortalAction"][];
+            /** @description Demandes résolues par jour, du plus ancien à aujourd'hui ; un jour sans rien vaut zéro. Trente-six jours : trente affichés, et six pour amorcer le lissage du bord gauche. */
+            ticket_days: components["schemas"]["PortalTicketDay"][];
+        };
+        PortalAction: {
+            /** @enum {string} */
+            kind: "deliverable" | "project_waiting";
+            title: string;
+            project: components["schemas"]["DeliverableRef"];
+            /** Format: uuid */
+            ref_id: string;
+            /** Format: date-time */
+            since: string | null;
+            /** @description Attend depuis plus de trois jours. */
+            overdue: boolean;
+        };
+        PortalTicketDay: {
+            /** Format: date */
+            day: string;
+            resolved: number;
+        };
+        StatusCount: {
+            /** @enum {string} */
+            status: "cadrage" | "production" | "attente" | "livre" | "hebergement";
+            projects: number;
+        };
+        DashboardMonth: {
+            /**
+             * Format: date
+             * @description Premier jour du mois.
+             */
+            month: string;
+            /** @description Clients existants à la fin du mois. */
+            clients_total: number;
+            /** @description Heures vendues sur les projets ouverts dans le mois. */
+            hours_sold: number;
+        };
+        Module: {
+            /** @enum {string} */
+            code: "uptime" | "analytics";
+            name: string;
+            provider: string;
+            description: string;
+            enabled: boolean;
+            /**
+             * @description off : inactif ; pending : actif, pas encore relevé ; error : la dernière relève a échoué.
+             * @enum {string}
+             */
+            state: "off" | "pending" | "ok" | "error";
+        };
+        ModuleList: {
+            items: components["schemas"]["Module"][];
+        };
+        UptimeStatus: {
+            /** @enum {string} */
+            state: "off" | "pending" | "ok" | "error";
+            /** Format: date-time */
+            last_poll_at: string | null;
+            last_poll_error: string | null;
+            /** @description Une relève demandée n'a pas encore eu lieu. */
+            poll_pending: boolean;
+            /**
+             * Format: date-time
+             * @description Dernier évènement reçu par le webhook.
+             */
+            webhook_last_at: string | null;
+            /** @description Sites vus à la dernière relève. */
+            monitors: number;
+            up: number;
+            down: number;
+        };
+        /** @description Réglages du module de disponibilité. La clé d'API n'en sort jamais. KUMA_URL et KUMA_API_KEY priment et sont signalées. */
+        UptimeSettings: {
+            enabled: boolean;
+            /** @enum {string} */
+            provider: "kuma";
+            base_url: string;
+            base_url_from_env: boolean;
+            api_key_set: boolean;
+            api_key_from_env: boolean;
+            poll_minutes: number;
+            /** @description Adresse à déclarer dans Kuma comme notification « Webhook » (corps JSON). */
+            webhook_url: string;
+            status: components["schemas"]["UptimeStatus"];
+        };
+        UptimeSettingsRequest: {
+            enabled: boolean;
+            /** @description Adresse de l'instance Kuma, sans /metrics. */
+            base_url: string;
+            /** @description Absente ou nulle : la clé en base est gardée. Vide : elle est effacée. */
+            api_key?: string | null;
+            poll_minutes: number;
+        };
+        UptimeMonitor: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            kind: string;
+            url: string;
+            hostname: string;
+            /** @enum {string} */
+            status: "up" | "down" | "pending" | "maintenance";
+            response_ms: number | null;
+            cert_days: number | null;
+            cert_valid: boolean | null;
+            /** @description Vu à la dernière relève. Faux : le site a disparu de Kuma, son historique reste. */
+            present: boolean;
+            /** Format: date-time */
+            status_changed_at: string;
+            /** Format: date-time */
+            last_seen_at: string;
+            /** @description Disponibilité sur trente jours, en %. Les relèves ratées n'y entrent pas. */
+            uptime_30d: number | null;
+            avg_ping_30d: number | null;
+            /** @description Projets liés. */
+            projects: string[];
+        };
+        UptimeMonitorPage: {
+            items: components["schemas"]["UptimeMonitor"][];
+            total: number;
+            page: number;
+        };
+        UptimeIncident: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            monitor_id: string;
+            monitor_name: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            ended_at: string | null;
+            /** @description Nulle tant que la panne dure. */
+            duration_seconds: number | null;
+            message: string;
+            /** @enum {string} */
+            source: "webhook" | "poll";
+        };
+        UptimeIncidentPage: {
+            items: components["schemas"]["UptimeIncident"][];
+            total: number;
+            page: number;
+        };
+        UptimeDay: {
+            /** Format: date */
+            day: string;
+            uptime: number | null;
+        };
+        ProjectUptimeSite: {
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            /** Format: uuid */
+            monitor_id: string;
+            name: string;
+            url: string;
+            /** @enum {string} */
+            status: "up" | "down" | "pending" | "maintenance";
+            response_ms: number | null;
+            cert_days: number | null;
+            cert_valid: boolean | null;
+            present: boolean;
+            /** Format: date-time */
+            status_changed_at: string;
+            uptime_30d: number | null;
+            /** @description Trente jours, du plus ancien à aujourd'hui. */
+            days: components["schemas"]["UptimeDay"][];
+        };
+        ProjectUptime: {
+            module_enabled: boolean;
+            sites: components["schemas"]["ProjectUptimeSite"][];
+            /** @description Les cinq derniers incidents des sites du projet. */
+            incidents: components["schemas"]["UptimeIncident"][];
+        };
+        ProjectUptimeRequest: {
+            sites: {
+                /** Format: uuid */
+                monitor_id: string;
+                /** @enum {string} */
+                environment: "prod" | "preprod";
+            }[];
+        };
+        AnalyticsStatus: {
+            /** @enum {string} */
+            state: "off" | "pending" | "ok" | "error";
+            /** Format: date-time */
+            last_check_at: string | null;
+            last_check_error: string | null;
+            /** @description Ce que la vérification a remarqué sans échouer : une version d'Umami qui change. */
+            last_check_note: string | null;
+            check_pending: boolean;
+            websites: number;
+            /** @description Sites liés à au moins un projet. */
+            linked: number;
+        };
+        /** @description Réglages du module de statistiques. Aucun secret n'en sort. UMAMI_* priment et sont signalées. */
+        AnalyticsSettings: {
+            enabled: boolean;
+            /** @enum {string} */
+            provider: "umami";
+            base_url: string;
+            base_url_from_env: boolean;
+            /** @enum {string} */
+            auth_mode: "login" | "api_key";
+            auth_from_env: boolean;
+            username: string;
+            password_set: boolean;
+            api_key_set: boolean;
+            /**
+             * @description Version majeure lue ou choisie ; 0 inconnue.
+             * @enum {integer}
+             */
+            api_version: 0 | 2 | 3;
+            /** @description Choisie à la main : la détection ne la change pas. */
+            version_pinned: boolean;
+            cache_minutes: number;
+            status: components["schemas"]["AnalyticsStatus"];
+        };
+        AnalyticsSettingsRequest: {
+            enabled: boolean;
+            /** @description Racine de l'instance, ou https://api.umami.is/v1 pour Umami Cloud. */
+            base_url: string;
+            /** @enum {string} */
+            auth_mode: "login" | "api_key";
+            username: string;
+            /** @description Absent ou nul : gardé. Vide : effacé. */
+            password?: string | null;
+            /** @description Absente ou nulle : gardée. Vide : effacée. */
+            api_key?: string | null;
+            /**
+             * @description 0 : détection automatique ; 2 ou 3 : choix manuel, en secours.
+             * @enum {integer}
+             */
+            api_version: 0 | 2 | 3;
+            cache_minutes: number;
+        };
+        AnalyticsWebsite: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            domain: string;
+            present: boolean;
+            /** Format: date-time */
+            last_seen_at: string;
+            projects: string[];
+        };
+        AnalyticsWebsitePage: {
+            items: components["schemas"]["AnalyticsWebsite"][];
+            total: number;
+            page: number;
+        };
+        ProjectAnalyticsSite: {
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            /** Format: uuid */
+            website_id: string;
+            name: string;
+            domain: string;
+            present: boolean;
+        };
+        ProjectAnalytics: {
+            module_enabled: boolean;
+            sites: components["schemas"]["ProjectAnalyticsSite"][];
+        };
+        ProjectAnalyticsRequest: {
+            sites: {
+                /** Format: uuid */
+                website_id: string;
+                /** @enum {string} */
+                environment: "prod" | "preprod";
+            }[];
+        };
+        StatisticsTotals: {
+            visitors: number;
+            visits: number;
+            pageviews: number;
+            bounces: number;
+            /** @description Temps total passé, en secondes. */
+            total_time: number;
+        };
+        StatisticsPoint: {
+            /** @description Heure locale de l'agence, sans décalage : 2026-10-12T00:00:00. */
+            at: string;
+            pageviews: number;
+            visitors: number;
+        };
+        StatisticsRow: {
+            value: string;
+            count: number;
+        };
+        StatisticsData: {
+            period: {
+                key: string;
+                /** Format: date */
+                from: string;
+                /** Format: date */
+                to: string;
+                /** @enum {string} */
+                unit: "hour" | "day" | "month";
+                timezone: string;
+            };
+            totals: components["schemas"]["StatisticsTotals"];
+            previous: components["schemas"]["StatisticsTotals"];
+            series: components["schemas"]["StatisticsPoint"][];
+            pages: components["schemas"]["StatisticsRow"][];
+            referrers: components["schemas"]["StatisticsRow"][];
+            countries: components["schemas"]["StatisticsRow"][];
+            devices: components["schemas"]["StatisticsRow"][];
+            browsers: components["schemas"]["StatisticsRow"][];
+            os: components["schemas"]["StatisticsRow"][];
+            events: components["schemas"]["StatisticsRow"][];
+        };
+        Statistics: {
+            /**
+             * @description pending : la tâche prépare la vue, relire dans quelques secondes.
+             * @enum {string}
+             */
+            status: "ready" | "pending" | "error";
+            message: string;
+            website: {
+                name: string;
+                domain: string;
+            };
+            /** Format: date-time */
+            fetched_at: string | null;
+            data: components["schemas"]["StatisticsData"] | null;
+        };
+        ActiveVisitors: {
+            /** @description Nul tant que la tâche ne les a pas relevés. */
+            visitors: number | null;
+            /** Format: date-time */
+            fetched_at: string | null;
         };
     };
     responses: {
@@ -9996,6 +10701,505 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getClientDashboard: {
+        parameters: {
+            query?: {
+                /** @description Projet à suivre. Absent : le plus récemment actif. Un projet d'un autre client répond 404. */
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tableau de bord */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDashboard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminModules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleUptime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminModuleUptime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UptimeSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminModuleUptimeRotate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postAdminModuleUptimePoll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleUptimeMonitors: {
+        parameters: {
+            query?: {
+                /** @description Filtre sur le nom ou l'adresse. */
+                q?: string;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeMonitorPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleUptimeIncidents: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptimeIncidentPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminProjectUptime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectUptime"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectUptime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectUptimeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectUptime"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postHookUptime: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                provider: "kuma";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Reçu */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        outcome: "recorded" | "ignored";
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminModuleAnalytics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminModuleAnalytics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminModuleAnalyticsCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleAnalyticsWebsites: {
+        parameters: {
+            query?: {
+                q?: string;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsWebsitePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminProjectAnalytics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAnalytics"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectAnalytics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectAnalyticsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAnalytics"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getClientProjectStatistics: {
+        parameters: {
+            query?: {
+                period?: "7d" | "30d" | "month" | "prev_month" | "12m" | "custom";
+                /** @description Avec period=custom. */
+                from?: string;
+                /** @description Avec period=custom. */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Statistics"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getClientProjectStatisticsActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActiveVisitors"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

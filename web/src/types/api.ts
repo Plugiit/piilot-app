@@ -180,6 +180,8 @@ export type Attachment = components['schemas']['Attachment']
 
 /** Chiffres d'en-tete du module PM, avec leur evolution sur trente jours. */
 export type DashboardMetric = components['schemas']['Metric']
+export type DashboardMonth = components['schemas']['DashboardMonth']
+export type StatusCount = components['schemas']['StatusCount']
 
 /**
  * Une ligne du panneau de notifications.
@@ -278,3 +280,23 @@ export type InboundSettings = components['schemas']['InboundSettings']
 export type InboundItem = components['schemas']['InboundItem']
 export type InboundDetail = components['schemas']['InboundDetail']
 export type AuditItem = components['schemas']['AuditItem']
+export type PortalDashboard = components['schemas']['PortalDashboard']
+export type PortalActivityItem = components['schemas']['PortalActivityItem']
+export type PortalAction = components['schemas']['PortalAction']
+
+// Modules et disponibilite des sites
+export type Module = components['schemas']['Module']
+export type UptimeSettings = components['schemas']['UptimeSettings']
+export type UptimeMonitor = components['schemas']['UptimeMonitor']
+export type UptimeIncident = components['schemas']['UptimeIncident']
+export type ProjectUptime = components['schemas']['ProjectUptime']
+export type ProjectUptimeSite = components['schemas']['ProjectUptimeSite']
+export type UptimeDay = components['schemas']['UptimeDay']
+export type AnalyticsSettings = components['schemas']['AnalyticsSettings']
+export type AnalyticsWebsite = components['schemas']['AnalyticsWebsite']
+export type ProjectAnalytics = components['schemas']['ProjectAnalytics']
+export type Statistics = components['schemas']['Statistics']
+export type StatisticsData = components['schemas']['StatisticsData']
+export type StatisticsTotals = components['schemas']['StatisticsTotals']
+export type StatisticsPoint = components['schemas']['StatisticsPoint']
+export type StatisticsRow = components['schemas']['StatisticsRow']
