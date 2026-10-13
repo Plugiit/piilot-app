@@ -13,6 +13,7 @@ import (
 
 	"github.com/plugiit/piilot-app/api/internal/domain"
 	"github.com/plugiit/piilot-app/api/internal/repository/db"
+	"github.com/plugiit/piilot-app/api/internal/zone"
 )
 
 // MilestoneDeliverable est un livrable tel que la liste des jalons le montre.
@@ -92,7 +93,7 @@ func NewMilestoneService(pool *pgxpool.Pool) *MilestoneService {
 // agencyToday rend la date du jour de l'agence, a minuit UTC, comme les
 // colonnes date.
 func agencyToday(now time.Time) time.Time {
-	local := now.In(agencyZone)
+	local := now.In(zone.Location())
 
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
 }
