@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { toast } from 'sonner'
 
 import { MaintenanceScreen } from '@/features/system/maintenance-screen'
+import { sessionQuery } from '@/lib/auth'
 import { createQueryClient } from '@/lib/query-client'
 import { routeTree } from './routeTree.gen'
 
@@ -30,7 +31,12 @@ const queryClient = createQueryClient(() => {
   // fait deja la garde de session.
   const from = router.state.location.href
 
-  toast.error('Votre session a expiré. Reconnectez-vous pour continuer.')
+  // « Expiree » seulement s'il y avait une session : une premiere visite par
+  // un lien — celui d'un e-mail de rapport — n'a rien perdu, la connexion
+  // suffit sans message.
+  if (queryClient.getQueryData(sessionQuery.queryKey) !== undefined) {
+    toast.error('Votre session a expiré. Reconnectez-vous pour continuer.')
+  }
 
   void router.navigate({ to: '/login', search: { redirect: from } }).then(() => {
     // Le cache porte les donnees de la session expiree. Il est vide apres la
