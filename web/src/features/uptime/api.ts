@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { projectKeys } from '@/features/projects/api'
 import { api, unwrap } from '@/lib/api'
 import type { ProjectUptime, UptimeSettings } from '@/types/api'
 
@@ -100,6 +101,8 @@ export function useSetProjectSites(id: string) {
       queryClient.setQueryData(uptimeKeys.project(id), view)
       // La liste des sites porte les projets lies.
       void queryClient.invalidateQueries({ queryKey: uptimeKeys.allMonitors })
+      // La fiche du projet dit s'il manque ses statistiques.
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) })
     },
   })
 }
