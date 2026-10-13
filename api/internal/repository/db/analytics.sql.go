@@ -686,6 +686,31 @@ func (q *Queries) PortalProjectHasStatistics(ctx context.Context, projectID uuid
 	return exists, err
 }
 
+const projectMissesStatistics = `-- name: ProjectMissesStatistics :one
+SELECT (
+    EXISTS (
+        SELECT 1 FROM project_uptime_monitors u
+        JOIN uptime_settings us ON us.id = 1 AND us.enabled
+        WHERE u.project_id = $1 AND u.environment = 'prod'
+    )
+    AND EXISTS (SELECT 1 FROM analytics_settings s WHERE s.id = 1 AND s.enabled)
+    AND NOT EXISTS (
+        SELECT 1 FROM project_analytics_websites a
+        WHERE a.project_id = $1 AND a.environment = 'prod'
+    )
+)::boolean AS missing
+`
+
+// Le site de production du projet est surveille, le module de statistiques
+// est actif, mais aucun site Umami de production n'est lie : le client ne
+// voit que la disponibilite. L'equipe en est avertie sur le projet.
+func (q *Queries) ProjectMissesStatistics(ctx context.Context, projectID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, projectMissesStatistics, projectID)
+	var missing bool
+	err := row.Scan(&missing)
+	return missing, err
+}
+
 const purgeAnalyticsCache = `-- name: PurgeAnalyticsCache :exec
 DELETE FROM analytics_cache WHERE period_key LIKE 'custom:%' AND last_read_at < $1
 `

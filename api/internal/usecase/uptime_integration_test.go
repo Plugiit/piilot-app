@@ -279,6 +279,36 @@ func TestLeClientVoitLaDisponibiliteDeSesSites(t *testing.T) {
 		t.Fatalf("disponibilite du client : %+v, %v", got, err)
 	}
 
+	// Surveille sans statistiques, module de statistiques actif : l'equipe
+	// est avertie sur le projet, jusqu'a ce qu'un site Umami soit lie.
+	var analyticsWas bool
+	if err := pool.QueryRow(ctx, `SELECT enabled FROM analytics_settings`).Scan(&analyticsWas); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `UPDATE analytics_settings SET enabled = $1`, analyticsWas)
+	})
+	if _, err := pool.Exec(ctx, `UPDATE analytics_settings SET enabled = true`); err != nil {
+		t.Fatal(err)
+	}
+	projects := usecase.NewProjectService(pool, nil, 1<<20)
+	if detail, err := projects.Get(ctx, client.projectID, client.userID); err != nil || !detail.MissingStatistics {
+		t.Errorf("alerte statistiques : %v, %v", detail.MissingStatistics, err)
+	}
+	var websiteID uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO analytics_websites (provider, external_id, name, domain) VALUES ('umami', $1, 'Vitrine', 'vitrine.test') RETURNING id`, uuid.NewString()).Scan(&websiteID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM analytics_websites WHERE id = $1`, websiteID)
+	})
+	if _, err := pool.Exec(ctx, `INSERT INTO project_analytics_websites (project_id, website_id, environment) VALUES ($1, $2, 'prod')`, client.projectID, websiteID); err != nil {
+		t.Fatal(err)
+	}
+	if detail, _ := projects.Get(ctx, client.projectID, client.userID); detail.MissingStatistics {
+		t.Error("alerte restee apres le lien du site Umami")
+	}
+
 	// Un autre client ne voit rien, ni personne quand le module est coupe.
 	if other, err := svc.PortalUptime(ctx, newPortalClient(t, pool).userID); err != nil || len(other) != 0 {
 		t.Errorf("autre client : %+v, %v", other, err)

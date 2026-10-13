@@ -124,6 +124,9 @@ type ProjectDetail struct {
 	Files      []Attachment `json:"files"`
 	Services   []ServiceTag `json:"services"`
 	LogoURL    *string      `json:"logo_url"`
+	// Le site est surveille mais sans statistiques : le client ne voit que sa
+	// disponibilite, l'equipe est invitee a lier son site Umami.
+	MissingStatistics bool `json:"missing_statistics"`
 }
 
 // Attachment est une piece jointe, d'un projet ou d'une tache.
@@ -481,6 +484,11 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 		return ProjectDetail{}, fmt.Errorf("lecture des pieces jointes : %w", err)
 	}
 
+	missingStatistics, err := s.q.ProjectMissesStatistics(ctx, id)
+	if err != nil {
+		return ProjectDetail{}, fmt.Errorf("statistiques du projet : %w", err)
+	}
+
 	files := make([]Attachment, 0, len(stored))
 	for _, f := range stored {
 		files = append(files, Attachment{
@@ -494,6 +502,7 @@ func (s *ProjectService) Get(ctx context.Context, id, viewer uuid.UUID) (Project
 	}
 
 	return ProjectDetail{
+		MissingStatistics:  missingStatistics,
 		ID:                 row.ID,
 		Name:               row.Name,
 		LogoURL:            projectLogoURL(row.LogoKey),

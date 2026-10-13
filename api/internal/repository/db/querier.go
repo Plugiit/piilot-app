@@ -924,6 +924,10 @@ type Querier interface {
 	// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
 	// aux pieces jointes, et la route des logos ne doit servir qu'eux.
 	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)
+	// Le site de production du projet est surveille, le module de statistiques
+	// est actif, mais aucun site Umami de production n'est lie : le client ne
+	// voit que la disponibilite. L'equipe en est avertie sur le projet.
+	ProjectMissesStatistics(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// Le journal n'a pas a remonter plus loin que la retention la plus longue.
 	PruneBackupRows(ctx context.Context) error
 	// Les periodes personnalisees que personne ne regarde plus.
