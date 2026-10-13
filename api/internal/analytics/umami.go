@@ -199,15 +199,53 @@ func rangeQuery(r Range) url.Values {
 	return q
 }
 
-// ListWebsites rend tous les sites, page par page.
+// ListWebsites rend tous les sites que le compte peut lire : les siens, et
+// ceux des equipes dont il est membre. includeTeams ne suffit pas partout —
+// selon la version et le role dans l'equipe, Umami l'ignore ou n'y met que
+// les equipes qu'on gere —, les equipes sont donc aussi lues une a une. Un
+// site present des deux cotes n'est garde qu'une fois.
 func (u *Umami) ListWebsites(ctx context.Context) ([]Website, error) {
+	q := url.Values{}
+	q.Set("includeTeams", "true")
+	out, err := u.pages(ctx, "/websites", q)
+	if err != nil {
+		return nil, err
+	}
+
+	teams, err := u.teams(ctx)
+	if err != nil {
+		// Une version sans equipes, ou un compte qui ne peut pas les lister :
+		// les sites du compte suffisent.
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) {
+			return dedupe(out), nil
+		}
+		return nil, err
+	}
+	for _, team := range teams {
+		sites, err := u.pages(ctx, "/teams/"+url.PathEscape(team)+"/websites", url.Values{})
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sites...)
+	}
+	return dedupe(out), nil
+}
+
+// pages lit une liste de sites page par page, cinquante pages au plus.
+func (u *Umami) pages(ctx context.Context, path string, query url.Values) ([]Website, error) {
 	var out []Website
 	for page := 1; page <= 50; page++ {
 		q := url.Values{}
+		for k, v := range query {
+			q[k] = v
+		}
 		q.Set("page", strconv.Itoa(page))
 		q.Set("pageSize", "100")
 		var raw json.RawMessage
-		if err := u.get(ctx, "/websites", q, &raw); err != nil {
+		if err := u.get(ctx, path, q, &raw); err != nil {
 			return nil, err
 		}
 		items, more, err := parseWebsites(raw)
@@ -220,6 +258,75 @@ func (u *Umami) ListWebsites(ctx context.Context) ([]Website, error) {
 		}
 	}
 	return out, nil
+}
+
+// teams rend les identifiants des equipes du compte, page par page.
+func (u *Umami) teams(ctx context.Context) ([]string, error) {
+	var out []string
+	for page := 1; page <= 20; page++ {
+		q := url.Values{}
+		q.Set("page", strconv.Itoa(page))
+		q.Set("pageSize", "100")
+		var raw json.RawMessage
+		if err := u.get(ctx, "/teams", q, &raw); err != nil {
+			return nil, err
+		}
+		ids, more, err := parseTeams(raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ids...)
+		if !more {
+			break
+		}
+	}
+	return out, nil
+}
+
+// parseTeams lit {data, count, page, pageSize} ou un tableau nu.
+func parseTeams(raw json.RawMessage) ([]string, bool, error) {
+	type team struct {
+		ID string `json:"id"`
+	}
+	var list []team
+	more := false
+	if bytes.HasPrefix(bytes.TrimSpace(raw), []byte("[")) {
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, false, fmt.Errorf("liste des équipes illisible : %w", err)
+		}
+	} else {
+		var page struct {
+			Data     []team `json:"data"`
+			Count    int    `json:"count"`
+			Page     int    `json:"page"`
+			PageSize int    `json:"pageSize"`
+		}
+		if err := json.Unmarshal(raw, &page); err != nil {
+			return nil, false, fmt.Errorf("liste des équipes illisible : %w", err)
+		}
+		list = page.Data
+		more = page.PageSize > 0 && page.Page*page.PageSize < page.Count && len(page.Data) > 0
+	}
+	out := make([]string, 0, len(list))
+	for _, t := range list {
+		if t.ID != "" {
+			out = append(out, t.ID)
+		}
+	}
+	return out, more, nil
+}
+
+// dedupe garde la premiere occurrence de chaque site.
+func dedupe(sites []Website) []Website {
+	seen := make(map[string]bool, len(sites))
+	out := sites[:0]
+	for _, s := range sites {
+		if !seen[s.ID] {
+			seen[s.ID] = true
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // parseWebsites lit {data, count, page, pageSize} (2.x et 3.x) ou un tableau

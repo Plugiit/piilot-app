@@ -22,6 +22,9 @@ type fakeUmami struct {
 	valid   string
 	apiKey  string
 	prefix  string // "/api" pour une instance, "" pour Cloud
+	// Des equipes : includeTeams est ignore, comme le font certaines
+	// versions pour un simple membre.
+	teams bool
 }
 
 func (f *fakeUmami) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +54,12 @@ func (f *fakeUmami) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query()
 	switch {
+	case path == "/teams" && f.teams:
+		_, _ = w.Write([]byte(`{"data":[{"id":"t1","name":"La Broche"},{"id":"t2","name":"Ridia"}],"count":2,"page":1,"pageSize":100}`))
+	case path == "/teams/t1/websites" && f.teams:
+		_, _ = w.Write([]byte(`{"data":[{"id":"w2","name":"Boutique","domain":"shop.example"},{"id":"w3","name":"La Broche","domain":"labroche.example"}],"count":2,"page":1,"pageSize":100}`))
+	case path == "/teams/t2/websites" && f.teams:
+		w.WriteHeader(http.StatusForbidden)
 	case path == "/websites":
 		_, _ = w.Write([]byte(`{"data":[{"id":"w1","name":"Vitrine","domain":"atelier.example"},{"id":"w2","name":"Boutique","domain":"shop.example"}],"count":2,"page":1,"pageSize":100}`))
 	case strings.HasSuffix(path, "/stats"):
@@ -264,5 +273,26 @@ func TestLesFormesDeReponsesConnues(t *testing.T) {
 		if got := normalizeAt(in); got != want {
 			t.Errorf("%q : %q", in, got)
 		}
+	}
+}
+
+func TestLesSitesDesEquipesSontLus(t *testing.T) {
+	fake := &fakeUmami{version: 3, prefix: "/api", teams: true}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+
+	u := &Umami{BaseURL: srv.URL, Username: "admin", Password: "umami"}
+	sites, err := u.ListWebsites(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Les siens, puis ceux des equipes, sans doublon ; une equipe illisible
+	// est passee.
+	var ids []string
+	for _, s := range sites {
+		ids = append(ids, s.ID)
+	}
+	if strings.Join(ids, ",") != "w1,w2,w3" {
+		t.Errorf("sites : %v", ids)
 	}
 }
