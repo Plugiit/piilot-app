@@ -109,6 +109,55 @@ func (q *Queries) ListClientTicketDays(ctx context.Context, arg ListClientTicket
 	return items, nil
 }
 
+const portalClientMilestones = `-- name: PortalClientMilestones :many
+SELECT m.id, m.project_id, m.title, m.description, m.due_on, m.position, m.completed_at, m.deliverables_total, m.deliverables_validated, m.created_by, m.created_at, m.updated_at, m.completed_by_deliverables
+FROM milestones m
+JOIN projects p ON p.id = m.project_id AND p.deleted_at IS NULL
+WHERE p.client_id = $1 AND p.status IN ('cadrage', 'production', 'attente')
+ORDER BY m.project_id, m.due_on NULLS LAST, m.position, m.created_at
+LIMIT 500
+`
+
+type PortalClientMilestonesRow struct {
+	Milestone Milestone `json:"milestone"`
+}
+
+// Les jalons des projets en cours du client, dans l'ordre de chaque projet :
+// les frises du tableau de bord, en une requete.
+func (q *Queries) PortalClientMilestones(ctx context.Context, clientID uuid.UUID) ([]PortalClientMilestonesRow, error) {
+	rows, err := q.db.Query(ctx, portalClientMilestones, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PortalClientMilestonesRow{}
+	for rows.Next() {
+		var i PortalClientMilestonesRow
+		if err := rows.Scan(
+			&i.Milestone.ID,
+			&i.Milestone.ProjectID,
+			&i.Milestone.Title,
+			&i.Milestone.Description,
+			&i.Milestone.DueOn,
+			&i.Milestone.Position,
+			&i.Milestone.CompletedAt,
+			&i.Milestone.DeliverablesTotal,
+			&i.Milestone.DeliverablesValidated,
+			&i.Milestone.CreatedBy,
+			&i.Milestone.CreatedAt,
+			&i.Milestone.UpdatedAt,
+			&i.Milestone.CompletedByDeliverables,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const portalClientOf = `-- name: PortalClientOf :one
 
 SELECT client_id FROM users

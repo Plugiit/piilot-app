@@ -857,6 +857,9 @@ type Querier interface {
 	// trente jours en cache : le bandeau d'audience du portail. Un site lie a
 	// plusieurs projets ne compte qu'une fois.
 	PortalAudienceSites(ctx context.Context, clientID uuid.UUID) ([]PortalAudienceSitesRow, error)
+	// Les jalons des projets en cours du client, dans l'ordre de chaque projet :
+	// les frises du tableau de bord, en une requete.
+	PortalClientMilestones(ctx context.Context, clientID uuid.UUID) ([]PortalClientMilestonesRow, error)
 	// Tableau de bord du portail client. Chaque requete part du client de
 	// l'appelant, comme le reste du portail.
 	PortalClientOf(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error)

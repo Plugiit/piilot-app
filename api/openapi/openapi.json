@@ -19061,7 +19061,8 @@
           "focus",
           "focus_tickets",
           "actions",
-          "ticket_days"
+          "ticket_days",
+          "journeys"
         ],
         "properties": {
           "progress_average": {
@@ -19127,7 +19128,7 @@
             "items": {
               "$ref": "#/components/schemas/PortalActivityItem"
             },
-            "description": "L'historique du projet suivi, 20 entrées au plus, de la plus récente à la plus ancienne."
+            "description": "L'historique du projet demandé (paramètre projet), ou de tous les projets du client : 20 entrées au plus, de la plus récente à la plus ancienne."
           },
           "focus": {
             "oneOf": [
@@ -19159,6 +19160,13 @@
             "description": "Demandes résolues par jour, du plus ancien à aujourd'hui ; un jour sans rien vaut zéro. Trente-six jours : trente affichés, et six pour amorcer le lissage du bord gauche.",
             "items": {
               "$ref": "#/components/schemas/PortalTicketDay"
+            }
+          },
+          "journeys": {
+            "type": "array",
+            "description": "Les étapes de chaque projet en cours, dans l'ordre de la liste des projets : les frises du tableau de bord.",
+            "items": {
+              "$ref": "#/components/schemas/PortalJourney"
             }
           }
         }
@@ -21573,6 +21581,53 @@
             "maxItems": 50,
             "items": {
               "$ref": "#/components/schemas/PortalUptimeSite"
+            }
+          }
+        }
+      },
+      "PortalJourneyStep": {
+        "type": "object",
+        "required": [
+          "title",
+          "due_on",
+          "state"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "late",
+              "upcoming"
+            ]
+          }
+        }
+      },
+      "PortalJourney": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "steps"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalJourneyStep"
             }
           }
         }
