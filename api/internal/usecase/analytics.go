@@ -65,6 +65,9 @@ const (
 	analyticsRequestsPerHour = 20
 	// Lignes par classement.
 	analyticsTopLimit = 10
+	// Les pays vont plus loin : la carte du monde de la page en montre plus que
+	// le classement.
+	analyticsCountryLimit = 50
 	// La synchronisation des sites, faute de demande, une fois par heure.
 	analyticsCheckEvery = time.Hour
 )
@@ -528,7 +531,11 @@ func fetch(ctx context.Context, p analytics.Provider, websiteID string, period a
 		{analytics.Page, &out.Pages}, {analytics.Referrer, &out.Referrers}, {analytics.Country, &out.Countries},
 		{analytics.Device, &out.Devices}, {analytics.Browser, &out.Browsers}, {analytics.OS, &out.OS}, {analytics.Event, &out.Events},
 	} {
-		rows, err := p.Metrics(ctx, websiteID, period.Range, m.dim, analyticsTopLimit)
+		limit := analyticsTopLimit
+		if m.dim == analytics.Country {
+			limit = analyticsCountryLimit
+		}
+		rows, err := p.Metrics(ctx, websiteID, period.Range, m.dim, limit)
 		if err != nil {
 			return out, fmt.Errorf("classement %s : %w", m.dim, err)
 		}
