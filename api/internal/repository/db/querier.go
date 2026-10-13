@@ -70,6 +70,9 @@ type Querier interface {
 	ClearTemplateContent(ctx context.Context, templateID uuid.UUID) error
 	// Et un site revenu en ligne ferme le sien.
 	CloseIncidentsFromPoll(ctx context.Context, provider string) error
+	// Ferme la periode ouverte la veille de day. Une periode qui n'a pas encore
+	// commence disparait au lieu de finir avant de debuter.
+	CloseProjectMaintenance(ctx context.Context, arg CloseProjectMaintenanceParams) error
 	CloseUptimeIncident(ctx context.Context, arg CloseUptimeIncidentParams) error
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
@@ -84,7 +87,9 @@ type Querier interface {
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
 	CountHeldInbound(ctx context.Context) (int32, error)
+	CountInterventions(ctx context.Context, arg CountInterventionsParams) (int32, error)
 	CountOpenInvitations(ctx context.Context) (int64, error)
+	CountPortalInterventions(ctx context.Context, projectID uuid.UUID) (int32, error)
 	CountProjectTemplates(ctx context.Context) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	// Repartition des projets par statut : la barre de la tuile « Nombre de
@@ -97,6 +102,8 @@ type Querier interface {
 	// Borne par compte : un tiers qui connait une adresse ne doit pas pouvoir la
 	// noyer sous les e-mails de reinitialisation.
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountReports(ctx context.Context, arg CountReportsParams) (int32, error)
+	CountReportsByStatus(ctx context.Context, month time.Time) (CountReportsByStatusRow, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	// Total de chaque colonne du kanban, filtres compris.
@@ -139,6 +146,7 @@ type Querier interface {
 	CreateInteraction(ctx context.Context, arg CreateInteractionParams) (uuid.UUID, error)
 	CreateInvitation(ctx context.Context, arg CreateInvitationParams) (Invitation, error)
 	CreateInvitedUser(ctx context.Context, arg CreateInvitedUserParams) (User, error)
+	CreateMaintenancePlan(ctx context.Context, arg CreateMaintenancePlanParams) (MaintenancePlan, error)
 	CreateMilestone(ctx context.Context, arg CreateMilestoneParams) (Milestone, error)
 	CreateMilestoneFromTemplate(ctx context.Context, arg CreateMilestoneFromTemplateParams) error
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
@@ -187,10 +195,14 @@ type Querier interface {
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
 	DeleteExpiredRefreshTokens(ctx context.Context, retention pgtype.Interval) error
+	DeleteFutureProjectMaintenance(ctx context.Context, arg DeleteFutureProjectMaintenanceParams) error
 	// Seules les saisies a la main s'effacent : un evenement est une trace.
 	DeleteInteraction(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteMaintenancePlan(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) error
+	DeleteProjectReportOptOuts(ctx context.Context, projectID uuid.UUID) error
+	DeleteProjectReportRecipients(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectUptimeMonitors(ctx context.Context, projectID uuid.UUID) error
 	DeleteReplyTemplate(ctx context.Context, id uuid.UUID) (int64, error)
@@ -277,14 +289,18 @@ type Querier interface {
 	GetLastSuccessfulBackup(ctx context.Context) (AppBackup, error)
 	// Derniere demande, pour l'etat affiche a l'ecran.
 	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
+	GetMaintenancePlan(ctx context.Context, id uuid.UUID) (MaintenancePlan, error)
 	GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, error)
 	GetOpenInvitationByEmail(ctx context.Context, email string) (Invitation, error)
 	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
+	// Un rapport envoye, pour le client du projet seulement.
+	GetPortalReport(ctx context.Context, arg GetPortalReportParams) (GetPortalReportRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	GetProjectByRepoURL(ctx context.Context, repoUrl string) (Project, error)
 	// Le client d'un projet choisi au tri. Un projet interne n'en a pas a qui
 	// repondre : il est refuse.
 	GetProjectClientForTriage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetProjectPlanForMonth(ctx context.Context, arg GetProjectPlanForMonthParams) (GetProjectPlanForMonthRow, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -295,6 +311,8 @@ type Querier interface {
 	// doit declencher la revocation de toute la famille.
 	GetRefreshTokenWithUser(ctx context.Context, tokenHash []byte) (GetRefreshTokenWithUserRow, error)
 	GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error)
+	GetReport(ctx context.Context, id uuid.UUID) (GetReportRow, error)
+	GetReportSettings(ctx context.Context) (ReportSetting, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
 	GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
@@ -348,7 +366,10 @@ type Querier interface {
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
 	InsertProjectAnalyticsWebsite(ctx context.Context, arg InsertProjectAnalyticsWebsiteParams) error
+	InsertProjectReportOptOut(ctx context.Context, arg InsertProjectReportOptOutParams) error
+	InsertProjectReportRecipient(ctx context.Context, arg InsertProjectReportRecipientParams) error
 	InsertProjectUptimeMonitor(ctx context.Context, arg InsertProjectUptimeMonitorParams) error
+	InsertReport(ctx context.Context, arg InsertReportParams) (uuid.UUID, error)
 	// Un mot de passe change rend caducs les autres liens en circulation.
 	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
 	// L'erreur de la derniere demande servie pour cette vue, s'il y en a une.
@@ -466,6 +487,12 @@ type Querier interface {
 	// Le journal, du plus recent au plus ancien, filtre par client et par genre.
 	// Pagination par curseur : la liste s'allonge par le haut.
 	ListInteractions(ctx context.Context, arg ListInteractionsParams) ([]ListInteractionsRow, error)
+	// Les interventions d'un mois, de toute l'equipe, les plus recentes d'abord.
+	ListInterventions(ctx context.Context, arg ListInterventionsParams) ([]ListInterventionsRow, error)
+	// Le mois des projets : ceux sous formule ce mois-la, et ceux qui ont recu
+	// des interventions sans en avoir. Le consomme vient de l'agregat.
+	ListMaintenanceMonth(ctx context.Context, arg ListMaintenanceMonthParams) ([]ListMaintenanceMonthRow, error)
+	ListMaintenancePlans(ctx context.Context) ([]MaintenancePlan, error)
 	// Equipes de plusieurs projets en une requete.
 	//
 	// C'est la parade au N+1 de la liste : le handler passe les identifiants de la
@@ -528,9 +555,14 @@ type Querier interface {
 	// taches sont toujours les siennes — celles de toute l'agence noieraient le
 	// calendrier.
 	ListPlanning(ctx context.Context, arg ListPlanningParams) ([]ListPlanningRow, error)
+	// Ce que le client voit : les interventions visibles, avec la note qui lui
+	// est destinee. Ni la note interne, ni qui l'a faite.
+	ListPortalInterventions(ctx context.Context, arg ListPortalInterventionsParams) ([]ListPortalInterventionsRow, error)
 	// Les comptes du portail a prevenir pour un projet : ceux de son client,
 	// actifs. Les projets internes n'ont pas de client a prevenir.
 	ListPortalRecipientsOfProject(ctx context.Context, projectID uuid.UUID) ([]ListPortalRecipientsOfProjectRow, error)
+	// Les rapports envoyes d'un projet : l'archive du client.
+	ListPortalReports(ctx context.Context, projectID uuid.UUID) ([]ListPortalReportsRow, error)
 	// Comptes de portail rattaches au client. La colonne existe, l'ecran qui la
 	// remplit non : la fiche la montre pour que le jour ou on rattachera quelqu'un,
 	// ce soit visible.
@@ -541,10 +573,15 @@ type Querier interface {
 	ListProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) ([]ListProjectAnalyticsWebsitesRow, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
+	// Les periodes d'un projet, la plus recente d'abord.
+	ListProjectMaintenance(ctx context.Context, projectID uuid.UUID) ([]ListProjectMaintenanceRow, error)
 	// Jalons d'un projet.
 	// Les jalons d'un projet, dans l'ordre de leurs echeances. Un projet en compte
 	// une poignee ; la limite est la par principe.
 	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]Milestone, error)
+	// Les comptes du portail du client du projet, et s'ils sont exclus.
+	ListProjectReportContacts(ctx context.Context, projectID uuid.UUID) ([]ListProjectReportContactsRow, error)
+	ListProjectReportExtraRecipients(ctx context.Context, projectID uuid.UUID) ([]ListProjectReportExtraRecipientsRow, error)
 	// Modeles de projet.
 	// Les modeles, par ordre alphabetique, avec ce qu'ils contiennent. Les deux
 	// comptes portent sur quelques lignes par modele, lues par index ; une agence
@@ -579,6 +616,12 @@ type Querier interface {
 	ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID) ([]PullRequest, error)
 	ListPullRequestsOfTicket(ctx context.Context, ticketID *uuid.UUID) ([]PullRequest, error)
 	ListReplyTemplates(ctx context.Context) ([]TicketReplyTemplate, error)
+	ListReports(ctx context.Context, arg ListReportsParams) ([]ListReportsRow, error)
+	// Les projets sous formule ce mois-la et sans rapport : ce qui reste a
+	// generer. La formule est celle du dernier jour du mois.
+	ListReportsDue(ctx context.Context, arg ListReportsDueParams) ([]ListReportsDueRow, error)
+	// L'envoi automatique : les rapports du mois pas encore envoyes.
+	ListReportsToSend(ctx context.Context, month time.Time) ([]ListReportsToSendRow, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
 	// permissions.
@@ -764,6 +807,8 @@ type Querier interface {
 	// la seconde voit le travail de la premiere et n'a plus rien a journaliser.
 	LockTicket(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
+	MaintenancePlanInUse(ctx context.Context, id uuid.UUID) (bool, error)
+	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
 	MarkAnalyticsWebsitesAbsent(ctx context.Context, arg MarkAnalyticsWebsitesAbsentParams) error
 	MarkEmailFailed(ctx context.Context, arg MarkEmailFailedParams) error
@@ -775,6 +820,7 @@ type Querier interface {
 	// suffirait a marquer comme lue la notification de quelqu'un d'autre.
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
 	MarkReleaseNotified(ctx context.Context, notifiedVersion string) error
+	MarkReportSent(ctx context.Context, arg MarkReportSentParams) (int64, error)
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
 	// Les sites que la releve n'a plus vus.
@@ -795,6 +841,7 @@ type Querier interface {
 	// Repli quand le webhook se tait : un site hors ligne sans incident ouvert
 	// en ouvre un, date de son changement d'etat.
 	OpenIncidentsFromPoll(ctx context.Context, provider string) error
+	OpenProjectMaintenance(ctx context.Context, arg OpenProjectMaintenanceParams) error
 	// La releve a pu ouvrir l'incident la premiere : l'evenement du service le
 	// precise alors, avec l'heure exacte et la raison.
 	OpenUptimeIncident(ctx context.Context, arg OpenUptimeIncidentParams) error
@@ -853,7 +900,11 @@ type Querier interface {
 	// Les livrables qui attendent la reponse du client, du plus ancien au plus
 	// recent : les actions requises.
 	PortalPendingDeliverables(ctx context.Context, clientID uuid.UUID) ([]PortalPendingDeliverablesRow, error)
+	// La page « Maintenance » du portail existe : le projet est sous formule, ou
+	// il a des interventions visibles.
+	PortalProjectHasMaintenance(ctx context.Context, projectID uuid.UUID) (bool, error)
 	PortalProjectHasStatistics(ctx context.Context, projectID uuid.UUID) (bool, error)
+	PortalProjectOfClient(ctx context.Context, arg PortalProjectOfClientParams) (bool, error)
 	// Les demandes visibles d'un projet du client, les plus recemment actives
 	// d'abord.
 	PortalProjectTickets(ctx context.Context, arg PortalProjectTicketsParams) ([]PortalProjectTicketsRow, error)
@@ -877,10 +928,25 @@ type Querier interface {
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
 	RecordUptimePoll(ctx context.Context, error *string) error
+	RegenerateReport(ctx context.Context, arg RegenerateReportParams) (int64, error)
 	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
 	RenewInvitation(ctx context.Context, arg RenewInvitationParams) (Invitation, error)
+	// La photo figee du mois du site de production du projet.
+	ReportAudienceSnapshot(ctx context.Context, arg ReportAudienceSnapshotParams) (ReportAudienceSnapshotRow, error)
+	ReportConsumed(ctx context.Context, arg ReportConsumedParams) (int32, error)
+	ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error)
+	ReportHasAudienceSite(ctx context.Context, projectID uuid.UUID) (bool, error)
+	// Les incidents qui touchent le mois, meme commences avant.
+	ReportIncidents(ctx context.Context, arg ReportIncidentsParams) ([]ReportIncidentsRow, error)
+	// Les interventions visibles du mois, avec la note destinee au client.
+	ReportInterventions(ctx context.Context, arg ReportInterventionsParams) ([]ReportInterventionsRow, error)
+	ReportProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
+	ReportUptimeDays(ctx context.Context, arg ReportUptimeDaysParams) ([]ReportUptimeDaysRow, error)
+	// Les sites du projet et leur mois : disponibilite et temps de reponse,
+	// sommes des agregats journaliers du mois.
+	ReportUptimeSites(ctx context.Context, arg ReportUptimeSitesParams) ([]ReportUptimeSitesRow, error)
 	RequestAnalyticsCheck(ctx context.Context) error
 	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
@@ -954,6 +1020,7 @@ type Querier interface {
 	// Effacer puis reinserer plutot que calculer une difference : la liste est
 	// courte, et le formulaire envoie toujours l'etat complet qu'il veut voir.
 	SetProjectServices(ctx context.Context, projectID uuid.UUID) error
+	SetReportEditorial(ctx context.Context, arg SetReportEditorialParams) (int64, error)
 	// Range le favicon recupere.
 	//
 	// La clause sur `logo_key` protege un depot manuel : si quelqu'un a pose un
@@ -1038,6 +1105,7 @@ type Querier interface {
 	TouchUptimeWebhook(ctx context.Context) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
+	UnvalidateReport(ctx context.Context, id uuid.UUID) (int64, error)
 	// Les secrets ne changent que sur demande. Changer d'adresse ou
 	// d'identifiants oublie le jeton : il ne vaut que pour l'ancienne connexion.
 	UpdateAnalyticsSettings(ctx context.Context, arg UpdateAnalyticsSettingsParams) error
@@ -1052,6 +1120,7 @@ type Querier interface {
 	// Le mot de passe n'est remplace que s'il est fourni : l'ecran ne le relit
 	// jamais, et un champ laisse vide garde celui en place.
 	UpdateInboundSettings(ctx context.Context, arg UpdateInboundSettingsParams) error
+	UpdateMaintenancePlan(ctx context.Context, arg UpdateMaintenancePlanParams) (MaintenancePlan, error)
 	// Un champ nul garde sa valeur ; l'echeance et l'etat ont chacun un drapeau,
 	// parce que « effacer » et « ne pas toucher » s'y distinguent.
 	UpdateMilestone(ctx context.Context, arg UpdateMilestoneParams) (Milestone, error)
@@ -1061,6 +1130,7 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectTemplate(ctx context.Context, arg UpdateProjectTemplateParams) (ProjectTemplate, error)
 	UpdateReplyTemplate(ctx context.Context, arg UpdateReplyTemplateParams) (TicketReplyTemplate, error)
+	UpdateReportSettings(ctx context.Context, arg UpdateReportSettingsParams) (ReportSetting, error)
 	// Les trois champs partent ensemble : le formulaire les montre tous, et une
 	// mise a jour partielle demanderait de distinguer « vide » de « inchange ».
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (UpdateServiceRow, error)
@@ -1110,6 +1180,7 @@ type Querier interface {
 	UpsertUptimeMonitor(ctx context.Context, arg UpsertUptimeMonitorParams) (uuid.UUID, error)
 	UptimeMonitorsExist(ctx context.Context, ids []uuid.UUID) (int32, error)
 	UptimeProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
+	ValidateReport(ctx context.Context, arg ValidateReportParams) (int64, error)
 	// Un ecran regarde ce site : la tache relevera ses visiteurs du moment.
 	WatchAnalyticsActive(ctx context.Context, websiteID uuid.UUID) error
 }
