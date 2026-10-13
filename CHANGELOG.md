@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [1.4.0] — Maintenance et rapport mensuel
+## [1.4.0] — Maintenance et rapport mensuel · 2026-10-13
 
 Le temps passé en maintenance devient visible pour le client : les interventions sont tracées, comptées sur la formule du projet, et réunies chaque mois dans un rapport relu par l'agence avant d'être envoyé.
 

@@ -51,8 +51,8 @@ version sort quand ce qu'elle contient est prêt.
 | ✅ Livrée | 1.0.0 | V1 | Tous | Le temps de l'équipe : palette, chrono, Git, SIRET, adresse |
 | ✅ Livrée | 1.1.0 | Portail : livrables et prochaine étape | Client | Livrables sur la fiche projet, validation depuis l'e-mail, prochaine étape, interlocuteurs ; sauvegardes |
 | ✅ Livrée | 1.2.0 | E-mail ↔ tickets | Client | Répondre et créer un ticket par e-mail (IMAP et webhook) ; journal d'audit |
-| 📍 Actuelle | **1.3.0** | Modules : disponibilité et statistiques | Tous | Modules Uptime Kuma et Umami liés aux projets ; page « Statistiques » du portail ; tableau de bord du portail repensé |
-| ⏳ À venir | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
+| ✅ Livrée | 1.3.0 | Modules : disponibilité et statistiques | Tous | Modules Uptime Kuma et Umami liés aux projets ; page « Statistiques » du portail ; tableau de bord du portail repensé |
+| 📍 Actuelle | **1.4.0** | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
 | ⏳ À venir | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
 | ⏳ À venir | 1.6.0 | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
 | ⏳ À venir | 1.7.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
