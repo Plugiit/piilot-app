@@ -11911,7 +11911,8 @@
           "services",
           "is_internal",
           "logo_url",
-          "repo_url"
+          "repo_url",
+          "missing_statistics"
         ],
         "properties": {
           "id": {
@@ -12060,6 +12061,10 @@
           "repo_url": {
             "type": "string",
             "description": "Depot Git du projet, normalise (https://hote/groupe/depot). Vide sans depot."
+          },
+          "missing_statistics": {
+            "type": "boolean",
+            "description": "Le site de production est surveillé, le module de statistiques est actif, mais aucun site Umami de production n'est lié : le client ne voit que la disponibilité."
           }
         }
       },

@@ -226,3 +226,20 @@ WHERE p.client_id = sqlc.arg('client_id') AND l.environment = 'prod'
 GROUP BY w.id, w.name, w.domain, c.payload
 ORDER BY lower(w.name), w.id
 LIMIT 10;
+
+-- name: ProjectMissesStatistics :one
+-- Le site de production du projet est surveille, le module de statistiques
+-- est actif, mais aucun site Umami de production n'est lie : le client ne
+-- voit que la disponibilite. L'equipe en est avertie sur le projet.
+SELECT (
+    EXISTS (
+        SELECT 1 FROM project_uptime_monitors u
+        JOIN uptime_settings us ON us.id = 1 AND us.enabled
+        WHERE u.project_id = sqlc.arg('project_id') AND u.environment = 'prod'
+    )
+    AND EXISTS (SELECT 1 FROM analytics_settings s WHERE s.id = 1 AND s.enabled)
+    AND NOT EXISTS (
+        SELECT 1 FROM project_analytics_websites a
+        WHERE a.project_id = sqlc.arg('project_id') AND a.environment = 'prod'
+    )
+)::boolean AS missing;
