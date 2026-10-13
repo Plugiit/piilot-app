@@ -16,6 +16,8 @@ import (
 	htmltemplate "html/template"
 	"strings"
 	"time"
+
+	"github.com/plugiit/piilot-app/api/internal/zone"
 )
 
 //go:embed templates/*.html
@@ -37,21 +39,11 @@ type Message struct {
 	InReplyTo string
 }
 
-// paris : les dates des e-mails sont celles de l'agence, quel que soit le
-// fuseau du serveur.
-var paris = func() *time.Location {
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}()
-
 // dateTime ecrit « 9 octobre 2026 à 14 h 30 ».
 func dateTime(t time.Time) string {
 	months := []string{"janvier", "février", "mars", "avril", "mai", "juin",
 		"juillet", "août", "septembre", "octobre", "novembre", "décembre"}
-	t = t.In(paris)
+	t = t.In(zone.Location()) // les dates des e-mails sont celles de l'agence
 
 	return fmt.Sprintf("%d %s %d à %d h %02d", t.Day(), months[t.Month()-1], t.Year(), t.Hour(), t.Minute())
 }

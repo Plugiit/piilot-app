@@ -21,17 +21,6 @@ const (
 	myWorkProjects     = 24
 )
 
-// agencyZone : « aujourd'hui » et « cette semaine » sont ceux de l'agence, quel
-// que soit le fuseau du serveur — un conteneur tourne volontiers en UTC, et une
-// tache due ce jour passerait en retard des 1 h du matin.
-var agencyZone = func() *time.Location {
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}()
-
 // WorkTask est une tache de la page.
 type WorkTask struct {
 	ID       uuid.UUID      `json:"id"`
