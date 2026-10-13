@@ -29,6 +29,26 @@ type TimeEntry struct {
 	Task *DeliverableRef `json:"task"`
 	// Nul quand l'heure ne releve d'aucune prestation.
 	Service *ServiceTag `json:"service"`
+	// Nulle pour un temps ordinaire.
+	Intervention *Intervention `json:"intervention"`
+}
+
+// Intervention qualifie une saisie de maintenance.
+type Intervention struct {
+	// contenu, correctif, mise_a_jour, support ou autre.
+	Kind          string `json:"kind"`
+	ClientVisible bool   `json:"client_visible"`
+	ClientNote    string `json:"client_note"`
+}
+
+// interventionKinds sont les natures d'intervention.
+var interventionKinds = map[string]bool{"contenu": true, "correctif": true, "mise_a_jour": true, "support": true, "autre": true}
+
+func interventionOf(kind *string, visible bool, note string) *Intervention {
+	if kind == nil {
+		return nil
+	}
+	return &Intervention{Kind: *kind, ClientVisible: visible, ClientNote: note}
 }
 
 // TimeSheet est ce que l'ecran de saisie affiche : les lignes de la plage, leur
@@ -70,6 +90,10 @@ type TimeEntryInput struct {
 	SpentOn   time.Time
 	Minutes   int32
 	Note      string
+	// Nulle : un temps ordinaire, et les deux champs suivants s'effacent.
+	InterventionKind *string
+	ClientVisible    bool
+	ClientNote       string
 }
 
 // clean valide ce que le formulaire envoie.
@@ -96,6 +120,31 @@ func (in TimeEntryInput) clean() (TimeEntryInput, error) {
 	if out.SpentOn.IsZero() {
 		return out, domain.ErrValidation.WithDetails(map[string]any{
 			"spent_on": "La date est requise",
+		})
+	}
+
+	out.ClientNote = strings.TrimSpace(in.ClientNote)
+	if out.InterventionKind != nil && *out.InterventionKind == "" {
+		out.InterventionKind = nil
+	}
+	if out.InterventionKind == nil {
+		// Un temps ordinaire n'a rien a montrer au client.
+		out.ClientVisible, out.ClientNote = false, ""
+		return out, nil
+	}
+	if !interventionKinds[*out.InterventionKind] {
+		return out, domain.ErrValidation.WithDetails(map[string]any{
+			"intervention_kind": "contenu, correctif, mise_a_jour, support ou autre",
+		})
+	}
+	if out.ClientVisible && out.ClientNote == "" {
+		return out, domain.ErrValidation.WithDetails(map[string]any{
+			"client_note": "Ce que le client lira est requis pour une intervention visible",
+		})
+	}
+	if len([]rune(out.ClientNote)) > 500 {
+		return out, domain.ErrValidation.WithDetails(map[string]any{
+			"client_note": "500 caractères au plus",
 		})
 	}
 
@@ -144,11 +193,12 @@ func (s *TimeEntryService) Sheet(
 
 	for _, row := range rows {
 		entry := TimeEntry{
-			ID:      row.ID,
-			SpentOn: row.SpentOn.Format(dateLayout),
-			Minutes: row.Minutes,
-			Note:    row.Note,
-			Project: DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
+			ID:           row.ID,
+			SpentOn:      row.SpentOn.Format(dateLayout),
+			Minutes:      row.Minutes,
+			Note:         row.Note,
+			Project:      DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
+			Intervention: interventionOf(row.InterventionKind, row.ClientVisible, row.ClientNote),
 		}
 
 		if row.TaskID != nil && row.TaskTitle != nil {
@@ -189,13 +239,16 @@ func (s *TimeEntryService) Create(
 	}
 
 	id, err := s.q.CreateTimeEntry(ctx, db.CreateTimeEntryParams{
-		UserID:    userID,
-		ProjectID: clean.ProjectID,
-		TaskID:    clean.TaskID,
-		ServiceID: clean.ServiceID,
-		SpentOn:   clean.SpentOn,
-		Minutes:   clean.Minutes,
-		Note:      clean.Note,
+		UserID:           userID,
+		ProjectID:        clean.ProjectID,
+		TaskID:           clean.TaskID,
+		ServiceID:        clean.ServiceID,
+		SpentOn:          clean.SpentOn,
+		Minutes:          clean.Minutes,
+		Note:             clean.Note,
+		InterventionKind: clean.InterventionKind,
+		ClientVisible:    clean.ClientVisible,
+		ClientNote:       clean.ClientNote,
 	})
 	if err != nil {
 		// Un projet, une tache ou un service inconnu est une faute de la
@@ -228,14 +281,17 @@ func (s *TimeEntryService) Update(
 	}
 
 	if _, err := s.q.UpdateTimeEntry(ctx, db.UpdateTimeEntryParams{
-		ID:        id,
-		UserID:    userID,
-		ProjectID: clean.ProjectID,
-		TaskID:    clean.TaskID,
-		ServiceID: clean.ServiceID,
-		SpentOn:   clean.SpentOn,
-		Minutes:   clean.Minutes,
-		Note:      clean.Note,
+		ID:               id,
+		UserID:           userID,
+		ProjectID:        clean.ProjectID,
+		TaskID:           clean.TaskID,
+		ServiceID:        clean.ServiceID,
+		SpentOn:          clean.SpentOn,
+		Minutes:          clean.Minutes,
+		Note:             clean.Note,
+		InterventionKind: clean.InterventionKind,
+		ClientVisible:    clean.ClientVisible,
+		ClientNote:       clean.ClientNote,
 	}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return TimeEntry{}, domain.ErrNotFound
@@ -281,11 +337,12 @@ func (s *TimeEntryService) Get(
 	}
 
 	entry := TimeEntry{
-		ID:      row.ID,
-		SpentOn: row.SpentOn.Format(dateLayout),
-		Minutes: row.Minutes,
-		Note:    row.Note,
-		Project: DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
+		ID:           row.ID,
+		SpentOn:      row.SpentOn.Format(dateLayout),
+		Minutes:      row.Minutes,
+		Note:         row.Note,
+		Project:      DeliverableRef{ID: row.ProjectID, Name: row.ProjectName},
+		Intervention: interventionOf(row.InterventionKind, row.ClientVisible, row.ClientNote),
 	}
 
 	if row.TaskID != nil && row.TaskTitle != nil {
