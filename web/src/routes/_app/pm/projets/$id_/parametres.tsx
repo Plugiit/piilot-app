@@ -1,7 +1,9 @@
 import {
+  ActivityIcon,
   Alert02Icon,
   ArrowLeft02Icon,
   Calendar03Icon,
+  ChartLineData01Icon,
   Coins01Icon,
   Settings02Icon,
   UserGroupIcon,
@@ -41,6 +43,8 @@ const TABS: Tab[] = [
   { to: '/pm/projets/$id/parametres/planning', label: 'Planning', icon: Calendar03Icon },
   { to: '/pm/projets/$id/parametres/budget', label: 'Budget', icon: Coins01Icon },
   { to: '/pm/projets/$id/parametres/equipe', label: 'Équipe', icon: UserGroupIcon },
+  { to: '/pm/projets/$id/parametres/disponibilite', label: 'Disponibilité', icon: ActivityIcon },
+  { to: '/pm/projets/$id/parametres/statistiques', label: 'Statistiques', icon: ChartLineData01Icon },
   { to: '/pm/projets/$id/parametres/zone-de-danger', label: 'Zone de danger', icon: Alert02Icon },
 ]
 
@@ -107,11 +111,11 @@ function SettingsLayout() {
             l'autre passe a `auto` par la meme occasion. Le filet de l'onglet
             actif, pose a `-bottom-px`, depassait alors d'un pixel et rendait la
             barre defilante verticalement — imperceptible a l'oeil, les barres
-            etant masquees partout, mais sensible au doigt. Les cinq onglets
-            tiennent avec 67px de marge a 1024px, la plus petite largeur ou le
-            panneau est affiche. */}
+            etant masquees partout, mais sensible au doigt. Les sept onglets
+            tiennent a 1024px, la plus petite largeur ou le panneau est
+            affiche, en mode compact : sans icone et en 14px sous 1536px. */}
         <div className="flex items-center border-b border-[#e8e8e9] pl-4">
-          <TabBar tabs={tabs} params={{ id }} layoutId="project-settings-tab" />
+          <TabBar tabs={tabs} params={{ id }} layoutId="project-settings-tab" compact />
         </div>
 
         <Outlet />
