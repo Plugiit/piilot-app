@@ -21,6 +21,17 @@ export const portalKeys = {
  * La page de reponse ouverte depuis l'e-mail : sans session, le jeton signe
  * du lien fait foi. Rien n'est decide en la lisant.
  */
+/**
+ * Les sites de production du client : audience (Umami) et disponibilite
+ * (Uptime Kuma) sur trente jours, pour le bandeau de la page Projets. Les
+ * tables locales se rafraichissent en minutes : inutile de relire plus souvent.
+ */
+export const portalSitesQuery = queryOptions({
+  queryKey: ['portal', 'sites'] as const,
+  queryFn: async () => unwrap(await api.GET('/api/v1/client/sites')),
+  staleTime: 5 * 60_000,
+})
+
 export function portalReviewQuery(id: string, token: string) {
   return queryOptions({
     queryKey: portalKeys.review(id, token),
