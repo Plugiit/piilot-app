@@ -32,7 +32,7 @@ export const Route = createFileRoute('/client/livrables/$id')({
   component: ClientDeliverablePage,
   errorComponent: () => (
     <div className="flex flex-col items-start gap-3">
-      <Link to="/client" className="flex items-center gap-1 text-[14px] text-[#73757c] hover:text-[#1b1b1b]">
+      <Link to="/client/projets" className="flex items-center gap-1 text-[14px] text-[#73757c] hover:text-[#1b1b1b]">
         <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
         Mes projets
       </Link>
