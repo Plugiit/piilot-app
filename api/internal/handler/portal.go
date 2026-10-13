@@ -17,6 +17,7 @@ import (
 // l'appelant : c'est lui, et lui seul, qui decide de ce qui est visible.
 type PortalService interface {
 	Projects(ctx context.Context, userID uuid.UUID) (usecase.PortalProjectList, error)
+	Dashboard(ctx context.Context, userID uuid.UUID, projectID *uuid.UUID) (usecase.PortalDashboard, error)
 	Project(ctx context.Context, userID, projectID uuid.UUID) (usecase.PortalProjectDetail, error)
 	Deliverable(ctx context.Context, userID, deliverableID uuid.UUID) (usecase.PortalDeliverableDetail, error)
 	Decide(ctx context.Context, userID, deliverableID uuid.UUID, decision, feedback string) (usecase.PortalDeliverableDetail, error)
@@ -169,6 +170,27 @@ func (h *Portal) ReviewDecide(c fiber.Ctx) error {
 	}
 
 	return c.JSON(review)
+}
+
+// Dashboard sert l'accueil du portail.
+func (h *Portal) Dashboard(c fiber.Ctx) error {
+	userID, err := caller(c)
+	if err != nil {
+		return err
+	}
+	var projectID *uuid.UUID
+	if raw := c.Query("project_id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"project_id": "Identifiant invalide"})
+		}
+		projectID = &id
+	}
+	out, err := h.svc.Dashboard(c.Context(), userID, projectID)
+	if err != nil {
+		return err
+	}
+	return c.JSON(out)
 }
 
 // DownloadFile sert un fichier partage, ou celui d'une version de livrable.

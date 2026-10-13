@@ -429,3 +429,85 @@ func TestLePortailNommeLesInterlocuteursEtLaProchaineEtape(t *testing.T) {
 		t.Fatalf("autre client : %v", err)
 	}
 }
+
+func TestLeTableauDeBordDuPortailSuitLesDeclencheurs(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	portal, deliverables, _ := newPortal(t, pool)
+	tickets := usecase.NewTicketService(pool, nil)
+
+	a := newPortalClient(t, pool)
+	other := newPortalClient(t, pool)
+	member, _ := createUser(t, pool, "team")
+	addMember(t, pool, a.projectID, member)
+
+	// Une demande du client, puis resolue : les compteurs suivent.
+	item, err := tickets.Create(ctx, usecase.CreateTicketInput{
+		ProjectID: a.projectID, Subject: "Formulaire", Tracker: "anomalie", Priority: "normal", CreatedBy: &a.userID, FromPortal: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	board, err := portal.Dashboard(ctx, a.userID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if board.Tickets.Received != 1 || board.Tickets.Resolved != 0 {
+		t.Fatalf("demande recue : %+v", board.Tickets)
+	}
+	done := "done"
+	if _, err := tickets.PostMessage(ctx, item.ID, usecase.PostMessageInput{Body: "Corrigé.", AuthorID: &member, NewStatus: &done}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Un livrable valide compte pour le mois.
+	d, err := deliverables.Create(ctx, usecase.CreateDeliverableInput{ProjectID: a.projectID, Title: "Maquettes", URL: "https://example.fr", CreatedBy: &member})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := portal.Decide(ctx, a.userID, d.ID, "valide", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	board, err = portal.Dashboard(ctx, a.userID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if board.Tickets.Received != 0 || board.Tickets.Resolved != 1 {
+		t.Fatalf("demande resolue : %+v", board.Tickets)
+	}
+	if board.TicketsResolvedMonth != 1 || board.ValidatedThisMonth != 1 {
+		t.Fatalf("activite du mois : %d resolues, %d valides", board.TicketsResolvedMonth, board.ValidatedThisMonth)
+	}
+	// La courbe couvre trente-six jours, le dernier etant aujourd'hui : la
+	// demande resolue plus haut y compte.
+	if n := len(board.TicketDays); n != 36 || board.TicketDays[n-1].Resolved != 1 {
+		t.Fatalf("courbe des demandes : %+v", board.TicketDays)
+	}
+	if board.Focus == nil || board.Focus.ID != a.projectID || len(board.FocusTickets) != 1 || board.FocusTickets[0].Open {
+		t.Fatalf("projet suivi : %+v / %+v", board.Focus, board.FocusTickets)
+	}
+	// Un projet d'un autre client ne se suit pas.
+	if _, err := portal.Dashboard(ctx, a.userID, &other.projectID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("projet d'un autre client : %v", err)
+	}
+	kinds := map[string]bool{}
+	for _, it := range board.Activity {
+		kinds[it.Kind] = true
+	}
+	if !kinds["ticket_replied"] || !kinds["deliverable_validated"] || !kinds["deliverable_submitted"] {
+		t.Fatalf("fil d'activite : %v", kinds)
+	}
+	if board.ActiveProjects != 1 || board.ProgressAverage == nil || len(board.Projects) != 1 {
+		t.Fatalf("projets : %+v", board)
+	}
+
+	// Rien de tout cela chez un autre client.
+	theirs, err := portal.Dashboard(ctx, other.userID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if theirs.Tickets.Resolved != 0 || len(theirs.Activity) != 0 || len(theirs.Actions) != 0 || theirs.ValidatedThisMonth != 0 || len(theirs.Projects) != 1 || theirs.Projects[0].ID != other.projectID {
+		t.Fatalf("fuite vers un autre client : %+v", theirs)
+	}
+}
