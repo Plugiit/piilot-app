@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	netmail "net/mail"
@@ -24,10 +25,12 @@ import (
 	"github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
 	"github.com/plugiit/piilot-app/api/internal/repository"
+	"github.com/plugiit/piilot-app/api/internal/repository/db"
 	"github.com/plugiit/piilot-app/api/internal/security"
 	"github.com/plugiit/piilot-app/api/internal/spaces"
 	"github.com/plugiit/piilot-app/api/internal/storage"
 	"github.com/plugiit/piilot-app/api/internal/usecase"
+	"github.com/plugiit/piilot-app/api/internal/zone"
 )
 
 // Injectes au build via -ldflags (voir Dockerfile et Makefile).
@@ -72,6 +75,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
+
+	// Le fuseau de l'agence : pour le Go, et recopie en base pour les
+	// declencheurs qui datent un agregat.
+	zone.Set(cfg.Timezone)
+	if err := db.New(pool).SetAppTimezone(ctx, cfg.Timezone.String()); err != nil {
+		return fmt.Errorf("fuseau de l'agence : %w", err)
+	}
 
 	rdb, err := repository.NewRedis(ctx, cfg.RedisURL)
 	if err != nil {
@@ -129,6 +139,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.URLFor(spaces.Team), smtpFromAddress(cfg.SMTPFrom), log,
 	)
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
+	analyticsService := usecase.NewAnalyticsService(pool, cfg.Analytics, cfg.JWTSecret, log)
+	uptimeService := usecase.NewUptimeService(pool, cfg.Uptime, cfg.JWTSecret, cfg.URLFor(spaces.Team), log)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
 	portalService.SetLinkSecret(cfg.JWTSecret)
 
@@ -177,6 +189,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Updates:       handler.NewUpdates(usecase.NewUpdateService(pool, version, cfg.UpdateCheck)),
 		Backups:       handler.NewBackups(usecase.NewBackupService(pool, cfg.BackupStaleAfter)),
 		Inbound:       handler.NewInbound(inboundService),
+		Uptime:        handler.NewUptime(uptimeService),
+		Analytics:     handler.NewAnalytics(analyticsService),
+		Modules:       handler.NewModules(uptimeService, analyticsService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
 		Guard:         middleware.NewGuard(signer, authService),
@@ -223,6 +238,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// soit leur chemin. Purge quotidienne du journal d'audit.
 	repository.StartInboundMail(ctx, inboundService, log)
 	repository.StartAuditPurge(ctx, auditService, log)
+	// Disponibilite des sites : releve du service de surveillance.
+	repository.StartUptime(ctx, uptimeService, log)
+	// Statistiques des sites : cache, visiteurs du moment, photos du mois.
+	repository.StartAnalytics(ctx, analyticsService, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
