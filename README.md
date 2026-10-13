@@ -206,7 +206,9 @@ l'autre. À droite, les **actions requises** (livrables à valider, projets en
 attente d'un retour, en rouge passé trois jours) et l'**historique** du projet.
 Les compteurs sont tenus par des déclencheurs, rien n'est recompté à
 l'affichage. *Projets* liste chaque projet avec son avancement et sa prochaine
-étape.
+étape, sous un bandeau des sites : les visiteurs sur trente jours (Umami), un
+site à la fois, et sur la page d'un projet la disponibilité de son site
+(Uptime Kuma). Un projet surveillé sans statistiques le signale à l'équipe.
 
 ![Portail client](docs/images/portail-accueil.jpg)
 
