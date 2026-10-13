@@ -11,7 +11,7 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
-## [1.3.0] — Modules : disponibilité et statistiques
+## [1.3.0] — Modules : disponibilité et statistiques · 2026-10-13
 
 Piilot lit désormais la surveillance et l'audience des sites de l'agence — Uptime Kuma et Umami — sans jamais les appeler pendant une requête. Et le portail client s'ouvre sur un vrai tableau de bord.
 
