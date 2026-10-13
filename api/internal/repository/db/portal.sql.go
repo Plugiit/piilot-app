@@ -299,7 +299,9 @@ SELECT
     u.phone,
     u.booking_url,
     u.avatar_url,
-    (u.id = c.account_manager_id)::boolean AS is_account_manager
+    -- Nul quand le client n'a pas de charge de compte : coalesce, sinon la
+    -- comparaison rend NULL et la fiche du portail echoue.
+    coalesce(u.id = c.account_manager_id, false)::boolean AS is_account_manager
 FROM projects p
 JOIN clients c ON c.id = p.client_id
 JOIN users u
@@ -309,7 +311,7 @@ WHERE p.id = $1
   AND u.role <> 'client'
   AND u.deleted_at IS NULL
   AND u.disabled_at IS NULL
-ORDER BY (u.id = c.account_manager_id) DESC, u.firstname, u.lastname, u.id
+ORDER BY coalesce(u.id = c.account_manager_id, false) DESC, u.firstname, u.lastname, u.id
 LIMIT 20
 `
 
