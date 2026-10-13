@@ -51,10 +51,13 @@ version sort quand ce qu'elle contient est prêt.
 | ✅ Livrée | 1.0.0 | V1 | Tous | Le temps de l'équipe : palette, chrono, Git, SIRET, adresse |
 | ✅ Livrée | 1.1.0 | Portail : livrables et prochaine étape | Client | Livrables sur la fiche projet, validation depuis l'e-mail, prochaine étape, interlocuteurs ; sauvegardes |
 | 📍 Actuelle | **1.2.0** | E-mail ↔ tickets | Client | Répondre et créer un ticket par e-mail (IMAP et webhook) ; journal d'audit |
-| ⏳ À venir | 1.3.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
-| ⏳ À venir | 1.4.0 | Rapports | Admin | Temps par client et projet en CSV, activité de l'équipe, compte rendu PDF pour le client |
-| ⏳ À venir | 1.5.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité et certificat |
-| ⏳ À venir | 1.6.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
+| ⏳ À venir | 1.3.0 | Modules : disponibilité et statistiques | Tous | Modules Uptime Kuma et Umami liés aux projets ; page « Statistiques » du portail ; tableau de bord du portail repensé |
+| ⏳ À venir | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
+| ⏳ À venir | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
+| ⏳ À venir | 1.6.0 | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
+| ⏳ À venir | 1.7.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
+| ⏳ À venir | 1.8.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
+| ⏳ À venir | 1.9.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
 <!-- /roadmap:table -->
 
 ---
@@ -302,8 +305,8 @@ depuis un contact, adresse autocomplétée, logo par projet, jalon atteint par
 ses livrables, intégration GitHub/GitLab, session qui ne s'expire plus.
 
 Critères de sortie encore ouverts, repris ci-dessous : sauvegardes (1.1),
-journal d'audit (1.2), export et suppression RGPD (1.3), tests de bout en
-bout et recette (1.6).
+journal d'audit (1.2), export et suppression RGPD (1.5), tests de bout en
+bout et recette (1.9).
 
 ---
 
@@ -371,7 +374,74 @@ sa réponse arrive sur le ticket.
 
 ---
 
-### 1.3.0 — Import et RGPD
+### 1.3.0 — Modules : disponibilité et statistiques 🚧
+
+En cours. Ajoutée en cours de route pour un besoin de l'agence : savoir, depuis
+un projet, si ses sites tiennent, sans ouvrir un autre outil.
+
+- **Page *Paramètres > Modules*** : des fonctions qui s'appuient sur un
+  service extérieur, activables une à une. Le premier module est la
+  disponibilité des sites, branchée sur **Uptime Kuma** ; d'autres services
+  pourront suivre derrière la même interface de fournisseur.
+- **Relève** : un job lit `/metrics` de Kuma (clé d'API chiffrée en base, ou
+  `KUMA_URL` / `KUMA_API_KEY` dans l'environnement) toutes les 1 à 5 minutes
+  et tient un agrégat par site et par jour, gardé sans limite. Pas
+  d'échantillon brut. Une relève ratée compte comme contrôle manquant, jamais
+  comme une panne. « Tester la connexion » demande une relève au job ; aucun
+  écran n'appelle Kuma.
+- **Incidents** : le webhook de notification de Kuma, protégé par un secret,
+  ouvre et ferme chaque panne avec son heure exacte et sa raison. Sans
+  webhook, la relève les déduit de l'état des sites.
+- **Projets** : un onglet *Disponibilité* dans les paramètres de chaque
+  projet, pour lier un ou plusieurs sites (production, préproduction),
+  facultatif. On y voit la disponibilité sur trente jours, une case par jour,
+  le certificat et les derniers incidents.
+- **Statistiques des sites** (module Umami, instance ou Umami Cloud) : un
+  onglet *Statistiques* dans les paramètres du projet lie ses sites, dont un
+  seul de production ; le client a une page *Statistiques* sur son projet —
+  chiffres comparés à la période précédente, courbe, pages, sources, pays,
+  appareils, navigateurs, visiteurs du moment, périodes prédéfinies ou
+  personnalisées. Umami garde l'historique ; Piilot ne recopie que les vues
+  affichées, dans un cache tenu par une tâche de fond, et fige les chiffres
+  de chaque mois pour le compte rendu mensuel. Les versions 2.x et 3.x
+  d'Umami sont lues toutes deux.
+- **Fuseau de l'agence** (`APP_TIMEZONE`) : plus d'Europe/Paris en dur.
+- **Portail client** : tableau de bord repensé — chiffres de tête, projet
+  suivi raconté étape par étape, actions requises et historique.
+
+Hors périmètre, et le restent : Search Console, PageSpeed, suivi de
+l'indexation et tout ce qui relève du SEO, sur l'ancienne plateforme.
+
+---
+
+### 1.4.0 — Maintenance et rapport mensuel
+
+Ce que l'agence fait chaque mois sur un site, dit au client sans qu'il le
+demande.
+
+- **Journal des interventions** : une intervention est une saisie de temps
+  qualifiée — contenu, correctif, mise à jour, support, autre — avec une
+  note pour le client et sa visibilité. Le temps n'est saisi qu'une fois.
+  Liste admin par projet et par mois ; historique des interventions visibles
+  dans l'espace client.
+- **Formules de maintenance** : nom, temps inclus par mois (non cumulable),
+  sections du rapport. Un projet change de formule sans réécrire ses mois
+  passés. Le dépassement s'affiche (« +35 min »), sans montant : la
+  facturation reste sur l'ancienne plateforme.
+- **Rapport mensuel** : un brouillon par projet sous formule, le 1er du mois,
+  après les photos du mois de Kuma et d'Umami. Disponibilité, audience,
+  interventions, mises en ligne ; une section sans données n'apparaît pas.
+  Mot du mois rédigé par l'agence, relecture, validation, envoi. Un rapport
+  envoyé repose sur ses données figées et ne change plus jamais.
+- **Envoi** : un e-mail (chiffres clés, tableaux, barres) aux comptes du
+  portail du client et aux adresses ajoutées au projet, chacun pouvant être
+  exclu ; le lien mène au rapport complet dans l'espace client, après
+  connexion. PDF par l'impression du navigateur. Envoi automatique prévu,
+  désactivé.
+
+---
+
+### 1.5.0 — Import et RGPD
 
 Ramener les données de l'ancienne plateforme, et savoir les rendre ou les
 effacer.
@@ -390,22 +460,41 @@ effacer.
 
 ---
 
-### 1.4.0 — Rapports
+### 1.6.0 — Sources du rapport
 
-Ce que l'agence a fait, pour elle et pour le client.
+Enrichir le rapport mensuel, un module ou un fournisseur à la fois, chacun
+activable.
+
+- **Coolify** : historique des déploiements du mois par son API, projet lié à
+  son application.
+- **Git** (GitHub d'abord, GitLab ensuite) : pull requests fusionnées du mois,
+  en distinguant les mises à jour de dépendances (Renovate, Dependabot) et
+  les correctifs de sécurité. Le webhook en garde déjà l'auteur et la
+  branche.
+- **Sauvegardes** : un point d'appel que les sauvegardes du site appellent en
+  fin d'exécution, protégé par un jeton par projet ; dernière sauvegarde
+  réussie et nombre sur le mois ; date du dernier test de restauration
+  saisie à la main.
+- **Domaine** : expiration par RDAP, relevée chaque semaine ; alerte aux
+  admins à 60 et 30 jours.
+
+---
+
+### 1.7.0 — Rapports internes
+
+Ce que l'agence a fait, pour elle.
 
 - **Temps par client et par projet** sur une période, facturable ou non, par
   personne et par prestation, export **CSV** pour la facturation, qui reste
   sur l'ancienne plateforme.
 - **Activité de l'équipe** : charge par personne, temps saisi contre temps
   attendu, tâches livrées, retards, tickets traités.
-- **Compte rendu PDF** pour le client, mensuel ou à la demande : temps passé,
-  tickets traités, livrables validés, mises en ligne. Posé sur le portail
-  et envoyé par e-mail. Génération par un job, jamais dans la requête.
+
+Le compte rendu pour le client est passé dans le rapport mensuel de la 1.4.
 
 ---
 
-### 1.5.0 — Portail : documents et santé du site
+### 1.8.0 — Portail : documents et santé du site
 
 Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
 
@@ -416,14 +505,14 @@ Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
   une dépendance payante. Le devis signé reste un PDF déposé.
 - **Historique des mises en ligne** : les mises en ligne reçues par Git,
   avec ce qui a changé (tickets clos, pull requests fusionnées).
-- **Santé du site** : un job appelle l'URL de production toutes les cinq
-  minutes — en ligne ou non, temps de réponse, certificat et sa date
-  d'expiration. Alerte à l'équipe au second échec, pastille « tout va bien »
-  sur le portail. Pas de SEO : ça reste sur l'ancienne plateforme.
+- **Santé du site sur le portail** : la disponibilité et le certificat des
+  sites de production, lus dans le module de la 1.3, avec une pastille
+  « tout va bien » et les incidents du mois. Alerte à l'équipe à l'ouverture
+  d'un incident. Pas de SEO : ça reste sur l'ancienne plateforme.
 
 ---
 
-### 1.6.0 — Fin de l'ancienne plateforme pour la gestion de projet et le CRM
+### 1.9.0 — Fin de l'ancienne plateforme pour la gestion de projet et le CRM
 
 Ce qui manque encore pour ne plus y retourner, et clore la V1.
 
@@ -445,7 +534,7 @@ Ce qui manque encore pour ne plus y retourner, et clore la V1.
 Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 
 - **Infrastructure** : supervision et alertes de l'instance elle-même
-  (les sauvegardes sont en 1.1, la santé des sites clients en 1.5).
+  (les sauvegardes sont en 1.1, la disponibilité des sites clients en 1.3).
 - **Sécurité** : revue de la surface portail, CSP, limitation de débit.
 - **Nettoyage** : correction des textes périmés, retrait des éléments
   factices qui reviennent plus tard.
@@ -460,10 +549,10 @@ Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 | **D2** | Domaine de production | Un sous-domaine unique. `COOKIE_DOMAIN` vide. |
 | **D3** | Nom affiché | « Piilot » pour le produit, « Plugiit » pour l'agence. |
 | **D4** | Fournisseur d'e-mails | Brevo ou Scaleway TEM (hébergé UE). |
-| **D5** | Données de l'ancienne plateforme | Import CSV depuis l'interface (1.3), par entité, rejouable. Pas de lecture directe de l'ancienne base. |
+| **D5** | Données de l'ancienne plateforme | Import CSV depuis l'interface (1.5), par entité, rejouable. Pas de lecture directe de l'ancienne base. |
 | **D6** | Stockage des fichiers | Disque local tant qu'une seule instance. Visibilité par fichier : interne par défaut. |
 | **D7** | E-mail entrant | Les deux : boîte IMAP relevée par un job (par défaut), webhook du fournisseur en option. Jamais dans la requête HTTP. |
 | **D8** | Rendez-vous | Un lien externe par membre (Cal.com, Calendly, Google). Pas de créneaux dans Piilot. |
 | **D9** | Devis et contrats sur le portail | PDF classés avec accusé « lu / accepté » horodaté. Pas de signature électronique. |
-| **D10** | Santé du site | Disponibilité, temps de réponse et certificat, par un job. Pas de SEO. |
+| **D10** | Santé du site | Déléguée à Uptime Kuma, que l'agence fait déjà tourner : Piilot relève son /metrics et reçoit son webhook (1.3). Pas de sonde maison, pas de SEO. |
 | **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
