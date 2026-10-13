@@ -487,6 +487,24 @@ func TestLeTableauDeBordDuPortailSuitLesDeclencheurs(t *testing.T) {
 	if board.Focus == nil || board.Focus.ID != a.projectID || len(board.FocusTickets) != 1 || board.FocusTickets[0].Open {
 		t.Fatalf("projet suivi : %+v / %+v", board.Focus, board.FocusTickets)
 	}
+	// La frise du projet : ses jalons dans l'ordre, le premier atteint.
+	if _, err := pool.Exec(ctx, `INSERT INTO milestones (project_id, title, due_on, completed_at, position) VALUES
+		($1, 'Cadrage', '2026-01-10', now(), 0), ($1, 'Mise en ligne', '2099-06-01', NULL, 1)`, a.projectID); err != nil {
+		t.Fatal(err)
+	}
+	board, err = portal.Dashboard(ctx, a.userID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var journey *usecase.PortalJourney
+	for i := range board.Journeys {
+		if board.Journeys[i].ProjectID == a.projectID {
+			journey = &board.Journeys[i]
+		}
+	}
+	if journey == nil || len(journey.Steps) != 2 || journey.Steps[0].State != "done" || journey.Steps[1].Title != "Mise en ligne" || journey.Steps[1].State != "upcoming" {
+		t.Fatalf("frise du projet : %+v", board.Journeys)
+	}
 	// Un projet d'un autre client ne se suit pas.
 	if _, err := portal.Dashboard(ctx, a.userID, &other.projectID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("projet d'un autre client : %v", err)

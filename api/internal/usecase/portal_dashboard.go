@@ -41,8 +41,25 @@ type PortalDashboard struct {
 	FocusTickets []PortalTicket `json:"focus_tickets"`
 	// Ce qui attend le client, tous projets confondus.
 	Actions []PortalAction `json:"actions"`
-	// L'historique du projet suivi.
+	// L'historique du projet demande, ou de tous les projets du client.
 	Activity []PortalActivityItem `json:"activity"`
+	// Les etapes de chaque projet en cours, pour sa frise.
+	Journeys []PortalJourney `json:"journeys"`
+}
+
+// PortalJourney est la frise d'un projet en cours : ses jalons, dans l'ordre.
+type PortalJourney struct {
+	ProjectID uuid.UUID           `json:"project_id"`
+	Steps     []PortalJourneyStep `json:"steps"`
+}
+
+// PortalJourneyStep est un jalon de la frise. State : done, late ou
+// upcoming, comme sur la fiche du projet ; l'etape en cours est le premier
+// jalon non atteint.
+type PortalJourneyStep struct {
+	Title string  `json:"title"`
+	DueOn *string `json:"due_on"`
+	State string  `json:"state"`
 }
 
 // PortalAction est une action requise du client.
@@ -127,6 +144,7 @@ func (s *PortalService) Dashboard(ctx context.Context, userID uuid.UUID, project
 		FocusTickets: []PortalTicket{},
 		Actions:      []PortalAction{},
 		Activity:     []PortalActivityItem{},
+		Journeys:     []PortalJourney{},
 	}
 
 	sum, tracked := 0, 0
@@ -257,7 +275,29 @@ func (s *PortalService) Dashboard(ctx context.Context, userID uuid.UUID, project
 		}
 	}
 
-	feed, err := s.q.PortalRecentActivity(ctx, db.PortalRecentActivityParams{ClientID: *clientID, ProjectID: focusID})
+	// Les frises des projets en cours, dans l'ordre de la liste des projets.
+	milestones, err := s.q.PortalClientMilestones(ctx, *clientID)
+	if err != nil {
+		return PortalDashboard{}, fmt.Errorf("etapes des projets : %w", err)
+	}
+	steps := map[uuid.UUID][]PortalJourneyStep{}
+	for _, row := range milestones {
+		m := milestoneOf(row.Milestone, today)
+		steps[row.Milestone.ProjectID] = append(steps[row.Milestone.ProjectID], PortalJourneyStep{Title: m.Title, DueOn: m.DueOn, State: m.State})
+	}
+	for _, p := range projects.Items {
+		if p.Status == "cadrage" || p.Status == "production" || p.Status == "attente" {
+			journey := PortalJourney{ProjectID: p.ID, Steps: steps[p.ID]}
+			if journey.Steps == nil {
+				journey.Steps = []PortalJourneyStep{}
+			}
+			out.Journeys = append(out.Journeys, journey)
+		}
+	}
+
+	// L'historique : celui du projet demande, ou de tous les projets du
+	// client — l'accueil montre ce qui s'est passe partout.
+	feed, err := s.q.PortalRecentActivity(ctx, db.PortalRecentActivityParams{ClientID: *clientID, ProjectID: projectID})
 	if err != nil {
 		return PortalDashboard{}, fmt.Errorf("activite recente : %w", err)
 	}

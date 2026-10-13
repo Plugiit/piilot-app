@@ -92,3 +92,13 @@ FROM client_ticket_days
 WHERE client_id = sqlc.arg('client_id') AND day >= sqlc.arg('since')::date
 ORDER BY day
 LIMIT 62;
+
+-- name: PortalClientMilestones :many
+-- Les jalons des projets en cours du client, dans l'ordre de chaque projet :
+-- les frises du tableau de bord, en une requete.
+SELECT sqlc.embed(m)
+FROM milestones m
+JOIN projects p ON p.id = m.project_id AND p.deleted_at IS NULL
+WHERE p.client_id = sqlc.arg('client_id') AND p.status IN ('cadrage', 'production', 'attente')
+ORDER BY m.project_id, m.due_on NULLS LAST, m.position, m.created_at
+LIMIT 500;
