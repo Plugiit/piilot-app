@@ -509,6 +509,9 @@ Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
   sites de production, lus dans le module de la 1.3, avec une pastille
   « tout va bien » et les incidents du mois. Alerte à l'équipe à l'ouverture
   d'un incident. Pas de SEO : ça reste sur l'ancienne plateforme.
+  *Déjà en place, en avance sur la version : l'état et la disponibilité sur
+  trente jours du site de chaque projet, dans le bandeau de sa page. Restent
+  le certificat, les incidents du mois et l'alerte à l'équipe.*
 
 ---
 
