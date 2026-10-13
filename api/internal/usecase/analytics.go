@@ -1059,4 +1059,60 @@ func (s *AnalyticsService) PortalActive(ctx context.Context, userID, projectID u
 	return ActiveView{Visitors: row.Visitors, FetchedAt: row.FetchedAt}, nil
 }
 
+// AudienceSite est un site de production du client et ses trente derniers
+// jours, pour le bandeau du portail.
+type AudienceSite struct {
+	ID         uuid.UUID   `json:"id"`
+	Name       string      `json:"name"`
+	Domain     string      `json:"domain"`
+	ProjectIDs []uuid.UUID `json:"project_ids"`
+	// Visiteurs sur la periode, et la courbe jour par jour.
+	Visitors int64           `json:"visitors"`
+	Series   []AudiencePoint `json:"series"`
+}
+
+// AudiencePoint est un jour de la courbe.
+type AudiencePoint struct {
+	At       string `json:"at"`
+	Visitors int64  `json:"visitors"`
+}
+
+// AudienceView est le bandeau d'audience : vide quand le module est coupe ou
+// qu'aucun site de production n'a encore ses chiffres.
+type AudienceView struct {
+	Sites []AudienceSite `json:"sites"`
+}
+
+// PortalAudience rend les trente jours des sites de production du client,
+// lus dans le cache que la tache tient toujours pret pour eux.
+func (s *AnalyticsService) PortalAudience(ctx context.Context, userID uuid.UUID) (AudienceView, error) {
+	out := AudienceView{Sites: []AudienceSite{}}
+	clientID, err := s.q.PortalClientOf(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && clientID == nil) {
+		return out, nil
+	}
+	if err != nil {
+		return AudienceView{}, fmt.Errorf("lecture du compte : %w", err)
+	}
+	rows, err := s.q.PortalAudienceSites(ctx, *clientID)
+	if err != nil {
+		return AudienceView{}, fmt.Errorf("sites du client : %w", err)
+	}
+	for _, row := range rows {
+		var data StatisticsData
+		if err := json.Unmarshal(row.Payload, &data); err != nil {
+			return AudienceView{}, fmt.Errorf("vue en cache illisible : %w", err)
+		}
+		site := AudienceSite{
+			ID: row.ID, Name: row.Name, Domain: row.Domain, ProjectIDs: row.ProjectIds,
+			Visitors: data.Totals.Visitors, Series: make([]AudiencePoint, 0, len(data.Series)),
+		}
+		for _, pt := range data.Series {
+			site.Series = append(site.Series, AudiencePoint{At: pt.At, Visitors: pt.Visitors})
+		}
+		out.Sites = append(out.Sites, site)
+	}
+	return out, nil
+}
+
 func ptr[T any](v T) *T { return &v }

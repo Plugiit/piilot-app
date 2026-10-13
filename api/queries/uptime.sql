@@ -213,3 +213,20 @@ SELECT count(*)::integer FROM uptime_monitors WHERE id = ANY (sqlc.arg('ids')::u
 
 -- name: UptimeProjectExists :one
 SELECT EXISTS (SELECT 1 FROM projects WHERE id = sqlc.arg('id') AND deleted_at IS NULL);
+
+-- name: PortalUptimeSites :many
+-- Les sites de production surveilles des projets du client, module actif,
+-- et leurs agregats depuis une date : la disponibilite du portail. Un releve
+-- manque ne compte ni pour ni contre.
+SELECT m.id, m.name, m.url, m.hostname, m.status, l.project_id,
+       coalesce(sum(d.checks_up), 0)::bigint AS checks_up,
+       coalesce(sum(d.checks_down), 0)::bigint AS checks_down
+FROM project_uptime_monitors l
+JOIN uptime_monitors m ON m.id = l.monitor_id AND m.present
+JOIN projects p ON p.id = l.project_id AND p.deleted_at IS NULL
+JOIN uptime_settings s ON s.id = 1 AND s.enabled
+LEFT JOIN uptime_daily d ON d.monitor_id = m.id AND d.day >= sqlc.arg('since')::date
+WHERE p.client_id = sqlc.arg('client_id') AND l.environment = 'prod'
+GROUP BY m.id, m.name, m.url, m.hostname, m.status, l.project_id
+ORDER BY lower(m.name), m.id, l.project_id
+LIMIT 50;

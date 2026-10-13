@@ -11274,6 +11274,39 @@
           }
         }
       }
+    },
+    "/api/v1/client/sites": {
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Sites du client",
+        "description": "Les sites de production des projets du client : audience sur trente jours (Umami) et disponibilité sur trente jours (Uptime Kuma), lues dans les tables locales des modules. Une liste est vide quand son module est coupé.",
+        "operationId": "getClientSites",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSites"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -21412,6 +21445,130 @@
               "null"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "AudiencePoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "visitors"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "Le jour, à l'heure locale de l'agence"
+          },
+          "visitors": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AudienceSite": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "domain",
+          "project_ids",
+          "visitors",
+          "series"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "project_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "visitors": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Visiteurs sur les trente jours"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudiencePoint"
+            }
+          }
+        }
+      },
+      "PortalUptimeSite": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "url",
+          "status",
+          "uptime_30d"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "pending",
+              "maintenance"
+            ]
+          },
+          "uptime_30d": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "En pourcentage, deux décimales ; nul tant qu'aucun contrôle n'a abouti sur la période"
+          }
+        }
+      },
+      "ClientSites": {
+        "type": "object",
+        "required": [
+          "audience",
+          "uptime"
+        ],
+        "properties": {
+          "audience": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AudienceSite"
+            }
+          },
+          "uptime": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PortalUptimeSite"
+            }
           }
         }
       }

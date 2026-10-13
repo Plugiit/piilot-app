@@ -256,3 +256,37 @@ func webhookToken(t *testing.T, webhookURL string) string {
 	}
 	return token
 }
+
+func TestLeClientVoitLaDisponibiliteDeSesSites(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	svc, _ := newUptime(t, pool)
+	if err := svc.Poll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	sites := monitorsByName(t, svc)
+	client := newPortalClient(t, pool)
+	if _, err := svc.SetProjectSites(ctx, client.projectID, []usecase.ProjectSiteInput{
+		{MonitorID: sites["Vitrine"].ID, Environment: "prod"},
+		{MonitorID: sites["Preprod"].ID, Environment: "preprod"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// La production seule, avec ses trente jours.
+	got, err := svc.PortalUptime(ctx, client.userID)
+	if err != nil || len(got) != 1 || got[0].Name != "Vitrine" || got[0].ProjectID != client.projectID || got[0].Status != "up" || got[0].Uptime == nil || *got[0].Uptime != 100 {
+		t.Fatalf("disponibilite du client : %+v, %v", got, err)
+	}
+
+	// Un autre client ne voit rien, ni personne quand le module est coupe.
+	if other, err := svc.PortalUptime(ctx, newPortalClient(t, pool).userID); err != nil || len(other) != 0 {
+		t.Errorf("autre client : %+v, %v", other, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE uptime_settings SET enabled = false`); err != nil {
+		t.Fatal(err)
+	}
+	if off, err := svc.PortalUptime(ctx, client.userID); err != nil || len(off) != 0 {
+		t.Errorf("module coupe : %+v, %v", off, err)
+	}
+}

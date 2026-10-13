@@ -619,6 +619,58 @@ func (q *Queries) PortalAnalyticsWebsite(ctx context.Context, arg PortalAnalytic
 	return i, err
 }
 
+const portalAudienceSites = `-- name: PortalAudienceSites :many
+SELECT w.id, w.name, w.domain,
+       array_agg(DISTINCT p.id ORDER BY p.id)::uuid[] AS project_ids,
+       c.payload
+FROM project_analytics_websites l
+JOIN analytics_websites w ON w.id = l.website_id
+JOIN projects p ON p.id = l.project_id AND p.deleted_at IS NULL
+JOIN analytics_settings s ON s.id = 1 AND s.enabled
+JOIN analytics_cache c ON c.website_id = w.id AND c.period_key = '30d'
+WHERE p.client_id = $1 AND l.environment = 'prod'
+GROUP BY w.id, w.name, w.domain, c.payload
+ORDER BY lower(w.name), w.id
+LIMIT 10
+`
+
+type PortalAudienceSitesRow struct {
+	ID         uuid.UUID   `json:"id"`
+	Name       string      `json:"name"`
+	Domain     string      `json:"domain"`
+	ProjectIds []uuid.UUID `json:"project_ids"`
+	Payload    []byte      `json:"payload"`
+}
+
+// Les sites de production des projets du client, module actif, avec leurs
+// trente jours en cache : le bandeau d'audience du portail. Un site lie a
+// plusieurs projets ne compte qu'une fois.
+func (q *Queries) PortalAudienceSites(ctx context.Context, clientID uuid.UUID) ([]PortalAudienceSitesRow, error) {
+	rows, err := q.db.Query(ctx, portalAudienceSites, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PortalAudienceSitesRow{}
+	for rows.Next() {
+		var i PortalAudienceSitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Domain,
+			&i.ProjectIds,
+			&i.Payload,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const portalProjectHasStatistics = `-- name: PortalProjectHasStatistics :one
 SELECT EXISTS (
     SELECT 1 FROM project_analytics_websites l

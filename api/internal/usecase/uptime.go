@@ -743,3 +743,40 @@ func (s *UptimeService) SetProjectSites(ctx context.Context, projectID uuid.UUID
 	}
 	return s.ProjectUptime(ctx, projectID)
 }
+
+// PortalUptimeSite est la disponibilite d'un site de production d'un projet
+// du client, sur trente jours, pour le portail.
+type PortalUptimeSite struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	URL       string    `json:"url"`
+	Status    string    `json:"status"`
+	// Nul tant qu'aucun controle n'a abouti sur la periode.
+	Uptime *float64 `json:"uptime_30d"`
+}
+
+// PortalUptime rend la disponibilite des sites de production du client : vide
+// quand le module est coupe ou qu'aucun site n'est lie.
+func (s *UptimeService) PortalUptime(ctx context.Context, userID uuid.UUID) ([]PortalUptimeSite, error) {
+	out := []PortalUptimeSite{}
+	clientID, err := s.q.PortalClientOf(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && clientID == nil) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lecture du compte : %w", err)
+	}
+	since := agencyToday(time.Now()).AddDate(0, 0, -(uptimeWindowDays - 1))
+	rows, err := s.q.PortalUptimeSites(ctx, db.PortalUptimeSitesParams{Since: since, ClientID: *clientID})
+	if err != nil {
+		return nil, fmt.Errorf("sites surveilles du client : %w", err)
+	}
+	for _, r := range rows {
+		out = append(out, PortalUptimeSite{
+			ID: r.ID, ProjectID: r.ProjectID, Name: r.Name, URL: r.Url, Status: uptimeStatusName[r.Status],
+			Uptime: uptimeRatio(int32(r.ChecksUp), int32(r.ChecksDown)),
+		})
+	}
+	return out, nil
+}
