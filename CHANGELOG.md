@@ -11,6 +11,42 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.4.0] — Maintenance et rapport mensuel
+
+Le temps passé en maintenance devient visible pour le client : les interventions sont tracées, comptées sur la formule du projet, et réunies chaque mois dans un rapport relu par l'agence avant d'être envoyé.
+
+### Points forts
+
+- **Interventions** : une saisie de temps qualifiée (contenu, correctif, mise à jour, support, autre), saisie une seule fois — elle compte aussi dans les rapports de temps. Visible ou non du client, avec une note écrite pour lui.
+- **Formules de maintenance** : un temps inclus par mois, sans report, et les sections du rapport. Changer de formule ne réécrit pas les mois passés ; le dépassement s'affiche en minutes (« +35 min »), sans montant.
+- **Rapport mensuel** : un brouillon par projet sous formule le 1er du mois — disponibilité (Uptime Kuma), audience (Umami), interventions, mises en ligne. Relu, complété d'un mot du mois, validé puis envoyé. Ses données sont figées à la génération ; un rapport envoyé ne change plus, la base le refuse.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Suivi du temps** : une saisie peut être marquée comme intervention, avec sa nature et, si elle est visible, la note destinée au client.
+- **Gestion de projet › Interventions** : le journal du mois, filtrable par projet, avec pour chaque projet le temps consommé sur le temps inclus.
+- **Paramètres › Formules de maintenance** (admins) : créer, modifier, retirer une formule (une formule qui a servi ne se supprime pas) ; réglages d'envoi des rapports.
+- **Paramètres du projet › Maintenance** : la formule à partir d'un mois, l'historique des périodes, les destinataires du rapport — comptes du portail moins ceux qu'on exclut, plus des adresses ajoutées.
+- **Gestion de projet › Rapports mensuels** (admins) : liste par mois et par statut, génération à la demande, relecture, mot du mois, validation, envoi, régénération d'un brouillon. *Télécharger en PDF* par l'impression du navigateur.
+- **E-mail du rapport** : chiffres clés, incidents, interventions, pages et sources en barres — pas de graphique (les messageries n'affichent pas le SVG), pas de pièce jointe — et un lien vers le rapport complet.
+
+#### Portail client
+
+- Page **Maintenance** d'un projet sous formule : temps consommé sur le temps inclus, interventions visibles du mois avec leur note, et la mention du temps passé en interventions internes.
+- **Rapports mensuels** : l'archive des rapports envoyés et chaque rapport en entier, imprimable. Le lien de l'e-mail passe par la connexion puis y ramène.
+
+### Corrections
+
+- Ouvrir un lien profond du portail sans session affichait « Votre session a expiré » au lieu de mener simplement à la connexion.
+
+### À savoir pour le déploiement
+
+- Migrations 000050 à 000052, en ajout : nature, visibilité et note client des saisies de temps ; formules, périodes des projets et cumul mensuel des interventions tenu par déclencheur ; rapports figés, réglages d'envoi, destinataires ajoutés et exclus ; temps visible du client à côté du temps consommé. Permission `reports.write` accordée aux admins.
+- Aucune nouvelle variable. L'envoi automatique existe mais est désactivé : un rapport ne part qu'après relecture, tant qu'il n'est pas activé dans *Paramètres › Formules de maintenance*.
+- Les e-mails des rapports passent par la file d'envoi existante : SMTP doit être réglé pour qu'ils partent.
+
 ## [1.3.0] — Modules : disponibilité et statistiques · 2026-10-13
 
 Piilot lit désormais la surveillance et l'audience des sites de l'agence — Uptime Kuma et Umami — sans jamais les appeler pendant une requête. Et le portail client s'ouvre sur un vrai tableau de bord.
