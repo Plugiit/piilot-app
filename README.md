@@ -1053,6 +1053,11 @@ une requête :
   jamais doublée, et un compte en demande vingt par heure au plus.
 - **Visiteurs du moment** : relevés chaque minute, pour les seuls sites qu'un
   écran regarde.
+- **Sites** : la liste est relue à chaque vérification (toutes les heures, à
+  l'enregistrement des réglages ou avec *Tester la connexion*), sites des
+  équipes compris. Un site disparu d'Umami est retiré, sauf s'il est lié à un
+  projet : il reste alors marqué « supprimé d'Umami », pour que l'équipe le
+  remplace.
 - **Photo du mois** : le 1er de chaque mois, les chiffres du mois écoulé sont
   figés pour le futur compte rendu mensuel.
 - **Versions** : Umami 2.x et 3.x ne répondent pas dans le même format. La

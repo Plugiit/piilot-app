@@ -217,6 +217,10 @@ type Querier interface {
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	DeleteTimer(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Les sites disparus d'Umami qu'aucun projet n'utilise : rien a garder, ils
+	// partent avec leur cache. Un site encore lie reste, marque absent, pour que
+	// l'equipe voie ce qui manque au lieu d'un lien rompu en silence.
+	DeleteUnlinkedAbsentAnalyticsWebsites(ctx context.Context, provider string) (int64, error)
 	DisableUser(ctx context.Context, id uuid.UUID) error
 	EnableUser(ctx context.Context, id uuid.UUID) error
 	// reply_to, message_id et in_reply_to filent les e-mails des tickets : la

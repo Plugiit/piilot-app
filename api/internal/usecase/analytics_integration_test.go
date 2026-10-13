@@ -26,6 +26,8 @@ import (
 type fakeAnalytics struct {
 	mu    sync.Mutex
 	calls map[string]int
+	// La liste des sites, quand un test la change.
+	websites string
 }
 
 func (f *fakeAnalytics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +51,8 @@ func (f *fakeAnalytics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case path == "/websites" && f.websites != "":
+		_, _ = w.Write([]byte(f.websites))
 	case path == "/websites":
 		_, _ = w.Write([]byte(`{"data":[{"id":"w1","name":"Vitrine","domain":"atelier.example"},{"id":"w2","name":"Préprod","domain":"preprod.example"}],"count":2,"page":1,"pageSize":100}`))
 	case strings.HasSuffix(path, "/stats"):
@@ -263,5 +267,47 @@ func TestDeMauvaisIdentifiantsSeVoientALEcran(t *testing.T) {
 	}
 	if settings, _ := svc.Settings(ctx); settings.APIVersion != 2 || !settings.VersionPinned {
 		t.Errorf("version choisie : %+v", settings)
+	}
+}
+
+func TestUneSynchronisationRetireLesSitesDisparus(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	svc, fake, _ := newAnalytics(t, pool)
+	resync := func(list string) {
+		t.Helper()
+		fake.mu.Lock()
+		fake.websites = list
+		fake.mu.Unlock()
+		if _, err := svc.RequestCheck(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resync(`{"data":[{"id":"w1","name":"Vitrine","domain":"a.example"},{"id":"w2","name":"Boutique","domain":"b.example"},{"id":"w3","name":"Faux","domain":"c.example"}],"count":3,"page":1,"pageSize":100}`)
+	sites := websiteIDs(t, svc)
+	if len(sites) != 3 {
+		t.Fatalf("sites : %v", sites)
+	}
+	client := newPortalClient(t, pool)
+	if _, err := svc.SetProjectWebsites(ctx, client.projectID, []usecase.ProjectWebsiteInput{{WebsiteID: sites["Boutique"].ID, Environment: "prod"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Umami ne rend plus que la vitrine : le faux site part, la boutique,
+	// liee a un projet, reste marquee absente.
+	resync(`{"data":[{"id":"w1","name":"Vitrine","domain":"a.example"}],"count":1,"page":1,"pageSize":100}`)
+	sites = websiteIDs(t, svc)
+	if _, ok := sites["Faux"]; ok || len(sites) != 2 || !sites["Vitrine"].Present || sites["Boutique"].Present {
+		t.Errorf("apres synchronisation : %+v", sites)
+	}
+
+	// Une liste vide ne vide rien.
+	resync(`{"data":[],"count":0,"page":1,"pageSize":100}`)
+	if got := websiteIDs(t, svc); len(got) != 2 {
+		t.Errorf("liste vide : %+v", got)
 	}
 }

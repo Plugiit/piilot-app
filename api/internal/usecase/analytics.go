@@ -612,6 +612,17 @@ func (s *AnalyticsService) check(ctx context.Context, row db.AnalyticsSetting) e
 	if err := s.q.MarkAnalyticsWebsitesAbsent(ctx, db.MarkAnalyticsWebsitesAbsentParams{Provider: analyticsProvider, Seen: ids}); err != nil {
 		return s.recordCheck(ctx, fmt.Errorf("sites disparus : %w", err))
 	}
+	// Les disparus sans projet sont retires. Pas sur une liste vide : un
+	// compte prive de ses droits un instant viderait tout le module.
+	if len(sites) > 0 {
+		removed, err := s.q.DeleteUnlinkedAbsentAnalyticsWebsites(ctx, analyticsProvider)
+		if err != nil {
+			return s.recordCheck(ctx, fmt.Errorf("retrait des sites disparus : %w", err))
+		}
+		if removed > 0 {
+			s.log.Info("sites retires d'Umami", "count", removed)
+		}
+	}
 
 	if len(sites) > 0 && !row.VersionPinned {
 		now := s.now()
