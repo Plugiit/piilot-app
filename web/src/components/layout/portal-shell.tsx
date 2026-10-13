@@ -1,10 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { CustomerSupportIcon, DashboardSquare01Icon, Folder01Icon, PlusSignIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
-import logoUrl from '@/assets/sidebar/logo.svg'
+import logoUrl from '@/assets/sidebar/logo-mark.svg'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +21,7 @@ import { cn } from '@/lib/utils'
 import type { User } from '@/types/api'
 
 export interface PortalNavItem {
-  to: '/client' | '/client/tickets'
+  to: '/client' | '/client/projets' | '/client/tickets'
   label: string
 }
 
@@ -27,12 +29,24 @@ export interface PortalNavItem {
  * Coquille du portail client.
  *
  * Une barre en haut et non un rail : le portail se consulte autant sur un
- * telephone, entre deux rendez-vous, que sur un ecran. Deux entrees de menu ne
- * justifient pas une colonne, et le contenu prend toute la largeur utile.
+ * telephone, entre deux rendez-vous, que sur un ecran. Trois entrees de menu
+ * ne justifient pas une colonne, et le contenu prend toute la largeur utile.
  *
- * Sur mobile, le menu passe sous la barre, en onglets : il reste visible sans
- * menu a deplier, puisqu'il n'y a que deux destinations.
+ * La barre a la couleur de la barre laterale de l'agence (surface), comme le
+ * fond de la page : elle s'y pose sans cadre. Le logo, un filet, les
+ * entrees en texte — l'active dans la couleur de la marque —, et a droite les
+ * gestes en boutons carres. Sur mobile, le menu passe sous la barre.
+ *
+ * Le tableau de bord prend toute la largeur de la fenetre : trois colonnes de
+ * cartes, la ou une page de projet se lit en une colonne bornee.
  */
+/** L'icone de chaque section, a cote de son libelle. */
+const NAV_ICONS: Record<PortalNavItem['to'], IconSvgElement> = {
+  '/client': DashboardSquare01Icon,
+  '/client/projets': Folder01Icon,
+  '/client/tickets': CustomerSupportIcon,
+}
+
 export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; user: User; children: ReactNode }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -49,10 +63,14 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
   }
 
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  // « Projets » couvre aussi la page d'un projet et celle d'un livrable : tout
-  // ce qui n'est pas le support.
-  const active = (to: PortalNavItem['to']) =>
-    to === '/client/tickets' ? pathname.startsWith('/client/tickets') : !pathname.startsWith('/client/tickets')
+  // « Projets » couvre aussi la page d'un projet et celle d'un livrable.
+  const section = pathname.startsWith('/client/tickets')
+    ? '/client/tickets'
+    : pathname === '/client' || pathname === '/client/'
+      ? '/client'
+      : '/client/projets'
+  const active = (to: PortalNavItem['to']) => to === section
+  const wide = section === '/client'
 
   const links = nav.map(({ to, label }) => (
     <Link
@@ -61,41 +79,47 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
       preload="intent"
       aria-current={active(to) ? 'page' : undefined}
       className={cn(
-        'relative flex h-full items-center px-1 text-[14px] transition-colors',
-        active(to)
-          ? 'font-medium text-[#1b1b1b] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand'
-          : 'text-[#73757c] hover:text-[#1b1b1b]',
+        'font-heading flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[14px] leading-none font-medium whitespace-nowrap transition-colors',
+        active(to) ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70',
       )}
     >
+      <HugeiconsIcon icon={NAV_ICONS[to]} size={16} strokeWidth={1.8} className="shrink-0" />
       {label}
     </Link>
   ))
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f8f8f8]">
-      <header className="sticky top-0 z-30 border-b border-[#e8e8e9] bg-white">
-        <div className="mx-auto flex h-14 max-w-[1040px] items-center gap-6 px-4">
-          <Link to="/client" className="flex shrink-0 items-center gap-2">
-            <img src={logoUrl} alt="" className="size-7" />
-            <span className="flex flex-col leading-tight">
-              <span className="text-[15px] font-semibold text-[#1b1b1b]">Piilot</span>
-              <span className="text-[11px] tracking-wide text-[#8d8d8d] uppercase">Espace client</span>
-            </span>
-          </Link>
+    // Essai : la barre a la couleur de la marque. Sur le tableau de bord, le
+    // fond aussi, pour que les coins arrondis de la feuille blanche s'y posent.
+    <div className={cn('flex min-h-screen flex-col', wide ? 'bg-brand' : 'bg-surface')}>
+      <header className="bg-brand sticky top-0 z-30">
+        <div className={cn('mx-auto flex h-10 items-center gap-2 px-4', wide ? 'max-w-none' : 'max-w-[1040px]')}>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {/* Le motif seul, sans son carre, centre dans la barre. */}
+            <Link to="/client" aria-label="Tableau de bord" className="flex shrink-0 items-center">
+              <img src={logoUrl} alt="Piilot" className="h-[22px] w-auto brightness-0 invert" />
+            </Link>
+            <span aria-hidden className="hidden h-4 w-px bg-white/30 sm:block" />
+            <nav aria-label="Navigation" className="hidden items-center gap-1 sm:flex">
+              {links}
+            </nav>
+          </div>
 
-          <nav aria-label="Navigation" className="hidden h-full items-stretch gap-5 sm:flex">
-            {links}
-          </nav>
+          <Link
+            to="/client/tickets/nouvelle"
+            aria-label="Nouvelle demande"
+            title="Nouvelle demande"
+            className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-white/25 bg-white/15 text-white transition-colors hover:bg-white/25"
+          >
+            <HugeiconsIcon icon={PlusSignIcon} size={16} strokeWidth={1.8} />
+          </Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Mon compte"
-              className="ml-auto flex cursor-pointer items-center gap-2 rounded-full py-1 pr-1 pl-3 transition-colors hover:bg-[#f3f4f4]"
+              className="text-brand flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[8px] bg-white text-[11px] font-semibold transition-opacity hover:opacity-90"
             >
-              <span className="hidden text-[14px] text-[#1b1b1b] sm:inline">{user.firstname}</span>
-              <span className="flex size-8 items-center justify-center rounded-full bg-[#1b1b1b] text-[12px] font-medium text-white">
-                {userInitials(user)}
-              </span>
+              {userInitials(user)}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="font-normal">
@@ -113,15 +137,16 @@ export function PortalShell({ nav, user, children }: { nav: PortalNavItem[]; use
           </DropdownMenu>
         </div>
 
-        <nav
-          aria-label="Navigation"
-          className="flex h-11 items-stretch gap-5 border-t border-[#f0f0f1] px-4 sm:hidden"
-        >
+        <nav aria-label="Navigation" className="flex h-10 items-center gap-1 border-t border-white/20 px-2.5 sm:hidden">
           {links}
         </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-[1040px] flex-1 px-4 py-6 sm:py-8">{children}</main>
+      {/* Le tableau de bord pose sa surface blanche bord a bord, jusqu'au bas
+          de la fenetre : pas de marge autour, la page s'en charge. */}
+      <main className={cn('mx-auto flex w-full flex-1 flex-col', wide ? 'max-w-none' : 'max-w-[1040px] px-4 pt-2 pb-8 sm:pt-4')}>
+        {children}
+      </main>
     </div>
   )
 }

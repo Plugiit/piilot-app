@@ -4,7 +4,8 @@ import { PortalShell, type PortalNavItem } from '@/components/layout/portal-shel
 import { homeFor, isInternal, sessionQuery } from '@/lib/auth'
 
 const NAV: PortalNavItem[] = [
-  { to: '/client', label: 'Mes projets' },
+  { to: '/client', label: 'Tableau de bord' },
+  { to: '/client/projets', label: 'Projets' },
   { to: '/client/tickets', label: 'Support' },
 ]
 
