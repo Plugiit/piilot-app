@@ -10,6 +10,7 @@ import {
   DatabaseIcon,
   GitBranchIcon,
   MailReceive01Icon,
+  PuzzleIcon,
   SecurityCheckIcon,
   TextIcon,
   Home03Icon,
@@ -157,6 +158,7 @@ export const MODULES: AppModule[] = [
         items: [
           { icon: GitBranchIcon, label: 'Dépôts Git', to: '/parametres/git', permission: 'users.write' },
           { icon: MailReceive01Icon, label: 'E-mails entrants', to: '/parametres/emails', permission: 'users.write' },
+          { icon: PuzzleIcon, label: 'Modules', to: '/parametres/modules', permission: 'users.write' },
         ],
       },
       {

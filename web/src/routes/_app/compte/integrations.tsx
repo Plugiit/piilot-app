@@ -10,6 +10,7 @@ import calendarUrl from '@/assets/integrations/google-calendar.svg'
 import figmaUrl from '@/assets/integrations/figma.svg'
 import githubUrl from '@/assets/integrations/github.svg'
 import slackUrl from '@/assets/integrations/slack.svg'
+import { CARD_ACTION, IntegrationCard } from '@/components/integration-card'
 
 export const Route = createFileRoute('/_app/compte/integrations')({
   component: IntegrationsPage,
@@ -145,44 +146,31 @@ function Section({
           le panneau des reglages n'ayant pas toujours la meme place. */}
       <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item) => (
-          <IntegrationCard key={item.name} item={item} />
+          <Card key={item.name} item={item} />
         ))}
       </div>
     </section>
   )
 }
 
-function IntegrationCard({ item }: { item: Integration }) {
+function Card({ item }: { item: Integration }) {
   return (
-    <article className="flex flex-col gap-3 rounded-[12px] border border-[#e8e8e9] bg-white p-3">
-      {/* La boite fait 48px, le logo s'y inscrit sans se deformer. Forcer les
-          deux cotes de l'image ecrasait ceux qui ne sont pas carres — le
-          Figma est deux tiers plus haut que large, Proxmox et Uptime Kuma ont
-          des cadres plus larges que hauts. */}
-      <span className="flex size-12 shrink-0 items-center justify-center">
-        <img src={item.logo} alt="" className="size-full object-contain" />
-      </span>
-
-      <div className="flex flex-1 flex-col gap-1">
-        <h3 className="text-[16px] leading-[1.5] font-medium text-[#1b1b1b]">{item.name}</h3>
-        <p className="text-[12px] leading-[1.5] text-[#73757c]">{item.description}</p>
-      </div>
-
-      {item.href === undefined ? (
-        <p className="flex h-10 items-center justify-center rounded-[12px] border border-dashed border-[#e8e8e9] text-[14px] font-medium text-[#a2a3a7]">
-          Bientôt
-        </p>
-      ) : (
-        <a
-          href={item.href}
-          target="_blank"
-          rel="noreferrer"
-          className="relative flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#e8e8e9] bg-white text-[14px] font-medium text-[#1b1b1b] shadow-[inset_0px_-2px_0px_0px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#f8f8f8]"
-        >
-          Ouvrir
-          <HugeiconsIcon icon={LinkSquare02Icon} size={16} strokeWidth={1.8} />
-        </a>
-      )}
-    </article>
+    <IntegrationCard
+      logo={item.logo}
+      name={item.name}
+      description={item.description}
+      action={
+        item.href === undefined ? (
+          <p className="flex h-10 items-center justify-center rounded-[12px] border border-dashed border-[#e8e8e9] text-[14px] font-medium text-[#a2a3a7]">
+            Bientôt
+          </p>
+        ) : (
+          <a href={item.href} target="_blank" rel="noreferrer" className={CARD_ACTION}>
+            Ouvrir
+            <HugeiconsIcon icon={LinkSquare02Icon} size={16} strokeWidth={1.8} />
+          </a>
+        )
+      }
+    />
   )
 }
