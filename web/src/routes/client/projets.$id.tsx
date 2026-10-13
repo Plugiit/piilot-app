@@ -7,6 +7,7 @@ import {
   File01Icon,
   Mail01Icon,
   TelephoneIcon,
+  Wrench01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
@@ -86,6 +87,12 @@ function ClientProjectPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {project.maintenance && (
+                <Link to="/client/projets/$id/maintenance" params={{ id: project.id }} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                  <HugeiconsIcon icon={Wrench01Icon} size={14} strokeWidth={1.8} />
+                  Maintenance
+                </Link>
+              )}
               {project.statistics && (
                 <Link
                   to="/client/projets/$id/statistiques"
