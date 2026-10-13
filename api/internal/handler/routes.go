@@ -27,6 +27,8 @@ type Deps struct {
 	Inbound       *Inbound
 	Uptime        *Uptime
 	Analytics     *Analytics
+	Maintenance   *Maintenance
+	Reports       *Reports
 	Modules       *Modules
 	Replies       *ReplyTemplates
 	Audit         *Audit
@@ -102,6 +104,9 @@ func registerClientRoutes(r fiber.Router, deps Deps) {
 	// le service pendant la requete.
 	r.Get("/projects/:id/statistics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Statistics)
 	r.Get("/projects/:id/statistics/active", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Active)
+	r.Get("/projects/:id/interventions", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.PortalInterventions)
+	r.Get("/projects/:id/reports", deps.Guard.RequirePermission("projects.read"), deps.Reports.PortalReports)
+	r.Get("/reports/:id", deps.Guard.RequirePermission("projects.read"), deps.Reports.PortalReport)
 	r.Get("/deliverables/:id", deps.Guard.RequirePermission("deliverables.read"), deps.Portal.Deliverable)
 	r.Post("/deliverables/:id/decision", deps.Guard.RequirePermission("deliverables.validate"), deps.Portal.Decide)
 	r.Get("/files/:id", deps.Guard.RequirePermission("projects.read"), deps.Portal.DownloadFile)
@@ -225,6 +230,27 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	upt.Get("/monitors", deps.Guard.RequirePermission("projects.write"), deps.Uptime.Monitors)
 	upt.Get("/incidents", deps.Guard.RequirePermission("users.write"), deps.Uptime.Incidents)
 
+	// Maintenance : les formules aux admins, le journal a qui lit le temps.
+	plans := r.Group("/maintenance-plans")
+	plans.Get("", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.Plans)
+	plans.Post("", deps.Guard.RequirePermission("reports.write"), deps.Maintenance.CreatePlan)
+	plans.Put("/:id", deps.Guard.RequirePermission("reports.write"), deps.Maintenance.UpdatePlan)
+	plans.Delete("/:id", deps.Guard.RequirePermission("reports.write"), deps.Maintenance.DeletePlan)
+	r.Get("/interventions", deps.Guard.RequirePermission("time.read"), deps.Maintenance.Interventions)
+
+	// Rapports mensuels : aux admins. Les routes fixes avant « /:id ».
+	reports := r.Group("/reports")
+	reports.Get("", deps.Guard.RequirePermission("reports.write"), deps.Reports.List)
+	reports.Post("/generate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Generate)
+	reports.Get("/settings", deps.Guard.RequirePermission("reports.write"), deps.Reports.Settings)
+	reports.Put("/settings", deps.Guard.RequirePermission("reports.write"), deps.Reports.UpdateSettings)
+	reports.Get("/:id", deps.Guard.RequirePermission("reports.write"), deps.Reports.Get)
+	reports.Put("/:id/editorial", deps.Guard.RequirePermission("reports.write"), deps.Reports.Editorial)
+	reports.Post("/:id/regenerate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Regenerate)
+	reports.Post("/:id/validate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Validate)
+	reports.Post("/:id/unvalidate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Unvalidate)
+	reports.Post("/:id/send", deps.Guard.RequirePermission("reports.write"), deps.Reports.Send)
+
 	ana := r.Group("/modules/analytics")
 	ana.Get("", deps.Guard.RequirePermission("users.write"), deps.Analytics.Settings)
 	ana.Put("", deps.Guard.RequirePermission("users.write"), deps.Analytics.UpdateSettings)
@@ -302,6 +328,10 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Get("/:id/uptime", deps.Guard.RequirePermission("projects.read"), deps.Uptime.Project)
 	projects.Put("/:id/uptime", deps.Guard.RequirePermission("projects.write"), deps.Uptime.SetProject)
 	projects.Get("/:id/analytics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Project)
+	projects.Get("/:id/maintenance", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.Project)
+	projects.Put("/:id/maintenance", deps.Guard.RequirePermission("projects.write"), deps.Maintenance.SetProject)
+	projects.Get("/:id/report-recipients", deps.Guard.RequirePermission("projects.read"), deps.Reports.Recipients)
+	projects.Put("/:id/report-recipients", deps.Guard.RequirePermission("projects.write"), deps.Reports.SetRecipients)
 	projects.Put("/:id/analytics", deps.Guard.RequirePermission("projects.write"), deps.Analytics.SetProject)
 	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
 	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)

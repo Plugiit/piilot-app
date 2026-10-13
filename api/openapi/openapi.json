@@ -5769,6 +5769,30 @@
                   },
                   "note": {
                     "type": "string"
+                  },
+                  "intervention_kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "contenu",
+                      "correctif",
+                      "mise_a_jour",
+                      "support",
+                      "autre",
+                      null
+                    ],
+                    "description": "Absente ou nulle : un temps ordinaire."
+                  },
+                  "client_visible": {
+                    "type": "boolean",
+                    "description": "Visible par le client ; exige client_note."
+                  },
+                  "client_note": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Ce que le client lit."
                   }
                 }
               }
@@ -5860,6 +5884,30 @@
                   },
                   "note": {
                     "type": "string"
+                  },
+                  "intervention_kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "contenu",
+                      "correctif",
+                      "mise_a_jour",
+                      "support",
+                      "autre",
+                      null
+                    ],
+                    "description": "Absente ou nulle : un temps ordinaire."
+                  },
+                  "client_visible": {
+                    "type": "boolean",
+                    "description": "Visible par le client ; exige client_note."
+                  },
+                  "client_note": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Ce que le client lit."
                   }
                 }
               }
@@ -10016,6 +10064,1216 @@
           }
         }
       }
+    },
+    "/api/v1/admin/maintenance-plans": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Formules de maintenance",
+        "description": "Exige projects.read.",
+        "operationId": "getAdminMaintenancePlans",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlanList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Créer une formule",
+        "description": "Exige reports.write.",
+        "operationId": "postAdminMaintenancePlan",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Créée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenancePlanRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/maintenance-plans/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant de la formule",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Modifier une formule",
+        "description": "Exige reports.write.",
+        "operationId": "putAdminMaintenancePlan",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlan"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenancePlanRequest"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer une formule",
+        "description": "Seulement si elle n'a jamais servi ; sinon 409, la désactiver. Exige reports.write.",
+        "operationId": "deleteAdminMaintenancePlan",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimée"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Formule en usage"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/maintenance": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Formule d'un projet",
+        "description": "Exige projects.read.",
+        "operationId": "getAdminProjectMaintenance",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMaintenance"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Changer la formule d'un projet",
+        "description": "À partir du 1er du mois donné : la période en cours s'arrête la veille. Exige projects.write.",
+        "operationId": "putAdminProjectMaintenance",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMaintenance"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMaintenanceRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/interventions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Interventions d'un mois",
+        "description": "De toute l'équipe, avec le bilan consommé / inclus de chaque projet. Exige time.read.",
+        "operationId": "getAdminInterventions",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterventionPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$"
+            },
+            "description": "AAAA-MM, le mois en cours par défaut."
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/client/projects/{id}/interventions": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Interventions d'un projet",
+        "description": "Les interventions visibles, avec la note destinée au client, et le bilan du mois en cours sous formule. 404 pour le projet d'un autre client.",
+        "operationId": "getClientProjectInterventions",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalInterventionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Rapports d'un mois",
+        "description": "Le mois écoulé par défaut. Exige reports.write.",
+        "operationId": "getAdminReports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "validated",
+                "sent"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/reports/generate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Générer les brouillons d'un mois",
+        "description": "Pour les projets sous formule sans rapport, ou un seul. Tout vient de tables locales : aucun service extérieur n'est appelé. Exige reports.write.",
+        "operationId": "postAdminReportsGenerate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "created"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "month"
+                ],
+                "properties": {
+                  "month": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}$"
+                  },
+                  "project_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglages d'envoi",
+        "description": " Exige reports.write.",
+        "operationId": "getAdminReportSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Enregistrer les réglages d'envoi",
+        "description": " Exige reports.write.",
+        "operationId": "putAdminReportSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportSettings"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Un rapport",
+        "description": " Exige reports.write.",
+        "operationId": "getAdminReport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/editorial": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mot du mois",
+        "description": "Brouillon seulement. Exige reports.write.",
+        "operationId": "putAdminReportEditorial",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "editorial"
+                ],
+                "properties": {
+                  "editorial": {
+                    "type": "string",
+                    "maxLength": 4000
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/regenerate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Régénérer un brouillon",
+        "description": "Refait les données avec la formule du mois. Exige reports.write.",
+        "operationId": "postAdminReportRegenerate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/validate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Valider un rapport",
+        "description": "Le brouillon est figé, prêt à partir. Exige reports.write.",
+        "operationId": "postAdminReportValidate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/unvalidate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Repasser en brouillon",
+        "description": "Un rapport validé, pas encore envoyé. Exige reports.write.",
+        "operationId": "postAdminReportUnvalidate",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/send": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Envoyer un rapport",
+        "description": "Un e-mail par destinataire ; le rapport ne change plus jamais. 422 sans destinataire, 409 si l'envoi d'e-mails n'est pas configuré. Exige reports.write.",
+        "operationId": "postAdminReportSend",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/report-recipients": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Destinataires des rapports d'un projet",
+        "description": "Les comptes du portail du client, exclus ou non, et les adresses ajoutées. Exige projects.read.",
+        "operationId": "getAdminProjectReportRecipients",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportRecipients"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Changer les destinataires",
+        "description": "Remplace les exclusions et les adresses ajoutées (10 au plus). Exige projects.write.",
+        "operationId": "putAdminProjectReportRecipients",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "excluded",
+                  "extra"
+                ],
+                "properties": {
+                  "excluded": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "extra": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportRecipients"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/client/projects/{id}/reports": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Rapports d'un projet",
+        "description": "Les rapports envoyés, du plus récent au plus ancien. 404 pour le projet d'un autre client.",
+        "operationId": "getClientProjectReports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PortalReportItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/client/reports/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "client"
+        ],
+        "summary": "Un rapport",
+        "description": "Un rapport envoyé, pour le client du projet seulement.",
+        "operationId": "getClientReport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13698,7 +14956,8 @@
           "note",
           "project",
           "task",
-          "service"
+          "service",
+          "intervention"
         ],
         "properties": {
           "id": {
@@ -13737,6 +14996,17 @@
             ],
             "nullable": true,
             "description": "Prestation sur laquelle l'heure compte. Une seule par ligne."
+          },
+          "intervention": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Intervention"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nulle pour un temps ordinaire."
           }
         }
       },
@@ -15988,7 +17258,8 @@
           "last_deployment",
           "next_step",
           "team",
-          "statistics"
+          "statistics",
+          "maintenance"
         ],
         "properties": {
           "id": {
@@ -16081,6 +17352,10 @@
           "statistics": {
             "type": "boolean",
             "description": "Module de statistiques actif et site de production lié : la page « Statistiques » existe."
+          },
+          "maintenance": {
+            "type": "boolean",
+            "description": "Sous formule ou avec des interventions visibles : la page « Maintenance » existe."
           }
         }
       },
@@ -19068,6 +20343,1070 @@
             "description": "Nul tant que la tâche ne les a pas relevés."
           },
           "fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Intervention": {
+        "type": "object",
+        "description": "Une saisie de maintenance : sa nature, et ce que le client en voit.",
+        "required": [
+          "kind",
+          "client_visible",
+          "client_note"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contenu",
+              "correctif",
+              "mise_a_jour",
+              "support",
+              "autre"
+            ]
+          },
+          "client_visible": {
+            "type": "boolean"
+          },
+          "client_note": {
+            "type": "string"
+          }
+        }
+      },
+      "MaintenancePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "included_minutes",
+          "sections",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "included_minutes": {
+            "type": "integer",
+            "description": "Temps inclus par mois, non cumulable."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "availability",
+                "audience",
+                "interventions",
+                "deployments",
+                "updates",
+                "backups",
+                "domain"
+              ]
+            }
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MaintenancePlanRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "included_minutes",
+          "sections",
+          "active"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "included_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "availability",
+                "audience",
+                "interventions",
+                "deployments",
+                "updates",
+                "backups",
+                "domain"
+              ]
+            }
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MaintenancePlanList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenancePlan"
+            }
+          }
+        }
+      },
+      "MaintenancePeriod": {
+        "type": "object",
+        "required": [
+          "id",
+          "plan_id",
+          "plan_name",
+          "included_minutes",
+          "starts_on",
+          "ends_on"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plan_name": {
+            "type": "string"
+          },
+          "included_minutes": {
+            "type": "integer"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "ProjectMaintenance": {
+        "type": "object",
+        "required": [
+          "current",
+          "history"
+        ],
+        "properties": {
+          "current": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaintenancePeriod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenancePeriod"
+            }
+          }
+        }
+      },
+      "ProjectMaintenanceRequest": {
+        "type": "object",
+        "required": [
+          "plan_id",
+          "month"
+        ],
+        "properties": {
+          "plan_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nul : le projet sort de la maintenance à partir de ce mois."
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "description": "Premier mois de la nouvelle formule, AAAA-MM."
+          }
+        }
+      },
+      "MaintenanceSummary": {
+        "type": "object",
+        "required": [
+          "project",
+          "plan_name",
+          "included_minutes",
+          "consumed_minutes",
+          "overrun_minutes",
+          "visible_minutes"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "plan_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "included_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "consumed_minutes": {
+            "type": "integer"
+          },
+          "overrun_minutes": {
+            "type": "integer",
+            "description": "Au-delà du temps inclus, zéro sinon. Sans montant."
+          },
+          "visible_minutes": {
+            "type": "integer",
+            "description": "La part visible du client ; le reste est interne."
+          }
+        }
+      },
+      "InterventionItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "spent_on",
+          "minutes",
+          "kind",
+          "note",
+          "client_visible",
+          "client_note",
+          "project",
+          "person"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spent_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contenu",
+              "correctif",
+              "mise_a_jour",
+              "support",
+              "autre"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "client_visible": {
+            "type": "boolean"
+          },
+          "client_note": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "person": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "InterventionPage": {
+        "type": "object",
+        "required": [
+          "month",
+          "items",
+          "total",
+          "page",
+          "summaries"
+        ],
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterventionItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "summaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceSummary"
+            }
+          }
+        }
+      },
+      "PortalIntervention": {
+        "type": "object",
+        "required": [
+          "id",
+          "spent_on",
+          "minutes",
+          "kind",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spent_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contenu",
+              "correctif",
+              "mise_a_jour",
+              "support",
+              "autre"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "description": "La note destinée au client."
+          }
+        }
+      },
+      "PortalInterventionPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "current_month"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalIntervention"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "current_month": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaintenanceSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nul sans formule ce mois-ci."
+          }
+        }
+      },
+      "ReportSite": {
+        "type": "object",
+        "required": [
+          "name",
+          "environment",
+          "url",
+          "uptime",
+          "avg_response_ms",
+          "cert_days",
+          "cert_valid",
+          "days"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "uptime": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "avg_response_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cert_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Jours avant l'expiration du certificat, le jour de la génération."
+          },
+          "cert_valid": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UptimeDay"
+            }
+          }
+        }
+      },
+      "ReportIncident": {
+        "type": "object",
+        "required": [
+          "site",
+          "started_at",
+          "ended_at",
+          "duration_seconds",
+          "message"
+        ],
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportAvailability": {
+        "type": "object",
+        "required": [
+          "sites",
+          "incidents"
+        ],
+        "properties": {
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportSite"
+            }
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportIncident"
+            }
+          }
+        }
+      },
+      "ReportAudience": {
+        "type": "object",
+        "required": [
+          "unavailable",
+          "website",
+          "domain",
+          "data"
+        ],
+        "properties": {
+          "unavailable": {
+            "type": "boolean",
+            "description": "La photo du mois d'Umami n'était pas disponible à la génération."
+          },
+          "website": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StatisticsData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ReportIntervention": {
+        "type": "object",
+        "required": [
+          "spent_on",
+          "kind",
+          "minutes",
+          "note"
+        ],
+        "properties": {
+          "spent_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contenu",
+              "correctif",
+              "mise_a_jour",
+              "support",
+              "autre"
+            ]
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportInterventions": {
+        "type": "object",
+        "required": [
+          "items",
+          "consumed_minutes",
+          "visible_minutes",
+          "included_minutes",
+          "overrun_minutes"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportIntervention"
+            }
+          },
+          "consumed_minutes": {
+            "type": "integer",
+            "description": "Toutes les interventions du mois, visibles ou non."
+          },
+          "visible_minutes": {
+            "type": "integer"
+          },
+          "included_minutes": {
+            "type": "integer"
+          },
+          "overrun_minutes": {
+            "type": "integer"
+          }
+        }
+      },
+      "ReportDeployment": {
+        "type": "object",
+        "required": [
+          "name",
+          "environment",
+          "url",
+          "deployed_at"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReportDeployments": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportDeployment"
+            }
+          }
+        }
+      },
+      "ReportData": {
+        "type": "object",
+        "description": "Contenu figé d'un rapport. Une section nulle n'est pas dans la formule, ou n'a pas de données ce mois-là.",
+        "required": [
+          "month",
+          "project",
+          "plan",
+          "availability",
+          "audience",
+          "interventions",
+          "deployments"
+        ],
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "name",
+              "client_name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "client_name": {
+                "type": "string"
+              }
+            }
+          },
+          "plan": {
+            "type": "object",
+            "required": [
+              "name",
+              "included_minutes"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "included_minutes": {
+                "type": "integer"
+              }
+            }
+          },
+          "availability": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportAvailability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audience": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportAudience"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interventions": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportInterventions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deployments": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportDeployments"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Report": {
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "client_name",
+          "month",
+          "status",
+          "sections",
+          "data",
+          "editorial",
+          "generated_at",
+          "validated_at",
+          "sent_at",
+          "recipients"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "month": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "sent"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "availability",
+                "audience",
+                "interventions",
+                "deployments",
+                "updates",
+                "backups",
+                "domain"
+              ]
+            }
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReportData"
+          },
+          "editorial": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Envoyé : à qui il est parti. Sinon : à qui il partirait."
+          }
+        }
+      },
+      "ReportListItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "client_name",
+          "status",
+          "plan_name",
+          "has_editorial",
+          "generated_at",
+          "sent_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "sent"
+            ]
+          },
+          "plan_name": {
+            "type": "string"
+          },
+          "has_editorial": {
+            "type": "boolean"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ReportPage": {
+        "type": "object",
+        "required": [
+          "month",
+          "items",
+          "total",
+          "page",
+          "counts",
+          "pending"
+        ],
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportListItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "required": [
+              "drafts",
+              "validated",
+              "sent"
+            ],
+            "properties": {
+              "drafts": {
+                "type": "integer"
+              },
+              "validated": {
+                "type": "integer"
+              },
+              "sent": {
+                "type": "integer"
+              }
+            }
+          },
+          "pending": {
+            "type": "integer",
+            "description": "Projets sous formule ce mois-là sans rapport encore."
+          }
+        }
+      },
+      "ReportSettings": {
+        "type": "object",
+        "required": [
+          "auto_send",
+          "send_day",
+          "wait_days"
+        ],
+        "properties": {
+          "auto_send": {
+            "type": "boolean",
+            "description": "Valider et envoyer seuls les rapports du mois, le jour dit. Désactivé par défaut."
+          },
+          "send_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "wait_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Jours d'attente de la photo d'Umami avant de générer sans l'audience."
+          }
+        }
+      },
+      "ReportContact": {
+        "type": "object",
+        "required": [
+          "person",
+          "email",
+          "excluded"
+        ],
+        "properties": {
+          "person": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "excluded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReportRecipients": {
+        "type": "object",
+        "required": [
+          "contacts",
+          "extra"
+        ],
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportContact"
+            }
+          },
+          "extra": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PortalReportItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "month",
+          "plan_name",
+          "sent_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "month": {
+            "type": "string"
+          },
+          "plan_name": {
+            "type": "string"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PortalReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "month",
+          "data",
+          "editorial",
+          "sent_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DeliverableRef"
+          },
+          "month": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReportData"
+          },
+          "editorial": {
+            "type": "string"
+          },
+          "sent_at": {
             "type": [
               "string",
               "null"

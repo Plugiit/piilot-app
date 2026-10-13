@@ -139,6 +139,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.URLFor(spaces.Team), smtpFromAddress(cfg.SMTPFrom), log,
 	)
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
+	reportService := usecase.NewReportService(pool, cfg.URLFor(spaces.Client), sender.Configured(), log)
 	analyticsService := usecase.NewAnalyticsService(pool, cfg.Analytics, cfg.JWTSecret, log)
 	uptimeService := usecase.NewUptimeService(pool, cfg.Uptime, cfg.JWTSecret, cfg.URLFor(spaces.Team), log)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
@@ -191,6 +192,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Inbound:       handler.NewInbound(inboundService),
 		Uptime:        handler.NewUptime(uptimeService),
 		Analytics:     handler.NewAnalytics(analyticsService),
+		Maintenance:   handler.NewMaintenance(usecase.NewMaintenanceService(pool)),
+		Reports:       handler.NewReports(reportService),
 		Modules:       handler.NewModules(uptimeService, analyticsService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
@@ -242,6 +245,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	repository.StartUptime(ctx, uptimeService, log)
 	// Statistiques des sites : cache, visiteurs du moment, photos du mois.
 	repository.StartAnalytics(ctx, analyticsService, log)
+	// Rapports mensuels : brouillons le 1er, envoi automatique s'il est regle.
+	repository.StartReports(ctx, reportService, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.

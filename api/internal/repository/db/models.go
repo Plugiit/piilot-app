@@ -348,6 +348,23 @@ type Invitation struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
+type MaintenanceMonth struct {
+	ProjectID      uuid.UUID `json:"project_id"`
+	Month          time.Time `json:"month"`
+	Minutes        int32     `json:"minutes"`
+	VisibleMinutes int32     `json:"visible_minutes"`
+}
+
+type MaintenancePlan struct {
+	ID              uuid.UUID `json:"id"`
+	Name            string    `json:"name"`
+	IncludedMinutes int32     `json:"included_minutes"`
+	Sections        []string  `json:"sections"`
+	Active          bool      `json:"active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
 type Milestone struct {
 	ID                      uuid.UUID  `json:"id"`
 	ProjectID               uuid.UUID  `json:"project_id"`
@@ -434,9 +451,31 @@ type ProjectFavorite struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type ProjectMaintenance struct {
+	ID        uuid.UUID  `json:"id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	PlanID    uuid.UUID  `json:"plan_id"`
+	StartsOn  time.Time  `json:"starts_on"`
+	EndsOn    *time.Time `json:"ends_on"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 type ProjectMember struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectReportOptOut struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectReportRecipient struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -514,6 +553,32 @@ type RefreshToken struct {
 	ExpiresAt time.Time   `json:"expires_at"`
 	RevokedAt *time.Time  `json:"revoked_at"`
 	CreatedAt time.Time   `json:"created_at"`
+}
+
+type Report struct {
+	ID              uuid.UUID  `json:"id"`
+	ProjectID       uuid.UUID  `json:"project_id"`
+	Month           time.Time  `json:"month"`
+	Status          string     `json:"status"`
+	PlanName        string     `json:"plan_name"`
+	IncludedMinutes int32      `json:"included_minutes"`
+	Sections        []string   `json:"sections"`
+	Payload         []byte     `json:"payload"`
+	Editorial       string     `json:"editorial"`
+	GeneratedAt     time.Time  `json:"generated_at"`
+	ValidatedAt     *time.Time `json:"validated_at"`
+	ValidatedBy     *uuid.UUID `json:"validated_by"`
+	SentAt          *time.Time `json:"sent_at"`
+	Recipients      []string   `json:"recipients"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type ReportSetting struct {
+	ID        int32     `json:"id"`
+	AutoSend  bool      `json:"auto_send"`
+	SendDay   int32     `json:"send_day"`
+	WaitDays  int32     `json:"wait_days"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Role struct {
@@ -672,17 +737,20 @@ type TicketReplyTemplate struct {
 }
 
 type TimeEntry struct {
-	ID        uuid.UUID  `json:"id"`
-	UserID    uuid.UUID  `json:"user_id"`
-	ProjectID uuid.UUID  `json:"project_id"`
-	TaskID    *uuid.UUID `json:"task_id"`
-	ServiceID *uuid.UUID `json:"service_id"`
-	SpentOn   time.Time  `json:"spent_on"`
-	Minutes   int32      `json:"minutes"`
-	Note      string     `json:"note"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
+	ID               uuid.UUID  `json:"id"`
+	UserID           uuid.UUID  `json:"user_id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	ServiceID        *uuid.UUID `json:"service_id"`
+	SpentOn          time.Time  `json:"spent_on"`
+	Minutes          int32      `json:"minutes"`
+	Note             string     `json:"note"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	InterventionKind *string    `json:"intervention_kind"`
+	ClientVisible    bool       `json:"client_visible"`
+	ClientNote       string     `json:"client_note"`
 }
 
 type TimeTimer struct {
