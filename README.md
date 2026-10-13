@@ -197,9 +197,16 @@ fil pour tous les clients.
 
 ### Portail client
 
-L'espace des clients de l'agence, pensé d'abord pour le téléphone. Chaque
-client y suit ses projets — avancement, prochaine étape, dernière activité —
-et voit d'emblée ce qui attend sa réponse.
+L'espace des clients de l'agence, pensé d'abord pour le téléphone. Il s'ouvre
+sur un **tableau de bord** : quatre chiffres (avancement moyen, livrables à
+valider, demandes en cours, prochaine échéance), puis un **projet suivi** — le
+plus récemment actif, ou celui choisi — avec ses étapes, ses interlocuteurs,
+ses livrables et ses demandes, et les autres projets pour basculer de l'un à
+l'autre. À droite, les **actions requises** (livrables à valider, projets en
+attente d'un retour, en rouge passé trois jours) et l'**historique** du projet.
+Les compteurs sont tenus par des déclencheurs, rien n'est recompté à
+l'affichage. *Projets* liste chaque projet avec son avancement et sa prochaine
+étape.
 
 ![Portail client](docs/images/portail-accueil.jpg)
 
@@ -281,6 +288,8 @@ n'existe pas. Des tests d'isolation tournent à chaque intégration continue.
 | Planning | ↗️ Renvoie vers l'agenda partagé de l'agence |
 | **Portail client** : suivi des projets, validation des livrables, documents partagés | ✅ En place |
 | **Portail client** : support et tickets | ✅ En place |
+| Module de disponibilité des sites (Uptime Kuma) | 🚧 En cours (1.3.0) |
+| Module de statistiques des sites (Umami), page « Statistiques » du portail | 🚧 En cours (1.3.0) |
 
 Hors périmètre, et donc absents par choix : facturation et comptabilité,
 monitoring SEO, CMS et blog, RH, multi-agence, application mobile.
@@ -308,10 +317,13 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 1.0.0 | V1 | Tous | Le temps de l'équipe : palette, chrono, Git, SIRET, adresse |
 | ✅ Livrée | 1.1.0 | Portail : livrables et prochaine étape | Client | Livrables sur la fiche projet, validation depuis l'e-mail, prochaine étape, interlocuteurs ; sauvegardes |
 | 📍 Actuelle | **1.2.0** | E-mail ↔ tickets | Client | Répondre et créer un ticket par e-mail (IMAP et webhook) ; journal d'audit |
-| ⏳ À venir | 1.3.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
-| ⏳ À venir | 1.4.0 | Rapports | Admin | Temps par client et projet en CSV, activité de l'équipe, compte rendu PDF pour le client |
-| ⏳ À venir | 1.5.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité et certificat |
-| ⏳ À venir | 1.6.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
+| ⏳ À venir | 1.3.0 | Modules : disponibilité et statistiques | Tous | Modules Uptime Kuma et Umami liés aux projets ; page « Statistiques » du portail ; tableau de bord du portail repensé |
+| ⏳ À venir | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
+| ⏳ À venir | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
+| ⏳ À venir | 1.6.0 | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
+| ⏳ À venir | 1.7.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
+| ⏳ À venir | 1.8.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
+| ⏳ À venir | 1.9.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
 <!-- /roadmap:readme -->
 
 ## Publier une version
@@ -674,10 +686,14 @@ que de la laisser répondre 500 à la première requête.
 | `DELIVERABLE_REMINDER_AFTER` | `72h` | Un livrable sans réponse du client est relancé par e-mail, une fois, au-delà de ce délai (SMTP requis). `0` pour ne jamais relancer |
 | `GIT_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks GitHub/GitLab. Vide : Piilot en tire un, visible dans *Paramètres > Dépôts Git*. Renseigné : c'est lui, et l'écran ne permet plus de le changer |
 | `AUDIT_RETENTION` | `8760h` | Durée de conservation du journal d'audit (un an) |
+| `APP_TIMEZONE` | `Europe/Paris` | Fuseau de l'agence, au format IANA (`America/Montreal`, `Africa/Casablanca`…) : il fixe « aujourd'hui », les semaines et les mois des agrégats, les dates des e-mails et des exports. Un fuseau inconnu empêche le démarrage |
 | `INBOUND_ADDRESS` | *(vide)* | Adresse de support des tickets par e-mail. Vide : elle se règle dans *Paramètres > E-mails entrants* |
 | `INBOUND_IMAP_HOST` / `INBOUND_IMAP_PORT` / `INBOUND_IMAP_SECURITY` | *(vide)* / `993` / `tls` | Boîte relevée chaque minute. Renseignées, elles priment sur l'écran ; `none` seulement pour un serveur de test local |
 | `INBOUND_IMAP_USERNAME` / `INBOUND_IMAP_PASSWORD` / `INBOUND_IMAP_FOLDER` | *(vides)* / `INBOX` | Identifiants et dossier de la boîte |
 | `INBOUND_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks des fournisseurs d'e-mail. Vide : Piilot en tire un, visible à l'écran |
+| `KUMA_URL` / `KUMA_API_KEY` | *(vides)* | Instance Uptime Kuma du module de disponibilité, sans `/metrics`, et sa clé d'API. Vides : elles se règlent dans *Paramètres > Modules* ; renseignées, elles priment et l'écran les montre en lecture seule |
+| `UMAMI_URL` / `UMAMI_USERNAME` / `UMAMI_PASSWORD` | *(vides)* | Instance Umami auto-hébergée du module de statistiques. Renseignées, elles priment sur *Paramètres > Modules* |
+| `UMAMI_API_KEY` | *(vide)* | Umami Cloud, avec `UMAMI_URL=https://api.umami.is/v1`. Exclut `UMAMI_USERNAME` |
 | `BACKUP_STALE_AFTER` | `36h` | Sans sauvegarde réussie depuis ce délai, les admins sont prévenus dans la cloche. `0` pour une instance sauvegardée autrement |
 | `BACKUP_AT` | `03:00` | Heure (Europe/Paris) de la sauvegarde quotidienne du service `backup` |
 | `BACKUP_KEEP_DAILY` / `BACKUP_KEEP_WEEKLY` / `BACKUP_KEEP_MONTHLY` | `7` / `4` / `3` | Rétention des sauvegardes, sur le disque comme sur S3 |
@@ -832,8 +848,10 @@ propre rôle, et il reste toujours au moins un administrateur actif.
 Quand une nouvelle version est publiée, les administrateurs voient une carte
 **Nouvelle version** au bas du menu latéral. Son bouton **Installer la mise à
 jour** ouvre les notes de version et, après
-confirmation, met l'application à jour en une à deux minutes. Pour tous les
-autres comptes, un bandeau propose ensuite de recharger la page.
+confirmation, met l'application à jour en une à deux minutes. Les onglets
+ouverts, ceux de tous les comptes, se rechargent ensuite d'eux-mêmes dans les
+trente secondes, au premier moment sûr : tout de suite en arrière-plan, au
+prochain changement de page, ou après la saisie en cours.
 
 C'est le service **`updater`** du `docker-compose.yml` qui s'en charge. Il ne
 dépend d'aucun outil de déploiement : Coolify, Docker Compose seul, peu
@@ -967,6 +985,80 @@ Les **réponses types** (*Paramètres → Réponses types*) s'insèrent depuis
 « Réponses types » au-dessus de la réponse à un ticket ; `{prenom}`,
 `{numero}`, `{sujet}` et `{projet}` se remplissent, et le texte se relit avant
 l'envoi.
+
+### Disponibilité des sites (Uptime Kuma)
+
+*Paramètres → Modules → Disponibilité des sites* (admins) : Piilot lit
+l'instance [Uptime Kuma](https://github.com/louislam/uptime-kuma) de
+l'agence et garde l'historique que Kuma n'expose pas.
+
+1. **Dans Kuma**, *Paramètres → Clés API* : créer une clé.
+2. **Dans Piilot**, renseigner l'adresse de Kuma (sans `/metrics`) et la clé,
+   cocher *Activer le module*, choisir l'intervalle (1 à 5 minutes),
+   enregistrer. *Tester la connexion* demande une relève tout de suite.
+3. **Recommandé**, dans Kuma, *Paramètres → Notifications* : une
+   notification de type *Webhook*, corps `application/json`, vers l'adresse
+   affichée dans Piilot (elle porte le secret), appliquée à tous les
+   moniteurs. Kuma prévient alors Piilot de chaque panne et de chaque retour,
+   à la seconde, avec la raison.
+
+Ce que Piilot en fait :
+
+- **Relève** : un job lit `/metrics` (Basic, la clé d'API pour mot de
+  passe) et ajoute un contrôle par site à l'agrégat du jour : en ligne, hors
+  ligne, ou manquant quand la relève échoue. Les agrégats sont gardés sans
+  limite ; aucun contrôle brut n'est stocké. La disponibilité se calcule sur
+  *en ligne / (en ligne + hors ligne)* : un contrôle manquant ne compte ni
+  pour ni contre. Kuma 1.x (sites reconnus par leur nom) et 2.x (par leur
+  identifiant) sont lus tous deux.
+- **Incidents** : ouverts et fermés par le webhook ; sans lui, déduits des
+  relèves, à l'intervalle près. Un site retiré de Kuma garde son historique.
+- **Projets** : *Paramètres du projet → Disponibilité* lie un ou plusieurs
+  sites, en production ou en préproduction, et montre leurs trente derniers
+  jours, leur certificat et leurs incidents.
+
+Aucun écran n'appelle Kuma : la relève est une tâche de fond, et la page du
+module lit ce qu'elle a écrit.
+
+### Statistiques des sites (Umami)
+
+*Paramètres → Modules → Umami* (admins) : Piilot montre à chaque client
+l'audience du site de production de son projet, lue dans
+[Umami](https://umami.is).
+
+1. **Connexion** : une instance auto-hébergée (adresse, identifiant et mot de
+   passe d'un compte, idéalement en lecture seule), ou Umami Cloud
+   (`https://api.umami.is/v1` et une clé d'API). Les secrets sont chiffrés en
+   base ; le jeton de session d'Umami est renouvelé seul s'il expire.
+2. **Projet** : *Paramètres du projet → Statistiques* lie un ou plusieurs
+   sites. Un seul est « production » : c'est celui que voit le client.
+3. **Client** : un bouton *Statistiques du site* sur son projet ouvre la page :
+   visiteurs, visites, pages vues, taux de rebond, durée moyenne, comparés à
+   la période précédente ; courbe ; pages, sources, pays, appareils,
+   navigateurs, systèmes, évènements ; visiteurs du moment.
+
+Le fonctionnement respecte la règle du projet — aucun appel externe pendant
+une requête :
+
+- **Cache** : une tâche de fond lit Umami et garde chaque vue affichée en
+  base. Les sept et trente derniers jours et le mois en cours se relisent au
+  rythme choisi (5 à 15 min), le mois précédent et les douze mois une fois
+  par jour, et seulement tant qu'un écran les a lus ces trois derniers jours.
+  Les trente jours de chaque site de production sont toujours prêts.
+- **Périodes personnalisées** : vingt-quatre mois au plus, préparées par la
+  tâche en quelques secondes (l'écran patiente) ; une demande identique n'est
+  jamais doublée, et un compte en demande vingt par heure au plus.
+- **Visiteurs du moment** : relevés chaque minute, pour les seuls sites qu'un
+  écran regarde.
+- **Photo du mois** : le 1er de chaque mois, les chiffres du mois écoulé sont
+  figés pour le futur compte rendu mensuel.
+- **Versions** : Umami 2.x et 3.x ne répondent pas dans le même format. La
+  version se déduit des réponses ; une instance mise à jour est reconnue et
+  signalée à l'écran. Un choix manuel reste possible si la détection échoue.
+
+Un client ne voit que les sites de ses propres projets : pour un autre
+projet, un module coupé ou un projet sans site de production, la page
+répond « introuvable ».
 
 ### Journal d'audit
 
