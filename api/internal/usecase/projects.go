@@ -1024,10 +1024,15 @@ type Metric struct {
 // Pas de chiffre d'affaires : la facturation ne fait pas partie de ce projet.
 // Les heures vendues sont la donnee la plus proche qui lui appartienne.
 type DashboardSummary struct {
-	Projects  Metric      `json:"projects"`
-	Clients   Metric      `json:"clients"`
-	HoursSold Metric      `json:"hours_sold"`
-	Time      TimeSummary `json:"time"`
+	Projects  Metric `json:"projects"`
+	Clients   Metric `json:"clients"`
+	HoursSold Metric `json:"hours_sold"`
+	// Les projets par statut, pour la barre de la tuile des projets.
+	ProjectsByStatus []StatusCount `json:"projects_by_status"`
+	// Les douze derniers mois, le plus ancien d'abord : les courbes des
+	// tuiles des clients et des heures vendues.
+	Months []DashboardMonth `json:"months"`
+	Time   TimeSummary      `json:"time"`
 	// Avancement des taches par nature. Vide tant qu'aucune tache n'existe :
 	// l'ecran montre alors un panneau vide plutot que des chiffres inventes.
 	TaskProgress []TaskProgress `json:"task_progress"`
@@ -1039,6 +1044,22 @@ type DashboardSummary struct {
 	Team []TeamDay `json:"team"`
 	// Activite de l'annee civile en cours, un element par jour actif.
 	Activity []DayActivity `json:"activity"`
+}
+
+// StatusCount est un segment de la barre des projets par statut.
+type StatusCount struct {
+	Status   string `json:"status"`
+	Projects int    `json:"projects"`
+}
+
+// DashboardMonth est un mois des courbes d'en-tete.
+type DashboardMonth struct {
+	// Premier jour du mois, AAAA-MM-JJ.
+	Month string `json:"month"`
+	// Clients existants a la fin du mois.
+	ClientsTotal int `json:"clients_total"`
+	// Heures vendues sur les projets ouverts dans le mois.
+	HoursSold float64 `json:"hours_sold"`
 }
 
 // BudgetAlerts compte les projets en cours par etat de budget derivant.
@@ -1128,6 +1149,30 @@ func (s *ProjectService) dashboardAt(ctx context.Context, now time.Time) (Dashbo
 		return DashboardSummary{}, fmt.Errorf("lecture des agregats : %w", err)
 	}
 
+	statuses, err := s.q.CountProjectsByStatus(ctx)
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("projets par statut : %w", err)
+	}
+
+	byStatus := make([]StatusCount, 0, len(statuses))
+	for _, st := range statuses {
+		byStatus = append(byStatus, StatusCount{Status: st.Status, Projects: int(st.Projects)})
+	}
+
+	monthRows, err := s.q.ListDashboardMonths(ctx)
+	if err != nil {
+		return DashboardSummary{}, fmt.Errorf("douze derniers mois : %w", err)
+	}
+
+	months := make([]DashboardMonth, 0, len(monthRows))
+	for _, m := range monthRows {
+		months = append(months, DashboardMonth{
+			Month:        m.Month.Format(dateLayout),
+			ClientsTotal: int(m.ClientsTotal),
+			HoursSold:    m.HoursSold,
+		})
+	}
+
 	rows, err := s.q.GetTaskProgressByTag(ctx)
 	if err != nil {
 		return DashboardSummary{}, fmt.Errorf("avancement des taches : %w", err)
@@ -1206,13 +1251,15 @@ func (s *ProjectService) dashboardAt(ctx context.Context, now time.Time) (Dashbo
 	}
 
 	return DashboardSummary{
-		Budget:    BudgetAlerts{Warning: int(row.BudgetWarning), Over: int(row.BudgetOver)},
-		Workload:  workload,
-		Team:      team,
-		Activity:  activity,
-		Projects:  metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
-		Clients:   metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
-		HoursSold: metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		Budget:           BudgetAlerts{Warning: int(row.BudgetWarning), Over: int(row.BudgetOver)},
+		Workload:         workload,
+		Team:             team,
+		Activity:         activity,
+		Projects:         metricOf(float64(row.ProjectsTotal), float64(row.ProjectsRecent), float64(row.ProjectsPrevious)),
+		Clients:          metricOf(float64(row.ClientsTotal), float64(row.ClientsRecent), float64(row.ClientsPrevious)),
+		HoursSold:        metricOf(row.HoursTotal, row.HoursRecent, row.HoursPrevious),
+		ProjectsByStatus: byStatus,
+		Months:           months,
 		Time: TimeSummary{
 			BudgetHours:      row.TimeBudget,
 			BillableHours:    row.TimeBillable,

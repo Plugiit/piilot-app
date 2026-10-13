@@ -102,6 +102,41 @@ func (q *Queries) CountProjects(ctx context.Context, arg CountProjectsParams) (i
 	return count, err
 }
 
+const countProjectsByStatus = `-- name: CountProjectsByStatus :many
+SELECT status, count(*)::integer AS projects
+FROM projects
+WHERE deleted_at IS NULL
+GROUP BY status
+`
+
+type CountProjectsByStatusRow struct {
+	Status   string `json:"status"`
+	Projects int32  `json:"projects"`
+}
+
+// Repartition des projets par statut : la barre de la tuile « Nombre de
+// projets ». COUNT au rendu admis pour la meme raison que GetDashboardStats :
+// une table bornee, lue par son index partiel.
+func (q *Queries) CountProjectsByStatus(ctx context.Context) ([]CountProjectsByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countProjectsByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountProjectsByStatusRow{}
+	for rows.Next() {
+		var i CountProjectsByStatusRow
+		if err := rows.Scan(&i.Status, &i.Projects); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (client_id, name, description, status, priority, progress, hours_sold, starts_on, due_on, figma_url, prod_url, preprod_url, created_by, repo_url)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -496,6 +531,55 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProj
 		&i.IsFavorite,
 	)
 	return i, err
+}
+
+const listDashboardMonths = `-- name: ListDashboardMonths :many
+WITH months AS (
+    SELECT generate_series(
+        date_trunc('month', now()) - interval '11 months',
+        date_trunc('month', now()),
+        interval '1 month'
+    ) AS month
+)
+SELECT
+    m.month::date AS month,
+    (SELECT count(*) FROM clients c
+     WHERE c.deleted_at IS NULL AND c.created_at < m.month + interval '1 month')::integer AS clients_total,
+    (SELECT coalesce(sum(p.hours_sold), 0) FROM projects p
+     WHERE p.deleted_at IS NULL AND p.created_at >= m.month
+       AND p.created_at < m.month + interval '1 month')::float8 AS hours_sold
+FROM months m
+ORDER BY m.month
+LIMIT 12
+`
+
+type ListDashboardMonthsRow struct {
+	Month        time.Time `json:"month"`
+	ClientsTotal int32     `json:"clients_total"`
+	HoursSold    float64   `json:"hours_sold"`
+}
+
+// Les douze derniers mois, le plus ancien d'abord : le portefeuille de
+// clients a la fin de chaque mois, et les heures vendues sur les projets
+// ouverts dans le mois. Memes tables bornees que GetDashboardStats.
+func (q *Queries) ListDashboardMonths(ctx context.Context) ([]ListDashboardMonthsRow, error) {
+	rows, err := q.db.Query(ctx, listDashboardMonths)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDashboardMonthsRow{}
+	for rows.Next() {
+		var i ListDashboardMonthsRow
+		if err := rows.Scan(&i.Month, &i.ClientsTotal, &i.HoursSold); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listFavoriteProjects = `-- name: ListFavoriteProjects :many

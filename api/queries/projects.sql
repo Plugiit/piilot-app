@@ -323,3 +323,34 @@ ON CONFLICT DO NOTHING;
 -- jointes de taches restent internes : le portail ne montre pas les taches.
 UPDATE attachments SET shared_with_client = sqlc.arg('shared')
 WHERE id = sqlc.arg('id') AND project_id IS NOT NULL;
+
+-- name: CountProjectsByStatus :many
+-- Repartition des projets par statut : la barre de la tuile « Nombre de
+-- projets ». COUNT au rendu admis pour la meme raison que GetDashboardStats :
+-- une table bornee, lue par son index partiel.
+SELECT status, count(*)::integer AS projects
+FROM projects
+WHERE deleted_at IS NULL
+GROUP BY status;
+
+-- name: ListDashboardMonths :many
+-- Les douze derniers mois, le plus ancien d'abord : le portefeuille de
+-- clients a la fin de chaque mois, et les heures vendues sur les projets
+-- ouverts dans le mois. Memes tables bornees que GetDashboardStats.
+WITH months AS (
+    SELECT generate_series(
+        date_trunc('month', now()) - interval '11 months',
+        date_trunc('month', now()),
+        interval '1 month'
+    ) AS month
+)
+SELECT
+    m.month::date AS month,
+    (SELECT count(*) FROM clients c
+     WHERE c.deleted_at IS NULL AND c.created_at < m.month + interval '1 month')::integer AS clients_total,
+    (SELECT coalesce(sum(p.hours_sold), 0) FROM projects p
+     WHERE p.deleted_at IS NULL AND p.created_at >= m.month
+       AND p.created_at < m.month + interval '1 month')::float8 AS hours_sold
+FROM months m
+ORDER BY m.month
+LIMIT 12;
