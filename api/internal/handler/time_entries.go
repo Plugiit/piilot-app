@@ -39,11 +39,19 @@ type timeEntryBody struct {
 	SpentOn   string  `json:"spent_on"`
 	Minutes   int32   `json:"minutes"`
 	Note      string  `json:"note"`
+	// Une intervention de maintenance : sa nature, et ce que le client en
+	// voit. Absente, la saisie est un temps ordinaire.
+	InterventionKind *string `json:"intervention_kind"`
+	ClientVisible    bool    `json:"client_visible"`
+	ClientNote       string  `json:"client_note"`
 }
 
 // input traduit le corps en entree de service, en nommant le champ fautif.
 func (b timeEntryBody) input() (usecase.TimeEntryInput, error) {
-	in := usecase.TimeEntryInput{Minutes: b.Minutes, Note: b.Note}
+	in := usecase.TimeEntryInput{
+		Minutes: b.Minutes, Note: b.Note,
+		InterventionKind: b.InterventionKind, ClientVisible: b.ClientVisible, ClientNote: b.ClientNote,
+	}
 
 	projectID, err := uuid.Parse(strings.TrimSpace(b.ProjectID))
 	if err != nil {

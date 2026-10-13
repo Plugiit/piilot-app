@@ -13,22 +13,26 @@ import (
 )
 
 const createTimeEntry = `-- name: CreateTimeEntry :one
-INSERT INTO time_entries (user_id, project_id, task_id, service_id, spent_on, minutes, note)
+INSERT INTO time_entries (user_id, project_id, task_id, service_id, spent_on, minutes, note, intervention_kind, client_visible, client_note)
 VALUES (
     $1, $2, $3,
-    $4, $5, $6, $7
+    $4, $5, $6, $7,
+    $8, $9, $10
 )
 RETURNING id
 `
 
 type CreateTimeEntryParams struct {
-	UserID    uuid.UUID  `json:"user_id"`
-	ProjectID uuid.UUID  `json:"project_id"`
-	TaskID    *uuid.UUID `json:"task_id"`
-	ServiceID *uuid.UUID `json:"service_id"`
-	SpentOn   time.Time  `json:"spent_on"`
-	Minutes   int32      `json:"minutes"`
-	Note      string     `json:"note"`
+	UserID           uuid.UUID  `json:"user_id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	ServiceID        *uuid.UUID `json:"service_id"`
+	SpentOn          time.Time  `json:"spent_on"`
+	Minutes          int32      `json:"minutes"`
+	Note             string     `json:"note"`
+	InterventionKind *string    `json:"intervention_kind"`
+	ClientVisible    bool       `json:"client_visible"`
+	ClientNote       string     `json:"client_note"`
 }
 
 func (q *Queries) CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (uuid.UUID, error) {
@@ -40,6 +44,9 @@ func (q *Queries) CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams
 		arg.SpentOn,
 		arg.Minutes,
 		arg.Note,
+		arg.InterventionKind,
+		arg.ClientVisible,
+		arg.ClientNote,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -71,6 +78,9 @@ SELECT
     e.spent_on,
     e.minutes,
     e.note,
+    e.intervention_kind,
+    e.client_visible,
+    e.client_note,
     e.created_at,
     p.id   AS project_id,
     p.name AS project_name,
@@ -92,18 +102,21 @@ type GetTimeEntryParams struct {
 }
 
 type GetTimeEntryRow struct {
-	ID           uuid.UUID  `json:"id"`
-	SpentOn      time.Time  `json:"spent_on"`
-	Minutes      int32      `json:"minutes"`
-	Note         string     `json:"note"`
-	CreatedAt    time.Time  `json:"created_at"`
-	ProjectID    uuid.UUID  `json:"project_id"`
-	ProjectName  string     `json:"project_name"`
-	TaskID       *uuid.UUID `json:"task_id"`
-	TaskTitle    *string    `json:"task_title"`
-	ServiceID    *uuid.UUID `json:"service_id"`
-	ServiceName  *string    `json:"service_name"`
-	ServiceColor *string    `json:"service_color"`
+	ID               uuid.UUID  `json:"id"`
+	SpentOn          time.Time  `json:"spent_on"`
+	Minutes          int32      `json:"minutes"`
+	Note             string     `json:"note"`
+	InterventionKind *string    `json:"intervention_kind"`
+	ClientVisible    bool       `json:"client_visible"`
+	ClientNote       string     `json:"client_note"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	ProjectName      string     `json:"project_name"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	TaskTitle        *string    `json:"task_title"`
+	ServiceID        *uuid.UUID `json:"service_id"`
+	ServiceName      *string    `json:"service_name"`
+	ServiceColor     *string    `json:"service_color"`
 }
 
 func (q *Queries) GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (GetTimeEntryRow, error) {
@@ -114,6 +127,9 @@ func (q *Queries) GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (Get
 		&i.SpentOn,
 		&i.Minutes,
 		&i.Note,
+		&i.InterventionKind,
+		&i.ClientVisible,
+		&i.ClientNote,
 		&i.CreatedAt,
 		&i.ProjectID,
 		&i.ProjectName,
@@ -133,6 +149,9 @@ SELECT
     e.spent_on,
     e.minutes,
     e.note,
+    e.intervention_kind,
+    e.client_visible,
+    e.client_note,
     e.created_at,
     p.id   AS project_id,
     p.name AS project_name,
@@ -161,18 +180,21 @@ type ListTimeEntriesParams struct {
 }
 
 type ListTimeEntriesRow struct {
-	ID           uuid.UUID  `json:"id"`
-	SpentOn      time.Time  `json:"spent_on"`
-	Minutes      int32      `json:"minutes"`
-	Note         string     `json:"note"`
-	CreatedAt    time.Time  `json:"created_at"`
-	ProjectID    uuid.UUID  `json:"project_id"`
-	ProjectName  string     `json:"project_name"`
-	TaskID       *uuid.UUID `json:"task_id"`
-	TaskTitle    *string    `json:"task_title"`
-	ServiceID    *uuid.UUID `json:"service_id"`
-	ServiceName  *string    `json:"service_name"`
-	ServiceColor *string    `json:"service_color"`
+	ID               uuid.UUID  `json:"id"`
+	SpentOn          time.Time  `json:"spent_on"`
+	Minutes          int32      `json:"minutes"`
+	Note             string     `json:"note"`
+	InterventionKind *string    `json:"intervention_kind"`
+	ClientVisible    bool       `json:"client_visible"`
+	ClientNote       string     `json:"client_note"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	ProjectName      string     `json:"project_name"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	TaskTitle        *string    `json:"task_title"`
+	ServiceID        *uuid.UUID `json:"service_id"`
+	ServiceName      *string    `json:"service_name"`
+	ServiceColor     *string    `json:"service_color"`
 }
 
 // Temps passe.
@@ -203,6 +225,9 @@ func (q *Queries) ListTimeEntries(ctx context.Context, arg ListTimeEntriesParams
 			&i.SpentOn,
 			&i.Minutes,
 			&i.Note,
+			&i.InterventionKind,
+			&i.ClientVisible,
+			&i.ClientNote,
 			&i.CreatedAt,
 			&i.ProjectID,
 			&i.ProjectName,
@@ -297,20 +322,26 @@ SET project_id = $1,
     spent_on   = $4,
     minutes    = $5,
     note       = $6,
+    intervention_kind = $7,
+    client_visible    = $8,
+    client_note       = $9,
     updated_at = now()
-WHERE id = $7 AND user_id = $8 AND deleted_at IS NULL
+WHERE id = $10 AND user_id = $11 AND deleted_at IS NULL
 RETURNING id
 `
 
 type UpdateTimeEntryParams struct {
-	ProjectID uuid.UUID  `json:"project_id"`
-	TaskID    *uuid.UUID `json:"task_id"`
-	ServiceID *uuid.UUID `json:"service_id"`
-	SpentOn   time.Time  `json:"spent_on"`
-	Minutes   int32      `json:"minutes"`
-	Note      string     `json:"note"`
-	ID        uuid.UUID  `json:"id"`
-	UserID    uuid.UUID  `json:"user_id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	TaskID           *uuid.UUID `json:"task_id"`
+	ServiceID        *uuid.UUID `json:"service_id"`
+	SpentOn          time.Time  `json:"spent_on"`
+	Minutes          int32      `json:"minutes"`
+	Note             string     `json:"note"`
+	InterventionKind *string    `json:"intervention_kind"`
+	ClientVisible    bool       `json:"client_visible"`
+	ClientNote       string     `json:"client_note"`
+	ID               uuid.UUID  `json:"id"`
+	UserID           uuid.UUID  `json:"user_id"`
 }
 
 // La clause sur `user_id` fait le controle d'acces : une saisie qui n'est pas
@@ -323,6 +354,9 @@ func (q *Queries) UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams
 		arg.SpentOn,
 		arg.Minutes,
 		arg.Note,
+		arg.InterventionKind,
+		arg.ClientVisible,
+		arg.ClientNote,
 		arg.ID,
 		arg.UserID,
 	)

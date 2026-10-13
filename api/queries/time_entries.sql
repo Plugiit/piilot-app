@@ -14,6 +14,9 @@ SELECT
     e.spent_on,
     e.minutes,
     e.note,
+    e.intervention_kind,
+    e.client_visible,
+    e.client_note,
     e.created_at,
     p.id   AS project_id,
     p.name AS project_name,
@@ -55,10 +58,11 @@ GROUP BY spent_on
 ORDER BY spent_on;
 
 -- name: CreateTimeEntry :one
-INSERT INTO time_entries (user_id, project_id, task_id, service_id, spent_on, minutes, note)
+INSERT INTO time_entries (user_id, project_id, task_id, service_id, spent_on, minutes, note, intervention_kind, client_visible, client_note)
 VALUES (
     sqlc.arg('user_id'), sqlc.arg('project_id'), sqlc.narg('task_id'),
-    sqlc.narg('service_id'), sqlc.arg('spent_on'), sqlc.arg('minutes'), sqlc.arg('note')
+    sqlc.narg('service_id'), sqlc.arg('spent_on'), sqlc.arg('minutes'), sqlc.arg('note'),
+    sqlc.narg('intervention_kind'), sqlc.arg('client_visible'), sqlc.arg('client_note')
 )
 RETURNING id;
 
@@ -72,6 +76,9 @@ SET project_id = sqlc.arg('project_id'),
     spent_on   = sqlc.arg('spent_on'),
     minutes    = sqlc.arg('minutes'),
     note       = sqlc.arg('note'),
+    intervention_kind = sqlc.narg('intervention_kind'),
+    client_visible    = sqlc.arg('client_visible'),
+    client_note       = sqlc.arg('client_note'),
     updated_at = now()
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id') AND deleted_at IS NULL
 RETURNING id;
@@ -87,6 +94,9 @@ SELECT
     e.spent_on,
     e.minutes,
     e.note,
+    e.intervention_kind,
+    e.client_visible,
+    e.client_note,
     e.created_at,
     p.id   AS project_id,
     p.name AS project_name,
