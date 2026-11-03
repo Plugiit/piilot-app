@@ -29,6 +29,7 @@ type Deps struct {
 	Analytics     *Analytics
 	Maintenance   *Maintenance
 	Reports       *Reports
+	SiteSources   *SiteSources
 	Modules       *Modules
 	ClientSites   *ClientSites
 	Replies       *ReplyTemplates
@@ -87,6 +88,9 @@ func Register(app *fiber.App, deps Deps) {
 	// Changements d'etat pousses par le service de disponibilite : le jeton
 	// de l'adresse fait office de preuve.
 	v1.Post("/hooks/uptime/:provider", deps.Uptime.Webhook)
+
+	// Fin d'une sauvegarde de site : le jeton du projet fait office de preuve.
+	v1.Post("/hooks/site-backups", deps.SiteSources.BackupHook)
 
 }
 
@@ -336,6 +340,14 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Put("/:id/maintenance", deps.Guard.RequirePermission("projects.write"), deps.Maintenance.SetProject)
 	projects.Get("/:id/report-recipients", deps.Guard.RequirePermission("projects.read"), deps.Reports.Recipients)
 	projects.Put("/:id/report-recipients", deps.Guard.RequirePermission("projects.write"), deps.Reports.SetRecipients)
+	// Sauvegardes et domaines du site. Le jeton est reserve a qui gere les
+	// rapports : il permet d'ecrire dans l'etat de sante que voit le client.
+	projects.Get("/:id/site-sources", deps.Guard.RequirePermission("projects.read"), deps.SiteSources.View)
+	projects.Post("/:id/site-sources/backup-token", deps.Guard.RequirePermission("reports.write"), deps.SiteSources.RotateToken)
+	projects.Put("/:id/site-sources/backup", deps.Guard.RequirePermission("reports.write"), deps.SiteSources.UpdateBackup)
+	projects.Delete("/:id/site-sources/backup", deps.Guard.RequirePermission("reports.write"), deps.SiteSources.RemoveBackup)
+	projects.Post("/:id/site-sources/domains", deps.Guard.RequirePermission("projects.write"), deps.SiteSources.AddDomain)
+	projects.Delete("/:id/site-sources/domains/:domainId", deps.Guard.RequirePermission("projects.write"), deps.SiteSources.RemoveDomain)
 	projects.Put("/:id/analytics", deps.Guard.RequirePermission("projects.write"), deps.Analytics.SetProject)
 	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
 	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)

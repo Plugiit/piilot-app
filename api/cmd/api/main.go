@@ -24,6 +24,7 @@ import (
 	"github.com/plugiit/piilot-app/api/internal/handler"
 	"github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
+	"github.com/plugiit/piilot-app/api/internal/rdap"
 	"github.com/plugiit/piilot-app/api/internal/repository"
 	"github.com/plugiit/piilot-app/api/internal/repository/db"
 	"github.com/plugiit/piilot-app/api/internal/security"
@@ -140,6 +141,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	)
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
 	reportService := usecase.NewReportService(pool, cfg.URLFor(spaces.Client), sender.Configured(), log)
+	siteSourcesService := usecase.NewSiteSourcesService(pool, rdap.New(), cfg.URLFor(spaces.Team), sender.Configured(), log)
 	analyticsService := usecase.NewAnalyticsService(pool, cfg.Analytics, cfg.JWTSecret, log)
 	uptimeService := usecase.NewUptimeService(pool, cfg.Uptime, cfg.JWTSecret, cfg.URLFor(spaces.Team), log)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
@@ -194,6 +196,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Analytics:     handler.NewAnalytics(analyticsService),
 		Maintenance:   handler.NewMaintenance(usecase.NewMaintenanceService(pool)),
 		Reports:       handler.NewReports(reportService),
+		SiteSources:   handler.NewSiteSources(siteSourcesService),
 		Modules:       handler.NewModules(uptimeService, analyticsService),
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
@@ -248,6 +251,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	repository.StartAnalytics(ctx, analyticsService, log)
 	// Rapports mensuels : brouillons le 1er, envoi automatique s'il est regle.
 	repository.StartReports(ctx, reportService, log)
+	// Sauvegardes et domaines des sites : le silence d'une source alerte.
+	repository.StartSiteSources(ctx, siteSourcesService, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
