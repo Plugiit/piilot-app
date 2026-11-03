@@ -12,10 +12,10 @@ SELECT * FROM projects WHERE repo_url = sqlc.arg('repo_url') AND deleted_at IS N
 -- Une pull request se recoit plusieurs fois : ouverture, mises a jour,
 -- fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
 -- posee, ne s'efface pas.
-INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at)
+INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security)
 VALUES (
     sqlc.arg('project_id'), sqlc.arg('provider'), sqlc.arg('number'), sqlc.arg('title'), sqlc.arg('url'),
-    sqlc.arg('branch'), sqlc.arg('author'), sqlc.arg('state'), sqlc.narg('opened_at'), sqlc.narg('merged_at')
+    sqlc.arg('branch'), sqlc.arg('author'), sqlc.arg('state'), sqlc.narg('opened_at'), sqlc.narg('merged_at'), sqlc.arg('security')
 )
 ON CONFLICT (project_id, provider, number) DO UPDATE SET
     title      = EXCLUDED.title,
@@ -25,6 +25,7 @@ ON CONFLICT (project_id, provider, number) DO UPDATE SET
     state      = EXCLUDED.state,
     opened_at  = coalesce(pull_requests.opened_at, EXCLUDED.opened_at),
     merged_at  = coalesce(EXCLUDED.merged_at, pull_requests.merged_at),
+    security   = EXCLUDED.security,
     updated_at = now()
 RETURNING *;
 

@@ -26,6 +26,9 @@ type Querier interface {
 	AddProjectFavorite(ctx context.Context, arg AddProjectFavoriteParams) error
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
 	AddProjectService(ctx context.Context, arg AddProjectServiceParams) error
+	// Sans toucher updated_at : le declencheur fige tout le reste d'un rapport
+	// envoye.
+	AddReportUndelivered(ctx context.Context, arg AddReportUndeliveredParams) error
 	AddTaskService(ctx context.Context, arg AddTaskServiceParams) error
 	AddTemplateMilestone(ctx context.Context, arg AddTemplateMilestoneParams) error
 	AddTemplateService(ctx context.Context, arg AddTemplateServiceParams) error
@@ -41,6 +44,9 @@ type Querier interface {
 	// possession sure : deux clients crees en meme temps avec le meme contact, un
 	// seul l'obtient, et l'autre ne touche aucune ligne.
 	AttachContactToClient(ctx context.Context, arg AttachContactToClientParams) (Contact, error)
+	// L'envoi automatique, dans la transaction de l'envoi : rien ne reste valide
+	// sans etre parti, et ce qu'un admin retient reste retenu.
+	AutoValidateReport(ctx context.Context, id uuid.UUID) (int64, error)
 	// Une adresse de photo est-elle celle d'un compte ?
 	//
 	// Le magasin de fichiers est commun aux pieces jointes et aux photos : sans
@@ -59,11 +65,16 @@ type Querier interface {
 	// Le prochain e-mail a ranger, verrouille le temps de le traiter : deux
 	// instances pendant un deploiement ne rangent pas deux fois le meme.
 	ClaimPendingInbound(ctx context.Context) (InboundEmail, error)
+	// Une instance a la fois : le lancement passe en « dispatching » avant l'appel,
+	// et n'est jamais repris tout seul si l'instance tombe pendant.
+	ClaimSiteUpdateRun(ctx context.Context, arg ClaimSiteUpdateRunParams) (SiteUpdateRun, error)
 	// Retire la designation qui pointe vers ce contact, quel que soit le client.
 	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
 	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
 	ClearPrimaryContactOf(ctx context.Context, primaryContactID *uuid.UUID) error
+	ClearReportUndelivered(ctx context.Context, id uuid.UUID) (int64, error)
 	ClearRolePermissions(ctx context.Context, code string) error
+	ClearSiteUpdateToken(ctx context.Context) error
 	ClearTaskServices(ctx context.Context, taskID uuid.UUID) error
 	// Le contenu d'un modele s'enregistre d'un bloc : on efface puis on reecrit,
 	// dans la meme transaction. Un modele n'a pas d'historique a garder.
@@ -90,6 +101,7 @@ type Querier interface {
 	CountInterventions(ctx context.Context, arg CountInterventionsParams) (int32, error)
 	CountOpenInvitations(ctx context.Context) (int64, error)
 	CountPortalInterventions(ctx context.Context, projectID uuid.UUID) (int32, error)
+	CountProjectDomains(ctx context.Context, projectID uuid.UUID) (int32, error)
 	CountProjectTemplates(ctx context.Context) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	// Repartition des projets par statut : la barre de la tuile « Nombre de
@@ -102,6 +114,7 @@ type Querier interface {
 	// Borne par compte : un tiers qui connait une adresse ne doit pas pouvoir la
 	// noyer sous les e-mails de reinitialisation.
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountReportEmailsPending(ctx context.Context, reportID *uuid.UUID) (int32, error)
 	CountReports(ctx context.Context, arg CountReportsParams) (int32, error)
 	CountReportsByStatus(ctx context.Context, month time.Time) (CountReportsByStatusRow, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
@@ -201,6 +214,7 @@ type Querier interface {
 	DeleteMaintenancePlan(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) error
+	DeleteProjectDomain(ctx context.Context, arg DeleteProjectDomainParams) (int64, error)
 	DeleteProjectReportOptOuts(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectReportRecipients(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectTemplate(ctx context.Context, id uuid.UUID) (int64, error)
@@ -212,6 +226,7 @@ type Querier interface {
 	// Suppression douce, comme partout. Rend la cle du logo pour que l'appelant
 	// decide du sort du fichier.
 	DeleteSidebarApp(ctx context.Context, id uuid.UUID) (*string, error)
+	DeleteSiteBackupSource(ctx context.Context, projectID uuid.UUID) (int64, error)
 	// Suppression reelle : une sous-tache n'a pas d'histoire propre, et le
 	// « Annuler » du rappel la recree telle quelle.
 	DeleteSubtask(ctx context.Context, id uuid.UUID) error
@@ -226,15 +241,21 @@ type Querier interface {
 	// reply_to, message_id et in_reply_to filent les e-mails des tickets : la
 	// reponse du client revient sur le bon ticket. Vides pour les autres.
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
+	// Un e-mail de rapport connait son rapport : son abandon se reporte dessus.
+	EnqueueReportEmail(ctx context.Context, arg EnqueueReportEmailParams) error
 	// Une erreur passagere (base, disque) : on reessaie, cinq fois au plus.
 	FailInboundAttempt(ctx context.Context, arg FailInboundAttemptParams) error
+	FailSiteUpdateRun(ctx context.Context, arg FailSiteUpdateRunParams) error
 	FindActiveUserByEmail(ctx context.Context, email string) (FindActiveUserByEmailRow, error)
 	// Les contacts du CRM qui portent cette adresse, sur des clients actifs.
 	FindContactsByEmail(ctx context.Context, email *string) ([]FindContactsByEmailRow, error)
+	FindSiteBackupProject(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
+	FindSiteUpdateRunByToken(ctx context.Context, arg FindSiteUpdateRunByTokenParams) (FindSiteUpdateRunByTokenRow, error)
 	// Le site d'un evenement, par la premiere cle connue.
 	FindUptimeMonitorByKeys(ctx context.Context, arg FindUptimeMonitorByKeysParams) (FindUptimeMonitorByKeysRow, error)
 	FinishBackup(ctx context.Context, arg FinishBackupParams) error
 	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
+	FinishSiteUpdateRun(ctx context.Context, arg FinishSiteUpdateRunParams) (int64, error)
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Question posee par la garde a chaque requete authentifiee : ce compte
 	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
@@ -305,6 +326,7 @@ type Querier interface {
 	// repondre : il est refuse.
 	GetProjectClientForTriage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetProjectPlanForMonth(ctx context.Context, arg GetProjectPlanForMonthParams) (GetProjectPlanForMonthRow, error)
+	GetProjectRepoURL(ctx context.Context, id uuid.UUID) (string, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
 	// Le refresh a besoin du jeton ET de l'etat du compte pour decider. Les lire
 	// en une jointure plutot qu'en deux requetes evite qu'un compte supprime entre
@@ -319,6 +341,14 @@ type Querier interface {
 	GetReportSettings(ctx context.Context) (ReportSetting, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
+	// Sauvegardes et domaines des sites : l'ecran du projet, le point d'appel des
+	// sauvegardes, la tache de fond et le rapport mensuel y lisent.
+	GetSiteBackupSource(ctx context.Context, projectID uuid.UUID) (SiteBackupSource, error)
+	GetSiteUpdateRunForDispatch(ctx context.Context, id uuid.UUID) (string, error)
+	GetSiteUpdateTarget(ctx context.Context, projectID uuid.UUID) (SiteUpdateTarget, error)
+	// Mises a jour des sites : la cible choisie, les lancements, la tache de fond
+	// et le compte rendu de la CI.
+	GetSiteUpdateToken(ctx context.Context) (GetSiteUpdateTokenRow, error)
 	GetSubtask(ctx context.Context, id uuid.UUID) (Subtask, error)
 	// Tache et son contexte de projet : le tiroir affiche le nom du projet, et
 	// l'aller chercher a part ferait une requete de plus pour un seul mot.
@@ -370,17 +400,25 @@ type Querier interface {
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
 	InsertProjectAnalyticsWebsite(ctx context.Context, arg InsertProjectAnalyticsWebsiteParams) error
+	InsertProjectDomain(ctx context.Context, arg InsertProjectDomainParams) (ProjectDomain, error)
 	InsertProjectReportOptOut(ctx context.Context, arg InsertProjectReportOptOutParams) error
 	InsertProjectReportRecipient(ctx context.Context, arg InsertProjectReportRecipientParams) error
 	InsertProjectUptimeMonitor(ctx context.Context, arg InsertProjectUptimeMonitorParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (uuid.UUID, error)
+	InsertSiteBackupRun(ctx context.Context, arg InsertSiteBackupRunParams) error
+	// Bute sur l'index des lancements actifs si un autre est en cours.
+	InsertSiteUpdateRun(ctx context.Context, arg InsertSiteUpdateRunParams) (uuid.UUID, error)
 	// Un mot de passe change rend caducs les autres liens en circulation.
 	InvalidateUserPasswordResets(ctx context.Context, userID uuid.UUID) error
+	IsReportManualReview(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// L'erreur de la derniere demande servie pour cette vue, s'il y en a une.
 	LastAnalyticsRequestError(ctx context.Context, arg LastAnalyticsRequestErrorParams) (*string, error)
 	// Quand une alerte globale a ete emise pour la derniere fois, toutes
 	// personnes confondues : une alerte par jour suffit.
 	LastNotificationOfKind(ctx context.Context, kind string) (time.Time, error)
+	// La derniere alerte, et ce qu'elle disait : on ne repete pas une situation
+	// inchangee plus d'une fois par jour.
+	LastReportAttention(ctx context.Context) (LastReportAttentionRow, error)
 	LinkPullRequestToTask(ctx context.Context, arg LinkPullRequestToTaskParams) error
 	LinkPullRequestToTicket(ctx context.Context, arg LinkPullRequestToTicketParams) error
 	// Ecran « Comptes » : les comptes de l'agence et du portail, avec le client
@@ -474,6 +512,14 @@ type Querier interface {
 	// serait fausse des la seconde suivante.
 	ListDeliverables(ctx context.Context, arg ListDeliverablesParams) ([]ListDeliverablesRow, error)
 	ListDeploymentsOfProject(ctx context.Context, arg ListDeploymentsOfProjectParams) ([]Deployment, error)
+	ListDomainsExpiring(ctx context.Context, now time.Time) ([]ListDomainsExpiringRow, error)
+	// Un releve qui ne reussit plus : sans lui, une expiration passerait en silence.
+	ListDomainsFailing(ctx context.Context, now time.Time) ([]ListDomainsFailingRow, error)
+	// Une fois par semaine ; un domaine en erreur se retente chaque jour.
+	ListDomainsToCheck(ctx context.Context, now time.Time) ([]ListDomainsToCheckRow, error)
+	// Les brouillons du mois dont les donnees datent : une intervention saisie en
+	// retard, ou l'audience arrivee depuis, doit y entrer sans geste de personne.
+	ListDraftsToRefresh(ctx context.Context, arg ListDraftsToRefreshParams) ([]uuid.UUID, error)
 	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
 	//
 	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
@@ -575,6 +621,7 @@ type Querier interface {
 	// seuls que la tache tient a jour.
 	ListProdAnalyticsWebsites(ctx context.Context) ([]ListProdAnalyticsWebsitesRow, error)
 	ListProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) ([]ListProjectAnalyticsWebsitesRow, error)
+	ListProjectDomains(ctx context.Context, projectID uuid.UUID) ([]ProjectDomain, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
 	// Les periodes d'un projet, la plus recente d'abord.
@@ -620,11 +667,15 @@ type Querier interface {
 	ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID) ([]PullRequest, error)
 	ListPullRequestsOfTicket(ctx context.Context, ticketID *uuid.UUID) ([]PullRequest, error)
 	ListReplyTemplates(ctx context.Context) ([]TicketReplyTemplate, error)
+	// Qui prevenir de ce qui menace un site ou un rapport : les comptes actifs qui
+	// peuvent le traiter.
+	ListReportAdmins(ctx context.Context) ([]ListReportAdminsRow, error)
 	ListReports(ctx context.Context, arg ListReportsParams) ([]ListReportsRow, error)
 	// Les projets sous formule ce mois-la et sans rapport : ce qui reste a
 	// generer. La formule est celle du dernier jour du mois.
 	ListReportsDue(ctx context.Context, arg ListReportsDueParams) ([]ListReportsDueRow, error)
-	// L'envoi automatique : les rapports du mois pas encore envoyes.
+	// L'envoi automatique : les rapports du mois pas encore envoyes, sauf ceux
+	// qu'un admin retient et les projets en relecture obligatoire.
 	ListReportsToSend(ctx context.Context, month time.Time) ([]ListReportsToSendRow, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
@@ -657,6 +708,19 @@ type Querier interface {
 	//
 	// Bornee : un passage traite une poignee d'apps, le suivant prendra la suite.
 	ListSidebarAppsNeedingFavicon(ctx context.Context, arg ListSidebarAppsNeedingFaviconParams) ([]ListSidebarAppsNeedingFaviconRow, error)
+	ListSiteBackupRuns(ctx context.Context, projectID uuid.UUID) ([]ListSiteBackupRunsRow, error)
+	// Les sauvegardes qui manquent ou dont la derniere a echoue : le silence compte
+	// comme une panne. Pas plus d'une alerte par jour pour un meme projet.
+	ListSiteBackupsToAlert(ctx context.Context, now time.Time) ([]ListSiteBackupsToAlertRow, error)
+	ListSiteUpdateRuns(ctx context.Context, projectID uuid.UUID) ([]ListSiteUpdateRunsRow, error)
+	// Les lancements sans nouvelles. « dispatching » trop vieux : l'instance est
+	// tombee pendant l'appel, on ne sait pas si GitHub l'a recu, donc on ne relance
+	// pas. « dispatched » trop vieux : la CI ne rend pas compte.
+	ListSiteUpdateStuck(ctx context.Context, arg ListSiteUpdateStuckParams) ([]ListSiteUpdateStuckRow, error)
+	// Les cibles planifiees dont l'heure est venue. Un dernier lancement en echec
+	// arrete la planification jusqu'a ce qu'un humain relance : on n'insiste pas
+	// sur un site qu'une mise a jour vient de mettre en difficulte.
+	ListSiteUpdatesDue(ctx context.Context, now time.Time) ([]ListSiteUpdatesDueRow, error)
 	ListSubtasks(ctx context.Context, taskID uuid.UUID) ([]Subtask, error)
 	ListTaskActivity(ctx context.Context, arg ListTaskActivityParams) ([]ListTaskActivityRow, error)
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
@@ -803,6 +867,9 @@ type Querier interface {
 	// simultanees prendraient sinon le meme numero.
 	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
 	LockInboundEmail(ctx context.Context, id uuid.UUID) (InboundEmail, error)
+	// Une adresse abandonnee pendant la relance ne doit pas etre effacee sans
+	// avoir ete relancee.
+	LockReportUndelivered(ctx context.Context, id uuid.UUID) ([]string, error)
 	// Prend le verrou d'ecriture sur un ticket, le temps de la transaction.
 	//
 	// Sans lui, deux ecritures concurrentes lisent toutes deux l'etat d'avant et
@@ -815,6 +882,7 @@ type Querier interface {
 	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
 	MarkAnalyticsWebsitesAbsent(ctx context.Context, arg MarkAnalyticsWebsitesAbsentParams) error
+	MarkDomainFailureAlerted(ctx context.Context, arg MarkDomainFailureAlertedParams) error
 	MarkEmailFailed(ctx context.Context, arg MarkEmailFailedParams) error
 	MarkEmailRetry(ctx context.Context, arg MarkEmailRetryParams) error
 	// Les corps sont effaces : ils portent des liens a usage unique, qui n'ont
@@ -827,6 +895,11 @@ type Querier interface {
 	MarkReportSent(ctx context.Context, arg MarkReportSentParams) (int64, error)
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
+	MarkSiteBackupAlerted(ctx context.Context, arg MarkSiteBackupAlertedParams) error
+	// Le compte rendu a pu arriver avant : il garde le dernier mot.
+	MarkSiteUpdateDispatched(ctx context.Context, arg MarkSiteUpdateDispatchedParams) error
+	// Le jeton reste valable : un compte rendu en retard vaut mieux que l'ignorance.
+	MarkSiteUpdateStuck(ctx context.Context, arg MarkSiteUpdateStuckParams) (int64, error)
 	// Les sites que la releve n'a plus vus.
 	MarkUptimeMonitorsAbsent(ctx context.Context, arg MarkUptimeMonitorsAbsentParams) error
 	MarkVersionReminded(ctx context.Context, id uuid.UUID) error
@@ -937,23 +1010,32 @@ type Querier interface {
 	ProjectMissesStatistics(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// Le journal n'a pas a remonter plus loin que la retention la plus longue.
 	PruneBackupRows(ctx context.Context) error
+	PruneSiteBackupRuns(ctx context.Context, before time.Time) error
 	// Les periodes personnalisees que personne ne regarde plus.
 	PurgeAnalyticsCache(ctx context.Context, before time.Time) error
 	PurgeAnalyticsRequests(ctx context.Context, before *time.Time) error
 	PurgeAudit(ctx context.Context, days int32) (int64, error)
 	RecordAnalyticsCheck(ctx context.Context, error *string) error
+	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
+	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
 	RecordInboundPoll(ctx context.Context, error string) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
 	RecordProjectEvent(ctx context.Context, arg RecordProjectEventParams) error
+	RecordSiteBackupFailure(ctx context.Context, arg RecordSiteBackupFailureParams) error
+	// Un appel rejoue ou en retard ne fait pas reculer la date.
+	RecordSiteBackupSuccess(ctx context.Context, arg RecordSiteBackupSuccessParams) error
 	RecordUptimePoll(ctx context.Context, error *string) error
 	RegenerateReport(ctx context.Context, arg RegenerateReportParams) (int64, error)
 	RemoveProjectFavorite(ctx context.Context, arg RemoveProjectFavoriteParams) error
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) error
 	// Renvoyer une invitation remplace son jeton : l'ancien lien cesse de valoir.
 	RenewInvitation(ctx context.Context, arg RenewInvitationParams) (Invitation, error)
+	// Ce qui demande un admin, du mois ecoule et des deux precedents.
+	ReportAttention(ctx context.Context, month time.Time) (ReportAttentionRow, error)
 	// La photo figee du mois du site de production du projet.
 	ReportAudienceSnapshot(ctx context.Context, arg ReportAudienceSnapshotParams) (ReportAudienceSnapshotRow, error)
+	ReportBackupCounts(ctx context.Context, arg ReportBackupCountsParams) (ReportBackupCountsRow, error)
 	ReportConsumed(ctx context.Context, arg ReportConsumedParams) (int32, error)
 	ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error)
 	ReportHasAudienceSite(ctx context.Context, projectID uuid.UUID) (bool, error)
@@ -961,7 +1043,13 @@ type Querier interface {
 	ReportIncidents(ctx context.Context, arg ReportIncidentsParams) ([]ReportIncidentsRow, error)
 	// Les interventions visibles du mois, avec la note destinee au client.
 	ReportInterventions(ctx context.Context, arg ReportInterventionsParams) ([]ReportInterventionsRow, error)
+	// La derniere execution avant la fin du mois, reussie ou non.
+	ReportLastBackupRun(ctx context.Context, arg ReportLastBackupRunParams) (ReportLastBackupRunRow, error)
+	ReportLastBackupSuccess(ctx context.Context, arg ReportLastBackupSuccessParams) (time.Time, error)
+	ReportMergedPullRequests(ctx context.Context, arg ReportMergedPullRequestsParams) ([]ReportMergedPullRequestsRow, error)
 	ReportProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// Les lancements termines du mois, du plus ancien au plus recent.
+	ReportSiteUpdateRuns(ctx context.Context, arg ReportSiteUpdateRunsParams) ([]ReportSiteUpdateRunsRow, error)
 	ReportUptimeDays(ctx context.Context, arg ReportUptimeDaysParams) ([]ReportUptimeDaysRow, error)
 	// Les sites du projet et leur mois : disponibilite et temps de reponse,
 	// sommes des agregats journaliers du mois.
@@ -980,6 +1068,7 @@ type Querier interface {
 	// La recuperation elle-meme n'a pas sa place ici : elle sort vers un serveur
 	// tiers, et aucune requete HTTP de l'application ne doit attendre cela.
 	ResetSidebarAppFavicon(ctx context.Context, id uuid.UUID) (ResetSidebarAppFaviconRow, error)
+	RetrySiteUpdateRun(ctx context.Context, arg RetrySiteUpdateRunParams) error
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
@@ -1024,6 +1113,7 @@ type Querier interface {
 	// projet est verifie dans la requete : un identifiant de jalon venu d'un autre
 	// projet ne rattache rien.
 	SetDeliverableMilestone(ctx context.Context, arg SetDeliverableMilestoneParams) (int64, error)
+	SetDomainAlertDays(ctx context.Context, arg SetDomainAlertDaysParams) error
 	SetGitWebhookSecret(ctx context.Context, secret string) error
 	SetInboundWebhookSecret(ctx context.Context, secret string) error
 	// Designe le contact principal. `NULL` le retire.
@@ -1040,6 +1130,8 @@ type Querier interface {
 	// courte, et le formulaire envoie toujours l'etat complet qu'il veut voir.
 	SetProjectServices(ctx context.Context, projectID uuid.UUID) error
 	SetReportEditorial(ctx context.Context, arg SetReportEditorialParams) (int64, error)
+	SetReportHoldReasons(ctx context.Context, arg SetReportHoldReasonsParams) error
+	SetReportManualReview(ctx context.Context, projectID uuid.UUID) error
 	// Range le favicon recupere.
 	//
 	// La clause sur `logo_key` protege un depot manuel : si quelqu'un a pose un
@@ -1049,6 +1141,7 @@ type Querier interface {
 	// et qui efface le fichier qu'elle designait, sans quoi le magasin garderait
 	// tous les logos jamais deposes.
 	SetSidebarAppLogo(ctx context.Context, arg SetSidebarAppLogoParams) (SetSidebarAppLogoRow, error)
+	SetSiteUpdateToken(ctx context.Context, githubTokenEnc []byte) error
 	SetTicketClientVisible(ctx context.Context, id uuid.UUID) error
 	SetUpdateRequestStep(ctx context.Context, arg SetUpdateRequestStepParams) error
 	SetUptimeMonitorStatus(ctx context.Context, arg SetUptimeMonitorStatusParams) error
@@ -1121,9 +1214,13 @@ type Querier interface {
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
 	// GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
 	TouchReleaseCheck(ctx context.Context) error
+	TouchSiteUpdateTarget(ctx context.Context, arg TouchSiteUpdateTargetParams) error
 	TouchUptimeWebhook(ctx context.Context) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
 	UnassignTask(ctx context.Context, arg UnassignTaskParams) error
+	UnsetReportManualReview(ctx context.Context, projectID uuid.UUID) error
+	// Remis en relecture par un admin : l'envoi automatique le laisse tranquille
+	// jusqu'a sa prochaine validation.
 	UnvalidateReport(ctx context.Context, id uuid.UUID) (int64, error)
 	// Les secrets ne changent que sur demande. Changer d'adresse ou
 	// d'identifiants oublie le jeton : il ne vaut que pour l'ancienne connexion.
@@ -1154,6 +1251,7 @@ type Querier interface {
 	// mise a jour partielle demanderait de distinguer « vide » de « inchange ».
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (UpdateServiceRow, error)
 	UpdateSidebarApp(ctx context.Context, arg UpdateSidebarAppParams) (UpdateSidebarAppRow, error)
+	UpdateSiteBackupSource(ctx context.Context, arg UpdateSiteBackupSourceParams) (int64, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (Subtask, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	// Applique les changements qu'une entree du registre porte.
@@ -1194,6 +1292,10 @@ type Querier interface {
 	// fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
 	// posee, ne s'efface pas.
 	UpsertPullRequest(ctx context.Context, arg UpsertPullRequestParams) (PullRequest, error)
+	UpsertSiteBackupToken(ctx context.Context, arg UpsertSiteBackupTokenParams) error
+	// Changer ce qui decide d'un lancement fait repartir l'echeance de maintenant :
+	// enregistrer une frequence ne doit rien lancer dans la minute.
+	UpsertSiteUpdateTarget(ctx context.Context, arg UpsertSiteUpdateTargetParams) error
 	// Le site tel que la releve le voit. status_changed_at ne bouge qu'au
 	// changement d'etat : c'est l'heure de debut d'un incident deduit.
 	UpsertUptimeMonitor(ctx context.Context, arg UpsertUptimeMonitorParams) (uuid.UUID, error)

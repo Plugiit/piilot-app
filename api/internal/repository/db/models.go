@@ -286,6 +286,7 @@ type EmailOutbox struct {
 	ReplyTo       string     `json:"reply_to"`
 	MessageID     string     `json:"message_id"`
 	InReplyTo     string     `json:"in_reply_to"`
+	ReportID      *uuid.UUID `json:"report_id"`
 }
 
 type GitWebhook struct {
@@ -445,6 +446,19 @@ type ProjectAnalyticsWebsite struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type ProjectDomain struct {
+	ID             uuid.UUID  `json:"id"`
+	ProjectID      uuid.UUID  `json:"project_id"`
+	Domain         string     `json:"domain"`
+	ExpiresAt      *time.Time `json:"expires_at"`
+	CheckedAt      *time.Time `json:"checked_at"`
+	LastSuccessAt  *time.Time `json:"last_success_at"`
+	LastError      string     `json:"last_error"`
+	LastAlertDays  *int32     `json:"last_alert_days"`
+	FailureAlertAt *time.Time `json:"failure_alert_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
 type ProjectFavorite struct {
 	UserID    uuid.UUID `json:"user_id"`
 	ProjectID uuid.UUID `json:"project_id"`
@@ -463,6 +477,11 @@ type ProjectMaintenance struct {
 type ProjectMember struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectReportManualReview struct {
+	ProjectID uuid.UUID `json:"project_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -536,6 +555,7 @@ type PullRequest struct {
 	OpenedAt  *time.Time `json:"opened_at"`
 	MergedAt  *time.Time `json:"merged_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
+	Security  bool       `json:"security"`
 }
 
 type PullRequestLink struct {
@@ -571,6 +591,10 @@ type Report struct {
 	SentAt          *time.Time `json:"sent_at"`
 	Recipients      []string   `json:"recipients"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Held            bool       `json:"held"`
+	HoldReasons     []string   `json:"hold_reasons"`
+	Undelivered     []string   `json:"undelivered"`
+	CheckedAt       *time.Time `json:"checked_at"`
 }
 
 type ReportSetting struct {
@@ -618,6 +642,68 @@ type SidebarApp struct {
 	DeletedAt          *time.Time `json:"deleted_at"`
 	LogoIsFavicon      bool       `json:"logo_is_favicon"`
 	FaviconAttemptedAt *time.Time `json:"favicon_attempted_at"`
+}
+
+type SiteBackupRun struct {
+	ID         uuid.UUID `json:"id"`
+	ProjectID  uuid.UUID `json:"project_id"`
+	Status     string    `json:"status"`
+	SizeBytes  *int64    `json:"size_bytes"`
+	Message    string    `json:"message"`
+	FinishedAt time.Time `json:"finished_at"`
+	ReceivedAt time.Time `json:"received_at"`
+}
+
+type SiteBackupSource struct {
+	ProjectID         uuid.UUID  `json:"project_id"`
+	TokenHash         []byte     `json:"token_hash"`
+	ExpectedHours     int32      `json:"expected_hours"`
+	LastSuccessAt     *time.Time `json:"last_success_at"`
+	LastFailureAt     *time.Time `json:"last_failure_at"`
+	LastRestoreTestOn *time.Time `json:"last_restore_test_on"`
+	LastAlertAt       *time.Time `json:"last_alert_at"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+type SiteUpdateRun struct {
+	ID                uuid.UUID  `json:"id"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	Environment       string     `json:"environment"`
+	Workflow          string     `json:"workflow"`
+	Ref               string     `json:"ref"`
+	RepoUrl           string     `json:"repo_url"`
+	Status            string     `json:"status"`
+	Trigger           string     `json:"trigger"`
+	RequestedBy       *uuid.UUID `json:"requested_by"`
+	CallbackTokenHash []byte     `json:"callback_token_hash"`
+	Attempts          int32      `json:"attempts"`
+	NextAttemptAt     time.Time  `json:"next_attempt_at"`
+	Message           string     `json:"message"`
+	RunUrl            string     `json:"run_url"`
+	RequestedAt       time.Time  `json:"requested_at"`
+	ClaimedAt         *time.Time `json:"claimed_at"`
+	DispatchedAt      *time.Time `json:"dispatched_at"`
+	FinishedAt        *time.Time `json:"finished_at"`
+}
+
+type SiteUpdateSetting struct {
+	ID             bool      `json:"id"`
+	GithubTokenEnc []byte    `json:"github_token_enc"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type SiteUpdateTarget struct {
+	ProjectID       uuid.UUID  `json:"project_id"`
+	Environment     string     `json:"environment"`
+	Workflow        string     `json:"workflow"`
+	Ref             string     `json:"ref"`
+	RepoUrl         string     `json:"repo_url"`
+	EveryDays       *int32     `json:"every_days"`
+	Enabled         bool       `json:"enabled"`
+	LastRequestedAt *time.Time `json:"last_requested_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type Subtask struct {
