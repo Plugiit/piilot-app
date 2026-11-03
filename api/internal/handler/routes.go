@@ -204,6 +204,7 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Get("/accounts", deps.Guard.RequirePermission("users.read"), deps.Accounts.List)
 	r.Get("/accounts/invitations", deps.Guard.RequirePermission("users.read"), deps.Accounts.Invitations)
 	r.Post("/accounts/invitations", deps.Guard.RequirePermission("users.write"), deps.Accounts.Invite)
+	r.Post("/accounts/invitations/:id/resend", deps.Guard.RequirePermission("users.write"), deps.Accounts.ResendInvitation)
 	r.Delete("/accounts/invitations/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.RevokeInvitation)
 	r.Patch("/accounts/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.SetRole)
 	r.Post("/accounts/:id/disable", deps.Guard.RequirePermission("users.write"), deps.Accounts.Disable)
@@ -261,6 +262,7 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	reports.Post("/:id/validate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Validate)
 	reports.Post("/:id/unvalidate", deps.Guard.RequirePermission("reports.write"), deps.Reports.Unvalidate)
 	reports.Post("/:id/send", deps.Guard.RequirePermission("reports.write"), deps.Reports.Send)
+	reports.Post("/:id/resend", deps.Guard.RequirePermission("reports.write"), deps.Reports.Resend)
 
 	ana := r.Group("/modules/analytics")
 	ana.Get("", deps.Guard.RequirePermission("users.write"), deps.Analytics.Settings)

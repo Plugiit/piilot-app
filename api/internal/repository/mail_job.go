@@ -76,6 +76,11 @@ func sendNext(ctx context.Context, pool *pgxpool.Pool, sender mail.SMTP, log *sl
 		log.Info("e-mail envoye", "kind", email.Kind, "id", email.ID)
 	case int(email.Attempts)+1 >= MailMaxAttempts:
 		err = q.MarkEmailFailed(ctx, db.MarkEmailFailedParams{ID: email.ID, LastError: sendErr.Error()})
+		// Le rapport est marque envoye : c'est lui qui doit dire que celui-la
+		// n'est jamais arrive, et une tache de fond en previent les admins.
+		if err == nil && email.ReportID != nil {
+			err = q.AddReportUndelivered(ctx, db.AddReportUndeliveredParams{ID: *email.ReportID, Address: email.ToAddress})
+		}
 		log.Error("e-mail abandonne", "kind", email.Kind, "id", email.ID, "error", sendErr)
 	default:
 		// 1, 2, 4, 8, 16 minutes : un serveur SMTP en panne n'est pas
