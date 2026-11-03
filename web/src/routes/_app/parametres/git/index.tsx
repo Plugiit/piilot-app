@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { PageFrame } from '@/components/layout/page-frame'
 import { Button } from '@/components/ui/button'
 import { gitSettingsQuery, useRotateGitSecret } from '@/features/git/api'
+import { ActionsTokenCard } from '@/features/site-updates/token-card'
 import { HttpError } from '@/lib/api'
 import { can } from '@/lib/auth'
 
@@ -91,6 +92,8 @@ function GitSettingsPage() {
             </>
           )}
         </Card>
+
+        <ActionsTokenCard />
 
         <Card title="Chez GitHub" description="Settings → Webhooks de l’organisation (un seul pour tous ses dépôts) ou d’un dépôt.">
           <Steps

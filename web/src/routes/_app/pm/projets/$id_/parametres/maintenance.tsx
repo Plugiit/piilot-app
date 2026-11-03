@@ -10,6 +10,7 @@ import { maintenancePlansQuery, projectMaintenanceQuery, useSetProjectMaintenanc
 import { monthLabel, monthOf } from '@/features/maintenance/format'
 import { reportRecipientsQuery, useSetReportRecipients } from '@/features/reports/api'
 import { SiteSourcesCard } from '@/features/site-sources/card'
+import { SiteUpdatesCard } from '@/features/site-updates/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { formatDuration } from '@/features/time/format'
@@ -43,6 +44,7 @@ function MaintenanceTab() {
     <div className="flex flex-col gap-3 p-4">
       <PlanForm key={data.current?.id ?? 'none'} projectId={id} view={data} canEdit={can(session, 'projects.write')} canManagePlans={can(session, 'reports.write')} />
       <RecipientsCard projectId={id} canEdit={can(session, 'projects.write')} />
+      <SiteUpdatesCard projectId={id} canManage={can(session, 'reports.write')} />
       <SiteSourcesCard projectId={id} canEdit={can(session, 'projects.write')} canManageToken={can(session, 'reports.write')} />
       {data.history.length > 0 && (
         <Card title="Historique">
