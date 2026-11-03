@@ -58,8 +58,12 @@ type auditRule struct {
 // auditRules : ce qui s'ecrit au journal, route par route. Une seule table,
 // lisible d'un coup d'oeil, plutot qu'un appel disperse dans chaque handler.
 var auditRules = map[string]auditRule{
+	"PUT /api/v1/admin/projects/:id/site-updates":               {action: "site_update.target_changed", target: "project", param: "id", fields: []string{"environment", "workflow", "ref", "every_days", "enabled"}},
+	"POST /api/v1/admin/projects/:id/site-updates/runs":         {action: "site_update.requested", target: "project", param: "id", fields: []string{"environment"}},
 	"POST /api/v1/admin/projects/:id/site-sources/backup-token": {action: "site_backup.token_rotated", target: "project", param: "id"},
 	"DELETE /api/v1/admin/projects/:id/site-sources/backup":     {action: "site_backup.removed", target: "project", param: "id"},
+	"PUT /api/v1/admin/integrations/git/actions-token":          {action: "site_update.token_changed"},
+	"DELETE /api/v1/admin/integrations/git/actions-token":       {action: "site_update.token_removed"},
 	"POST /api/v1/auth/me/password":                             {action: "auth.password_changed"},
 	"PATCH /api/v1/auth/me":                                     {action: "account.email_changed", fields: []string{"email"}, onlyIf: []string{"email"}},
 	"POST /api/v1/auth/password/reset/:token":                   {action: "auth.password_reset"},
