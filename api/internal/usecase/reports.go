@@ -1194,6 +1194,8 @@ func (s *ReportService) Resend(ctx context.Context, id uuid.UUID) (ReportView, e
 type ReportRecipientsView struct {
 	Contacts []ReportContact `json:"contacts"`
 	Extra    []string        `json:"extra"`
+	// Le rapport de ce projet ne part jamais tout seul.
+	ManualReview bool `json:"manual_review"`
 }
 
 // ReportContact est un compte du portail du client.
@@ -1220,7 +1222,11 @@ func (s *ReportService) Recipients(ctx context.Context, projectID uuid.UUID) (Re
 	if err != nil {
 		return ReportRecipientsView{}, fmt.Errorf("adresses du projet : %w", err)
 	}
-	out := ReportRecipientsView{Contacts: make([]ReportContact, 0, len(contacts)), Extra: make([]string, 0, len(extras))}
+	manual, err := s.q.IsReportManualReview(ctx, projectID)
+	if err != nil {
+		return ReportRecipientsView{}, fmt.Errorf("relecture du projet : %w", err)
+	}
+	out := ReportRecipientsView{Contacts: make([]ReportContact, 0, len(contacts)), Extra: make([]string, 0, len(extras)), ManualReview: manual}
 	for _, c := range contacts {
 		out.Contacts = append(out.Contacts, ReportContact{Person: personOf(c.ID, c.Firstname, c.Lastname, c.AvatarUrl), Email: c.Email, Excluded: c.Excluded})
 	}
@@ -1230,8 +1236,9 @@ func (s *ReportService) Recipients(ctx context.Context, projectID uuid.UUID) (Re
 	return out, nil
 }
 
-// SetRecipients remplace les exclusions et les adresses ajoutees d'un projet.
-func (s *ReportService) SetRecipients(ctx context.Context, projectID uuid.UUID, excluded []uuid.UUID, extra []string) (ReportRecipientsView, error) {
+// SetRecipients remplace les exclusions, les adresses ajoutees et la relecture
+// obligatoire d'un projet.
+func (s *ReportService) SetRecipients(ctx context.Context, projectID uuid.UUID, excluded []uuid.UUID, extra []string, manualReview bool) (ReportRecipientsView, error) {
 	exists, err := s.q.ReportProjectExists(ctx, projectID)
 	if err != nil {
 		return ReportRecipientsView{}, fmt.Errorf("lecture du projet : %w", err)
@@ -1279,6 +1286,14 @@ func (s *ReportService) SetRecipients(ctx context.Context, projectID uuid.UUID, 
 		if err := q.InsertProjectReportRecipient(ctx, db.InsertProjectReportRecipientParams{ProjectID: projectID, Email: e}); err != nil {
 			return ReportRecipientsView{}, fmt.Errorf("adresse : %w", err)
 		}
+	}
+	if manualReview {
+		err = q.SetReportManualReview(ctx, projectID)
+	} else {
+		err = q.UnsetReportManualReview(ctx, projectID)
+	}
+	if err != nil {
+		return ReportRecipientsView{}, fmt.Errorf("relecture du projet : %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ReportRecipientsView{}, err
