@@ -777,6 +777,14 @@ type ReportView struct {
 	SentAt      *time.Time     `json:"sent_at"`
 	// Envoye : a qui il est parti. Sinon : a qui il partirait.
 	Recipients []string `json:"recipients"`
+	// Retenu par un admin : l'envoi automatique ne le prend pas.
+	Held bool `json:"held"`
+	// Ce qui retient l'envoi automatique.
+	HoldReasons []string `json:"hold_reasons"`
+	// Les adresses que la file d'envoi a abandonnees.
+	Undelivered []string `json:"undelivered"`
+	// Les e-mails encore en file : « envoye » n'est pas encore « remis ».
+	EmailsPending int `json:"emails_pending"`
 }
 
 // ReportListItem est une ligne de la liste du mois.
@@ -789,6 +797,9 @@ type ReportListItem struct {
 	HasEditorial bool           `json:"has_editorial"`
 	GeneratedAt  time.Time      `json:"generated_at"`
 	SentAt       *time.Time     `json:"sent_at"`
+	Held         bool           `json:"held"`
+	HoldReasons  []string       `json:"hold_reasons"`
+	Undelivered  int            `json:"undelivered"`
 }
 
 // ReportPage est la liste des rapports d'un mois.
@@ -832,6 +843,7 @@ func (s *ReportService) List(ctx context.Context, month time.Time, status *strin
 		item := ReportListItem{
 			ID: r.ID, Project: DeliverableRef{ID: r.ProjectID, Name: r.ProjectName}, Status: r.Status, PlanName: r.PlanName,
 			HasEditorial: r.HasEditorial, GeneratedAt: r.GeneratedAt, SentAt: r.SentAt,
+			Held: r.Held, HoldReasons: r.HoldReasons, Undelivered: len(r.Undelivered),
 		}
 		if r.ClientName != nil {
 			item.ClientName = *r.ClientName
@@ -870,6 +882,14 @@ func (s *ReportService) Get(ctx context.Context, id uuid.UUID) (ReportView, erro
 		ID: row.ID, Project: DeliverableRef{ID: row.ProjectID, Name: row.ProjectName}, ClientName: data.Project.ClientName,
 		Month: row.Month.Format("2006-01"), Status: row.Status, Sections: row.Sections, Data: data, Editorial: row.Editorial,
 		GeneratedAt: row.GeneratedAt, ValidatedAt: row.ValidatedAt, SentAt: row.SentAt, Recipients: row.Recipients,
+		Held: row.Held, HoldReasons: row.HoldReasons, Undelivered: row.Undelivered,
+	}
+	if row.Status == "sent" {
+		pending, err := s.q.CountReportEmailsPending(ctx, &row.ID)
+		if err != nil {
+			return ReportView{}, fmt.Errorf("e-mails en file : %w", err)
+		}
+		out.EmailsPending = int(pending)
 	}
 	if row.Status != "sent" {
 		recipients, err := s.recipients(ctx, row.ProjectID)
@@ -1026,8 +1046,7 @@ func (s *ReportService) recipients(ctx context.Context, projectID uuid.UUID) ([]
 }
 
 // Send envoie un rapport valide : un e-mail par destinataire, dans la file
-// d'envoi, et le rapport ne change plus. Le tout dans une transaction : un
-// rapport marque envoye a ses e-mails en file, et inversement.
+// d'envoi, et le rapport ne change plus.
 func (s *ReportService) Send(ctx context.Context, id uuid.UUID) (ReportView, error) {
 	row, data, err := s.load(ctx, id)
 	if err != nil {
@@ -1038,6 +1057,17 @@ func (s *ReportService) Send(ctx context.Context, id uuid.UUID) (ReportView, err
 		return ReportView{}, domain.ErrConflict.WithMessage("Ce rapport est déjà envoyé")
 	case "draft":
 		return ReportView{}, domain.ErrConflict.WithMessage("Validez le rapport avant de l’envoyer")
+	}
+	return s.deliver(ctx, row, data)
+}
+
+// deliver met les e-mails en file et marque le rapport envoye, dans une seule
+// transaction : un rapport marque envoye a ses e-mails en file, et inversement.
+// Un brouillon, venu de l'envoi automatique, est valide dans la meme : s'il ne
+// part pas, il reste brouillon et ses motifs seront revus.
+func (s *ReportService) deliver(ctx context.Context, row db.GetReportRow, data ReportData) (ReportView, error) {
+	if row.ProjectDeletedAt != nil {
+		return ReportView{}, domain.ErrConflict.WithMessage("Le projet de ce rapport est supprimé")
 	}
 	if !s.canSend {
 		return ReportView{}, domain.ErrConflict.WithMessage("L’envoi d’e-mails n’est pas configuré (SMTP)")
@@ -1059,18 +1089,27 @@ func (s *ReportService) Send(ctx context.Context, id uuid.UUID) (ReportView, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	if row.Status == "draft" {
+		n, err := q.AutoValidateReport(ctx, row.ID)
+		if err != nil {
+			return ReportView{}, fmt.Errorf("validation automatique : %w", err)
+		}
+		if n == 0 {
+			return ReportView{}, domain.ErrConflict.WithMessage("Le rapport a changé entre-temps : rechargez-le")
+		}
+	}
 	emails := make([]string, 0, len(recipients))
 	for _, r := range recipients {
 		msg, err := mailer.MonthlyReport(r.email, r.firstname, summary, url)
 		if err != nil {
 			return ReportView{}, fmt.Errorf("e-mail du rapport : %w", err)
 		}
-		if err := enqueue(ctx, q, msg); err != nil {
+		if err := enqueueReport(ctx, q, row.ID, msg); err != nil {
 			return ReportView{}, err
 		}
 		emails = append(emails, r.email)
 	}
-	n, err := q.MarkReportSent(ctx, db.MarkReportSentParams{ID: id, Recipients: emails})
+	n, err := q.MarkReportSent(ctx, db.MarkReportSentParams{ID: row.ID, Recipients: emails})
 	if err != nil {
 		return ReportView{}, fmt.Errorf("envoi du rapport : %w", err)
 	}
@@ -1078,7 +1117,73 @@ func (s *ReportService) Send(ctx context.Context, id uuid.UUID) (ReportView, err
 		return ReportView{}, domain.ErrConflict.WithMessage("Le rapport a changé entre-temps : rechargez-le")
 	}
 	if err := tx.Commit(ctx); err != nil {
+		return ReportView{}, fmt.Errorf("envoi du rapport : %w", err)
+	}
+	return s.Get(ctx, row.ID)
+}
+
+func enqueueReport(ctx context.Context, q *db.Queries, id uuid.UUID, msg mailer.Message) error {
+	if err := q.EnqueueReportEmail(ctx, db.EnqueueReportEmailParams{
+		Kind: msg.Kind, ToAddress: msg.To, Subject: msg.Subject, TextBody: msg.Text, HtmlBody: msg.HTML,
+		ReplyTo: msg.ReplyTo, MessageID: msg.MessageID, InReplyTo: msg.InReplyTo, ReportID: &id,
+	}); err != nil {
+		return fmt.Errorf("mise en file de l'e-mail : %w", err)
+	}
+	return nil
+}
+
+// Resend remet en file les e-mails abandonnes d'un rapport envoye. Le rapport
+// ne change pas : seules les adresses qui ne l'ont pas recu le recoivent.
+func (s *ReportService) Resend(ctx context.Context, id uuid.UUID) (ReportView, error) {
+	row, data, err := s.load(ctx, id)
+	if err != nil {
 		return ReportView{}, err
+	}
+	if row.Status != "sent" || len(row.Undelivered) == 0 {
+		return ReportView{}, domain.ErrConflict.WithMessage("Aucun e-mail de ce rapport n’est à relancer")
+	}
+	if !s.canSend {
+		return ReportView{}, domain.ErrConflict.WithMessage("L’envoi d’e-mails n’est pas configuré (SMTP)")
+	}
+	recipients, err := s.recipients(ctx, row.ProjectID)
+	if err != nil {
+		return ReportView{}, err
+	}
+	firstnames := make(map[string]string, len(recipients))
+	for _, r := range recipients {
+		firstnames[strings.ToLower(r.email)] = r.firstname
+	}
+	summary := reportMailOf(data, row.Editorial)
+	url := fmt.Sprintf("%s/client/rapports/%s", s.clientURL, row.ID)
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ReportView{}, fmt.Errorf("transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	undelivered, err := q.LockReportUndelivered(ctx, id)
+	if err != nil {
+		return ReportView{}, fmt.Errorf("relance du rapport : %w", err)
+	}
+	for _, address := range undelivered {
+		msg, err := mailer.MonthlyReport(address, firstnames[strings.ToLower(address)], summary, url)
+		if err != nil {
+			return ReportView{}, fmt.Errorf("e-mail du rapport : %w", err)
+		}
+		if err := enqueueReport(ctx, q, id, msg); err != nil {
+			return ReportView{}, err
+		}
+	}
+	n, err := q.ClearReportUndelivered(ctx, id)
+	if err != nil {
+		return ReportView{}, fmt.Errorf("relance du rapport : %w", err)
+	}
+	if n == 0 {
+		return ReportView{}, domain.ErrConflict.WithMessage("Le rapport a changé entre-temps : rechargez-le")
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ReportView{}, fmt.Errorf("relance du rapport : %w", err)
 	}
 	return s.Get(ctx, id)
 }

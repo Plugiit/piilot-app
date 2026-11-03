@@ -532,6 +532,53 @@
         }
       }
     },
+    "/api/v1/admin/accounts/invitations/{id}/resend": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Renvoyer une invitation",
+        "description": "Nouveau lien, valable sept jours ; l'ancien cesse de valoir. Exige users.write.",
+        "operationId": "resendAdminInvitation",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nouveau lien",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/v1/admin/accounts/invitations/{id}": {
       "delete": {
         "tags": [
@@ -11014,6 +11061,64 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{id}/resend": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du rapport",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Relancer les e-mails abandonnés",
+        "description": "Remet en file les adresses que la file a abandonnées ; le rapport ne change pas. 409 s'il n'y en a aucune, ou si l'envoi d'e-mails n'est pas configuré. Exige reports.write.",
+        "operationId": "postAdminReportResend",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Le rapport n'est pas dans l'état attendu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
