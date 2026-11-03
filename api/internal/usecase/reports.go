@@ -569,13 +569,160 @@ func (s *ReportService) createDraft(ctx context.Context, projectID uuid.UUID, mo
 	if err != nil {
 		return err
 	}
-	if _, err := s.q.InsertReport(ctx, db.InsertReportParams{
+	id, err := s.q.InsertReport(ctx, db.InsertReportParams{
 		ProjectID: projectID, Month: month, PlanName: plan.name, IncludedMinutes: plan.included, Sections: plan.sections, Payload: payload,
-	}); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("brouillon du rapport : %w", err)
 	}
-	return nil
+	_, err = s.updateHoldReasons(ctx, id)
+	return err
 }
+
+// Ce qui empeche un brouillon de partir tout seul. Le code est stable : le
+// front en fait une phrase.
+const (
+	holdNoRecipients        = "no_recipients"
+	holdAvailabilityMissing = "availability_missing"
+	holdIncident            = "incident"
+	holdBackupMissing       = "backup_missing"
+	holdBackupStale         = "backup_stale"
+	holdDomainMissing       = "domain_missing"
+	holdDomainExpiring      = "domain_expiring"
+	holdUpdatesMissing      = "updates_missing"
+	holdUpdateFailed        = "update_failed"
+
+	// domainHoldDays : a moins d'un mois de l'echeance, un humain regarde.
+	domainHoldDays = 30
+)
+
+// holdReasonsOf dit ce qui retient un brouillon de l'envoi automatique. Dans
+// le doute il retient : un rapport en retard se rattrape, un rapport faux
+// parti chez le client, non. L'audience ne retient jamais : ce n'est pas une
+// preuve de maintenance, et Umami ne doit pas pouvoir bloquer l'envoi.
+func holdReasonsOf(data ReportData, sections []string, recipients int) []string {
+	reasons := []string{}
+	if recipients == 0 {
+		reasons = append(reasons, holdNoRecipients)
+	}
+	wanted := map[string]bool{}
+	for _, k := range sections {
+		wanted[k] = true
+	}
+	if wanted["availability"] {
+		if data.Availability == nil || !availabilityComplete(data.Availability.Sites) {
+			reasons = append(reasons, holdAvailabilityMissing)
+		}
+		if data.Availability != nil && len(data.Availability.Incidents) > 0 {
+			reasons = append(reasons, holdIncident)
+		}
+	}
+	if wanted["backups"] {
+		switch {
+		case data.Backups == nil:
+			reasons = append(reasons, holdBackupMissing)
+		case !data.Backups.Healthy:
+			reasons = append(reasons, holdBackupStale)
+		}
+	}
+	if wanted["domain"] {
+		reasons = append(reasons, domainHoldReasons(data.Domain)...)
+	}
+	if wanted["updates"] {
+		// Un mois sans la moindre mise a jour est rare : le robot ou la CI est
+		// peut-etre en panne, ca merite un regard.
+		if data.Updates == nil || (data.Updates.DependencyCount == 0 && !hasProductionRun(data.Updates.Runs)) {
+			reasons = append(reasons, holdUpdatesMissing)
+		}
+		if data.Updates != nil && data.Updates.LastRunFailed {
+			reasons = append(reasons, holdUpdateFailed)
+		}
+	}
+	return reasons
+}
+
+func hasProductionRun(runs []ReportUpdateRun) bool {
+	for _, r := range runs {
+		if r.Environment == "prod" {
+			return true
+		}
+	}
+	return false
+}
+
+func domainHoldReasons(section *ReportDomains) []string {
+	if section == nil {
+		return []string{holdDomainMissing}
+	}
+	missing, expiring := false, false
+	for _, d := range section.Items {
+		if d.DaysLeft == nil {
+			missing = true
+		} else if *d.DaysLeft < domainHoldDays {
+			expiring = true
+		}
+	}
+	reasons := []string{}
+	if missing {
+		reasons = append(reasons, holdDomainMissing)
+	}
+	if expiring {
+		reasons = append(reasons, holdDomainExpiring)
+	}
+	return reasons
+}
+
+// availabilityComplete : chaque site de production a une mesure chaque jour du
+// mois. Un trou ferait passer un releve en panne pour un mois sans incident.
+func availabilityComplete(sites []ReportSite) bool {
+	production := 0
+	for _, site := range sites {
+		if site.Environment != "prod" {
+			continue
+		}
+		production++
+		if site.Uptime == nil {
+			return false
+		}
+		for _, d := range site.Days {
+			if d.Uptime == nil {
+				return false
+			}
+		}
+	}
+	return production > 0
+}
+
+// updateHoldReasons recalcule ce qui retient un brouillon.
+func (s *ReportService) updateHoldReasons(ctx context.Context, id uuid.UUID) ([]string, error) {
+	row, data, err := s.load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	recipients, err := s.recipients(ctx, row.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	reasons := holdReasonsOf(data, row.Sections, len(recipients))
+	if err := s.q.SetReportHoldReasons(ctx, db.SetReportHoldReasonsParams{ID: id, HoldReasons: reasons}); err != nil {
+		return nil, fmt.Errorf("motifs de retenue : %w", err)
+	}
+	return reasons, nil
+}
+
+// refreshDraft remet un brouillon a jour : ses donnees, puis ce qui le retient.
+func (s *ReportService) refreshDraft(ctx context.Context, id uuid.UUID) ([]string, error) {
+	if err := s.rebuild(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.updateHoldReasons(ctx, id)
+}
+
+// draftRefreshEvery : un brouillon suit ce qui se saisit encore sur son mois.
+const draftRefreshEvery = time.Hour
 
 // Tick est le passage de la tache : les brouillons du mois ecoule des le 1er,
 // en attendant la photo d'Umami le temps regle ; puis, si l'envoi
@@ -759,12 +906,19 @@ func (s *ReportService) SetEditorial(ctx context.Context, id uuid.UUID, text str
 // qu'elle est : une intervention saisie en retard, une photo d'Umami arrivee
 // depuis.
 func (s *ReportService) Regenerate(ctx context.Context, id uuid.UUID) (ReportView, error) {
-	row, _, err := s.load(ctx, id)
-	if err != nil {
+	if _, err := s.refreshDraft(ctx, id); err != nil {
 		return ReportView{}, err
 	}
+	return s.Get(ctx, id)
+}
+
+func (s *ReportService) rebuild(ctx context.Context, id uuid.UUID) error {
+	row, _, err := s.load(ctx, id)
+	if err != nil {
+		return err
+	}
 	if row.Status != "draft" {
-		return ReportView{}, errReportLocked
+		return errReportLocked
 	}
 	first, last := monthBounds(row.Month)
 	plan := reportPlan{name: row.PlanName, included: row.IncludedMinutes, sections: row.Sections}
@@ -773,20 +927,20 @@ func (s *ReportService) Regenerate(ctx context.Context, id uuid.UUID) (ReportVie
 	}
 	data, err := s.build(ctx, row.ProjectID, first, plan)
 	if err != nil {
-		return ReportView{}, err
+		return err
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return ReportView{}, err
+		return fmt.Errorf("donnees du rapport : %w", err)
 	}
 	n, err := s.q.RegenerateReport(ctx, db.RegenerateReportParams{ID: id, PlanName: plan.name, IncludedMinutes: plan.included, Sections: plan.sections, Payload: payload})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("regeneration du rapport : %w", err)
+		return fmt.Errorf("regeneration du rapport : %w", err)
 	}
 	if n == 0 {
-		return ReportView{}, errReportLocked
+		return errReportLocked
 	}
-	return s.Get(ctx, id)
+	return nil
 }
 
 // Validate fige un brouillon : il est pret a partir.
