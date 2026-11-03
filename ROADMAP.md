@@ -463,7 +463,10 @@ effacer.
 ### 1.6.0 — Sources du rapport
 
 Enrichir le rapport mensuel, un module ou un fournisseur à la fois, chacun
-activable.
+activable. Voir [la maintenance des sites](docs/maintenance-des-sites.md).
+
+- **Mises à jour des sites** : l'environnement se choisit par projet dans
+  l'interface ; Piilot lance le workflow du dépôt et attend son compte rendu.
 
 - **Coolify** : historique des déploiements du mois par son API, projet lié à
   son application.
@@ -558,4 +561,5 @@ Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 | **D8** | Rendez-vous | Un lien externe par membre (Cal.com, Calendly, Google). Pas de créneaux dans Piilot. |
 | **D9** | Devis et contrats sur le portail | PDF classés avec accusé « lu / accepté » horodaté. Pas de signature électronique. |
 | **D10** | Santé du site | Déléguée à Uptime Kuma, que l'agence fait déjà tourner : Piilot relève son /metrics et reçoit son webhook (1.3). Pas de sonde maison, pas de SEO. |
+| **D12** | Mises à jour des sites | Piilot commande, il n'exécute pas : workflow GitHub Actions du dépôt, sur l'environnement choisi par projet, avec compte rendu obligatoire. Une panne de Piilot ne touche aucun site. GitHub d'abord ; GitLab ne connaît pas `workflow_dispatch`. |
 | **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
