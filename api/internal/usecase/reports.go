@@ -61,6 +61,9 @@ type ReportData struct {
 	Audience      *ReportAudience      `json:"audience"`
 	Interventions *ReportInterventions `json:"interventions"`
 	Deployments   *ReportDeployments   `json:"deployments"`
+	Updates       *ReportUpdates       `json:"updates"`
+	Backups       *ReportBackups       `json:"backups"`
+	Domain        *ReportDomains       `json:"domain"`
 }
 
 // ReportAvailability est la section « Disponibilite ».
@@ -133,6 +136,56 @@ type ReportDeployment struct {
 	DeployedAt  time.Time `json:"deployed_at"`
 }
 
+// ReportUpdates est la section « Mises a jour » : ce qui a ete fusionne dans le
+// mois, en distinguant les dependances et les correctifs de securite.
+type ReportUpdates struct {
+	DependencyCount int            `json:"dependency_count"`
+	SecurityCount   int            `json:"security_count"`
+	OtherCount      int            `json:"other_count"`
+	Items           []ReportUpdate `json:"items"`
+	// Les lancements reussis du mois, sur l'environnement choisi.
+	Runs []ReportUpdateRun `json:"runs"`
+	// Le dernier lancement du mois en production a echoue : un humain relit.
+	// Efface pour le client, qui n'en voit que ce que l'agence ecrit.
+	LastRunFailed bool `json:"last_run_failed,omitempty"`
+}
+
+// ReportUpdateRun est un lancement reussi.
+type ReportUpdateRun struct {
+	Environment string     `json:"environment"`
+	FinishedAt  *time.Time `json:"finished_at"`
+}
+
+// ReportUpdate est une mise a jour de dependance ou de securite du mois.
+type ReportUpdate struct {
+	Title    string     `json:"title"`
+	MergedAt *time.Time `json:"merged_at"`
+	Security bool       `json:"security"`
+}
+
+// ReportBackups est la section « Sauvegardes ».
+type ReportBackups struct {
+	Successes         int        `json:"successes"`
+	Failures          int        `json:"failures"`
+	LastSuccessAt     *time.Time `json:"last_success_at"`
+	LastRestoreTestOn *string    `json:"last_restore_test_on"`
+	// A la fin du mois : une sauvegarde reussie dans le delai attendu, et pas
+	// d'echec depuis. Pour la relecture : efface pour le client.
+	Healthy bool `json:"healthy,omitempty"`
+}
+
+// ReportDomains est la section « Domaine ».
+type ReportDomains struct {
+	Items []ReportDomain `json:"items"`
+}
+
+// ReportDomain est un domaine et son echeance, le jour de la generation.
+type ReportDomain struct {
+	Domain    string     `json:"domain"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	DaysLeft  *int       `json:"days_left"`
+}
+
 // reportInput est ce qu'une section recoit pour collecter son mois.
 type reportInput struct {
 	projectID      uuid.UUID
@@ -140,6 +193,8 @@ type reportInput struct {
 	// Bornes du mois en instants, dans le fuseau de l'agence.
 	since, until time.Time
 	included     int32
+	// Le jour de la generation : l'echeance d'un domaine se compte depuis lui.
+	now time.Time
 }
 
 // reportSection est une section du rapport : sa cle dans la formule, et ce
@@ -155,6 +210,9 @@ var reportSectionRegistry = []reportSection{
 	{"audience", collectAudience},
 	{"interventions", collectInterventions},
 	{"deployments", collectDeployments},
+	{"updates", collectUpdates},
+	{"backups", collectBackups},
+	{"domain", collectDomain},
 }
 
 func collectAvailability(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
@@ -272,6 +330,121 @@ func collectDeployments(ctx context.Context, q *db.Queries, in reportInput, out 
 	return nil
 }
 
+// isDependencyUpdate reconnait les robots de mise a jour, a leur auteur ou au
+// prefixe de branche qu'ils imposent.
+func isDependencyUpdate(author, branch string) bool {
+	author, branch = strings.ToLower(author), strings.ToLower(branch)
+	return strings.Contains(author, "renovate") || strings.Contains(author, "dependabot") ||
+		strings.HasPrefix(branch, "renovate/") || strings.HasPrefix(branch, "dependabot/")
+}
+
+// isSecurityUpdate : l'etiquette du webhook, ou ce que Renovate et les avis de
+// securite ecrivent dans le titre.
+func isSecurityUpdate(labelled bool, title string) bool {
+	title = strings.ToLower(title)
+	return labelled || strings.Contains(title, "[security]") || strings.Contains(title, "cve-") || strings.Contains(title, "ghsa-")
+}
+
+func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
+	rows, err := q.ReportMergedPullRequests(ctx, db.ReportMergedPullRequestsParams{ProjectID: in.projectID, Since: &in.since, Until: &in.until})
+	if err != nil {
+		return fmt.Errorf("mises a jour du mois : %w", err)
+	}
+	runs, err := q.ReportSiteUpdateRuns(ctx, db.ReportSiteUpdateRunsParams{ProjectID: in.projectID, Since: &in.since, Until: &in.until})
+	if err != nil {
+		return fmt.Errorf("lancements du mois : %w", err)
+	}
+	if len(rows) == 0 && len(runs) == 0 {
+		return nil
+	}
+	section := &ReportUpdates{Items: []ReportUpdate{}, Runs: []ReportUpdateRun{}}
+	for _, r := range runs {
+		// Seule la production dit si le site du client est a jour : une
+		// preproduction reussie ne rattrape pas un echec en production.
+		if r.Environment == "prod" {
+			section.LastRunFailed = r.Status != "success"
+		}
+		if r.Status == "success" {
+			section.Runs = append(section.Runs, ReportUpdateRun{Environment: r.Environment, FinishedAt: r.FinishedAt})
+		}
+	}
+	for _, r := range rows {
+		security := isSecurityUpdate(r.Security, r.Title)
+		dependency := isDependencyUpdate(r.Author, r.Branch)
+		switch {
+		case dependency && security:
+			section.DependencyCount++
+			section.SecurityCount++
+		case dependency:
+			section.DependencyCount++
+		case security:
+			section.SecurityCount++
+		default:
+			section.OtherCount++
+			continue
+		}
+		section.Items = append(section.Items, ReportUpdate{Title: r.Title, MergedAt: r.MergedAt, Security: security})
+	}
+	out.Updates = section
+	return nil
+}
+
+func collectBackups(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
+	source, err := q.GetSiteBackupSource(ctx, in.projectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("source des sauvegardes : %w", err)
+	}
+	counts, err := q.ReportBackupCounts(ctx, db.ReportBackupCountsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+	if err != nil {
+		return fmt.Errorf("sauvegardes du mois : %w", err)
+	}
+	section := &ReportBackups{Successes: int(counts.Successes), Failures: int(counts.Failures)}
+	if source.LastRestoreTestOn != nil {
+		day := source.LastRestoreTestOn.Format(dateLayout)
+		section.LastRestoreTestOn = &day
+	}
+	success, err := q.ReportLastBackupSuccess(ctx, db.ReportLastBackupSuccessParams{ProjectID: in.projectID, Until: in.until})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		out.Backups = section
+		return nil
+	case err != nil:
+		return fmt.Errorf("derniere sauvegarde : %w", err)
+	}
+	section.LastSuccessAt = &success
+	last, err := q.ReportLastBackupRun(ctx, db.ReportLastBackupRunParams{ProjectID: in.projectID, Until: in.until})
+	if err != nil {
+		return fmt.Errorf("derniere execution : %w", err)
+	}
+	section.Healthy = last.Status == "success" && in.until.Sub(success) <= time.Duration(source.ExpectedHours)*time.Hour
+	out.Backups = section
+	return nil
+}
+
+func collectDomain(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
+	rows, err := q.ListProjectDomains(ctx, in.projectID)
+	if err != nil {
+		return fmt.Errorf("domaines du projet : %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	section := &ReportDomains{Items: make([]ReportDomain, 0, len(rows))}
+	for _, d := range rows {
+		item := ReportDomain{Domain: d.Domain, ExpiresAt: d.ExpiresAt}
+		if d.ExpiresAt != nil {
+			left := daysLeft(*d.ExpiresAt, in.now)
+			item.DaysLeft = &left
+		}
+		section.Items = append(section.Items, item)
+	}
+	out.Domain = section
+	return nil
+}
+
 // plan est la formule d'un projet pour un mois.
 type reportPlan struct {
 	name     string
@@ -287,6 +460,7 @@ func (s *ReportService) build(ctx context.Context, projectID uuid.UUID, month ti
 		projectID: projectID, month: first, lastDay: first.AddDate(0, 1, -1), included: plan.included,
 		since: time.Date(first.Year(), first.Month(), 1, 0, 0, 0, 0, loc),
 		until: time.Date(first.Year(), first.Month()+1, 1, 0, 0, 0, 0, loc),
+		now:   s.now(),
 	}
 	var out ReportData
 	out.Month = first.Format("2006-01")
@@ -921,6 +1095,14 @@ func (s *ReportService) PortalReport(ctx context.Context, userID, id uuid.UUID) 
 		return PortalReport{}, fmt.Errorf("rapport illisible : %w", err)
 	}
 	data.Project.Name = row.ProjectName
+	// Les drapeaux de relecture restent a l'agence : le client lit ce qui s'est
+	// passe, pas ce qui a retenu le rapport.
+	if data.Updates != nil {
+		data.Updates.LastRunFailed = false
+	}
+	if data.Backups != nil {
+		data.Backups.Healthy = false
+	}
 	return PortalReport{
 		ID: row.ID, Project: DeliverableRef{ID: row.ProjectID, Name: row.ProjectName}, Month: row.Month.Format("2006-01"),
 		Data: data, Editorial: row.Editorial, SentAt: row.SentAt,
@@ -1055,6 +1237,36 @@ func reportMailOf(d ReportData, editorial string) mailer.ReportMail {
 	if dep := d.Deployments; dep != nil {
 		for _, it := range dep.Items {
 			out.Deployments = append(out.Deployments, mailer.ReportItem{Date: dayName(it.DeployedAt.In(zone.Location())), Label: it.Name, Detail: it.Environment})
+		}
+	}
+	if u := d.Updates; u != nil {
+		if u.DependencyCount > 0 {
+			out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Mises à jour de dépendances", Value: numberText(int64(u.DependencyCount))})
+		}
+		if u.SecurityCount > 0 {
+			out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Correctifs de sécurité", Value: numberText(int64(u.SecurityCount))})
+		}
+		production := 0
+		for _, r := range u.Runs {
+			if r.Environment == "prod" {
+				production++
+			}
+		}
+		if production > 0 {
+			out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Mises à jour en production", Value: numberText(int64(production))})
+		}
+		if preprod := len(u.Runs) - production; preprod > 0 {
+			out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Mises à jour en préproduction", Value: numberText(int64(preprod))})
+		}
+	}
+	if b := d.Backups; b != nil {
+		out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Sauvegardes réussies", Value: numberText(int64(b.Successes))})
+	}
+	if domains := d.Domain; domains != nil {
+		for _, item := range domains.Items {
+			if item.ExpiresAt != nil {
+				out.Figures = append(out.Figures, mailer.ReportFigure{Label: "Échéance · " + item.Domain, Value: item.ExpiresAt.In(zone.Location()).Format("02/01/2006")})
+			}
 		}
 	}
 	return out
