@@ -155,3 +155,19 @@ func TestTicketToClientRepondable(t *testing.T) {
 		t.Errorf("accuse de reception : %q %v", ack.Subject, err)
 	}
 }
+
+func TestSiteAlertEchappeEtPorteLeLien(t *testing.T) {
+	msg, err := SiteAlert("admin@exemple.test", "Maxence", "Mise à jour en échec", "Le projet <b>Vitrine</b> est en échec", "https://piilot.test/pm/projets/1/parametres/maintenance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Kind != "site_alert" || msg.To != "admin@exemple.test" {
+		t.Errorf("message : %+v", msg)
+	}
+	if !strings.Contains(msg.HTML, "https://piilot.test/pm/projets/1/parametres/maintenance") || !strings.Contains(msg.Text, "https://piilot.test/pm/projets/1/parametres/maintenance") {
+		t.Error("le lien manque")
+	}
+	if strings.Contains(msg.HTML, "<b>Vitrine</b>") {
+		t.Error("un nom de projet n'est pas echappe")
+	}
+}
