@@ -1,7 +1,9 @@
 import { useBlocker } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -60,14 +62,41 @@ export function Field({
   error?: string
   children: ReactNode
 }) {
+  const base = useId()
+  const messageId = `${base}-message`
+  const hasMessage = hint !== undefined || error !== undefined
+
+  // Un champ seul se relie a son intitule. Un contenu composite (cases a cocher,
+  // liste de choix) porte ses propres noms : un <label> autour le fausserait.
+  const single = isValidElement(children) && (children.type === Input || children.type === Textarea)
+  const control = single
+    ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+        id: base,
+        ...(error !== undefined ? { 'aria-invalid': true } : {}),
+        ...(hasMessage ? { 'aria-describedby': messageId } : {}),
+      })
+    : children
+
   return (
     <div className="flex w-full flex-col gap-1.5">
-      <p className="text-[16px] leading-[1.5] font-medium text-[#1b1b1b]">{label}</p>
-      {children}
-      {hint !== undefined && error === undefined && (
-        <p className="text-[13px] text-[#73757c]">{hint}</p>
+      {single ? (
+        <label htmlFor={base} className="text-[16px] leading-[1.5] font-medium text-[#1b1b1b]">
+          {label}
+        </label>
+      ) : (
+        <p className="text-[16px] leading-[1.5] font-medium text-[#1b1b1b]">{label}</p>
       )}
-      {error !== undefined && <p className="text-[13px] text-[#e5484d]">{error}</p>}
+      {control}
+      {hint !== undefined && error === undefined && (
+        <p id={messageId} className="text-[13px] text-[#73757c]">
+          {hint}
+        </p>
+      )}
+      {error !== undefined && (
+        <p id={messageId} className="text-[13px] text-[#e5484d]">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -154,8 +183,9 @@ export function SaveBar({
   // Le garde-fou vit ici et non dans chaque ecran : les cinq onglets qui
   // montent cette barre lui passent deja leur etat, et un seul endroit vaut
   // mieux que cinq rappels a ne pas oublier. `enableBeforeUnload` couvre en
-  // prime la fermeture de l'onglet du navigateur.
-  const blocker = useBlocker({ shouldBlockFn: () => dirty, withResolver: true })
+  // prime la fermeture de l'onglet du navigateur, seulement s'il y a de quoi
+  // perdre : par defaut, le navigateur le demanderait a chaque depart.
+  const blocker = useBlocker({ shouldBlockFn: () => dirty, enableBeforeUnload: () => dirty, withResolver: true })
 
   return (
     <>
