@@ -25,7 +25,7 @@ type ReportService interface {
 	Send(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Resend(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Recipients(ctx context.Context, projectID uuid.UUID) (usecase.ReportRecipientsView, error)
-	SetRecipients(ctx context.Context, projectID uuid.UUID, excluded []uuid.UUID, extra []string) (usecase.ReportRecipientsView, error)
+	SetRecipients(ctx context.Context, projectID uuid.UUID, excluded []uuid.UUID, extra []string, manualReview bool) (usecase.ReportRecipientsView, error)
 	PortalReports(ctx context.Context, userID, projectID uuid.UUID) ([]usecase.PortalReportItem, error)
 	PortalReport(ctx context.Context, userID, id uuid.UUID) (usecase.PortalReport, error)
 }
@@ -224,8 +224,9 @@ func (h *Reports) SetRecipients(c fiber.Ctx) error {
 		return err
 	}
 	var b struct {
-		Excluded []string `json:"excluded"`
-		Extra    []string `json:"extra"`
+		Excluded     []string `json:"excluded"`
+		Extra        []string `json:"extra"`
+		ManualReview bool     `json:"manual_review"`
 	}
 	if err := c.Bind().Body(&b); err != nil {
 		return domain.ErrValidation.WithCause(err)
@@ -234,7 +235,7 @@ func (h *Reports) SetRecipients(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	out, err := h.svc.SetRecipients(c.Context(), id, excluded, b.Extra)
+	out, err := h.svc.SetRecipients(c.Context(), id, excluded, b.Extra, b.ManualReview)
 	if err != nil {
 		return err
 	}

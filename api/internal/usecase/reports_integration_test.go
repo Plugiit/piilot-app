@@ -132,10 +132,10 @@ func TestLeRapportMensuelSeFigeEtSEnvoie(t *testing.T) {
 	}
 
 	// Le contact s'exclut, un dirigeant s'ajoute.
-	if _, err := reports.SetRecipients(ctx, client.projectID, []uuid.UUID{client.userID}, []string{"dirigeant@client.test", "pas une adresse"}); !errors.Is(err, domain.ErrValidation) {
+	if _, err := reports.SetRecipients(ctx, client.projectID, []uuid.UUID{client.userID}, []string{"dirigeant@client.test", "pas une adresse"}, false); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("adresse invalide : %v", err)
 	}
-	if _, err := reports.SetRecipients(ctx, client.projectID, []uuid.UUID{client.userID}, []string{"Dirigeant@Client.test"}); err != nil {
+	if _, err := reports.SetRecipients(ctx, client.projectID, []uuid.UUID{client.userID}, []string{"Dirigeant@Client.test"}, false); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
