@@ -154,7 +154,11 @@ function RecipientsForm({ projectId, view, canEdit }: { projectId: string; view:
   const [excluded, setExcluded] = useState<string[]>(initialExcluded)
   const [extra, setExtra] = useState<string[]>(view.extra)
   const [draft, setDraft] = useState('')
-  const dirty = JSON.stringify([...excluded].sort()) !== JSON.stringify([...initialExcluded].sort()) || JSON.stringify(extra) !== JSON.stringify(view.extra)
+  const [manualReview, setManualReview] = useState(view.manual_review)
+  const dirty =
+    JSON.stringify([...excluded].sort()) !== JSON.stringify([...initialExcluded].sort()) ||
+    JSON.stringify(extra) !== JSON.stringify(view.extra) ||
+    manualReview !== view.manual_review
 
   return (
     <form
@@ -162,7 +166,7 @@ function RecipientsForm({ projectId, view, canEdit }: { projectId: string; view:
       onSubmit={(e) => {
         e.preventDefault()
         save.mutate(
-          { excluded, extra },
+          { excluded, extra, manual_review: manualReview },
           {
             onSuccess: () => toast.success('Destinataires enregistrés'),
             onError: (error) => toast.error(error instanceof HttpError ? error.message : 'Enregistrement impossible'),
@@ -171,6 +175,13 @@ function RecipientsForm({ projectId, view, canEdit }: { projectId: string; view:
       }}
     >
       <Card title="Destinataires du rapport mensuel" description="Les comptes du portail du client reçoivent le rapport ; décochez ceux qui ne doivent pas l’avoir. Ajoutez des adresses pour qui n’a pas de compte.">
+        <label className="flex items-start gap-3 px-1 text-[14px] text-[#1b1b1b]">
+          <Checkbox className="mt-0.5" checked={manualReview} disabled={!canEdit} onCheckedChange={(v) => setManualReview(v === true)} />
+          <span className="flex flex-col gap-0.5">
+            Toujours relire avant l’envoi
+            <span className="text-[13px] text-[#73757c]">Le rapport de ce projet ne part jamais tout seul, même si l’envoi automatique est activé.</span>
+          </span>
+        </label>
         {view.contacts.length === 0 ? (
           <p className="px-1 text-[14px] text-[#73757c]">Aucun compte du portail pour ce client.</p>
         ) : (
@@ -218,6 +229,7 @@ function RecipientsForm({ projectId, view, canEdit }: { projectId: string; view:
               className={CHAMP}
               type="email"
               placeholder="direction@client.fr"
+              aria-label="Adresse à ajouter"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {

@@ -67,9 +67,16 @@ export function useReportAction(id: string) {
       onSuccess: set,
     }),
     regenerate: useMutation({ mutationFn: async () => unwrap(await api.POST('/api/v1/admin/reports/{id}/regenerate', path)), onSuccess: set }),
-    validate: useMutation({ mutationFn: async () => unwrap(await api.POST('/api/v1/admin/reports/{id}/validate', path)), onSuccess: set }),
+    // La version relue part avec la validation : si les donnees ont bouge, le
+    // serveur refuse et l'ecran se recharge pour la relire.
+    validate: useMutation({
+      mutationFn: async (generatedAt: string) => unwrap(await api.POST('/api/v1/admin/reports/{id}/validate', { ...path, body: { generated_at: generatedAt } })),
+      onSuccess: set,
+      onError: () => void queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) }),
+    }),
     unvalidate: useMutation({ mutationFn: async () => unwrap(await api.POST('/api/v1/admin/reports/{id}/unvalidate', path)), onSuccess: set }),
     send: useMutation({ mutationFn: async () => unwrap(await api.POST('/api/v1/admin/reports/{id}/send', path)), onSuccess: set }),
+    resend: useMutation({ mutationFn: async () => unwrap(await api.POST('/api/v1/admin/reports/{id}/resend', path)), onSuccess: set }),
   }
 }
 
@@ -83,7 +90,7 @@ export function reportRecipientsQuery(projectId: string) {
 export function useSetReportRecipients(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { excluded: string[]; extra: string[] }) =>
+    mutationFn: async (body: { excluded: string[]; extra: string[]; manual_review: boolean }) =>
       unwrap(await api.PUT('/api/v1/admin/projects/{id}/report-recipients', { params: { path: { id: projectId } }, body })),
     onSuccess: (view: ReportRecipients) => {
       queryClient.setQueryData(reportKeys.recipients(projectId), view)

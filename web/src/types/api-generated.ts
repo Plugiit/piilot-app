@@ -3262,7 +3262,7 @@ export interface paths {
         put?: never;
         /**
          * Valider un rapport
-         * @description Le brouillon est figé, prêt à partir. Exige reports.write.
+         * @description Le brouillon est figé, prêt à partir. generated_at est la version relue : 409 si ses données ont changé depuis. Exige reports.write.
          */
         post: operations["postAdminReportValidate"];
         delete?: never;
@@ -3311,6 +3311,29 @@ export interface paths {
          * @description Un e-mail par destinataire ; le rapport ne change plus jamais. 422 sans destinataire, 409 si l'envoi d'e-mails n'est pas configuré. Exige reports.write.
          */
         post: operations["postAdminReportSend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Relancer les e-mails abandonnés
+         * @description Remet en file les adresses que la file a abandonnées ; le rapport ne change pas. 409 s'il n'y en a aucune, ou si l'envoi d'e-mails n'est pas configuré. Exige reports.write.
+         */
+        post: operations["postAdminReportResend"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3404,6 +3427,245 @@ export interface paths {
         get: operations["getClientSites"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Sauvegardes et domaines d'un projet
+         * @description La carte de l'onglet Maintenance. Exige projects.read.
+         */
+        get: operations["getAdminProjectSiteSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-sources/backup-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tirer un jeton de sauvegarde
+         * @description Crée la surveillance si besoin. Le jeton ne se montre qu'ici ; le précédent cesse de fonctionner. Exige reports.write.
+         */
+        post: operations["postAdminProjectSiteBackupToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-sources/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Régler la surveillance des sauvegardes
+         * @description Le délai attendu et le dernier test de restauration. Exige reports.write.
+         */
+        put: operations["putAdminProjectSiteBackup"];
+        post?: never;
+        /**
+         * Cesser de surveiller les sauvegardes
+         * @description L'historique reste. Exige reports.write.
+         */
+        delete: operations["deleteAdminProjectSiteBackup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-sources/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suivre un domaine
+         * @description La date d'expiration arrive au prochain passage de la tâche de fond. Exige projects.write.
+         */
+        post: operations["postAdminProjectSiteDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-sources/domains/{domainId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+                /** @description Identifiant du domaine */
+                domainId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cesser de suivre un domaine
+         * @description Exige projects.write.
+         */
+        delete: operations["deleteAdminProjectSiteDomain"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hooks/site-backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fin d'une sauvegarde de site
+         * @description Sans session : le jeton du projet (Authorization: Bearer) fait office de preuve. À appeler en fin de sauvegarde, réussie ou non ; l'absence d'appel déclenche aussi une alerte.
+         */
+        post: operations["postHookSiteBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Mises à jour d'un projet
+         * @description L'environnement choisi et les derniers lancements. Exige projects.read.
+         */
+        get: operations["getAdminProjectSiteUpdates"];
+        /**
+         * Choisir l'environnement des mises à jour
+         * @description Un lancement déjà demandé garde ce qui avait été demandé. Exige reports.write.
+         */
+        put: operations["putAdminProjectSiteUpdates"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/site-updates/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lancer une mise à jour
+         * @description Enregistre la demande ; une tâche de fond appelle GitHub. L'environnement est redit : s'il a changé entre-temps, 409. Exige reports.write.
+         */
+        post: operations["postAdminProjectSiteUpdateRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/git/actions-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * État du jeton GitHub
+         * @description Le jeton ne se relit jamais. Exige users.write.
+         */
+        get: operations["getAdminGitActionsToken"];
+        /**
+         * Enregistrer le jeton GitHub
+         * @description Chiffré en base. Exige users.write.
+         */
+        put: operations["putAdminGitActionsToken"];
+        post?: never;
+        /**
+         * Retirer le jeton GitHub
+         * @description Exige users.write.
+         */
+        delete: operations["deleteAdminGitActionsToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hooks/site-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compte rendu d'une mise à jour
+         * @description Sans session : le jeton du lancement (Authorization: Bearer), valable pour lui seul, fait office de preuve. À appeler en fin de workflow, réussi ou non ; sans appel sous deux heures, le lancement compte comme un échec.
+         */
+        post: operations["postHookSiteUpdate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4127,7 +4389,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available" | "backup_stale" | "inbound_email_held";
+            kind: "task_created" | "task_status_changed" | "task_assigned" | "task_unassigned" | "task_commented" | "task_due_changed" | "project_created" | "ticket_created" | "ticket_assigned" | "ticket_replied" | "ticket_status_changed" | "deliverable_validated" | "deliverable_feedback" | "update_available" | "backup_stale" | "inbound_email_held" | "report_attention" | "site_backup_stale" | "domain_expiring" | "domain_check_failed" | "site_update_failed";
             /** @description De quoi ecrire la phrase sans relire l'objet : son titre au moment du geste, l'ancien et le nouveau statut, le numero d'un ticket, un extrait de message. */
             payload: {
                 [key: string]: unknown;
@@ -6356,6 +6618,9 @@ export interface components {
             audience: components["schemas"]["ReportAudience"] | null;
             interventions: components["schemas"]["ReportInterventions"] | null;
             deployments: components["schemas"]["ReportDeployments"] | null;
+            updates: components["schemas"]["ReportUpdates"] | null;
+            backups: components["schemas"]["ReportBackups"] | null;
+            domain: components["schemas"]["ReportDomains"] | null;
         };
         Report: {
             /** Format: uuid */
@@ -6376,6 +6641,14 @@ export interface components {
             sent_at: string | null;
             /** @description Envoyé : à qui il est parti. Sinon : à qui il partirait. */
             recipients: string[];
+            /** @description Remis en relecture par un admin : l'envoi automatique ne le prend pas. */
+            held: boolean;
+            /** @description Codes de ce qui retient l'envoi automatique. */
+            hold_reasons: string[];
+            /** @description Adresses que la file d'envoi a abandonnées. */
+            undelivered: string[];
+            /** @description E-mails du rapport encore en file. */
+            emails_pending: number;
         };
         ReportListItem: {
             /** Format: uuid */
@@ -6390,6 +6663,11 @@ export interface components {
             generated_at: string;
             /** Format: date-time */
             sent_at: string | null;
+            held: boolean;
+            /** @description Codes de ce qui retient l'envoi automatique. */
+            hold_reasons: string[];
+            /** @description Nombre d'adresses abandonnées par la file d'envoi. */
+            undelivered: number;
         };
         ReportPage: {
             month: string;
@@ -6419,6 +6697,8 @@ export interface components {
         ReportRecipients: {
             contacts: components["schemas"]["ReportContact"][];
             extra: string[];
+            /** @description Le rapport de ce projet ne part jamais tout seul. */
+            manual_review: boolean;
         };
         PortalReportItem: {
             /** Format: uuid */
@@ -6484,6 +6764,127 @@ export interface components {
             /** Format: uuid */
             project_id: string;
             steps: components["schemas"]["PortalJourneyStep"][];
+        };
+        ReportUpdate: {
+            title: string;
+            /** Format: date-time */
+            merged_at: string | null;
+            security: boolean;
+        };
+        ReportUpdates: {
+            dependency_count: number;
+            security_count: number;
+            other_count: number;
+            items: components["schemas"]["ReportUpdate"][];
+            runs: components["schemas"]["ReportUpdateRun"][];
+            last_run_failed?: boolean;
+        };
+        ReportBackups: {
+            successes: number;
+            failures: number;
+            /** Format: date-time */
+            last_success_at: string | null;
+            last_restore_test_on: string | null;
+            /** @description À la fin du mois : une sauvegarde réussie dans le délai attendu, et pas d'échec depuis. */
+            healthy?: boolean;
+        };
+        ReportDomain: {
+            domain: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            days_left: number | null;
+        };
+        ReportDomains: {
+            items: components["schemas"]["ReportDomain"][];
+        };
+        SiteBackupRun: {
+            /** @enum {string} */
+            status: "success" | "failed";
+            size_bytes: number | null;
+            message: string;
+            /** Format: date-time */
+            finished_at: string;
+        };
+        SiteBackupView: {
+            expected_hours: number;
+            /** Format: date-time */
+            last_success_at: string | null;
+            /** Format: date-time */
+            last_failure_at: string | null;
+            last_restore_test_on: string | null;
+            healthy: boolean;
+            runs: components["schemas"]["SiteBackupRun"][];
+        };
+        SiteDomain: {
+            /** Format: uuid */
+            id: string;
+            domain: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            days_left: number | null;
+            /** Format: date-time */
+            checked_at: string | null;
+            failing: boolean;
+        };
+        SiteSources: {
+            hook_url: string;
+            backup: components["schemas"]["SiteBackupView"] | null;
+            domains: components["schemas"]["SiteDomain"][];
+        };
+        SiteBackupToken: {
+            /** @description Montré une seule fois. */
+            token: string;
+            hook_url: string;
+        };
+        ReportUpdateRun: {
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            /** Format: date-time */
+            finished_at: string | null;
+        };
+        SiteUpdateTarget: {
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            workflow: string;
+            ref: string;
+            every_days: number | null;
+            enabled: boolean;
+        };
+        SiteUpdateRun: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            workflow: string;
+            ref: string;
+            /** @enum {string} */
+            status: "queued" | "dispatching" | "dispatched" | "success" | "failed" | "timed_out";
+            /** @enum {string} */
+            trigger: "manual" | "schedule";
+            message: string;
+            run_url: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            dispatched_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+        };
+        SiteUpdates: {
+            repo: string;
+            /** @description Un dépôt GitHub : GitLab n'est pas pris en charge ici. */
+            repo_supported: boolean;
+            token_configured: boolean;
+            hook_url: string;
+            target: components["schemas"]["SiteUpdateTarget"] | null;
+            runs: components["schemas"]["SiteUpdateRun"][];
+            /** @description Le dépôt du projet n'est plus celui confirmé avec la cible : rien ne part sans nouvel enregistrement. */
+            repo_changed: boolean;
+        };
+        SiteUpdateTokenStatus: {
+            configured: boolean;
+            /** Format: date-time */
+            updated_at: string | null;
         };
     };
     responses: {
@@ -12394,7 +12795,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    generated_at: string;
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -12492,6 +12900,41 @@ export interface operations {
             422: components["responses"]["ValidationFailed"];
         };
     };
+    postAdminReportResend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du rapport */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Le rapport n'est pas dans l'état attendu */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getAdminProjectReportRecipients: {
         parameters: {
             query?: never;
@@ -12533,6 +12976,7 @@ export interface operations {
                 "application/json": {
                     excluded: string[];
                     extra: string[];
+                    manual_review: boolean;
                 };
             };
         };
@@ -12626,6 +13070,419 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminProjectSiteSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postAdminProjectSiteBackupToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBackupToken"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectSiteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expected_hours: number;
+                    last_restore_test_on?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminProjectSiteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postAdminProjectSiteDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    domain: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminProjectSiteDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+                /** @description Identifiant du domaine */
+                domainId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postHookSiteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "success" | "failed";
+                    size_bytes?: number | null;
+                    message?: string;
+                    /** Format: date-time */
+                    finished_at?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Enregistré */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectSiteUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdates"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectSiteUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    environment: "prod" | "preprod";
+                    workflow: string;
+                    ref: string;
+                    every_days?: number | null;
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdates"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminProjectSiteUpdateRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    environment: "prod" | "preprod";
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdates"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Pas de lancement possible dans cet état */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminGitActionsToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdateTokenStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminGitActionsToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdateTokenStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    deleteAdminGitActionsToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdateTokenStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postHookSiteUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "success" | "failed";
+                    message?: string;
+                    run_url?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Enregistré */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
 }

@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { monthLabel } from '@/features/maintenance/format'
 import { StatusPill } from '@/features/projects/ui'
 import { reportQuery, useReportAction } from '@/features/reports/api'
-import { REPORT_STATUS } from '@/features/reports/format'
+import { holdReasonLabel, REPORT_STATUS } from '@/features/reports/format'
 import { ReportView } from '@/features/reports/report-view'
 import { HttpError } from '@/lib/api'
 import type { Report } from '@/types/api'
@@ -72,9 +72,22 @@ function Actions({ report }: { report: Report }) {
             : `généré le ${WHEN.format(new Date(report.generated_at))}`}
         </span>
       </div>
+      {report.status === 'draft' && report.held && (
+        <p className="rounded-[8px] border border-[#ffe8b7] bg-[#fffaf0] px-3 py-2 text-[13px] text-[#9a6a00]">Remis en relecture : l’envoi automatique ne le prend plus tant qu’il n’est pas validé.</p>
+      )}
+      {report.status === 'draft' && report.hold_reasons.length > 0 && (
+        <div className="rounded-[8px] border border-[#ffe8b7] bg-[#fffaf0] px-3 py-2 text-[13px] text-[#9a6a00]">
+          <p className="font-medium">Ne partira pas tout seul :</p>
+          <ul className="mt-1 list-disc pl-4">
+            {report.hold_reasons.map((r) => (
+              <li key={r}>{holdReasonLabel(r)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {report.status === 'draft' && (
         <div className="flex flex-col gap-2">
-          <Button type="button" disabled={busy} onClick={() => act.validate.mutate(undefined, { onSuccess: () => toast.success('Rapport validé'), onError: fail })}>
+          <Button type="button" disabled={busy} onClick={() => act.validate.mutate(report.generated_at, { onSuccess: () => toast.success('Rapport validé'), onError: fail })}>
             Valider le rapport
           </Button>
           <Button
@@ -108,6 +121,26 @@ function Actions({ report }: { report: Report }) {
         </div>
       )}
       {report.status === 'sent' && <p className="text-[13px] text-[#73757c]">Envoyé : il est figé, et le client le retrouve dans son espace.</p>}
+      {report.status === 'sent' && report.emails_pending > 0 && (
+        <p className="text-[13px] text-[#73757c]">
+          {report.emails_pending} e-mail{report.emails_pending > 1 ? 's' : ''} encore en file d’envoi.
+        </p>
+      )}
+      {report.status === 'sent' && report.undelivered.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-[8px] border border-[#ffe8b7] bg-[#fffaf0] px-3 py-2 text-[13px] text-[#9a6a00]">
+          <p>Non remis, après plusieurs essais :</p>
+          <ul className="list-disc pl-4">
+            {report.undelivered.map((a) => (
+              <li key={a} className="break-all">
+                {a}
+              </li>
+            ))}
+          </ul>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => act.resend.mutate(undefined, { onSuccess: () => toast.success('E-mails remis en file'), onError: fail })}>
+            Relancer l’envoi
+          </Button>
+        </div>
+      )}
     </Box>
   )
 }
@@ -153,8 +186,9 @@ function Recipients({ report }: { report: Report }) {
       ) : (
         <ul className="flex flex-col gap-1">
           {report.recipients.map((r) => (
-            <li key={r} className="truncate text-[13px] text-[#1b1b1b]">
-              {r}
+            <li key={r} className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-[#1b1b1b]">
+              <span className="min-w-0 break-all">{r}</span>
+              {report.undelivered.includes(r) && <span className="text-[#9a6a00]">non remis</span>}
             </li>
           ))}
         </ul>
