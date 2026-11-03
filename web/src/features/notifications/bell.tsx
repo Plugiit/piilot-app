@@ -22,6 +22,22 @@ import type { AppNotification, TaskStatus, TicketStatus } from '@/types/api'
 
 const WHEN = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' })
 
+function projectOf(payload: Record<string, unknown>): string {
+  return typeof payload.project_name === 'string' ? payload.project_name : 'un projet'
+}
+
+/** L'alerte des rapports mensuels : ce qui attend un admin, en une phrase. */
+function reportAttentionText(payload: Record<string, unknown>): string {
+  const count = (key: string) => (typeof payload[key] === 'number' ? payload[key] : 0)
+  const parts: string[] = []
+  if (payload.smtp_missing === true) parts.push('l’envoi d’e-mails n’est pas configuré')
+  if (count('missing') > 0) parts.push(`${count('missing')} sans rapport`)
+  if (count('unsent') > 0) parts.push(`${count('unsent')} à envoyer`)
+  if (count('overdue') > 0) parts.push(`${count('overdue')} en retard`)
+  if (count('undelivered') > 0) parts.push(`${count('undelivered')} non remis`)
+  return `Rapports mensuels à traiter : ${parts.join(', ')}`
+}
+
 /** Duree ecoulee, en mots. */
 function since(iso: string): string {
   const seconds = Math.round((Date.parse(iso) - Date.now()) / 1000)
@@ -93,6 +109,20 @@ function sentence(item: AppNotification): ReactNode {
       return `Piilot ${typeof item.payload.version === 'string' ? item.payload.version : ''} est disponible : installez-la depuis la carte au bas du menu`
     case 'inbound_email_held':
       return `E-mail à trier de ${typeof item.payload.from === 'string' ? item.payload.from : 'un expéditeur inconnu'} : « ${typeof item.payload.subject === 'string' && item.payload.subject !== '' ? item.payload.subject : 'sans objet'} »`
+    case 'report_attention':
+      return reportAttentionText(item.payload)
+    case 'site_update_failed':
+      return `La mise à jour de ${projectOf(item.payload)} (${item.payload.environment === 'prod' ? 'production' : 'préproduction'}) a échoué${typeof item.payload.message === 'string' && item.payload.message !== '' ? ` : ${item.payload.message}` : ''}`
+    case 'site_backup_stale':
+      return item.payload.failed === true
+        ? `La dernière sauvegarde de ${projectOf(item.payload)} a échoué`
+        : `Aucune sauvegarde récente pour ${projectOf(item.payload)}`
+    case 'domain_expiring':
+      return typeof item.payload.days_left === 'number' && item.payload.days_left <= 0
+        ? `Le domaine ${typeof item.payload.domain === 'string' ? item.payload.domain : ''} de ${projectOf(item.payload)} a expiré`
+        : `Le domaine ${typeof item.payload.domain === 'string' ? item.payload.domain : ''} de ${projectOf(item.payload)} expire dans ${typeof item.payload.days_left === 'number' ? item.payload.days_left : 'quelques'} jours`
+    case 'domain_check_failed':
+      return `L’échéance du domaine ${typeof item.payload.domain === 'string' ? item.payload.domain : ''} de ${projectOf(item.payload)} ne se relève plus`
     case 'backup_stale':
       return item.payload.last_success_at === null
         ? 'Aucune sauvegarde n’a encore réussi sur cette instance'
@@ -222,6 +252,16 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
     )
   }
 
+  // L'alerte des rapports mene au mois qu'elle concerne.
+  if (item.kind === 'report_attention') {
+    const month = typeof item.payload.month === 'string' ? item.payload.month : undefined
+    return (
+      <Link to="/pm/rapports" search={month !== undefined ? { mois: month } : {}} onClick={onOpen} className={className}>
+        {body}
+      </Link>
+    )
+  }
+
   // L'alerte des sauvegardes mene a leur ecran.
   if (item.kind === 'backup_stale') {
     return (
@@ -238,6 +278,15 @@ function NotificationRow({ item, onOpen }: { item: AppNotification; onOpen: () =
       <button type="button" onClick={onOpen} className={cn(className, 'cursor-pointer')}>
         {body}
       </button>
+    )
+  }
+
+  // Mises a jour, sauvegardes et domaines : la carte du projet qui les regle.
+  if (item.kind === 'site_update_failed' || item.kind === 'site_backup_stale' || item.kind === 'domain_expiring' || item.kind === 'domain_check_failed') {
+    return (
+      <Link to="/pm/projets/$id/parametres/maintenance" params={{ id: item.project_id }} onClick={onOpen} className={className}>
+        {body}
+      </Link>
     )
   }
 
