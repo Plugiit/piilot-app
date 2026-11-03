@@ -21,6 +21,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/plugiit/piilot-app/api/internal/config"
+	"github.com/plugiit/piilot-app/api/internal/githubactions"
 	"github.com/plugiit/piilot-app/api/internal/handler"
 	"github.com/plugiit/piilot-app/api/internal/mail"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
@@ -142,6 +143,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
 	reportService := usecase.NewReportService(pool, cfg.URLFor(spaces.Client), sender.Configured(), log)
 	siteSourcesService := usecase.NewSiteSourcesService(pool, rdap.New(), cfg.URLFor(spaces.Team), sender.Configured(), log)
+	siteUpdateService := usecase.NewSiteUpdateService(pool, githubactions.New(), cfg.JWTSecret, cfg.URLFor(spaces.Team), sender.Configured(), log)
 	analyticsService := usecase.NewAnalyticsService(pool, cfg.Analytics, cfg.JWTSecret, log)
 	uptimeService := usecase.NewUptimeService(pool, cfg.Uptime, cfg.JWTSecret, cfg.URLFor(spaces.Team), log)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
@@ -197,6 +199,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Maintenance:   handler.NewMaintenance(usecase.NewMaintenanceService(pool)),
 		Reports:       handler.NewReports(reportService),
 		SiteSources:   handler.NewSiteSources(siteSourcesService),
+		SiteUpdates:   handler.NewSiteUpdates(siteUpdateService),
 		Modules:       handler.NewModules(uptimeService, analyticsService),
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
@@ -253,6 +256,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 	repository.StartReports(ctx, reportService, log)
 	// Sauvegardes et domaines des sites : le silence d'une source alerte.
 	repository.StartSiteSources(ctx, siteSourcesService, log)
+	// Mises a jour des sites : la CI fait le travail, Piilot la commande et
+	// surveille son compte rendu.
+	repository.StartSiteUpdates(ctx, siteUpdateService, log)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
