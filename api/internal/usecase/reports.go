@@ -725,36 +725,177 @@ func (s *ReportService) refreshDraft(ctx context.Context, id uuid.UUID) ([]strin
 const draftRefreshEvery = time.Hour
 
 // Tick est le passage de la tache : les brouillons du mois ecoule des le 1er,
-// en attendant la photo d'Umami le temps regle ; puis, si l'envoi
-// automatique est active, l'envoi le jour dit.
+// en attendant la photo d'Umami le temps regle ; leur mise a jour ; si l'envoi
+// automatique est active, l'envoi le jour dit ; et l'alerte de ce qui reste a
+// un admin. Une etape en echec n'empeche pas les suivantes.
 func (s *ReportService) Tick(ctx context.Context) error {
+	return s.TickAt(ctx, s.now())
+}
+
+// TickAt est le passage de la tache a un instant donne.
+func (s *ReportService) TickAt(ctx context.Context, now time.Time) error {
 	settings, err := s.q.GetReportSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("lecture des reglages : %w", err)
 	}
-	local := s.now().In(zone.Location())
+	local := now.In(zone.Location())
 	month := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0)
 	waited := local.Day()-1 >= int(settings.WaitDays)
 
+	var errs []error
 	if _, err := s.generate(ctx, month, nil, !waited); err != nil {
-		return err
+		errs = append(errs, err)
 	}
-	if !settings.AutoSend || local.Day() < int(settings.SendDay) {
-		return nil
+	if err := s.refreshDrafts(ctx, month, now); err != nil {
+		errs = append(errs, err)
 	}
+	if settings.AutoSend && s.canSend && local.Day() >= int(settings.SendDay) {
+		if err := s.autoSend(ctx, month); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := s.alert(ctx, settings, month, local, waited, now); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func (s *ReportService) refreshDrafts(ctx context.Context, month, now time.Time) error {
+	ids, err := s.q.ListDraftsToRefresh(ctx, db.ListDraftsToRefreshParams{Month: month, Before: now.Add(-draftRefreshEvery)})
+	if err != nil {
+		return fmt.Errorf("brouillons a remettre a jour : %w", err)
+	}
+	var errs []error
+	for _, id := range ids {
+		if _, err := s.refreshDraft(ctx, id); err != nil {
+			errs = append(errs, fmt.Errorf("mise a jour du rapport %s : %w", id, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// autoSend envoie ce qui peut l'etre. Un brouillon est remis a jour d'abord :
+// ce qui part est l'etat du jour, et ce qui le retient est verifie sur cet
+// etat. Ce qu'un admin a valide lui-meme part tel quel.
+func (s *ReportService) autoSend(ctx context.Context, month time.Time) error {
 	pending, err := s.q.ListReportsToSend(ctx, month)
 	if err != nil {
 		return fmt.Errorf("rapports a envoyer : %w", err)
 	}
+	var errs []error
 	for _, r := range pending {
 		if r.Status == "draft" {
-			if _, err := s.q.ValidateReport(ctx, db.ValidateReportParams{ID: r.ID}); err != nil {
-				return fmt.Errorf("validation automatique : %w", err)
+			reasons, err := s.refreshDraft(ctx, r.ID)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("mise a jour du rapport %s : %w", r.ID, err))
+				continue
+			}
+			if len(reasons) > 0 {
+				continue
 			}
 		}
-		if _, err := s.Send(ctx, r.ID); err != nil {
-			// Un rapport sans destinataire attend un admin ; les autres partent.
+		row, data, err := s.load(ctx, r.ID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("lecture du rapport %s : %w", r.ID, err))
+			continue
+		}
+		if _, err := s.deliver(ctx, row, data); err != nil {
+			// Un rapport qui n'a pas pu partir reste compte dans l'alerte.
 			s.log.Warn("envoi automatique du rapport", "report", r.ID, "error", err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ReportAttentionPayload est ce que dit l'alerte aux admins.
+type ReportAttentionPayload struct {
+	Month string `json:"month"`
+	// Projets sous formule sans rapport, l'attente de l'audience passee : ils
+	// ont echoue, ou leur generation n'a pas encore tourne.
+	Missing int `json:"missing"`
+	// Rapports du mois ecoule pas encore partis, le jour d'envoi passe.
+	Unsent int `json:"unsent"`
+	// Parmi eux, ceux que l'envoi automatique ne prendra pas.
+	Retained int `json:"retained"`
+	// Rapports des deux mois d'avant, jamais partis.
+	Overdue int `json:"overdue"`
+	// Rapports dont un e-mail a ete abandonne.
+	Undelivered int `json:"undelivered"`
+	// L'envoi automatique est actif, mais rien ne peut partir sans SMTP.
+	SMTPMissing bool `json:"smtp_missing"`
+}
+
+func (p ReportAttentionPayload) empty() bool {
+	return p.Missing == 0 && p.Unsent == 0 && p.Overdue == 0 && p.Undelivered == 0 && !p.SMTPMissing
+}
+
+// worseThan dit si la situation s'est aggravee : ca se dit tout de suite. Une
+// situation qui s'ameliore pendant qu'un admin la traite ne se redit pas.
+func (p ReportAttentionPayload) worseThan(prev ReportAttentionPayload) bool {
+	return p.Month != prev.Month || p.Missing > prev.Missing || p.Unsent > prev.Unsent || p.Retained > prev.Retained ||
+		p.Overdue > prev.Overdue || p.Undelivered > prev.Undelivered || (p.SMTPMissing && !prev.SMTPMissing)
+}
+
+// reportAlertEvery : une situation inchangee se rappelle une fois par jour.
+const reportAlertEvery = 24 * time.Hour
+
+// alert previent les admins de ce qui ne se reglera pas tout seul. Sans ca, un
+// rapport qui ne part pas ne se voit que dans les logs, ou dans un ecran que
+// personne n'a de raison d'ouvrir.
+func (s *ReportService) alert(ctx context.Context, settings db.ReportSetting, month, local time.Time, waited bool, now time.Time) error {
+	counts, err := s.q.ReportAttention(ctx, month)
+	if err != nil {
+		return fmt.Errorf("etat des rapports : %w", err)
+	}
+	p := ReportAttentionPayload{
+		Month: month.Format("2006-01"), Overdue: int(counts.Overdue), Undelivered: int(counts.Undelivered),
+		SMTPMissing: settings.AutoSend && !s.canSend,
+	}
+	if waited {
+		first, last := monthBounds(month)
+		due, err := s.q.ListReportsDue(ctx, db.ListReportsDueParams{Month: first, MonthEnd: last})
+		if err != nil {
+			return fmt.Errorf("projets a rapporter : %w", err)
+		}
+		p.Missing = len(due)
+	}
+	// Avant le jour d'envoi, un brouillon a relire est dans l'ordre des choses.
+	if local.Day() >= int(settings.SendDay) {
+		p.Unsent, p.Retained = int(counts.Unsent), int(counts.Retained)
+	}
+	if p.empty() {
+		return nil
+	}
+
+	last, err := s.q.LastReportAttention(ctx)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("derniere alerte : %w", err)
+	}
+	if err == nil {
+		var prev ReportAttentionPayload
+		if err := json.Unmarshal(last.Payload, &prev); err != nil {
+			return fmt.Errorf("derniere alerte illisible : %w", err)
+		}
+		if !p.worseThan(prev) && now.Sub(last.CreatedAt) < reportAlertEvery {
+			return nil
+		}
+	}
+
+	payload, err := json.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("alerte des rapports : %w", err)
+	}
+	admins, err := s.q.ListReportAdmins(ctx)
+	if err != nil {
+		return fmt.Errorf("destinataires de l'alerte : %w", err)
+	}
+	// Sans admin actif, l'alerte n'arrive a personne : au moins, le journal le dit.
+	if len(admins) == 0 {
+		s.log.Warn("rapports mensuels a traiter, mais aucun admin a prevenir", "month", p.Month)
+	}
+	for _, admin := range admins {
+		if _, err := s.q.CreateNotification(ctx, db.CreateNotificationParams{UserID: admin.ID, Kind: "report_attention", Payload: payload}); err != nil {
+			return fmt.Errorf("alerte des rapports : %w", err)
 		}
 	}
 	return nil
