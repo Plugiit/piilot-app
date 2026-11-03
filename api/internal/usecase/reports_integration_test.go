@@ -124,7 +124,7 @@ func TestLeRapportMensuelSeFigeEtSEnvoie(t *testing.T) {
 	if _, err := reports.Send(ctx, id); !errors.Is(err, domain.ErrConflict) {
 		t.Errorf("envoi d'un brouillon : %v", err)
 	}
-	if _, err := reports.Validate(ctx, id, team); err != nil {
+	if _, err := reports.Validate(ctx, id, team, report.GeneratedAt); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := reports.SetEditorial(ctx, id, "autre"); !errors.Is(err, domain.ErrConflict) {

@@ -20,7 +20,7 @@ type ReportService interface {
 	Get(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	SetEditorial(ctx context.Context, id uuid.UUID, text string) (usecase.ReportView, error)
 	Regenerate(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
-	Validate(ctx context.Context, id, userID uuid.UUID) (usecase.ReportView, error)
+	Validate(ctx context.Context, id, userID uuid.UUID, seen time.Time) (usecase.ReportView, error)
 	Unvalidate(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Send(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Recipients(ctx context.Context, projectID uuid.UUID) (usecase.ReportRecipientsView, error)
@@ -180,8 +180,17 @@ func (h *Reports) Validate(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	var b struct {
+		GeneratedAt *time.Time `json:"generated_at"`
+	}
+	if err := c.Bind().Body(&b); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+	if b.GeneratedAt == nil {
+		return domain.ErrValidation.WithDetails(map[string]any{"generated_at": "La version relue du rapport"})
+	}
 	return h.action(c, func(ctx context.Context, id uuid.UUID) (usecase.ReportView, error) {
-		return h.svc.Validate(ctx, id, user)
+		return h.svc.Validate(ctx, id, user, *b.GeneratedAt)
 	})
 }
 

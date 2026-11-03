@@ -87,6 +87,7 @@ func Register(app *fiber.App, deps Deps) {
 	// Changements d'etat pousses par le service de disponibilite : le jeton
 	// de l'adresse fait office de preuve.
 	v1.Post("/hooks/uptime/:provider", deps.Uptime.Webhook)
+
 }
 
 // registerClientRoutes monte le portail client.
@@ -196,7 +197,6 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Get("/accounts", deps.Guard.RequirePermission("users.read"), deps.Accounts.List)
 	r.Get("/accounts/invitations", deps.Guard.RequirePermission("users.read"), deps.Accounts.Invitations)
 	r.Post("/accounts/invitations", deps.Guard.RequirePermission("users.write"), deps.Accounts.Invite)
-	r.Post("/accounts/invitations/:id/resend", deps.Guard.RequirePermission("users.write"), deps.Accounts.ResendInvitation)
 	r.Delete("/accounts/invitations/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.RevokeInvitation)
 	r.Patch("/accounts/:id", deps.Guard.RequirePermission("users.write"), deps.Accounts.SetRole)
 	r.Post("/accounts/:id/disable", deps.Guard.RequirePermission("users.write"), deps.Accounts.Disable)
