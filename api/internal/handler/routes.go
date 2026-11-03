@@ -30,6 +30,7 @@ type Deps struct {
 	Maintenance   *Maintenance
 	Reports       *Reports
 	SiteSources   *SiteSources
+	SiteUpdates   *SiteUpdates
 	Modules       *Modules
 	ClientSites   *ClientSites
 	Replies       *ReplyTemplates
@@ -92,6 +93,8 @@ func Register(app *fiber.App, deps Deps) {
 	// Fin d'une sauvegarde de site : le jeton du projet fait office de preuve.
 	v1.Post("/hooks/site-backups", deps.SiteSources.BackupHook)
 
+	// Compte rendu d'une mise a jour : le jeton du lancement fait office de preuve.
+	v1.Post("/hooks/site-updates", deps.SiteUpdates.Hook)
 }
 
 // registerClientRoutes monte le portail client.
@@ -348,6 +351,11 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Delete("/:id/site-sources/backup", deps.Guard.RequirePermission("reports.write"), deps.SiteSources.RemoveBackup)
 	projects.Post("/:id/site-sources/domains", deps.Guard.RequirePermission("projects.write"), deps.SiteSources.AddDomain)
 	projects.Delete("/:id/site-sources/domains/:domainId", deps.Guard.RequirePermission("projects.write"), deps.SiteSources.RemoveDomain)
+	// Mises a jour : choisir l'environnement et lancer sont reserves a qui gere
+	// la maintenance. C'est un geste sur le site du client.
+	projects.Get("/:id/site-updates", deps.Guard.RequirePermission("projects.read"), deps.SiteUpdates.View)
+	projects.Put("/:id/site-updates", deps.Guard.RequirePermission("reports.write"), deps.SiteUpdates.SetTarget)
+	projects.Post("/:id/site-updates/runs", deps.Guard.RequirePermission("reports.write"), deps.SiteUpdates.RequestRun)
 	projects.Put("/:id/analytics", deps.Guard.RequirePermission("projects.write"), deps.Analytics.SetProject)
 	projects.Patch("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Update)
 	projects.Delete("/:id", deps.Guard.RequirePermission("projects.write"), deps.Projects.Delete)
@@ -484,6 +492,9 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	git := r.Group("/integrations/git")
 	git.Get("", deps.Guard.RequirePermission("users.write"), deps.Git.Settings)
 	git.Post("/rotate", deps.Guard.RequirePermission("users.write"), deps.Git.Rotate)
+	git.Get("/actions-token", deps.Guard.RequirePermission("users.write"), deps.SiteUpdates.TokenStatus)
+	git.Put("/actions-token", deps.Guard.RequirePermission("users.write"), deps.SiteUpdates.SetToken)
+	git.Delete("/actions-token", deps.Guard.RequirePermission("users.write"), deps.SiteUpdates.ClearToken)
 
 	// Le chrono : un par personne, qui devient une saisie a l'arret.
 	timer := r.Group("/time-timer")
