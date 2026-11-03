@@ -23,6 +23,7 @@ type ReportService interface {
 	Validate(ctx context.Context, id, userID uuid.UUID, seen time.Time) (usecase.ReportView, error)
 	Unvalidate(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Send(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
+	Resend(ctx context.Context, id uuid.UUID) (usecase.ReportView, error)
 	Recipients(ctx context.Context, projectID uuid.UUID) (usecase.ReportRecipientsView, error)
 	SetRecipients(ctx context.Context, projectID uuid.UUID, excluded []uuid.UUID, extra []string) (usecase.ReportRecipientsView, error)
 	PortalReports(ctx context.Context, userID, projectID uuid.UUID) ([]usecase.PortalReportItem, error)
@@ -199,6 +200,9 @@ func (h *Reports) Unvalidate(c fiber.Ctx) error { return h.action(c, h.svc.Unval
 
 // Send envoie un rapport valide.
 func (h *Reports) Send(c fiber.Ctx) error { return h.action(c, h.svc.Send) }
+
+// Resend relance les e-mails abandonnes d'un rapport envoye.
+func (h *Reports) Resend(c fiber.Ctx) error { return h.action(c, h.svc.Resend) }
 
 // Recipients rend les destinataires des rapports d'un projet.
 func (h *Reports) Recipients(c fiber.Ctx) error {
