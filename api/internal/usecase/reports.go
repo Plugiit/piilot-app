@@ -532,6 +532,9 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 	if err != nil {
 		return 0, fmt.Errorf("projets a rapporter : %w", err)
 	}
+	// Un projet en erreur ne prive pas les autres de leur rapport : l'ordre de
+	// la liste est stable, il bloquerait les memes a chaque passage.
+	var errs []error
 	created := 0
 	for _, d := range due {
 		if waitAudience {
@@ -539,7 +542,8 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 			// que dit le reglage.
 			has, err := s.q.ReportHasAudienceSite(ctx, d.ProjectID)
 			if err != nil {
-				return created, fmt.Errorf("site d'audience : %w", err)
+				errs = append(errs, fmt.Errorf("site d'audience du projet %s : %w", d.ProjectID, err))
+				continue
 			}
 			if has {
 				if _, err := s.q.ReportAudienceSnapshot(ctx, db.ReportAudienceSnapshotParams{ProjectID: d.ProjectID, Month: first}); errors.Is(err, pgx.ErrNoRows) {
@@ -548,11 +552,12 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 			}
 		}
 		if err := s.createDraft(ctx, d.ProjectID, first, reportPlan{name: d.PlanName, included: d.IncludedMinutes, sections: d.Sections}); err != nil {
-			return created, err
+			errs = append(errs, fmt.Errorf("projet %s : %w", d.ProjectID, err))
+			continue
 		}
 		created++
 	}
-	return created, nil
+	return created, errors.Join(errs...)
 }
 
 func (s *ReportService) createDraft(ctx context.Context, projectID uuid.UUID, month time.Time, plan reportPlan) error {
