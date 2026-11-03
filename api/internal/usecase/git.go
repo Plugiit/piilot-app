@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -203,6 +204,9 @@ type ghPullRequestEvent struct {
 		User struct {
 			Login string `json:"login"`
 		} `json:"user"`
+		Labels []struct {
+			Name string `json:"name"`
+		} `json:"labels"`
 	} `json:"pull_request"`
 	Repository ghRepository `json:"repository"`
 }
@@ -267,6 +271,11 @@ func (s *GitService) HandleGitHub(ctx context.Context, event string, body []byte
 			Title: p.PullRequest.Title, URL: p.PullRequest.HTMLURL, Branch: p.PullRequest.Head.Ref,
 			Author: p.PullRequest.User.Login, State: state, Description: desc,
 			OpenedAt: p.PullRequest.CreatedAt, MergedAt: p.PullRequest.MergedAt,
+			Security: slices.ContainsFunc(p.PullRequest.Labels, func(l struct {
+				Name string `json:"name"`
+			}) bool {
+				return isSecurityLabel(l.Name)
+			}),
 		})
 
 	case "release":
@@ -351,6 +360,9 @@ type glMergeRequestEvent struct {
 		CreatedAt    string `json:"created_at"`
 		MergedAt     string `json:"merged_at"`
 	} `json:"object_attributes"`
+	Labels []struct {
+		Title string `json:"title"`
+	} `json:"labels"`
 }
 
 type glTagPushEvent struct {
@@ -404,6 +416,11 @@ func (s *GitService) HandleGitLab(ctx context.Context, body []byte) (Outcome, er
 			Title: p.ObjectAttributes.Title, URL: p.ObjectAttributes.URL, Branch: p.ObjectAttributes.SourceBranch,
 			Author: author, State: state, Description: p.ObjectAttributes.Description,
 			OpenedAt: gitlabTime(p.ObjectAttributes.CreatedAt), MergedAt: gitlabTime(p.ObjectAttributes.MergedAt),
+			Security: slices.ContainsFunc(p.Labels, func(l struct {
+				Title string `json:"title"`
+			}) bool {
+				return isSecurityLabel(l.Title)
+			}),
 		})
 
 	case "tag_push":
@@ -461,6 +478,13 @@ type incomingPullRequest struct {
 	Title, URL, Branch, Author string
 	State, Description         string
 	OpenedAt, MergedAt         *time.Time
+	Security                   bool
+}
+
+// isSecurityLabel : « security », « type: security », « sécurité »…
+func isSecurityLabel(label string) bool {
+	label = strings.ToLower(label)
+	return strings.Contains(label, "security") || strings.Contains(label, "sécurité")
 }
 
 type incomingDeployment struct {
@@ -500,7 +524,7 @@ func (s *GitService) pullRequest(ctx context.Context, in incomingPullRequest) (O
 
 	pr, err := s.q.UpsertPullRequest(ctx, db.UpsertPullRequestParams{
 		ProjectID: project.ID, Provider: in.Provider, Number: in.Number, Title: strings.TrimSpace(in.Title),
-		Url: in.URL, Branch: in.Branch, Author: in.Author, State: in.State, OpenedAt: in.OpenedAt, MergedAt: in.MergedAt,
+		Url: in.URL, Branch: in.Branch, Author: in.Author, State: in.State, OpenedAt: in.OpenedAt, MergedAt: in.MergedAt, Security: in.Security,
 	})
 	if err != nil {
 		return Outcome{}, fmt.Errorf("enregistrement de la pull request : %w", err)
