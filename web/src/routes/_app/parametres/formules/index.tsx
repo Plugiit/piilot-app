@@ -157,7 +157,6 @@ function PlanDialog({ plan, onClose }: { plan: MaintenancePlan | null; onClose: 
                     onCheckedChange={(v) => setSections((list) => (v === true ? [...list, s.key] : list.filter((x) => x !== s.key)))}
                   />
                   {s.label}
-                  {s.soon && <span className="text-[12px] text-[#a2a3a7]">bientôt</span>}
                 </label>
               ))}
             </div>
@@ -219,8 +218,10 @@ function SendSettingsForm({ initial }: { initial: { auto_send: boolean; send_day
         <label className="flex items-start gap-3 px-1 text-[14px] text-[#1b1b1b]">
           <Checkbox className="mt-0.5" checked={values.auto_send} onCheckedChange={(v) => setValues((s) => ({ ...s, auto_send: v === true }))} />
           <span className="flex flex-col gap-0.5">
-            Envoyer automatiquement, sans relecture
-            <span className="text-[13px] text-[#73757c]">Les rapports du mois encore en brouillon sont validés et envoyés tels quels le jour choisi.</span>
+            Envoyer automatiquement ce qui ne pose pas de question
+            <span className="text-[13px] text-[#73757c]">
+              Le jour choisi, les données sont remises à jour et le rapport part. Il attend une relecture s’il manque des mesures, si un incident a eu lieu, s’il n’a pas de destinataire, ou si vous l’avez remis en brouillon. Les admins sont prévenus de ce qui reste.
+            </span>
           </span>
         </label>
         {values.auto_send && (
