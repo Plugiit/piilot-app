@@ -532,53 +532,6 @@
         }
       }
     },
-    "/api/v1/admin/accounts/invitations/{id}/resend": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Renvoyer une invitation",
-        "description": "Nouveau lien, valable sept jours ; l'ancien cesse de valoir. Exige users.write.",
-        "operationId": "resendAdminInvitation",
-        "security": [
-          {
-            "sessionCookie": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Nouveau lien",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SentLink"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
     "/api/v1/admin/accounts/invitations/{id}": {
       "delete": {
         "tags": [
@@ -10887,7 +10840,7 @@
           "admin"
         ],
         "summary": "Valider un rapport",
-        "description": "Le brouillon est figé, prêt à partir. Exige reports.write.",
+        "description": "Le brouillon est figé, prêt à partir. generated_at est la version relue : 409 si ses données ont changé depuis. Exige reports.write.",
         "operationId": "postAdminReportValidate",
         "security": [
           {
@@ -10926,6 +10879,25 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "generated_at"
+                ],
+                "properties": {
+                  "generated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -11119,7 +11091,8 @@
                 "type": "object",
                 "required": [
                   "excluded",
-                  "extra"
+                  "extra",
+                  "manual_review"
                 ],
                 "properties": {
                   "excluded": {
@@ -11136,6 +11109,9 @@
                       "type": "string",
                       "format": "email"
                     }
+                  },
+                  "manual_review": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -13406,7 +13382,12 @@
               "deliverable_feedback",
               "update_available",
               "backup_stale",
-              "inbound_email_held"
+              "inbound_email_held",
+              "report_attention",
+              "site_backup_stale",
+              "domain_expiring",
+              "domain_check_failed",
+              "site_update_failed"
             ]
           },
           "payload": {
@@ -21060,7 +21041,10 @@
           "availability",
           "audience",
           "interventions",
-          "deployments"
+          "deployments",
+          "updates",
+          "backups",
+          "domain"
         ],
         "properties": {
           "month": {
@@ -21135,6 +21119,36 @@
                 "type": "null"
               }
             ]
+          },
+          "updates": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportUpdates"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backups": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportBackups"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportDomains"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -21152,7 +21166,11 @@
           "generated_at",
           "validated_at",
           "sent_at",
-          "recipients"
+          "recipients",
+          "held",
+          "hold_reasons",
+          "undelivered",
+          "emails_pending"
         ],
         "properties": {
           "id": {
@@ -21221,6 +21239,28 @@
               "type": "string"
             },
             "description": "Envoyé : à qui il est parti. Sinon : à qui il partirait."
+          },
+          "held": {
+            "type": "boolean",
+            "description": "Remis en relecture par un admin : l'envoi automatique ne le prend pas."
+          },
+          "hold_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Codes de ce qui retient l'envoi automatique."
+          },
+          "undelivered": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Adresses que la file d'envoi a abandonnées."
+          },
+          "emails_pending": {
+            "type": "integer",
+            "description": "E-mails du rapport encore en file."
           }
         }
       },
@@ -21234,7 +21274,10 @@
           "plan_name",
           "has_editorial",
           "generated_at",
-          "sent_at"
+          "sent_at",
+          "held",
+          "hold_reasons",
+          "undelivered"
         ],
         "properties": {
           "id": {
@@ -21271,6 +21314,20 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "held": {
+            "type": "boolean"
+          },
+          "hold_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Codes de ce qui retient l'envoi automatique."
+          },
+          "undelivered": {
+            "type": "integer",
+            "description": "Nombre d'adresses abandonnées par la file d'envoi."
           }
         }
       },
@@ -21380,7 +21437,8 @@
         "type": "object",
         "required": [
           "contacts",
-          "extra"
+          "extra",
+          "manual_review"
         ],
         "properties": {
           "contacts": {
@@ -21394,6 +21452,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "manual_review": {
+            "type": "boolean",
+            "description": "Le rapport de ce projet ne part jamais tout seul."
           }
         }
       },
@@ -21629,6 +21691,503 @@
             "items": {
               "$ref": "#/components/schemas/PortalJourneyStep"
             }
+          }
+        }
+      },
+      "ReportUpdate": {
+        "type": "object",
+        "required": [
+          "title",
+          "merged_at",
+          "security"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "merged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "security": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReportUpdates": {
+        "type": "object",
+        "required": [
+          "dependency_count",
+          "security_count",
+          "other_count",
+          "items",
+          "runs"
+        ],
+        "properties": {
+          "dependency_count": {
+            "type": "integer"
+          },
+          "security_count": {
+            "type": "integer"
+          },
+          "other_count": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportUpdate"
+            }
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportUpdateRun"
+            }
+          },
+          "last_run_failed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReportBackups": {
+        "type": "object",
+        "required": [
+          "successes",
+          "failures",
+          "last_success_at",
+          "last_restore_test_on"
+        ],
+        "properties": {
+          "successes": {
+            "type": "integer"
+          },
+          "failures": {
+            "type": "integer"
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_restore_test_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "healthy": {
+            "type": "boolean",
+            "description": "À la fin du mois : une sauvegarde réussie dans le délai attendu, et pas d'échec depuis."
+          }
+        }
+      },
+      "ReportDomain": {
+        "type": "object",
+        "required": [
+          "domain",
+          "expires_at",
+          "days_left"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "days_left": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReportDomains": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportDomain"
+            }
+          }
+        }
+      },
+      "SiteBackupRun": {
+        "type": "object",
+        "required": [
+          "status",
+          "size_bytes",
+          "message",
+          "finished_at"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SiteBackupView": {
+        "type": "object",
+        "required": [
+          "expected_hours",
+          "last_success_at",
+          "last_failure_at",
+          "last_restore_test_on",
+          "healthy",
+          "runs"
+        ],
+        "properties": {
+          "expected_hours": {
+            "type": "integer"
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_failure_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_restore_test_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteBackupRun"
+            }
+          }
+        }
+      },
+      "SiteDomain": {
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "expires_at",
+          "days_left",
+          "checked_at",
+          "failing"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "days_left": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "failing": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SiteSources": {
+        "type": "object",
+        "required": [
+          "hook_url",
+          "backup",
+          "domains"
+        ],
+        "properties": {
+          "hook_url": {
+            "type": "string"
+          },
+          "backup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SiteBackupView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteDomain"
+            }
+          }
+        }
+      },
+      "SiteBackupToken": {
+        "type": "object",
+        "required": [
+          "token",
+          "hook_url"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Montré une seule fois."
+          },
+          "hook_url": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportUpdateRun": {
+        "type": "object",
+        "required": [
+          "environment",
+          "finished_at"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SiteUpdateTarget": {
+        "type": "object",
+        "required": [
+          "environment",
+          "workflow",
+          "ref",
+          "every_days",
+          "enabled"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "workflow": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "every_days": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SiteUpdateRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "environment",
+          "workflow",
+          "ref",
+          "status",
+          "trigger",
+          "message",
+          "run_url",
+          "requested_at",
+          "dispatched_at",
+          "finished_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "workflow": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "dispatching",
+              "dispatched",
+              "success",
+              "failed",
+              "timed_out"
+            ]
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "schedule"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "run_url": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dispatched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SiteUpdates": {
+        "type": "object",
+        "required": [
+          "repo",
+          "repo_supported",
+          "token_configured",
+          "hook_url",
+          "target",
+          "runs",
+          "repo_changed"
+        ],
+        "properties": {
+          "repo": {
+            "type": "string"
+          },
+          "repo_supported": {
+            "type": "boolean",
+            "description": "Un dépôt GitHub : GitLab n'est pas pris en charge ici."
+          },
+          "token_configured": {
+            "type": "boolean"
+          },
+          "hook_url": {
+            "type": "string"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SiteUpdateTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteUpdateRun"
+            }
+          },
+          "repo_changed": {
+            "type": "boolean",
+            "description": "Le dépôt du projet n'est plus celui confirmé avec la cible : rien ne part sans nouvel enregistrement."
+          }
+        }
+      },
+      "SiteUpdateTokenStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "updated_at"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       }

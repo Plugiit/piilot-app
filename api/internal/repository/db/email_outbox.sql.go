@@ -13,7 +13,7 @@ import (
 )
 
 const claimDueEmail = `-- name: ClaimDueEmail :one
-SELECT id, kind, to_address, subject, text_body, html_body, status, attempts, next_attempt_at, last_error, created_at, sent_at, reply_to, message_id, in_reply_to FROM email_outbox
+SELECT id, kind, to_address, subject, text_body, html_body, status, attempts, next_attempt_at, last_error, created_at, sent_at, reply_to, message_id, in_reply_to, report_id FROM email_outbox
 WHERE status = 'pending' AND next_attempt_at <= now()
 ORDER BY next_attempt_at
 LIMIT 1
@@ -40,6 +40,7 @@ func (q *Queries) ClaimDueEmail(ctx context.Context) (EmailOutbox, error) {
 		&i.ReplyTo,
 		&i.MessageID,
 		&i.InReplyTo,
+		&i.ReportID,
 	)
 	return i, err
 }

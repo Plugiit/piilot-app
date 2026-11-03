@@ -40,11 +40,12 @@ RETURNING id;
 -- name: RegenerateReport :execrows
 UPDATE reports
 SET plan_name = sqlc.arg('plan_name'), included_minutes = sqlc.arg('included_minutes'), sections = sqlc.arg('sections'),
-    payload = sqlc.arg('payload'), generated_at = now(), updated_at = now()
+    generated_at = CASE WHEN payload IS DISTINCT FROM sqlc.arg('payload') THEN now() ELSE generated_at END,
+    payload = sqlc.arg('payload'), checked_at = now(), updated_at = now()
 WHERE id = sqlc.arg('id') AND status = 'draft';
 
 -- name: GetReport :one
-SELECT r.*, p.name AS project_name, p.client_id, c.name AS client_name
+SELECT r.*, p.name AS project_name, p.client_id, p.deleted_at AS project_deleted_at, c.name AS client_name
 FROM reports r
 JOIN projects p ON p.id = r.project_id
 LEFT JOIN clients c ON c.id = p.client_id
@@ -56,7 +57,8 @@ WHERE r.month = sqlc.arg('month')::date AND (sqlc.narg('status')::text IS NULL O
 
 -- name: ListReports :many
 SELECT r.id, r.project_id, p.name AS project_name, c.name AS client_name, r.month, r.status, r.plan_name,
-       r.generated_at, r.validated_at, r.sent_at, (r.editorial <> '')::boolean AS has_editorial
+       r.generated_at, r.validated_at, r.sent_at, (r.editorial <> '')::boolean AS has_editorial,
+       r.held, r.hold_reasons, r.undelivered
 FROM reports r
 JOIN projects p ON p.id = r.project_id
 LEFT JOIN clients c ON c.id = p.client_id
@@ -75,11 +77,20 @@ UPDATE reports SET editorial = sqlc.arg('editorial'), updated_at = now()
 WHERE id = sqlc.arg('id') AND status = 'draft';
 
 -- name: ValidateReport :execrows
-UPDATE reports SET status = 'validated', validated_at = now(), validated_by = sqlc.narg('user_id'), updated_at = now()
-WHERE id = sqlc.arg('id') AND status = 'draft';
+UPDATE reports SET status = 'validated', validated_at = now(), validated_by = sqlc.narg('user_id'), held = false, hold_reasons = '{}', updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'draft' AND generated_at = sqlc.arg('seen');
+
+-- name: AutoValidateReport :execrows
+-- L'envoi automatique, dans la transaction de l'envoi : rien ne reste valide
+-- sans etre parti, et ce qu'un admin retient reste retenu.
+UPDATE reports SET status = 'validated', validated_at = now(), updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'draft' AND NOT held AND hold_reasons = '{}'
+  AND NOT EXISTS (SELECT 1 FROM project_report_manual_review m WHERE m.project_id = reports.project_id);
 
 -- name: UnvalidateReport :execrows
-UPDATE reports SET status = 'draft', validated_at = NULL, validated_by = NULL, updated_at = now()
+-- Remis en relecture par un admin : l'envoi automatique le laisse tranquille
+-- jusqu'a sa prochaine validation.
+UPDATE reports SET status = 'draft', validated_at = NULL, validated_by = NULL, held = true, updated_at = now()
 WHERE id = sqlc.arg('id') AND status = 'validated';
 
 -- name: MarkReportSent :execrows
@@ -87,8 +98,79 @@ UPDATE reports SET status = 'sent', sent_at = now(), recipients = sqlc.arg('reci
 WHERE id = sqlc.arg('id') AND status = 'validated';
 
 -- name: ListReportsToSend :many
--- L'envoi automatique : les rapports du mois pas encore envoyes.
-SELECT id, status FROM reports WHERE month = sqlc.arg('month')::date AND status <> 'sent' LIMIT 200;
+-- L'envoi automatique : les rapports du mois pas encore envoyes, sauf ceux
+-- qu'un admin retient et les projets en relecture obligatoire.
+SELECT r.id, r.status
+FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month = sqlc.arg('month')::date AND r.status <> 'sent' AND NOT r.held
+  AND NOT EXISTS (SELECT 1 FROM project_report_manual_review m WHERE m.project_id = r.project_id)
+LIMIT 200;
+
+-- name: ListDraftsToRefresh :many
+-- Les brouillons du mois dont les donnees datent : une intervention saisie en
+-- retard, ou l'audience arrivee depuis, doit y entrer sans geste de personne.
+SELECT r.id FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month = sqlc.arg('month')::date AND r.status = 'draft' AND coalesce(r.checked_at, r.generated_at) < sqlc.arg('before')::timestamptz
+LIMIT 200;
+
+-- name: SetReportHoldReasons :exec
+UPDATE reports SET hold_reasons = sqlc.arg('hold_reasons')
+WHERE id = sqlc.arg('id') AND status = 'draft';
+
+-- name: ReportAttention :one
+-- Ce qui demande un admin, du mois ecoule et des deux precedents.
+SELECT count(*) FILTER (WHERE r.status <> 'sent' AND r.month = sqlc.arg('month')::date)::integer AS unsent,
+       count(*) FILTER (WHERE r.status <> 'sent' AND r.month < sqlc.arg('month')::date)::integer AS overdue,
+       count(*) FILTER (WHERE r.status <> 'sent' AND r.month = sqlc.arg('month')::date AND (r.held OR r.hold_reasons <> '{}'))::integer AS retained,
+       count(*) FILTER (WHERE r.status = 'sent' AND r.undelivered <> '{}')::integer AS undelivered
+FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month >= (sqlc.arg('month')::date - interval '2 months');
+
+-- name: EnqueueReportEmail :exec
+-- Un e-mail de rapport connait son rapport : son abandon se reporte dessus.
+INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body, reply_to, message_id, in_reply_to, report_id)
+VALUES (sqlc.arg('kind'), sqlc.arg('to_address'), sqlc.arg('subject'), sqlc.arg('text_body'), sqlc.arg('html_body'),
+        sqlc.arg('reply_to'), sqlc.arg('message_id'), sqlc.arg('in_reply_to'), sqlc.arg('report_id'));
+
+-- name: AddReportUndelivered :exec
+-- Sans toucher updated_at : le declencheur fige tout le reste d'un rapport
+-- envoye.
+UPDATE reports SET undelivered = array_append(undelivered, sqlc.arg('address')::text)
+WHERE id = sqlc.arg('id') AND NOT (sqlc.arg('address')::text = ANY(undelivered));
+
+-- name: LockReportUndelivered :one
+-- Une adresse abandonnee pendant la relance ne doit pas etre effacee sans
+-- avoir ete relancee.
+SELECT undelivered FROM reports WHERE id = sqlc.arg('id') AND status = 'sent' FOR UPDATE;
+
+-- name: ClearReportUndelivered :execrows
+UPDATE reports SET undelivered = '{}'
+WHERE id = sqlc.arg('id') AND status = 'sent' AND undelivered <> '{}';
+
+-- name: CountReportEmailsPending :one
+SELECT count(*)::integer FROM email_outbox WHERE report_id = sqlc.arg('report_id') AND status = 'pending';
+
+-- name: LastReportAttention :one
+-- La derniere alerte, et ce qu'elle disait : on ne repete pas une situation
+-- inchangee plus d'une fois par jour.
+SELECT created_at, payload
+FROM notifications
+WHERE kind = 'report_attention'
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: IsReportManualReview :one
+SELECT EXISTS (SELECT 1 FROM project_report_manual_review WHERE project_id = sqlc.arg('project_id'));
+
+-- name: SetReportManualReview :exec
+INSERT INTO project_report_manual_review (project_id) VALUES (sqlc.arg('project_id'))
+ON CONFLICT (project_id) DO NOTHING;
+
+-- name: UnsetReportManualReview :exec
+DELETE FROM project_report_manual_review WHERE project_id = sqlc.arg('project_id');
 
 -- name: ListPortalReports :many
 -- Les rapports envoyes d'un projet : l'archive du client.
@@ -197,3 +279,13 @@ FROM deployments
 WHERE project_id = sqlc.arg('project_id') AND deployed_at >= sqlc.arg('since') AND deployed_at < sqlc.arg('until')
 ORDER BY deployed_at
 LIMIT 50;
+
+-- name: ListReportAdmins :many
+-- Qui prevenir de ce qui menace un site ou un rapport : les comptes actifs qui
+-- peuvent le traiter.
+SELECT u.id, u.email, u.firstname
+FROM users u
+JOIN roles r ON r.code = u.role
+JOIN role_permissions rp ON rp.role_id = r.id
+JOIN permissions p ON p.id = rp.permission_id AND p.code = 'reports.write'
+WHERE u.deleted_at IS NULL AND u.disabled_at IS NULL;

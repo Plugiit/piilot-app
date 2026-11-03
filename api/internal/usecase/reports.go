@@ -611,13 +611,23 @@ func (s *ReportService) Regenerate(ctx context.Context, id uuid.UUID) (ReportVie
 }
 
 // Validate fige un brouillon : il est pret a partir.
-func (s *ReportService) Validate(ctx context.Context, id, userID uuid.UUID) (ReportView, error) {
-	n, err := s.q.ValidateReport(ctx, db.ValidateReportParams{ID: id, UserID: &userID})
+//
+// seen est la version que l'admin a sous les yeux : les donnees d'un brouillon
+// suivent ce qui se saisit encore, il ne valide pas ce qu'il n'a pas lu.
+func (s *ReportService) Validate(ctx context.Context, id, userID uuid.UUID, seen time.Time) (ReportView, error) {
+	n, err := s.q.ValidateReport(ctx, db.ValidateReportParams{ID: id, UserID: &userID, Seen: seen})
 	if err != nil {
 		return ReportView{}, fmt.Errorf("validation du rapport : %w", err)
 	}
 	if n == 0 {
-		return ReportView{}, s.lockedOrMissing(ctx, id)
+		row, _, err := s.load(ctx, id)
+		if err != nil {
+			return ReportView{}, err
+		}
+		if row.Status == "draft" {
+			return ReportView{}, domain.ErrConflict.WithMessage("Ses données ont changé depuis votre lecture : relisez-le avant de le valider")
+		}
+		return ReportView{}, errReportLocked
 	}
 	return s.Get(ctx, id)
 }

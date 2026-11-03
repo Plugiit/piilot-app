@@ -12,6 +12,63 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+const addReportUndelivered = `-- name: AddReportUndelivered :exec
+UPDATE reports SET undelivered = array_append(undelivered, $1::text)
+WHERE id = $2 AND NOT ($1::text = ANY(undelivered))
+`
+
+type AddReportUndeliveredParams struct {
+	Address string    `json:"address"`
+	ID      uuid.UUID `json:"id"`
+}
+
+// Sans toucher updated_at : le declencheur fige tout le reste d'un rapport
+// envoye.
+func (q *Queries) AddReportUndelivered(ctx context.Context, arg AddReportUndeliveredParams) error {
+	_, err := q.db.Exec(ctx, addReportUndelivered, arg.Address, arg.ID)
+	return err
+}
+
+const autoValidateReport = `-- name: AutoValidateReport :execrows
+UPDATE reports SET status = 'validated', validated_at = now(), updated_at = now()
+WHERE id = $1 AND status = 'draft' AND NOT held AND hold_reasons = '{}'
+  AND NOT EXISTS (SELECT 1 FROM project_report_manual_review m WHERE m.project_id = reports.project_id)
+`
+
+// L'envoi automatique, dans la transaction de l'envoi : rien ne reste valide
+// sans etre parti, et ce qu'un admin retient reste retenu.
+func (q *Queries) AutoValidateReport(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, autoValidateReport, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearReportUndelivered = `-- name: ClearReportUndelivered :execrows
+UPDATE reports SET undelivered = '{}'
+WHERE id = $1 AND status = 'sent' AND undelivered <> '{}'
+`
+
+func (q *Queries) ClearReportUndelivered(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, clearReportUndelivered, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const countReportEmailsPending = `-- name: CountReportEmailsPending :one
+SELECT count(*)::integer FROM email_outbox WHERE report_id = $1 AND status = 'pending'
+`
+
+func (q *Queries) CountReportEmailsPending(ctx context.Context, reportID *uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, countReportEmailsPending, reportID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countReports = `-- name: CountReports :one
 SELECT count(*)::integer FROM reports r
 WHERE r.month = $1::date AND ($2::text IS NULL OR r.status = $2)
@@ -67,8 +124,42 @@ func (q *Queries) DeleteProjectReportRecipients(ctx context.Context, projectID u
 	return err
 }
 
+const enqueueReportEmail = `-- name: EnqueueReportEmail :exec
+INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body, reply_to, message_id, in_reply_to, report_id)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7, $8, $9)
+`
+
+type EnqueueReportEmailParams struct {
+	Kind      string     `json:"kind"`
+	ToAddress string     `json:"to_address"`
+	Subject   string     `json:"subject"`
+	TextBody  string     `json:"text_body"`
+	HtmlBody  string     `json:"html_body"`
+	ReplyTo   string     `json:"reply_to"`
+	MessageID string     `json:"message_id"`
+	InReplyTo string     `json:"in_reply_to"`
+	ReportID  *uuid.UUID `json:"report_id"`
+}
+
+// Un e-mail de rapport connait son rapport : son abandon se reporte dessus.
+func (q *Queries) EnqueueReportEmail(ctx context.Context, arg EnqueueReportEmailParams) error {
+	_, err := q.db.Exec(ctx, enqueueReportEmail,
+		arg.Kind,
+		arg.ToAddress,
+		arg.Subject,
+		arg.TextBody,
+		arg.HtmlBody,
+		arg.ReplyTo,
+		arg.MessageID,
+		arg.InReplyTo,
+		arg.ReportID,
+	)
+	return err
+}
+
 const getPortalReport = `-- name: GetPortalReport :one
-SELECT r.id, r.project_id, r.month, r.status, r.plan_name, r.included_minutes, r.sections, r.payload, r.editorial, r.generated_at, r.validated_at, r.validated_by, r.sent_at, r.recipients, r.updated_at, p.name AS project_name
+SELECT r.id, r.project_id, r.month, r.status, r.plan_name, r.included_minutes, r.sections, r.payload, r.editorial, r.generated_at, r.validated_at, r.validated_by, r.sent_at, r.recipients, r.updated_at, r.held, r.hold_reasons, r.undelivered, r.checked_at, p.name AS project_name
 FROM reports r
 JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
 WHERE r.id = $1 AND r.status = 'sent' AND p.client_id = $2
@@ -95,6 +186,10 @@ type GetPortalReportRow struct {
 	SentAt          *time.Time `json:"sent_at"`
 	Recipients      []string   `json:"recipients"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Held            bool       `json:"held"`
+	HoldReasons     []string   `json:"hold_reasons"`
+	Undelivered     []string   `json:"undelivered"`
+	CheckedAt       *time.Time `json:"checked_at"`
 	ProjectName     string     `json:"project_name"`
 }
 
@@ -118,6 +213,10 @@ func (q *Queries) GetPortalReport(ctx context.Context, arg GetPortalReportParams
 		&i.SentAt,
 		&i.Recipients,
 		&i.UpdatedAt,
+		&i.Held,
+		&i.HoldReasons,
+		&i.Undelivered,
+		&i.CheckedAt,
 		&i.ProjectName,
 	)
 	return i, err
@@ -154,7 +253,7 @@ func (q *Queries) GetProjectPlanForMonth(ctx context.Context, arg GetProjectPlan
 }
 
 const getReport = `-- name: GetReport :one
-SELECT r.id, r.project_id, r.month, r.status, r.plan_name, r.included_minutes, r.sections, r.payload, r.editorial, r.generated_at, r.validated_at, r.validated_by, r.sent_at, r.recipients, r.updated_at, p.name AS project_name, p.client_id, c.name AS client_name
+SELECT r.id, r.project_id, r.month, r.status, r.plan_name, r.included_minutes, r.sections, r.payload, r.editorial, r.generated_at, r.validated_at, r.validated_by, r.sent_at, r.recipients, r.updated_at, r.held, r.hold_reasons, r.undelivered, r.checked_at, p.name AS project_name, p.client_id, p.deleted_at AS project_deleted_at, c.name AS client_name
 FROM reports r
 JOIN projects p ON p.id = r.project_id
 LEFT JOIN clients c ON c.id = p.client_id
@@ -162,24 +261,29 @@ WHERE r.id = $1
 `
 
 type GetReportRow struct {
-	ID              uuid.UUID  `json:"id"`
-	ProjectID       uuid.UUID  `json:"project_id"`
-	Month           time.Time  `json:"month"`
-	Status          string     `json:"status"`
-	PlanName        string     `json:"plan_name"`
-	IncludedMinutes int32      `json:"included_minutes"`
-	Sections        []string   `json:"sections"`
-	Payload         []byte     `json:"payload"`
-	Editorial       string     `json:"editorial"`
-	GeneratedAt     time.Time  `json:"generated_at"`
-	ValidatedAt     *time.Time `json:"validated_at"`
-	ValidatedBy     *uuid.UUID `json:"validated_by"`
-	SentAt          *time.Time `json:"sent_at"`
-	Recipients      []string   `json:"recipients"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	ProjectName     string     `json:"project_name"`
-	ClientID        uuid.UUID  `json:"client_id"`
-	ClientName      *string    `json:"client_name"`
+	ID               uuid.UUID  `json:"id"`
+	ProjectID        uuid.UUID  `json:"project_id"`
+	Month            time.Time  `json:"month"`
+	Status           string     `json:"status"`
+	PlanName         string     `json:"plan_name"`
+	IncludedMinutes  int32      `json:"included_minutes"`
+	Sections         []string   `json:"sections"`
+	Payload          []byte     `json:"payload"`
+	Editorial        string     `json:"editorial"`
+	GeneratedAt      time.Time  `json:"generated_at"`
+	ValidatedAt      *time.Time `json:"validated_at"`
+	ValidatedBy      *uuid.UUID `json:"validated_by"`
+	SentAt           *time.Time `json:"sent_at"`
+	Recipients       []string   `json:"recipients"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	Held             bool       `json:"held"`
+	HoldReasons      []string   `json:"hold_reasons"`
+	Undelivered      []string   `json:"undelivered"`
+	CheckedAt        *time.Time `json:"checked_at"`
+	ProjectName      string     `json:"project_name"`
+	ClientID         uuid.UUID  `json:"client_id"`
+	ProjectDeletedAt *time.Time `json:"project_deleted_at"`
+	ClientName       *string    `json:"client_name"`
 }
 
 func (q *Queries) GetReport(ctx context.Context, id uuid.UUID) (GetReportRow, error) {
@@ -201,8 +305,13 @@ func (q *Queries) GetReport(ctx context.Context, id uuid.UUID) (GetReportRow, er
 		&i.SentAt,
 		&i.Recipients,
 		&i.UpdatedAt,
+		&i.Held,
+		&i.HoldReasons,
+		&i.Undelivered,
+		&i.CheckedAt,
 		&i.ProjectName,
 		&i.ClientID,
+		&i.ProjectDeletedAt,
 		&i.ClientName,
 	)
 	return i, err
@@ -283,6 +392,73 @@ func (q *Queries) InsertReport(ctx context.Context, arg InsertReportParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const isReportManualReview = `-- name: IsReportManualReview :one
+SELECT EXISTS (SELECT 1 FROM project_report_manual_review WHERE project_id = $1)
+`
+
+func (q *Queries) IsReportManualReview(ctx context.Context, projectID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isReportManualReview, projectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const lastReportAttention = `-- name: LastReportAttention :one
+SELECT created_at, payload
+FROM notifications
+WHERE kind = 'report_attention'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type LastReportAttentionRow struct {
+	CreatedAt time.Time `json:"created_at"`
+	Payload   []byte    `json:"payload"`
+}
+
+// La derniere alerte, et ce qu'elle disait : on ne repete pas une situation
+// inchangee plus d'une fois par jour.
+func (q *Queries) LastReportAttention(ctx context.Context) (LastReportAttentionRow, error) {
+	row := q.db.QueryRow(ctx, lastReportAttention)
+	var i LastReportAttentionRow
+	err := row.Scan(&i.CreatedAt, &i.Payload)
+	return i, err
+}
+
+const listDraftsToRefresh = `-- name: ListDraftsToRefresh :many
+SELECT r.id FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month = $1::date AND r.status = 'draft' AND coalesce(r.checked_at, r.generated_at) < $2::timestamptz
+LIMIT 200
+`
+
+type ListDraftsToRefreshParams struct {
+	Month  time.Time `json:"month"`
+	Before time.Time `json:"before"`
+}
+
+// Les brouillons du mois dont les donnees datent : une intervention saisie en
+// retard, ou l'audience arrivee depuis, doit y entrer sans geste de personne.
+func (q *Queries) ListDraftsToRefresh(ctx context.Context, arg ListDraftsToRefreshParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listDraftsToRefresh, arg.Month, arg.Before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPortalReports = `-- name: ListPortalReports :many
@@ -402,9 +578,47 @@ func (q *Queries) ListProjectReportExtraRecipients(ctx context.Context, projectI
 	return items, nil
 }
 
+const listReportAdmins = `-- name: ListReportAdmins :many
+SELECT u.id, u.email, u.firstname
+FROM users u
+JOIN roles r ON r.code = u.role
+JOIN role_permissions rp ON rp.role_id = r.id
+JOIN permissions p ON p.id = rp.permission_id AND p.code = 'reports.write'
+WHERE u.deleted_at IS NULL AND u.disabled_at IS NULL
+`
+
+type ListReportAdminsRow struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	Firstname string    `json:"firstname"`
+}
+
+// Qui prevenir de ce qui menace un site ou un rapport : les comptes actifs qui
+// peuvent le traiter.
+func (q *Queries) ListReportAdmins(ctx context.Context) ([]ListReportAdminsRow, error) {
+	rows, err := q.db.Query(ctx, listReportAdmins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReportAdminsRow{}
+	for rows.Next() {
+		var i ListReportAdminsRow
+		if err := rows.Scan(&i.ID, &i.Email, &i.Firstname); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReports = `-- name: ListReports :many
 SELECT r.id, r.project_id, p.name AS project_name, c.name AS client_name, r.month, r.status, r.plan_name,
-       r.generated_at, r.validated_at, r.sent_at, (r.editorial <> '')::boolean AS has_editorial
+       r.generated_at, r.validated_at, r.sent_at, (r.editorial <> '')::boolean AS has_editorial,
+       r.held, r.hold_reasons, r.undelivered
 FROM reports r
 JOIN projects p ON p.id = r.project_id
 LEFT JOIN clients c ON c.id = p.client_id
@@ -432,6 +646,9 @@ type ListReportsRow struct {
 	ValidatedAt  *time.Time `json:"validated_at"`
 	SentAt       *time.Time `json:"sent_at"`
 	HasEditorial bool       `json:"has_editorial"`
+	Held         bool       `json:"held"`
+	HoldReasons  []string   `json:"hold_reasons"`
+	Undelivered  []string   `json:"undelivered"`
 }
 
 func (q *Queries) ListReports(ctx context.Context, arg ListReportsParams) ([]ListReportsRow, error) {
@@ -460,6 +677,9 @@ func (q *Queries) ListReports(ctx context.Context, arg ListReportsParams) ([]Lis
 			&i.ValidatedAt,
 			&i.SentAt,
 			&i.HasEditorial,
+			&i.Held,
+			&i.HoldReasons,
+			&i.Undelivered,
 		); err != nil {
 			return nil, err
 		}
@@ -525,7 +745,12 @@ func (q *Queries) ListReportsDue(ctx context.Context, arg ListReportsDueParams) 
 }
 
 const listReportsToSend = `-- name: ListReportsToSend :many
-SELECT id, status FROM reports WHERE month = $1::date AND status <> 'sent' LIMIT 200
+SELECT r.id, r.status
+FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month = $1::date AND r.status <> 'sent' AND NOT r.held
+  AND NOT EXISTS (SELECT 1 FROM project_report_manual_review m WHERE m.project_id = r.project_id)
+LIMIT 200
 `
 
 type ListReportsToSendRow struct {
@@ -533,7 +758,8 @@ type ListReportsToSendRow struct {
 	Status string    `json:"status"`
 }
 
-// L'envoi automatique : les rapports du mois pas encore envoyes.
+// L'envoi automatique : les rapports du mois pas encore envoyes, sauf ceux
+// qu'un admin retient et les projets en relecture obligatoire.
 func (q *Queries) ListReportsToSend(ctx context.Context, month time.Time) ([]ListReportsToSendRow, error) {
 	rows, err := q.db.Query(ctx, listReportsToSend, month)
 	if err != nil {
@@ -552,6 +778,19 @@ func (q *Queries) ListReportsToSend(ctx context.Context, month time.Time) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockReportUndelivered = `-- name: LockReportUndelivered :one
+SELECT undelivered FROM reports WHERE id = $1 AND status = 'sent' FOR UPDATE
+`
+
+// Une adresse abandonnee pendant la relance ne doit pas etre effacee sans
+// avoir ete relancee.
+func (q *Queries) LockReportUndelivered(ctx context.Context, id uuid.UUID) ([]string, error) {
+	row := q.db.QueryRow(ctx, lockReportUndelivered, id)
+	var undelivered []string
+	err := row.Scan(&undelivered)
+	return undelivered, err
 }
 
 const markReportSent = `-- name: MarkReportSent :execrows
@@ -575,7 +814,8 @@ func (q *Queries) MarkReportSent(ctx context.Context, arg MarkReportSentParams) 
 const regenerateReport = `-- name: RegenerateReport :execrows
 UPDATE reports
 SET plan_name = $1, included_minutes = $2, sections = $3,
-    payload = $4, generated_at = now(), updated_at = now()
+    generated_at = CASE WHEN payload IS DISTINCT FROM $4 THEN now() ELSE generated_at END,
+    payload = $4, checked_at = now(), updated_at = now()
 WHERE id = $5 AND status = 'draft'
 `
 
@@ -599,6 +839,36 @@ func (q *Queries) RegenerateReport(ctx context.Context, arg RegenerateReportPara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const reportAttention = `-- name: ReportAttention :one
+SELECT count(*) FILTER (WHERE r.status <> 'sent' AND r.month = $1::date)::integer AS unsent,
+       count(*) FILTER (WHERE r.status <> 'sent' AND r.month < $1::date)::integer AS overdue,
+       count(*) FILTER (WHERE r.status <> 'sent' AND r.month = $1::date AND (r.held OR r.hold_reasons <> '{}'))::integer AS retained,
+       count(*) FILTER (WHERE r.status = 'sent' AND r.undelivered <> '{}')::integer AS undelivered
+FROM reports r
+JOIN projects p ON p.id = r.project_id AND p.deleted_at IS NULL
+WHERE r.month >= ($1::date - interval '2 months')
+`
+
+type ReportAttentionRow struct {
+	Unsent      int32 `json:"unsent"`
+	Overdue     int32 `json:"overdue"`
+	Retained    int32 `json:"retained"`
+	Undelivered int32 `json:"undelivered"`
+}
+
+// Ce qui demande un admin, du mois ecoule et des deux precedents.
+func (q *Queries) ReportAttention(ctx context.Context, month time.Time) (ReportAttentionRow, error) {
+	row := q.db.QueryRow(ctx, reportAttention, month)
+	var i ReportAttentionRow
+	err := row.Scan(
+		&i.Unsent,
+		&i.Overdue,
+		&i.Retained,
+		&i.Undelivered,
+	)
+	return i, err
 }
 
 const reportAudienceSnapshot = `-- name: ReportAudienceSnapshot :one
@@ -944,11 +1214,47 @@ func (q *Queries) SetReportEditorial(ctx context.Context, arg SetReportEditorial
 	return result.RowsAffected(), nil
 }
 
+const setReportHoldReasons = `-- name: SetReportHoldReasons :exec
+UPDATE reports SET hold_reasons = $1
+WHERE id = $2 AND status = 'draft'
+`
+
+type SetReportHoldReasonsParams struct {
+	HoldReasons []string  `json:"hold_reasons"`
+	ID          uuid.UUID `json:"id"`
+}
+
+func (q *Queries) SetReportHoldReasons(ctx context.Context, arg SetReportHoldReasonsParams) error {
+	_, err := q.db.Exec(ctx, setReportHoldReasons, arg.HoldReasons, arg.ID)
+	return err
+}
+
+const setReportManualReview = `-- name: SetReportManualReview :exec
+INSERT INTO project_report_manual_review (project_id) VALUES ($1)
+ON CONFLICT (project_id) DO NOTHING
+`
+
+func (q *Queries) SetReportManualReview(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setReportManualReview, projectID)
+	return err
+}
+
+const unsetReportManualReview = `-- name: UnsetReportManualReview :exec
+DELETE FROM project_report_manual_review WHERE project_id = $1
+`
+
+func (q *Queries) UnsetReportManualReview(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, unsetReportManualReview, projectID)
+	return err
+}
+
 const unvalidateReport = `-- name: UnvalidateReport :execrows
-UPDATE reports SET status = 'draft', validated_at = NULL, validated_by = NULL, updated_at = now()
+UPDATE reports SET status = 'draft', validated_at = NULL, validated_by = NULL, held = true, updated_at = now()
 WHERE id = $1 AND status = 'validated'
 `
 
+// Remis en relecture par un admin : l'envoi automatique le laisse tranquille
+// jusqu'a sa prochaine validation.
 func (q *Queries) UnvalidateReport(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, unvalidateReport, id)
 	if err != nil {
@@ -984,17 +1290,18 @@ func (q *Queries) UpdateReportSettings(ctx context.Context, arg UpdateReportSett
 }
 
 const validateReport = `-- name: ValidateReport :execrows
-UPDATE reports SET status = 'validated', validated_at = now(), validated_by = $1, updated_at = now()
-WHERE id = $2 AND status = 'draft'
+UPDATE reports SET status = 'validated', validated_at = now(), validated_by = $1, held = false, hold_reasons = '{}', updated_at = now()
+WHERE id = $2 AND status = 'draft' AND generated_at = $3
 `
 
 type ValidateReportParams struct {
 	UserID *uuid.UUID `json:"user_id"`
 	ID     uuid.UUID  `json:"id"`
+	Seen   time.Time  `json:"seen"`
 }
 
 func (q *Queries) ValidateReport(ctx context.Context, arg ValidateReportParams) (int64, error) {
-	result, err := q.db.Exec(ctx, validateReport, arg.UserID, arg.ID)
+	result, err := q.db.Exec(ctx, validateReport, arg.UserID, arg.ID, arg.Seen)
 	if err != nil {
 		return 0, err
 	}
