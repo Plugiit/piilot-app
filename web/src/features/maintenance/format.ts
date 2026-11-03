@@ -14,15 +14,15 @@ export const INTERVENTION_KINDS = Object.keys(INTERVENTION_KIND) as Intervention
 
 type Section = MaintenancePlan['sections'][number]
 
-/** Les sections du rapport ; celles de la 1.6 n'ont pas encore de donnees. */
-export const REPORT_SECTIONS: { key: Section; label: string; soon?: boolean }[] = [
+/** Les sections du rapport. */
+export const REPORT_SECTIONS: { key: Section; label: string }[] = [
   { key: 'availability', label: 'Disponibilité' },
   { key: 'audience', label: 'Audience' },
   { key: 'interventions', label: 'Interventions' },
   { key: 'deployments', label: 'Mises en ligne' },
-  { key: 'updates', label: 'Mises à jour', soon: true },
-  { key: 'backups', label: 'Sauvegardes', soon: true },
-  { key: 'domain', label: 'Domaine', soon: true },
+  { key: 'updates', label: 'Mises à jour' },
+  { key: 'backups', label: 'Sauvegardes' },
+  { key: 'domain', label: 'Domaine' },
 ]
 
 const MONTH = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' })
