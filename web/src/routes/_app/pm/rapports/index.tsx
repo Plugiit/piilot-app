@@ -128,6 +128,14 @@ function ReportsPage() {
                         {r.client_name !== '' && `${r.client_name} · `}formule {r.plan_name}
                         {r.has_editorial ? ' · mot du mois rédigé' : ''}
                       </span>
+                      {r.undelivered > 0 && (
+                        <span className="truncate text-[12px] text-[#9a6a00]">
+                          {r.undelivered} adresse{r.undelivered > 1 ? 's' : ''} non remise{r.undelivered > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {r.status === 'draft' && (r.held || r.hold_reasons.length > 0) && (
+                        <span className="truncate text-[12px] text-[#9a6a00]">Ne partira pas tout seul : à relire</span>
+                      )}
                     </span>
                     <span className="hidden text-[12px] text-[#73757c] sm:block">
                       {r.sent_at !== null ? `envoyé le ${WHEN.format(new Date(r.sent_at))}` : `généré le ${WHEN.format(new Date(r.generated_at))}`}
