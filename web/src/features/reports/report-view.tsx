@@ -19,6 +19,7 @@ import type { ReportData } from '@/types/api'
  */
 const DAY = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' })
 const DAY_SHORT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
+const DAY_YEAR = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 const TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 export function ReportView({ data, editorial }: { data: ReportData; editorial: string }) {
@@ -49,6 +50,9 @@ export function ReportView({ data, editorial }: { data: ReportData; editorial: s
       {data.audience !== null && <Audience section={data.audience} />}
       {data.interventions !== null && <Interventions section={data.interventions} />}
       {data.deployments !== null && <Deployments section={data.deployments} />}
+      {data.updates !== null && <Updates section={data.updates} />}
+      {data.backups !== null && <Backups section={data.backups} />}
+      {data.domain !== null && <Domains section={data.domain} />}
     </article>
   )
 }
@@ -187,6 +191,62 @@ function Interventions({ section }: { section: NonNullable<ReportData['intervent
           ))}
         </ul>
       )}
+    </Section>
+  )
+}
+
+function Updates({ section }: { section: NonNullable<ReportData['updates']> }) {
+  const production = section.runs.filter((r) => r.environment === 'prod').length
+  const preprod = section.runs.length - production
+  return (
+    <Section title="Mises à jour">
+      <ul className="flex flex-col gap-0.5 text-[14px] text-[#1b1b1b]">
+        {section.dependency_count > 0 && <li>{section.dependency_count} mise{section.dependency_count > 1 ? 's' : ''} à jour de dépendances</li>}
+        {section.security_count > 0 && <li>{section.security_count} correctif{section.security_count > 1 ? 's' : ''} de sécurité</li>}
+        {production > 0 && <li>{production} mise{production > 1 ? 's' : ''} à jour en production</li>}
+        {preprod > 0 && <li>{preprod} mise{preprod > 1 ? 's' : ''} à jour en préproduction</li>}
+      </ul>
+      {section.items.length > 0 && (
+        <ul className="flex flex-col">
+          {section.items.map((u) => (
+            <li key={u.title + (u.merged_at ?? '')} className="flex flex-wrap items-baseline gap-x-3 border-b border-[#f3f4f4] py-2 text-[14px] last:border-b-0">
+              <span className="w-[80px] text-[13px] text-[#73757c]">{u.merged_at !== null ? DAY_SHORT.format(new Date(u.merged_at)) : ''}</span>
+              <span className="min-w-0 flex-1 break-words text-[#1b1b1b]">{u.title}</span>
+              {u.security && <span className="text-[13px] text-[#73757c]">sécurité</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  )
+}
+
+function Backups({ section }: { section: NonNullable<ReportData['backups']> }) {
+  return (
+    <Section title="Sauvegardes">
+      <p className="text-[14px] text-[#1b1b1b]">
+        {section.successes} sauvegarde{section.successes > 1 ? 's' : ''} réussie{section.successes > 1 ? 's' : ''} ce mois-ci
+        {section.failures > 0 && `, ${section.failures} en échec`}.
+      </p>
+      <p className="text-[13px] text-[#73757c]">
+        {section.last_success_at !== null ? `Dernière réussie le ${DAY.format(new Date(section.last_success_at))}.` : 'Aucune sauvegarde réussie à ce jour.'}
+        {section.last_restore_test_on !== null && ` Dernier test de restauration le ${DAY.format(new Date(section.last_restore_test_on))}.`}
+      </p>
+    </Section>
+  )
+}
+
+function Domains({ section }: { section: NonNullable<ReportData['domain']> }) {
+  return (
+    <Section title="Domaine">
+      <ul className="flex flex-col">
+        {section.items.map((d) => (
+          <li key={d.domain} className="flex flex-wrap items-baseline gap-x-3 border-b border-[#f3f4f4] py-2 text-[14px] last:border-b-0">
+            <span className="min-w-0 basis-full break-words text-[#1b1b1b] sm:flex-1 sm:basis-0">{d.domain}</span>
+            <span className="text-[13px] text-[#73757c]">{d.expires_at !== null ? `échéance le ${DAY_YEAR.format(new Date(d.expires_at))}` : 'échéance inconnue'}</span>
+          </li>
+        ))}
+      </ul>
     </Section>
   )
 }
