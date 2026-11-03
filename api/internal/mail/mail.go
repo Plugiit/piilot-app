@@ -290,6 +290,14 @@ func TicketToTeam(to, firstname string, created bool, numero int64, subject, pro
 	return compose("ticket_team", to, v, "ticket.html", text)
 }
 
+// SiteAlert previent un admin de ce qui menace un site : une mise a jour en
+// echec, des sauvegardes muettes, un domaine qui expire.
+func SiteAlert(to, firstname, subject, message, url string) (Message, error) {
+	v := view{Subject: subject, Title: subject, Action: "Voir le projet", URL: url, Firstname: firstname, Lead: message}
+	text := fmt.Sprintf("Bonjour%s,\n\n%s\n\nVoir le projet :\n\n%s\n", prefixed(firstname), message, url)
+	return compose("site_alert", to, v, "ops_alert.html", text)
+}
+
 func compose(kind, to string, v view, content, text string) (Message, error) {
 	tpl, err := htmltemplate.ParseFS(templates, "templates/layout.html", "templates/"+content)
 	if err != nil {
