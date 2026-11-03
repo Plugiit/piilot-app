@@ -160,3 +160,13 @@ export function unwrap<T>(result: {
 
   return result.data as T
 }
+
+/** Les messages d'une reponse 422, par champ. Vide pour toute autre erreur. */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof HttpError) || error.status !== 422) return {}
+  const out: Record<string, string> = {}
+  for (const [field, message] of Object.entries(error.details)) {
+    if (typeof message === 'string') out[field] = message
+  }
+  return out
+}
