@@ -2,3 +2,6 @@
 .idea/
 .vscode/
 .env
+
+# Sorties du navigateur de test
+.playwright-mcp/
