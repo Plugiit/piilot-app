@@ -68,8 +68,16 @@ var adminOnly = []string{"roles.write", "system.update", "users.write"}
 // voit que ses propres projets ; lui ouvrir une permission du back-office
 // n'aurait pas de sens.
 var clientPermissions = []string{
-	"deliverables.read", "deliverables.validate", "projects.read", "tickets.read", "tickets.write",
+	"deliverables.read", "deliverables.validate", "discord.link", "projects.read", "tickets.read", "tickets.write",
 }
+
+// botRole et botPermissions : le role des cles machine et ce qu'il exerce,
+// sous /api/v1/bot seulement. Ni l'un ni les autres ne paraissent dans l'ecran
+// des roles : ils ne s'attribuent pas a un compte, et leurs permissions ne se
+// reglent que par migration.
+const botRole = "bot"
+
+var botPermissions = []string{"discord.read", "discord.redeem", "events.read"}
 
 // permissionGroups range les permissions par domaine, pour l'ecran des roles.
 var permissionGroups = map[string]string{
@@ -77,6 +85,7 @@ var permissionGroups = map[string]string{
 	"tickets": "Tickets", "time": "Temps passé", "clients": "CRM",
 	"users": "Comptes", "roles": "Rôles", "system": "Système",
 	"dashboard": "Pilotage", "budgets": "Pilotage", "pipeline": "CRM",
+	"discord": "Discord",
 }
 
 // ClientRef designe le client d'un compte de portail.
@@ -670,6 +679,9 @@ func (s *AccountService) Roles(ctx context.Context) (RoleMatrix, error) {
 	all := make([]string, 0, len(perms))
 	matrix := RoleMatrix{Permissions: make([]PermissionInfo, 0, len(perms))}
 	for _, p := range perms {
+		if slices.Contains(botPermissions, p.Code) {
+			continue
+		}
 		all = append(all, p.Code)
 		prefix, _, _ := strings.Cut(p.Code, ".")
 		group := permissionGroups[prefix]
@@ -686,6 +698,9 @@ func (s *AccountService) Roles(ctx context.Context) (RoleMatrix, error) {
 	slices.SortStableFunc(roles, func(a, b db.Role) int { return rank(order, a.Code) - rank(order, b.Code) })
 
 	for _, r := range roles {
+		if r.Code == botRole {
+			continue
+		}
 		info := RoleInfo{
 			Code: r.Code, Label: r.Label, Users: users[r.Code],
 			Permissions: nonNil(byRole[r.Code]), Grantable: grantableFor(r.Code, all),
@@ -705,7 +720,7 @@ func (s *AccountService) Roles(ctx context.Context) (RoleMatrix, error) {
 
 // SetRolePermissions remplace les permissions d'un role.
 func (s *AccountService) SetRolePermissions(ctx context.Context, role string, permissions []string) (RoleMatrix, error) {
-	if role == "admin" {
+	if role == "admin" || role == botRole {
 		return RoleMatrix{}, ErrRoleLocked
 	}
 	if _, err := s.q.GetRoleByCode(ctx, role); err != nil {
@@ -721,7 +736,9 @@ func (s *AccountService) SetRolePermissions(ctx context.Context, role string, pe
 	}
 	all := make([]string, 0, len(perms))
 	for _, p := range perms {
-		all = append(all, p.Code)
+		if !slices.Contains(botPermissions, p.Code) {
+			all = append(all, p.Code)
+		}
 	}
 	grantable := grantableFor(role, all)
 
