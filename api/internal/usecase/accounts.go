@@ -503,10 +503,21 @@ func (s *AccountService) SetRole(ctx context.Context, actor, id uuid.UUID, role 
 		}
 	}
 
-	if err := s.q.SetUserRole(ctx, db.SetUserRoleParams{ID: id, Role: role}); err != nil {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+
+	if err := q.SetUserRole(ctx, db.SetUserRoleParams{ID: id, Role: role}); err != nil {
 		return fmt.Errorf("changement de role : %w", err)
 	}
-	return nil
+	// Un compte lie a Discord y change de role lui aussi.
+	if err := syncDiscordLink(ctx, q, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // Disable desactive un compte et ferme toutes ses sessions.
@@ -543,19 +554,39 @@ func (s *AccountService) Disable(ctx context.Context, actor, id uuid.UUID) error
 	if err := q.InvalidateUserPasswordResets(ctx, id); err != nil {
 		return fmt.Errorf("annulation des liens de reinitialisation : %w", err)
 	}
+	// Sur Discord aussi, le compte perd ses roles.
+	if err := syncDiscordLink(ctx, q, id); err != nil {
+		return err
+	}
 
 	return tx.Commit(ctx)
 }
 
 // Enable reactive un compte.
 func (s *AccountService) Enable(ctx context.Context, actor, id uuid.UUID) error {
-	if _, err := s.guardChange(ctx, actor, id); err != nil {
+	user, err := s.guardChange(ctx, actor, id)
+	if err != nil {
 		return err
 	}
-	if err := s.q.EnableUser(ctx, id); err != nil {
+	if user.DisabledAt == nil {
+		return nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("ouverture de la transaction : %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+
+	if err := q.EnableUser(ctx, id); err != nil {
 		return fmt.Errorf("reactivation : %w", err)
 	}
-	return nil
+	// Un compte lie retrouve ses roles sur Discord.
+	if err := syncDiscordLink(ctx, q, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // PasswordResetLink cree un lien de reinitialisation pour un compte, a la
