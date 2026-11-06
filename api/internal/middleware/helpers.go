@@ -24,6 +24,17 @@ func requestID(c fiber.Ctx) string {
 	return requestid.FromContext(c)
 }
 
+// routePattern rend le motif de la route servie (« /api/v1/bot/discord-links/
+// :discord_user_id »), jamais le chemin recu : ses segments portent des
+// identifiants Discord, des jetons d'invitation ou de reinitialisation, qui
+// n'ont rien a faire dans un journal.
+func routePattern(c fiber.Ctx) string {
+	if route := c.Route(); route != nil {
+		return route.Path
+	}
+	return ""
+}
+
 func asFiberError(err error, target **fiber.Error) bool {
 	return errors.As(err, target)
 }

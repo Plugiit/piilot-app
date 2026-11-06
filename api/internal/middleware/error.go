@@ -28,7 +28,7 @@ func ErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 			if domainErr.Status >= 500 {
 				log.Error("erreur serveur",
 					"code", domainErr.Code,
-					"path", c.Path(),
+					"path", routePattern(c),
 					"method", c.Method(),
 					"request_id", requestID(c),
 					"error", err,
@@ -53,7 +53,7 @@ func ErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 		}
 
 		log.Error("erreur non geree",
-			"path", c.Path(),
+			"path", routePattern(c),
 			"method", c.Method(),
 			"request_id", requestID(c),
 			"error", err,
