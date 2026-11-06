@@ -3672,6 +3672,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/me/discord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liaison Discord du compte
+         * @description Exige discord.link.
+         */
+        get: operations["getMyDiscordLink"];
+        put?: never;
+        post?: never;
+        /**
+         * Délier son compte Discord
+         * @description Idempotent. Si le compte était lié, le bot reçoit discord_link.removed. Exige discord.link.
+         */
+        delete: operations["deleteMyDiscordLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/discord/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tirer un code de liaison Discord
+         * @description 8 caractères, valables 10 minutes, à usage unique. En tirer un invalide le précédent. Le membre le tape dans Discord : /lier code:XXXX-XXXX. Exige discord.link.
+         */
+        post: operations["createMyDiscordLinkCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/discord-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Toutes les liaisons, pour une réconciliation
+         * @description Au démarrage du bot, ou quand son curseur est perdu ou périmé (410 sur /bot/events). Gardez events_cursor de la première page, parcourez toutes les pages, puis reprenez le flux à partir de ce curseur : ce qui change pendant le parcours arrive par le flux. Pagination par curseur et non par page — écart assumé au format {items, total, page, page_size} : une liaison retirée pendant le parcours décalerait les suivantes, et une page numérotée en sauterait une. Seuls les comptes actifs y figurent. Exige discord.read.
+         */
+        get: operations["listDiscordLinks"];
+        put?: never;
+        /**
+         * Racheter un code de liaison
+         * @description Le bot transmet le code tapé par le membre et son identifiant Discord. Le code est consommé dès qu'il est reconnu, même si la liaison échoue ensuite (409). Si le compte était lié à un autre compte Discord, la nouvelle liaison remplace l'ancienne. Déjà lié au même compte : 201, rien ne change. Limité à 5 essais par membre et 60 au total par quart d'heure. Exige discord.redeem.
+         */
+        post: operations["redeemDiscordLinkCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/discord-links/{discord_user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liaison d'un membre Discord
+         * @description À l'arrivée d'un membre sur le serveur. Un compte désactivé ou supprimé n'a plus de liaison. Exige discord.read.
+         */
+        get: operations["getDiscordLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Flux d'événements
+         * @description Les événements qui suivent un curseur, par identifiant croissant, visibles dans cet ordre. Écrits dans la transaction du changement qu'ils racontent. Pagination par curseur : un flux n'a pas de total, d'où l'écart au format {items, total, page, page_size}. Conservés 30 jours. Exige events.read.
+         */
+        get: operations["listBotEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6885,6 +6993,95 @@ export interface components {
             configured: boolean;
             /** Format: date-time */
             updated_at: string | null;
+        };
+        /**
+         * @description Identifiant Discord (snowflake). Toujours en chaîne : en nombre JSON, il perdrait ses derniers chiffres.
+         * @example 123456789012345678
+         */
+        DiscordUserId: string;
+        /**
+         * @description Code du rôle du compte lié. admin et team sont l'équipe de l'agence, client un compte du portail.
+         * @enum {string}
+         */
+        DiscordRole: "admin" | "team" | "client";
+        /** @description Curseur opaque du flux d'événements : à garder et à rendre tel quel. */
+        BotCursor: string;
+        /** @description Carte « Discord » du compte connecté. */
+        DiscordStatus: {
+            /** @description Au moins une clé du bot est active. Sans elle, un code ne servirait à rien : l'écran peut masquer la carte. */
+            available: boolean;
+            linked: boolean;
+            discord_user_id: string | null;
+            /** Format: date-time */
+            linked_at: string | null;
+        };
+        DiscordCode: {
+            /**
+             * @description Base32 de Crockford. À la saisie, la casse et le tiret sont indifférents, O vaut 0, I et L valent 1.
+             * @example K7QM-4XZD
+             */
+            code: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description Une liaison telle que le bot la voit : le code du rôle seulement, ni nom ni adresse. Des champs pourront s'ajouter (le client du compte) : ignorez ceux que vous ne connaissez pas. */
+        DiscordLink: {
+            discord_user_id: components["schemas"]["DiscordUserId"];
+            role: components["schemas"]["DiscordRole"];
+            /** Format: date-time */
+            linked_at: string;
+        };
+        DiscordLinkCreated: {
+            discord_user_id: components["schemas"]["DiscordUserId"];
+            role: components["schemas"]["DiscordRole"];
+            /** Format: date-time */
+            linked_at: string;
+            /** @description L'ancien compte Discord du compte, s'il était lié à un autre : retirez-lui ses rôles. */
+            replaced_discord_user_id: string | null;
+        };
+        /** @description Une page de toutes les liaisons actives, par identifiant Discord croissant. */
+        DiscordLinkPage: {
+            items: components["schemas"]["DiscordLink"][];
+            /** @description À passer en after pour la page suivante ; null sur la dernière page. */
+            next_after: string | null;
+            /** @description Curseur du flux au moment de la lecture. Gardez celui de la première page : une fois la liste parcourue, reprenez le flux à partir de lui. */
+            events_cursor: components["schemas"]["BotCursor"];
+        };
+        /** @description Liaison créée, ou rôle du compte changé (y compris sa réactivation) alors qu'il est lié : attribuez les rôles Discord de ce rôle. */
+        DiscordLinkUpsertedEvent: {
+            id: components["schemas"]["BotCursor"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "discord_link.upserted";
+            /** Format: date-time */
+            occurred_at: string;
+            data: {
+                discord_user_id: components["schemas"]["DiscordUserId"];
+                role: components["schemas"]["DiscordRole"];
+            };
+        };
+        /** @description Liaison supprimée ou remplacée, compte désactivé ou supprimé : retirez les rôles Discord de ce membre. */
+        DiscordLinkRemovedEvent: {
+            id: components["schemas"]["BotCursor"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "discord_link.removed";
+            /** Format: date-time */
+            occurred_at: string;
+            data: {
+                discord_user_id: components["schemas"]["DiscordUserId"];
+            };
+        };
+        /** @description Un événement du flux. D'autres types viendront (notifications du PM) : ignorez ceux que vous ne connaissez pas. Chaque événement est idempotent, le relire ne fait pas de mal. */
+        BotEvent: components["schemas"]["DiscordLinkUpsertedEvent"] | components["schemas"]["DiscordLinkRemovedEvent"];
+        BotEventPage: {
+            items: components["schemas"]["BotEvent"][];
+            /** @description Jamais null : sur une page vide, c'est le curseur reçu. À reposer tel quel au prochain appel. */
+            next_after: components["schemas"]["BotCursor"];
         };
     };
     responses: {
@@ -13482,6 +13679,229 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getMyDiscordLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Carte « Discord » */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    deleteMyDiscordLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plus de liaison */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createMyDiscordLinkCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Code tiré */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordCode"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listDiscordLinks: {
+        parameters: {
+            query?: {
+                /** @description next_after de la page précédente ; absent pour la première. */
+                after?: components["schemas"]["DiscordUserId"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de liaisons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordLinkPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    redeemDiscordLinkCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Tel que tapé : casse et tiret indifférents.
+                     * @example k7qm-4xzd
+                     */
+                    code: string;
+                    discord_user_id: components["schemas"]["DiscordUserId"];
+                };
+            };
+        };
+        responses: {
+            /** @description Comptes liés */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordLinkCreated"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description LINK_CODE_INVALID : code inconnu, expiré, déjà utilisé ou remplacé, sans distinction. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DISCORD_ALREADY_LINKED : ce compte Discord est lié à un autre compte. Le code est consommé. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["RateLimited"];
+            /** @description SERVICE_UNAVAILABLE : le compteur d'essais est injoignable, le rachat est refusé. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getDiscordLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                discord_user_id: components["schemas"]["DiscordUserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Liaison actuelle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordLink"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description DISCORD_LINK_NOT_FOUND : aucun compte actif lié à ce membre. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listBotEvents: {
+        parameters: {
+            query?: {
+                /** @description next_after de l'appel précédent ; absent, le flux part du plus ancien événement conservé. */
+                after?: components["schemas"]["BotCursor"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page du flux */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotEventPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description EVENTS_CURSOR_EXPIRED : des événements postérieurs au curseur ont été purgés. Reprenez la liste complète (GET /bot/discord-links). */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             422: components["responses"]["ValidationFailed"];
         };
     };
