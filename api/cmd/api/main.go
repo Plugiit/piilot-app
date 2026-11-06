@@ -149,6 +149,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
 	portalService.SetLinkSecret(cfg.JWTSecret)
 
+	// Le bot Discord : ses cles, la liaison des comptes et le flux qu'il relit.
+	// Les codes de liaison sont haches sous une cle derivee du secret des jetons.
+	discordService := usecase.NewDiscordService(pool, cfg.JWTSecret)
+	botEventService := usecase.NewBotEventService(pool)
+	guard := middleware.NewGuard(signer, authService)
+	guard.SetBotKeys(usecase.NewBotKeyService(pool))
+
 	clientService := usecase.NewClientService(pool)
 	timeEntries := usecase.NewTimeEntryService(pool)
 	milestoneService := usecase.NewMilestoneService(pool)
@@ -204,7 +211,9 @@ func run(cfg config.Config, log *slog.Logger) error {
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
-		Guard:         middleware.NewGuard(signer, authService),
+		Discord:       handler.NewDiscord(discordService, repository.NewRateLimiter(rdb)),
+		BotEvents:     handler.NewBotEvents(botEventService),
+		Guard:         guard,
 	})
 
 	// Le front, en dernier : il ne recoit que ce qu'aucune route d'API n'a pris.
@@ -259,6 +268,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Mises a jour des sites : la CI fait le travail, Piilot la commande et
 	// surveille son compte rendu.
 	repository.StartSiteUpdates(ctx, siteUpdateService, log)
+	// Bot Discord : codes de liaison expires et vieux evenements du flux.
+	repository.StartBotPurge(ctx, log, discordService, botEventService)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
