@@ -65,6 +65,7 @@ var auditRules = map[string]auditRule{
 	"PUT /api/v1/admin/integrations/git/actions-token":          {action: "site_update.token_changed"},
 	"DELETE /api/v1/admin/integrations/git/actions-token":       {action: "site_update.token_removed"},
 	"POST /api/v1/auth/me/password":                             {action: "auth.password_changed"},
+	"DELETE /api/v1/auth/me/discord":                            {action: "discord.unlinked"},
 	"PATCH /api/v1/auth/me":                                     {action: "account.email_changed", fields: []string{"email"}, onlyIf: []string{"email"}},
 	"POST /api/v1/auth/password/reset/:token":                   {action: "auth.password_reset"},
 	"POST /api/v1/auth/invitations/:token/accept":               {action: "invitation.accepted"},
@@ -141,6 +142,10 @@ func (h *Audit) Middleware(c fiber.Ctx) error {
 		h.login(c, status)
 		return err
 	}
+	if key == "POST /api/v1/bot/discord-links" {
+		h.redeem(c, status, err)
+		return err
+	}
 
 	rule, ok := auditRules[key]
 	if !ok || status >= 400 {
@@ -202,6 +207,28 @@ func (h *Audit) login(c fiber.Ctx, status int) {
 		h.record(c, usecase.AuditEntry{Action: "auth.login_rate_limited", Details: map[string]any{"email": email}})
 	case status == fiber.StatusUnauthorized || status == fiber.StatusForbidden:
 		h.record(c, usecase.AuditEntry{Action: "auth.login_failed", Details: map[string]any{"email": email}})
+	}
+}
+
+// redeem ecrit les rachats de code du bot, reussis ou non, comme les
+// connexions : une campagne de devinette doit se voir. Jamais de code ni
+// d'identifiant Discord ; la cle du bot qui a agi, toujours.
+func (h *Audit) redeem(c fiber.Ctx, status int, err error) {
+	details := map[string]any{}
+	if caller, ok := middleware.BotCallerFrom(c); ok {
+		details["bot_key_id"] = caller.KeyID.String()
+	}
+
+	switch {
+	case status < 300:
+		h.record(c, usecase.AuditEntry{ActorID: actorOf(c), Action: "discord.linked", Details: details})
+	case status == fiber.StatusTooManyRequests:
+		h.record(c, usecase.AuditEntry{Action: "discord.redeem_rate_limited", Details: details})
+	case status == fiber.StatusNotFound || status == fiber.StatusConflict:
+		if e, ok := domain.AsError(err); ok {
+			details["reason"] = e.Code
+		}
+		h.record(c, usecase.AuditEntry{Action: "discord.redeem_failed", Details: details})
 	}
 }
 
