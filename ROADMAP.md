@@ -456,7 +456,9 @@ effacer.
 - **RGPD** : export de tout ce qui concerne un client ou un compte (JSON et
   fichiers, dans une archive), suppression définitive avec délai de
   rétractation, purge des comptes inactifs selon une durée réglable. Chaque
-  export et suppression au journal d'audit.
+  export et suppression au journal d'audit. La liaison Discord y entre par
+  `DiscordService.Export` et `DiscordService.Forget`, déjà écrits : l'oubli
+  prévient le bot dans la transaction de la suppression.
 
 ---
 
@@ -563,3 +565,4 @@ Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 | **D10** | Santé du site | Déléguée à Uptime Kuma, que l'agence fait déjà tourner : Piilot relève son /metrics et reçoit son webhook (1.3). Pas de sonde maison, pas de SEO. |
 | **D12** | Mises à jour des sites | Piilot commande, il n'exécute pas : workflow GitHub Actions du dépôt, sur l'environnement choisi par projet, avec compte rendu obligatoire. Une panne de Piilot ne touche aucun site. GitHub d'abord ; GitLab ne connaît pas `workflow_dispatch`. |
 | **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
+| **D13** | Bot Discord | Chantier hors version, prioritaire, indépendant du reste : accès machine par clé sous `/api/v1/bot`, liaison d'un compte par code à usage unique, flux d'événements relu par le bot. Piilot n'appelle jamais Discord. Les notifications (livrable à valider, réponse à un ticket), `/ticket`, `/projet` et un salon par client passeront par le même flux. Voir [le bot Discord](docs/discord.md). |
