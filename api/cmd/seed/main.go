@@ -105,6 +105,12 @@ func run() error {
 		acc.role = "admin"
 	}
 
+	// Le role des cles machine ne se porte pas par un compte : la base le
+	// refuserait, avec un message illisible.
+	if acc.role == "bot" {
+		return errors.New("le rôle bot est réservé aux clés du bot : utilisez la commande bot-key")
+	}
+
 	// Le role doit exister : la contrainte de cle etrangere le refuserait de
 	// toute facon, mais avec un message Postgres illisible.
 	if _, err := q.GetRoleByCode(ctx, acc.role); err != nil {
