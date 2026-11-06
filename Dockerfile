@@ -77,6 +77,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-w -s" \
     -o /out/seed ./cmd/seed \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-w -s" \
+    -o /out/bot-key ./cmd/botkey \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
     -ldflags="-w -s -X main.version=${VERSION}" \
     -o /out/updater ./cmd/updater \
@@ -126,6 +128,9 @@ COPY --from=api /out/api /app/api
 # La commande d'amorcage voyage avec l'image : un deploiement neuf a une table
 # users vide, et sans elle personne ne peut se connecter.
 COPY --from=api /out/seed /app/seed
+# Les cles du bot Discord se creent et se revoquent depuis le terminal du
+# conteneur : pas d'ecran pour ce geste rare.
+COPY --from=api /out/bot-key /app/bot-key
 # L'updater voyage dans la meme image, mais tourne dans son propre conteneur
 # (service « updater » du docker-compose) : c'est lui, et lui seul, qui recoit
 # le socket Docker.
@@ -146,6 +151,7 @@ COPY --from=web --chown=app:app /src/web/dist /app/public
 # selon le nom sous lequel il est appele.
 RUN ln -s /app/seed /usr/local/bin/create-admin \
     && ln -s /app/seed /usr/local/bin/seed \
+    && ln -s /app/bot-key /usr/local/bin/bot-key \
     && ln -s /app/backup /usr/local/bin/backup
 
 # Pieces jointes : a monter sur un volume persistant, sinon elles
