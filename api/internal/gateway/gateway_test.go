@@ -226,3 +226,20 @@ func TestClientIP(t *testing.T) {
 		}
 	}
 }
+
+func TestLogPathCoupeLesIdentifiants(t *testing.T) {
+	cases := map[string]string{
+		"/api/v1/bot/discord-links/123456789012345678": "/api/v1/bot/discord-links/…",
+		"/api/v1/auth/invitations/jeton-secret/accept": "/api/v1/auth/invitations/…",
+		"/api/v1/bot/events":                           "/api/v1/bot/events",
+		"/invitation/jeton-secret":                     "/invitation/…",
+		"/reinitialiser/jeton-secret":                  "/reinitialiser/…",
+		"/projets":                                     "/projets",
+		"/":                                            "/",
+	}
+	for in, want := range cases {
+		if got := logPath(in); got != want {
+			t.Errorf("logPath(%q) = %q, attendu %q", in, got, want)
+		}
+	}
+}
