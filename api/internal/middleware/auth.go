@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -33,16 +34,90 @@ type PermissionChecker interface {
 	ActiveRole(ctx context.Context, userID uuid.UUID) (role string, active bool, err error)
 }
 
+// BotKeyChecker repond a « cette cle du bot est-elle active, avec quel role ».
+// Declare ici pour la meme raison que PermissionChecker.
+type BotKeyChecker interface {
+	AuthenticateBotKey(ctx context.Context, raw string) (role string, keyID uuid.UUID, ok bool, err error)
+}
+
+// botCallerKey indexe l'appelant machine pose par Bot.
+const botCallerKey = "auth.bot"
+
+// BotCaller est un appel du bot : la cle presentee et le role qu'elle porte.
+// Pas de compte derriere — UserIDFrom reste vide, et le journal d'audit ne
+// prete le geste a personne.
+type BotCaller struct {
+	KeyID uuid.UUID
+	Role  string
+}
+
 // Guard construit les middlewares d'authentification et d'autorisation.
 type Guard struct {
 	signer      *security.TokenSigner
 	permissions PermissionChecker
+	botKeys     BotKeyChecker
 }
 
 // NewGuard construit le garde a partir du signeur et du verificateur de
 // permissions.
 func NewGuard(signer *security.TokenSigner, permissions PermissionChecker) *Guard {
 	return &Guard{signer: signer, permissions: permissions}
+}
+
+// SetBotKeys branche la verification des cles du bot. Sans elle, Bot refuse
+// tout appel.
+func (g *Guard) SetBotKeys(keys BotKeyChecker) { g.botKeys = keys }
+
+// Bot authentifie un appel machine du bot : « Authorization: Bearer <cle> ».
+//
+// Cloisonnement dans les deux sens. Une cle n'est lue qu'ici, donc seulement
+// sous /api/v1/bot : Authenticated ignore l'en-tete Authorization. Et une
+// session n'entre pas ici : le bot appelle de serveur a serveur et n'a jamais
+// de cookie ; un cookie de session signe un navigateur, qui n'a rien a faire
+// sur ces routes, meme muni d'une cle.
+func (g *Guard) Bot(c fiber.Ctx) error {
+	if c.Cookies(AccessCookieName) != "" {
+		return domain.ErrUnauthorized
+	}
+	if g.botKeys == nil {
+		return domain.ErrUnauthorized
+	}
+	raw, ok := strings.CutPrefix(c.Get(fiber.HeaderAuthorization), "Bearer ")
+	if !ok || raw == "" {
+		return domain.ErrUnauthorized
+	}
+
+	role, keyID, ok, err := g.botKeys.AuthenticateBotKey(c.Context(), raw)
+	if err != nil {
+		// Une panne de lecture ne doit pas ouvrir l'acces : on refuse.
+		return domain.ErrInternal.WithCause(err)
+	}
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+
+	c.Locals(botCallerKey, &BotCaller{KeyID: keyID, Role: role})
+	c.Locals(guardKey, g)
+
+	return c.Next()
+}
+
+// BotCallerFrom lit l'appelant machine pose par Bot.
+func BotCallerFrom(c fiber.Ctx) (*BotCaller, bool) {
+	caller, ok := c.Locals(botCallerKey).(*BotCaller)
+	return caller, ok
+}
+
+// roleFrom rend le role de l'appelant, session ou cle du bot. Une requete ne
+// passe que par l'une des deux gardes : il n'y a jamais les deux.
+func roleFrom(c fiber.Ctx) (string, bool) {
+	if claims, ok := ClaimsFrom(c); ok {
+		return claims.Role, true
+	}
+	if caller, ok := BotCallerFrom(c); ok {
+		return caller.Role, true
+	}
+	return "", false
 }
 
 // Authenticated rejette la requete si le cookie d'acces est absent ou invalide.
@@ -111,12 +186,12 @@ func (g *Guard) RequireRole(roles ...string) fiber.Handler {
 // role de rendre modifiable sans redeploiement.
 func (g *Guard) RequirePermission(permission string) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		claims, ok := ClaimsFrom(c)
+		role, ok := roleFrom(c)
 		if !ok {
 			return domain.ErrUnauthorized
 		}
 
-		granted, err := g.permissions.HasPermission(c.Context(), claims.Role, permission)
+		granted, err := g.permissions.HasPermission(c.Context(), role, permission)
 		if err != nil {
 			// Une panne de lecture ne doit pas ouvrir l'acces : on refuse.
 			return domain.ErrInternal.WithCause(err)
@@ -136,7 +211,7 @@ func (g *Guard) RequirePermission(permission string) fiber.Handler {
 // projets se lit avec `projects.read`, ses heures vendues avec `budgets.read`.
 // Refuser toute la liste pour un champ serait trop ; le montrer a tous, faux.
 func Can(c fiber.Ctx, permission string) (bool, error) {
-	claims, ok := ClaimsFrom(c)
+	role, ok := roleFrom(c)
 	if !ok {
 		return false, domain.ErrUnauthorized
 	}
@@ -146,7 +221,7 @@ func Can(c fiber.Ctx, permission string) (bool, error) {
 		return false, domain.ErrUnauthorized
 	}
 
-	granted, err := g.permissions.HasPermission(c.Context(), claims.Role, permission)
+	granted, err := g.permissions.HasPermission(c.Context(), role, permission)
 	if err != nil {
 		return false, domain.ErrInternal.WithCause(err)
 	}
