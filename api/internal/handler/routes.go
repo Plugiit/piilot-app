@@ -45,6 +45,8 @@ type Deps struct {
 	Templates     *ProjectTemplates
 	Interactions  *Interactions
 	Portal        *Portal
+	Discord       *Discord
+	BotEvents     *BotEvents
 
 	Guard *middleware.Guard
 }
@@ -73,6 +75,7 @@ func Register(app *fiber.App, deps Deps) {
 	registerAuthRoutes(v1.Group("/auth"), deps)
 	registerAdminRoutes(v1.Group("/admin"), deps)
 	registerClientRoutes(v1.Group("/client"), deps)
+	registerBotRoutes(v1.Group("/bot"), deps)
 
 	// Webhooks entrants, sans session : la signature fait office de preuve.
 	v1.Post("/hooks/git", deps.Git.Webhook)
@@ -132,6 +135,21 @@ func registerClientRoutes(r fiber.Router, deps Deps) {
 	r.Post("/tickets/:id/files", deps.Guard.RequirePermission("tickets.write"), deps.Portal.AttachToTicket)
 }
 
+// registerBotRoutes monte l'API du bot Discord, appelee de serveur a serveur.
+//
+// Une cle du bot, et rien d'autre : pas de session, pas de CORS. La garde Bot
+// refuse un cookie de session, et Authenticated ignore une cle — chacune reste
+// dans son espace. Le droit precis se verifie ensuite par permission, comme
+// partout, sur le role que porte la cle.
+func registerBotRoutes(r fiber.Router, deps Deps) {
+	r.Use(deps.Guard.Bot)
+
+	r.Post("/discord-links", deps.Guard.RequirePermission("discord.redeem"), deps.Discord.Redeem)
+	r.Get("/discord-links", deps.Guard.RequirePermission("discord.read"), deps.Discord.Links)
+	r.Get("/discord-links/:discord_user_id", deps.Guard.RequirePermission("discord.read"), deps.Discord.Link)
+	r.Get("/events", deps.Guard.RequirePermission("events.read"), deps.BotEvents.List)
+}
+
 // registerAuthRoutes monte les endpoints publics d'authentification.
 //
 // login, logout et refresh sont ouverts : ils portent leur propre preuve
@@ -154,6 +172,12 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 	r.Post("/me/password", deps.Guard.Authenticated, deps.Auth.ChangePassword)
 	r.Post("/me/avatar", deps.Guard.Authenticated, deps.Auth.UploadAvatar)
 	r.Delete("/me/avatar", deps.Guard.Authenticated, deps.Auth.DeleteAvatar)
+
+	// Liaison du compte a Discord : la carte des deux espaces, back-office et
+	// portail. Chacun ne touche que sa propre liaison.
+	r.Get("/me/discord", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.Status)
+	r.Post("/me/discord/code", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.CreateCode)
+	r.Delete("/me/discord", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.Unlink)
 
 	// Les photos se lisent entre comptes connectes : elles s'affichent dans les
 	// equipes et les affectations, pas seulement sur ses propres reglages.
