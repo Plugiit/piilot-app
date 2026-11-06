@@ -1163,6 +1163,25 @@ Une mise en ligne atteint aussi le jalon du projet nommé « Mise en ligne »
 s'affiche sur le portail. Les pull requests liées se lisent sur la fiche du
 ticket et dans le panneau de la tâche.
 
+### Bot Discord
+
+Le bot du serveur Discord de l'agence relie un membre à son compte Piilot par
+un code à usage unique (`/lier code:XXXX-XXXX`), puis lui donne le rôle
+*Client* ou *Équipe* tant que le compte est actif. Piilot n'appelle jamais
+Discord : le bot appelle l'API sous `/api/v1/bot`, avec une clé, et relit un
+flux d'événements.
+
+Les clés se créent depuis le terminal du conteneur `server` :
+
+```sh
+bot-key create discord-prod   # montrée une seule fois
+bot-key list
+bot-key revoke <id>
+```
+
+Contrat, réconciliation, données personnelles et adresse interne à donner au
+bot : [docs/discord.md](docs/discord.md).
+
 ### Sondes
 
 | Route | Réponse | Usage |
@@ -1221,6 +1240,7 @@ Principes à respecter en contribuant :
 api/                        API Go
 ├── cmd/api/                point d'entrée
 ├── cmd/seed/               création de comptes (create-admin, seed)
+├── cmd/botkey/             clés du bot Discord (bot-key)
 ├── cmd/updater/            mise à jour de l'application (service updater)
 ├── cmd/gateway/            passerelle devant l'application (service app)
 ├── cmd/backup/             sauvegarde et restauration (service backup)
