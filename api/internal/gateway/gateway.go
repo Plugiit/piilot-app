@@ -393,7 +393,7 @@ func (g *Gateway) fail(w http.ResponseWriter, r *http.Request, err error) {
 	if !errors.As(err, &unavailable) {
 		// L'instance a ete jointe mais n'a pas repondu jusqu'au bout. La
 		// requete a pu etre traitee : on ne la rejoue pas.
-		g.log.Warn("requete interrompue", "path", r.URL.Path, "error", err)
+		g.log.Warn("requete interrompue", "path", logPath(r.URL.Path), "error", err)
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
 	}
@@ -415,6 +415,24 @@ func (g *Gateway) fail(w http.ResponseWriter, r *http.Request, err error) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	_, _ = io.WriteString(w, maintenancePage)
+}
+
+// logPath garde le debut d'un chemin, assez pour situer un incident : la
+// passerelle ne connait pas les routes, et les segments suivants portent des
+// identifiants Discord ou des jetons de lien qui n'ont rien a faire dans un
+// journal. Quatre segments pour l'API (« /api/v1/bot/discord-links »), un seul
+// pour le front, dont les liens d'e-mail portent leur jeton des le deuxieme
+// (« /invitation/<jeton> »).
+func logPath(path string) string {
+	keep := 1
+	if strings.HasPrefix(path, "/api/") {
+		keep = 4
+	}
+	segments := strings.SplitN(strings.TrimPrefix(path, "/"), "/", keep+1)
+	if len(segments) <= keep {
+		return path
+	}
+	return "/" + strings.Join(segments[:keep], "/") + "/…"
 }
 
 func acceptsHTML(r *http.Request) bool {
