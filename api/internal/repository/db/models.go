@@ -151,6 +151,29 @@ type AuditLog struct {
 	Details    []byte     `json:"details"`
 }
 
+type BotEvent struct {
+	ID        int64     `json:"id"`
+	Type      string    `json:"type"`
+	Data      []byte    `json:"data"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type BotEventCursor struct {
+	ID            bool  `json:"id"`
+	LastID        int64 `json:"last_id"`
+	PurgedThrough int64 `json:"purged_through"`
+}
+
+type BotKey struct {
+	ID         uuid.UUID  `json:"id"`
+	Name       string     `json:"name"`
+	KeyHash    []byte     `json:"key_hash"`
+	Role       string     `json:"role"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+}
+
 type Client struct {
 	ID                uuid.UUID  `json:"id"`
 	Name              string     `json:"name"`
@@ -268,6 +291,19 @@ type Deployment struct {
 	Url         string    `json:"url"`
 	Environment string    `json:"environment"`
 	DeployedAt  time.Time `json:"deployed_at"`
+}
+
+type DiscordLink struct {
+	UserID        uuid.UUID `json:"user_id"`
+	DiscordUserID string    `json:"discord_user_id"`
+	LinkedAt      time.Time `json:"linked_at"`
+}
+
+type DiscordLinkCode struct {
+	UserID    uuid.UUID `json:"user_id"`
+	CodeHash  []byte    `json:"code_hash"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type EmailOutbox struct {
