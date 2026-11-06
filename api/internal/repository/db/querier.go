@@ -85,6 +85,8 @@ type Querier interface {
 	// commence disparait au lieu de finir avant de debuter.
 	CloseProjectMaintenance(ctx context.Context, arg CloseProjectMaintenanceParams) error
 	CloseUptimeIncident(ctx context.Context, arg CloseUptimeIncidentParams) error
+	// Le rachat consomme le code quoi qu'il arrive ensuite : il ne sert qu'une fois.
+	ConsumeDiscordLinkCode(ctx context.Context, codeHash []byte) (ConsumeDiscordLinkCodeRow, error)
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
@@ -143,6 +145,8 @@ type Querier interface {
 	// Sauvegardes : la commande `backup` ecrit ici, l'ecran des parametres et la
 	// tache de fond qui previent les admins y lisent.
 	CreateBackup(ctx context.Context) (AppBackup, error)
+	// Acces machine du bot et flux d'evenements qu'il relit.
+	CreateBotKey(ctx context.Context, arg CreateBotKeyParams) (CreateBotKeyRow, error)
 	// Le client naît sans interlocuteur : ses contacts sont crees ensuite, et la
 	// cle etrangere composite exige qu'un contact principal lui appartienne deja.
 	CreateClient(ctx context.Context, name string) (Client, error)
@@ -204,6 +208,9 @@ type Querier interface {
 	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
 	// effacer le fichier du disque dans la foulee.
 	DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
+	DeleteDiscordLinkByDiscordID(ctx context.Context, discordUserID string) error
+	DeleteDiscordLinkByUser(ctx context.Context, userID uuid.UUID) (string, error)
+	DeleteDiscordLinkCodes(ctx context.Context, userID uuid.UUID) error
 	// Purge des jetons expires depuis assez longtemps pour ne plus rien prouver.
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
@@ -237,6 +244,9 @@ type Querier interface {
 	// l'equipe voie ce qui manque au lieu d'un lien rompu en silence.
 	DeleteUnlinkedAbsentAnalyticsWebsites(ctx context.Context, provider string) (int64, error)
 	DisableUser(ctx context.Context, id uuid.UUID) error
+	// L'identifiant vient du compteur, verrouille jusqu'au commit : les evenements
+	// deviennent visibles dans l'ordre de leurs identifiants.
+	EmitBotEvent(ctx context.Context, arg EmitBotEventParams) error
 	EnableUser(ctx context.Context, id uuid.UUID) error
 	// reply_to, message_id et in_reply_to filent les e-mails des tickets : la
 	// reponse du client revient sur le bon ticket. Vides pour les autres.
@@ -257,6 +267,10 @@ type Querier interface {
 	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
 	FinishSiteUpdateRun(ctx context.Context, arg FinishSiteUpdateRunParams) (int64, error)
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
+	// Question posee par la garde a chaque appel du bot : lecture par index unique.
+	GetActiveBotKeyByHash(ctx context.Context, keyHash []byte) (GetActiveBotKeyByHashRow, error)
+	// Une liaison n'existe pour le bot que si son compte est actif.
+	GetActiveDiscordLink(ctx context.Context, discordUserID string) (GetActiveDiscordLinkRow, error)
 	// Question posee par la garde a chaque requete authentifiee : ce compte
 	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
 	// le jeton : desactiver un compte ou changer son role prend effet a la requete
@@ -270,6 +284,9 @@ type Querier interface {
 	// proprietaire : c'est ce qui permet a un unique endpoint de telechargement
 	// de servir celles des projets comme celles des taches.
 	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
+	// last_id ne compte que les emissions validees : celle d'une transaction en
+	// cours arrivera apres, dans le flux.
+	GetBotEventCursor(ctx context.Context) (GetBotEventCursorRow, error)
 	GetClientByID(ctx context.Context, id uuid.UUID) (Client, error)
 	// Recherche exacte, insensible a la casse : c'est elle qui evite de creer
 	// « Novaterre » a cote de « novaterre » quand le nom est saisi a la volee.
@@ -301,6 +318,11 @@ type Querier interface {
 	// De quoi ecrire la notification d'une decision : le titre, le projet et le
 	// numero de la version tranchee, figes au moment du geste.
 	GetDeliverableNotice(ctx context.Context, id uuid.UUID) (GetDeliverableNoticeRow, error)
+	GetDiscordLinkByUser(ctx context.Context, userID uuid.UUID) (GetDiscordLinkByUserRow, error)
+	// A qui ce compte Discord est lie, et si ce compte est encore actif. Les deux
+	// lignes sont verrouillees : une reactivation concurrente de ce compte attend
+	// de voir si la liaison lui reste.
+	GetDiscordLinkOwner(ctx context.Context, discordUserID string) (GetDiscordLinkOwnerRow, error)
 	GetGitWebhook(ctx context.Context) (GetGitWebhookRow, error)
 	GetInboundEmail(ctx context.Context, id uuid.UUID) (GetInboundEmailRow, error)
 	// E-mail entrant : reglages, file des e-mails recus, tri.
@@ -388,6 +410,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
+	HasActiveBotKey(ctx context.Context) (bool, error)
 	InboundStats(ctx context.Context) (InboundStatsRow, error)
 	InsertAnalyticsSnapshot(ctx context.Context, arg InsertAnalyticsSnapshotParams) error
 	// Journal d'audit : en ajout seul. Ni UPDATE ni DELETE ici, sauf la purge de
@@ -396,6 +419,7 @@ type Querier interface {
 	// Aucune ligne rendue quand la mise en ligne est deja connue : GitHub et
 	// GitLab renvoient volontiers un evenement deux fois.
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
+	InsertDiscordLink(ctx context.Context, arg InsertDiscordLinkParams) (time.Time, error)
 	// Un e-mail deja recu — releve rejouee, webhook renvoye — ne rentre pas une
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
@@ -426,6 +450,9 @@ type Querier interface {
 	// Les comptes actifs d'abord : un compte desactive est une archive, il ne
 	// doit pas s'intercaler entre deux personnes avec qui l'on travaille.
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
+	// Parcours par curseur sur l'identifiant Discord : une liaison retiree pendant
+	// le parcours ne decale pas les suivantes, comme le ferait un OFFSET.
+	ListActiveDiscordLinks(ctx context.Context, arg ListActiveDiscordLinksParams) ([]ListActiveDiscordLinksRow, error)
 	// L'etat du cache des sites de production : ce qui est a rafraichir.
 	ListAnalyticsCacheState(ctx context.Context, websiteIds []uuid.UUID) ([]ListAnalyticsCacheStateRow, error)
 	// Les sites de production sans photo du mois ecoule.
@@ -436,6 +463,9 @@ type Querier interface {
 	ListAssigneesOfTasks(ctx context.Context, taskIds []uuid.UUID) ([]ListAssigneesOfTasksRow, error)
 	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
 	ListBackups(ctx context.Context) ([]AppBackup, error)
+	ListBotEventsAfter(ctx context.Context, arg ListBotEventsAfterParams) ([]BotEvent, error)
+	// Pour la commande bot-key : quelques lignes, les actives d'abord.
+	ListBotKeys(ctx context.Context) ([]ListBotKeysRow, error)
 	ListClientActivityMonths(ctx context.Context, arg ListClientActivityMonthsParams) ([]ListClientActivityMonthsRow, error)
 	// Les jours ou des demandes du client ont ete resolues, depuis une date. Les
 	// jours sans rien n'ont pas de ligne : l'appelant les complete a zero.
@@ -863,9 +893,20 @@ type Querier interface {
 	// version en attente a ete remplacee.
 	ListVersionsToRemind(ctx context.Context, afterSeconds float64) ([]ListVersionsToRemindRow, error)
 	ListWatchedAnalyticsActive(ctx context.Context, arg ListWatchedAnalyticsActiveParams) ([]ListWatchedAnalyticsActiveRow, error)
+	LockActiveUserRole(ctx context.Context, id uuid.UUID) (string, error)
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
 	// simultanees prendraient sinon le meme numero.
 	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
+	// Liaison d'un compte Discord par code a usage unique.
+	//
+	// Ordre des verrous, partout : le code, le membre Discord (verrou consultatif,
+	// rachat seulement), le compte, la liaison, puis le compteur des evenements.
+	// Un changement de role ou une desactivation concurrents attendent donc la fin
+	// d'une liaison et emettent apres elle.
+	// Serialise les rachats d'un meme membre Discord. Sans lui, deux rachats
+	// concurrents du meme membre pour deux comptes se croisent sur l'index unique
+	// et le compteur, et Postgres en tue un.
+	LockDiscordMember(ctx context.Context, discordUserID string) error
 	LockInboundEmail(ctx context.Context, id uuid.UUID) (InboundEmail, error)
 	// Une adresse abandonnee pendant la relance ne doit pas etre effacee sans
 	// avoir ete relancee.
@@ -877,6 +918,7 @@ type Querier interface {
 	// « renomme de A vers B » pour un seul renommage. Le verrou les met en file,
 	// la seconde voit le travail de la premiere et n'a plus rien a journaliser.
 	LockTicket(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	LockUser(ctx context.Context, id uuid.UUID) error
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
 	MaintenancePlanInUse(ctx context.Context, id uuid.UUID) (bool, error)
 	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -1015,6 +1057,10 @@ type Querier interface {
 	PurgeAnalyticsCache(ctx context.Context, before time.Time) error
 	PurgeAnalyticsRequests(ctx context.Context, before *time.Time) error
 	PurgeAudit(ctx context.Context, days int32) (int64, error)
+	// Purge un prefixe du flux, jusqu'au plus recent evenement trop vieux, et
+	// avance le filigrane d'autant : au-dela, rien ne manque.
+	PurgeBotEvents(ctx context.Context, before time.Time) (int64, error)
+	PurgeExpiredDiscordLinkCodes(ctx context.Context) (int64, error)
 	RecordAnalyticsCheck(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
@@ -1072,6 +1118,7 @@ type Querier interface {
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
+	RevokeBotKey(ctx context.Context, id uuid.UUID) (RevokeBotKeyRow, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) error
 	// Idempotent : revoquer deux fois ne change pas la date de la premiere
 	// revocation, ce qui garde intacte la trace d'un rejeu.
@@ -1211,6 +1258,9 @@ type Querier interface {
 	// mentir le total ou le detail.
 	TimeReportTotals(ctx context.Context, arg TimeReportTotalsParams) (TimeReportTotalsRow, error)
 	TouchAnalyticsCache(ctx context.Context, arg TouchAnalyticsCacheParams) error
+	// Au plus une ecriture par minute et par cle : l'usage se date sans couter une
+	// ecriture a chaque appel.
+	TouchBotKey(ctx context.Context, id uuid.UUID) error
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
 	// GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
 	TouchReleaseCheck(ctx context.Context) error
@@ -1288,6 +1338,8 @@ type Querier interface {
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertAnalyticsCache(ctx context.Context, arg UpsertAnalyticsCacheParams) error
 	UpsertAnalyticsWebsite(ctx context.Context, arg UpsertAnalyticsWebsiteParams) (uuid.UUID, error)
+	// Un seul code par compte : le nouveau remplace le precedent.
+	UpsertDiscordLinkCode(ctx context.Context, arg UpsertDiscordLinkCodeParams) error
 	// Une pull request se recoit plusieurs fois : ouverture, mises a jour,
 	// fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
 	// posee, ne s'efface pas.
