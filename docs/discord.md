@@ -92,8 +92,25 @@ d'audit (`discord.linked`, `discord.redeem_failed`,
 l'identifiant Discord.
 
 Le compte voit sa liaison (`GET /api/v1/auth/me/discord`) et peut la
-supprimer (`DELETE`). La carte dit aussi si le bot est branché (`available` :
-au moins une clé active), pour que l'écran la masque sinon.
+supprimer (`DELETE`). La réponse dit aussi si le bot est branché
+(`available` : au moins une clé active).
+
+### Carte du compte
+
+Dans le back-office, *Mon compte › Intégrations*, section « Votre compte »,
+pour les comptes qui ont `discord.link` :
+
+- **Bot non branché** : la carte le dit, sans proposer de code. Elle reste
+  visible pour qu'un admin voie ce qui manque.
+- **Non lié** : *Lier mon compte* tire un code, affiché avec un bouton de copie
+  et son heure d'expiration. Tant qu'il est valable, la carte relit la liaison
+  toutes les 4 secondes ; elle passe d'elle-même à « Lié » quand le bot l'a
+  racheté.
+- **Lié** : l'identifiant Discord et la date. *Changer* tire un code pour
+  passer à un autre compte Discord, *Délier* demande confirmation.
+
+Le portail client n'a pas encore d'écran de compte : un client a la
+permission, mais pas encore la carte.
 
 ## Flux d'événements
 
