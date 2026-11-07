@@ -29,6 +29,7 @@ const GROUP_ORDER = [
   'Temps passé',
   'CRM',
   'Comptes',
+  'Discord',
   'Rôles',
   'Système',
 ]
