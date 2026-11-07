@@ -1,6 +1,8 @@
 import { LinkSquare02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 
 import coolifyUrl from '@/assets/sidebar/app-coolify.svg'
 import driveUrl from '@/assets/sidebar/app-google-drive.svg'
@@ -11,6 +13,8 @@ import figmaUrl from '@/assets/integrations/figma.svg'
 import githubUrl from '@/assets/integrations/github.svg'
 import slackUrl from '@/assets/integrations/slack.svg'
 import { CARD_ACTION, IntegrationCard } from '@/components/integration-card'
+import { DiscordCard } from '@/features/discord/card'
+import { can, sessionQuery } from '@/lib/auth'
 
 export const Route = createFileRoute('/_app/compte/integrations')({
   component: IntegrationsPage,
@@ -106,8 +110,16 @@ const PLANNED: Integration[] = [
 ]
 
 function IntegrationsPage() {
+  const { data: user } = useQuery(sessionQuery)
+
   return (
     <div className="flex w-full flex-col gap-6">
+      {can(user, 'discord.link') && (
+        <SectionFrame title="Votre compte" hint="Relié à vous seul : ce que vous y faites ne touche que votre compte.">
+          <DiscordCard />
+        </SectionFrame>
+      )}
+
       <Section
         title="Outils de l’agence"
         hint="Les services déjà en place. La carte mène à leur interface."
@@ -133,6 +145,16 @@ function Section({
   items: Integration[]
 }) {
   return (
+    <SectionFrame title={title} hint={hint}>
+      {items.map((item) => (
+        <Card key={item.name} item={item} />
+      ))}
+    </SectionFrame>
+  )
+}
+
+function SectionFrame({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  return (
     <section className="flex w-full flex-col gap-3">
       <header className="flex flex-col gap-0.5">
         <h2 className="text-[18px] leading-[1.5] font-medium tracking-[-0.18px] text-[#1b1b1b]">
@@ -144,11 +166,7 @@ function Section({
       {/* La maquette pose des cartes de 300px cote a cote ; la grille les
           repartit sur la largeur disponible plutot que de fixer trois colonnes,
           le panneau des reglages n'ayant pas toujours la meme place. */}
-      <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <Card key={item.name} item={item} />
-        ))}
-      </div>
+      <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
     </section>
   )
 }
