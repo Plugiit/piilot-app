@@ -11,6 +11,56 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.4.2] — Maintenance des sites et bot Discord · 2026-11-07
+
+Piilot suit la santé des sites qu'il maintient : sauvegardes, domaines, mises à jour lancées sur l'environnement choisi. Le rapport mensuel ne part plus seul quand il a un doute. Le portail client est repensé, et un bot Discord peut relier les membres du serveur de l'agence à leur compte.
+
+### Points forts
+
+- **Mises à jour des sites** : l'environnement, production ou préproduction, se choisit explicitement pour chaque projet. Piilot demande au dépôt GitHub de lancer son workflow et attend son compte rendu. Il n'exécute rien sur le site : un compte rendu qui n'arrive pas vaut échec, et un échec arrête la planification.
+- **Sauvegardes et domaines** : les sauvegardes d'un site se signalent à Piilot avec un jeton propre au projet, et l'échéance des domaines est relevée chaque semaine par RDAP. Une sauvegarde qui ne se signale plus déclenche une alerte aux admins, dans la cloche et par e-mail.
+- **Rapport mensuel fiable** : sections Mises à jour, Sauvegardes et Domaine. Ce qui retient un rapport de partir seul est affiché, valider exige la version relue, et un e-mail abandonné se voit et se relance.
+- **Portail client repensé** : accueil centré sur ce qui attend le client et le parcours de chaque projet ; Projets, fiche projet et Statistiques au dessin du back-office.
+- **Bot Discord** : un membre lie son compte par un code à usage unique, depuis *Mon compte › Intégrations*. Le bot passe par un accès machine cloisonné et un flux d'événements. Piilot n'appelle jamais Discord.
+
+### Nouveautés
+
+#### Admin et Team
+
+- **Paramètres du projet › Maintenance** : environnement des mises à jour, lancement à la demande ou planifié (tous les 1 à 90 jours), confirmation avant la production ; sauvegardes surveillées avec leur délai attendu et la date du dernier test de restauration ; domaines suivis, alerte à 60, 30, 14, 7 et 1 jours de l'échéance.
+- **Paramètres › Dépôts Git** : jeton GitHub qui sert à lancer les workflows, chiffré, jamais réaffiché. Les pull requests de sécurité sont reconnues à leur étiquette.
+- **Rapports mensuels** : la liste signale ce qui attend. La relecture montre ce qui retient l'envoi et les adresses qui n'ont pas reçu le rapport, avec leur relance. Un projet peut exiger la relecture de son rapport, et les formules proposent les nouvelles sections.
+- **Mon compte › Intégrations** : carte Discord, pour lier son compte, en changer ou le délier. Sans bot branché, la carte le dit.
+- Formulaires : erreurs affichées par champ ; le focus entre dans les confirmations en ligne, puis revient.
+
+#### Portail client
+
+- **Accueil** : « Ce mois-ci » en quatre tuiles, une seule boîte « À faire », chaque projet en cours en frise d'étapes (« vous êtes ici », de qui dépend la suite), l'historique d'un projet en tiroir.
+- **Projets** et **fiche projet** aux cartes et au dessin de l'admin, onglets ancrés dans l'adresse.
+- **Statistiques** : une carte du monde des pays, avec leur classement.
+- Toutes les pages sur feuille blanche.
+
+#### Bot Discord
+
+- Clés machine `piilot_bot_…`, créées, listées et révoquées par la commande `bot-key` du conteneur, au journal d'audit. Elles ne valent que sous `/api/v1/bot`.
+- Code de liaison de 8 caractères, valable 10 minutes, à usage unique. Le rachat est limité à 5 essais par membre et 60 au total par quart d'heure.
+- Flux d'événements `discord_link.upserted` et `discord_link.removed`, écrit dans la transaction du changement : un changement de rôle, une désactivation ou une réactivation prévient le bot.
+
+### Corrections
+
+- Un projet en erreur ne prive plus les autres de leur rapport, et l'échec d'une étape ne bloque plus le passage des rapports.
+- « Envoyé » voulait dire « mis en file » : la remise de chaque e-mail de rapport est désormais suivie.
+- Les intitulés des champs de formulaire n'étaient pas reliés aux champs : ils sont désormais annoncés par les lecteurs d'écran.
+- Une erreur serveur journalisait le chemin reçu, qui peut porter un identifiant ou un jeton de lien : elle journalise le motif de la route, et la passerelle tronque les chemins.
+- Umami : un site disparu qu'aucun projet n'utilise est retiré à la synchronisation.
+
+### À savoir pour le déploiement
+
+- Migrations 000053 à 000056, en ajout : suivi de la remise des rapports ; sauvegardes signalées par les sites et échéance des domaines ; cibles et lancements des mises à jour ; rôle système `bot`, clés machine, liaisons Discord et flux d'événements. Permission `discord.link` accordée aux rôles admin, team et client.
+- Aucune nouvelle variable d'environnement.
+- Mises à jour des sites : un jeton GitHub à portée fine (« Actions : lecture et écriture ») dans *Paramètres › Dépôts Git*, et un workflow dans chaque dépôt. Voir `docs/maintenance-des-sites.md`.
+- Bot Discord, facultatif : `bot-key create <nom>` dans le conteneur `server`, puis l'adresse interne de la passerelle pour le bot. Voir `docs/discord.md`.
+
 ## [1.4.1] — Portail : bandeau des sites · 2026-10-13
 
 Le portail montre à chaque client l'audience et la disponibilité de ses sites, dès la page Projets. Et les sites des équipes Umami sont enfin lus.
