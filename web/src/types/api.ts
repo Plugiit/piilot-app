@@ -319,3 +319,7 @@ export type ReportRecipients = components['schemas']['ReportRecipients']
 export type SiteSources = components['schemas']['SiteSources']
 export type SiteUpdates = components['schemas']['SiteUpdates']
 export type PortalReport = components['schemas']['PortalReport']
+
+/** Carte « Discord » du compte connecte, et le code qu'il tire pour se lier. */
+export type DiscordStatus = components['schemas']['DiscordStatus']
+export type DiscordCode = components['schemas']['DiscordCode']
