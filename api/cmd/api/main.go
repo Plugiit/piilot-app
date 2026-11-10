@@ -20,6 +20,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/joho/godotenv"
 
+	"github.com/plugiit/piilot-app/api/internal/claude"
 	"github.com/plugiit/piilot-app/api/internal/config"
 	"github.com/plugiit/piilot-app/api/internal/githubactions"
 	"github.com/plugiit/piilot-app/api/internal/handler"
@@ -164,6 +165,23 @@ func run(cfg config.Config, log *slog.Logger) error {
 	gitService := usecase.NewGitService(pool, ticketService, milestoneService, cfg.GitWebhookSecret, cfg.URLFor(spaces.Team), log)
 	contactService := usecase.NewContactService(pool)
 
+	// Connecteur Claude : Piilot autorise Claude (OAuth 2.1) et lui sert ses
+	// outils sur /mcp. L'emetteur et la ressource vivent sur l'espace de
+	// connexion, la ou le compte consent.
+	oauthService := usecase.NewOAuthService(pool, usecase.NewOAuthConfig(cfg.URLFor(spaces.Auth)))
+	claudeServer := claude.New(claude.Config{
+		Resource:         oauthService.Config().Resource,
+		ResourceMetadata: oauthService.Config().Issuer + "/.well-known/oauth-protected-resource/mcp",
+		// Claude n'envoie pas d'origine ; un navigateur, seulement celle de
+		// l'emetteur.
+		Origins: []string{oauthService.Config().Issuer},
+		Version: version,
+		Auth:    oauthService,
+		Signer:  signer,
+		Limiter: repository.NewRateLimiter(rdb),
+		Log:     log,
+	})
+
 	cookies := handler.CookieConfig{
 		Domain: cfg.CookieDomain,
 		// Secure partout sauf en developpement : en local l'API est servie en
@@ -213,6 +231,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Audit:         handler.NewAudit(auditService, log),
 		Discord:       handler.NewDiscord(discordService, repository.NewRateLimiter(rdb)),
 		BotEvents:     handler.NewBotEvents(botEventService),
+		OAuth:         handler.NewOAuth(oauthService, repository.NewRateLimiter(rdb), cookies.Secure, log),
+		Claude:        claudeServer,
 		Guard:         guard,
 	})
 
@@ -222,6 +242,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 			return err
 		}
 	}
+
+	// Les outils de Claude rappellent les routes de l'application : ils ne
+	// recoivent le routeur qu'une fois tout monte, avant d'ecouter.
+	claudeServer.SetRouter(app.Handler())
 
 	// Purge des jetons expires en tache de fond. S'arrete avec le contexte,
 	// donc au premier signal d'arret.
@@ -270,6 +294,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	repository.StartSiteUpdates(ctx, siteUpdateService, log)
 	// Bot Discord : codes de liaison expires et vieux evenements du flux.
 	repository.StartBotPurge(ctx, log, discordService, botEventService)
+	// Demandes, codes et jetons expires du connecteur Claude.
+	repository.StartHourlyPurge(ctx, log, "connexions de Claude", oauthService)
 
 	// Le serveur tourne dans sa goroutine pour que main puisse attendre le
 	// signal d'arret et fermer proprement les connexions en cours.
