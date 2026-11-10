@@ -44,6 +44,9 @@ type Querier interface {
 	// possession sure : deux clients crees en meme temps avec le meme contact, un
 	// seul l'obtient, et l'autre ne touche aucune ligne.
 	AttachContactToClient(ctx context.Context, arg AttachContactToClientParams) (Contact, error)
+	// Question posee a chaque appel de /mcp : jeton valable, autorisation en
+	// cours, compte actif. Lecture par cle primaire.
+	AuthenticateOAuthAccess(ctx context.Context, tokenHash []byte) (AuthenticateOAuthAccessRow, error)
 	// L'envoi automatique, dans la transaction de l'envoi : rien ne reste valide
 	// sans etre parti, et ce qu'un admin retient reste retenu.
 	AutoValidateReport(ctx context.Context, id uuid.UUID) (int64, error)
@@ -87,6 +90,12 @@ type Querier interface {
 	CloseUptimeIncident(ctx context.Context, arg CloseUptimeIncidentParams) error
 	// Le rachat consomme le code quoi qu'il arrive ensuite : il ne sert qu'une fois.
 	ConsumeDiscordLinkCode(ctx context.Context, codeHash []byte) (ConsumeDiscordLinkCodeRow, error)
+	// Usage unique : le code n'est rendu qu'une fois, a qui le presente avant
+	// son expiration.
+	ConsumeOAuthCode(ctx context.Context, codeHash []byte) (ConsumeOAuthCodeRow, error)
+	// Une demande ne se tranche qu'une fois, et seulement depuis le navigateur qui
+	// l'a lancee : la decision la retire.
+	ConsumeOAuthRequest(ctx context.Context, arg ConsumeOAuthRequestParams) (ConsumeOAuthRequestRow, error)
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
@@ -167,6 +176,12 @@ type Querier interface {
 	CreateMilestone(ctx context.Context, arg CreateMilestoneParams) (Milestone, error)
 	CreateMilestoneFromTemplate(ctx context.Context, arg CreateMilestoneFromTemplateParams) error
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	CreateOAuthCode(ctx context.Context, arg CreateOAuthCodeParams) error
+	CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantParams) (uuid.UUID, error)
+	// Serveur d'autorisation OAuth 2.1 du connecteur Claude : demandes en attente
+	// de consentement, autorisations, codes et jetons. Empreintes seulement.
+	CreateOAuthRequest(ctx context.Context, arg CreateOAuthRequestParams) (uuid.UUID, error)
+	CreateOAuthToken(ctx context.Context, arg CreateOAuthTokenParams) error
 	CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) (PasswordReset, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectFile(ctx context.Context, arg CreateProjectFileParams) (Attachment, error)
@@ -208,9 +223,17 @@ type Querier interface {
 	// Rend la ligne supprimee : l'appelant a besoin de sa cle de stockage pour
 	// effacer le fichier du disque dans la foulee.
 	DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
+	// Revoquees depuis un mois, ou sans plus aucun jeton : rien a montrer, rien a
+	// couper.
+	DeleteDeadOAuthGrants(ctx context.Context) (int64, error)
 	DeleteDiscordLinkByDiscordID(ctx context.Context, discordUserID string) error
 	DeleteDiscordLinkByUser(ctx context.Context, userID uuid.UUID) (string, error)
 	DeleteDiscordLinkCodes(ctx context.Context, userID uuid.UUID) error
+	DeleteExpiredOAuthCodes(ctx context.Context) (int64, error)
+	DeleteExpiredOAuthRequests(ctx context.Context) (int64, error)
+	// Un jour de marge : un jeton de renouvellement servi reste reconnaissable
+	// jusqu'a son expiration, au-dela il ne prouve plus rien.
+	DeleteExpiredOAuthTokens(ctx context.Context) (int64, error)
 	// Purge des jetons expires depuis assez longtemps pour ne plus rien prouver.
 	// Les jetons revoques recents sont conserves : ce sont eux qui permettent de
 	// reconnaitre un rejeu.
@@ -338,6 +361,14 @@ type Querier interface {
 	GetLatestUpdateRequest(ctx context.Context) (GetLatestUpdateRequestRow, error)
 	GetMaintenancePlan(ctx context.Context, id uuid.UUID) (MaintenancePlan, error)
 	GetMilestone(ctx context.Context, id uuid.UUID) (Milestone, error)
+	// Pour reconnaitre un code rejoue : il existe, mais a deja servi.
+	GetOAuthCodeGrant(ctx context.Context, codeHash []byte) (GetOAuthCodeGrantRow, error)
+	// L'autorisation et l'etat du compte, lus a l'echange d'un code ou d'un jeton.
+	GetOAuthGrant(ctx context.Context, id uuid.UUID) (GetOAuthGrantRow, error)
+	// Seulement pour le navigateur qui a lance la demande.
+	GetOAuthRequest(ctx context.Context, arg GetOAuthRequestParams) (GetOAuthRequestRow, error)
+	// Pour la revocation (RFC 7009) : quel jeton, de quelle autorisation.
+	GetOAuthToken(ctx context.Context, tokenHash []byte) (GetOAuthTokenRow, error)
 	GetOpenInvitationByEmail(ctx context.Context, email string) (Invitation, error)
 	GetPasswordReset(ctx context.Context, tokenHash []byte) (GetPasswordResetRow, error)
 	// Un rapport envoye, pour le client du projet seulement.
@@ -886,6 +917,9 @@ type Querier interface {
 	// Les sites et leur disponibilite sur la fenetre : la somme de trente
 	// agregats journaliers au plus par site, jamais les controles eux-memes.
 	ListUptimeMonitors(ctx context.Context, arg ListUptimeMonitorsParams) ([]ListUptimeMonitorsRow, error)
+	// Les connexions vivantes d'un compte : celles qui peuvent encore se
+	// renouveler. Quelques lignes.
+	ListUserOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListUserOAuthGrantsRow, error)
 	// Pagination cote serveur systematique : jamais de SELECT sans LIMIT.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// Les versions qui attendent une reponse depuis trop longtemps et n'ont pas
@@ -908,6 +942,10 @@ type Querier interface {
 	// et le compteur, et Postgres en tue un.
 	LockDiscordMember(ctx context.Context, discordUserID string) error
 	LockInboundEmail(ctx context.Context, id uuid.UUID) (InboundEmail, error)
+	// Verrouille le jeton le temps de le remplacer : deux renouvellements
+	// simultanes passent l'un apres l'autre, et le second voit le jeton servi.
+	// Les delais se comparent a l'horloge de la base, celle qui les a dates.
+	LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error)
 	// Une adresse abandonnee pendant la relance ne doit pas etre effacee sans
 	// avoir ete relancee.
 	LockReportUndelivered(ctx context.Context, id uuid.UUID) ([]string, error)
@@ -1115,14 +1153,20 @@ type Querier interface {
 	// tiers, et aucune requete HTTP de l'application ne doit attendre cela.
 	ResetSidebarAppFavicon(ctx context.Context, id uuid.UUID) (ResetSidebarAppFaviconRow, error)
 	RetrySiteUpdateRun(ctx context.Context, arg RetrySiteUpdateRunParams) error
+	// Mot de passe change : tout ce qui agissait au nom du compte s'arrete.
+	RevokeAllUserOAuthGrants(ctx context.Context, userID uuid.UUID) error
 	// Deconnexion de toutes les sessions : rejeu detecte, changement de mot de
 	// passe, ou compte desactive.
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeBotKey(ctx context.Context, id uuid.UUID) (RevokeBotKeyRow, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) error
+	RevokeOAuthGrant(ctx context.Context, id uuid.UUID) (RevokeOAuthGrantRow, error)
+	RevokeOAuthToken(ctx context.Context, tokenHash []byte) error
 	// Idempotent : revoquer deux fois ne change pas la date de la premiere
 	// revocation, ce qui garde intacte la trace d'un rejeu.
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
+	// Depuis Mon compte : seulement une autorisation de ce compte.
+	RevokeUserOAuthGrant(ctx context.Context, arg RevokeUserOAuthGrantParams) (RevokeUserOAuthGrantRow, error)
 	// Question posee par la garde a chaque requete protegee. Les deux jointures
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
@@ -1262,6 +1306,9 @@ type Querier interface {
 	// ecriture a chaque appel.
 	TouchBotKey(ctx context.Context, id uuid.UUID) error
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
+	// Au plus une ecriture par minute : l'usage se date sans couter une ecriture
+	// a chaque appel.
+	TouchOAuthGrant(ctx context.Context, id uuid.UUID) error
 	// GitHub a repondu « rien de nouveau » : seule la date du passage bouge.
 	TouchReleaseCheck(ctx context.Context) error
 	TouchSiteUpdateTarget(ctx context.Context, arg TouchSiteUpdateTargetParams) error
