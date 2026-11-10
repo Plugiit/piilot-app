@@ -35,6 +35,10 @@
     {
       "name": "bot",
       "description": "Bot Discord, de serveur à serveur : une clé en Authorization: Bearer, jamais de session. Une requête qui porte un cookie de session y est refusée."
+    },
+    {
+      "name": "claude",
+      "description": "Connecteur Claude : serveur d'autorisation OAuth 2.1 et serveur MCP. Voir docs/connecteur-claude.md."
     }
   ],
   "paths": {
@@ -12521,6 +12525,697 @@
           }
         }
       }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Métadonnées de la ressource MCP",
+        "description": "RFC 9728. Public.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Métadonnées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProtectedResource"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getOAuthProtectedResource"
+      }
+    },
+    "/.well-known/oauth-protected-resource/mcp": {
+      "get": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Métadonnées de la ressource MCP",
+        "description": "RFC 9728, forme suffixée par le chemin de la ressource. Public.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Métadonnées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProtectedResource"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getOAuthProtectedResourceMcp"
+      }
+    },
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Métadonnées du serveur d'autorisation",
+        "description": "RFC 8414. Public.",
+        "operationId": "getOAuthServerMetadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Métadonnées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthServerMetadata"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth/authorize": {
+      "get": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Demande d'autorisation",
+        "description": "Ouverte par Claude dans le navigateur. Seuls les deux clients de Claude sont admis (identités CIMD d'Anthropic). PKCE S256 obligatoire. Pose le cookie piilot_oauth qui lie la demande à ce navigateur. Une erreur avant validation de l'adresse de retour s'affiche sur l'écran de consentement, sinon elle repart chez le client. Limité par IP.",
+        "operationId": "oauthAuthorize",
+        "security": [],
+        "parameters": [
+          {
+            "name": "response_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "code"
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "https://claude.ai/oauth/mcp-oauth-client-metadata ou https://claude.ai/oauth/claude-code-client-metadata"
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "S256"
+              ]
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "piilot:read, piilot:write, offline_access. Vide : lecture et écriture."
+          },
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Adresse canonique du serveur MCP (RFC 8707)."
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Vers l'écran de consentement, ou vers le client avec une erreur"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "Erreur interne",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Échanger un code ou renouveler les jetons",
+        "description": "RFC 6749. Client public : client_id sans secret. Un code ne sert qu'une fois ; un code rejoué révoque l'autorisation. Le jeton de renouvellement est remplacé à chaque usage ; un jeton déjà servi, rejoué, révoque l'autorisation. Limité par IP.",
+        "operationId": "oauthToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type",
+                  "client_id"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": [
+                      "authorization_code",
+                      "refresh_token"
+                    ]
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Jetons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erreur OAuth (RFC 6749, 5.2)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Erreur OAuth (RFC 6749, 5.2)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Erreur OAuth (RFC 6749, 5.2)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne (server_error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth/revoke": {
+      "post": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Révoquer un jeton",
+        "description": "RFC 7009. Un jeton de renouvellement emporte toute l'autorisation. 200 même pour un jeton inconnu.",
+        "operationId": "oauthRevoke",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "token_type_hint": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Révoqué, ou inconnu"
+          },
+          "400": {
+            "description": "Erreur OAuth (RFC 6749, 5.2)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne (server_error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Serveur MCP",
+        "description": "Streamable HTTP sans état, réponses JSON. Un message JSON-RPC par requête : les lots sont refusés. Chaque outil rappelle la route REST de l'interface au nom du compte, avec ses permissions. Sans jeton valable : 401 et WWW-Authenticate (resource_metadata, scope). Outil d'écriture avec un jeton en lecture seule : 403 insufficient_scope. Exige claude.connect. 120 appels par minute et par connexion.",
+        "operationId": "mcp",
+        "security": [
+          {
+            "oauthBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Message JSON-RPC 2.0, ou lot."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Réponse JSON-RPC",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Connexion requise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "insufficient_scope, ou compte sans claude.connect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop d'appels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corps illisible, lot JSON-RPC, ou suite après le message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Corps compressé (Content-Encoding)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Non servi",
+        "operationId": "mcpGet",
+        "security": [],
+        "responses": {
+          "405": {
+            "description": "Serveur sans état : seul POST est servi"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "claude"
+        ],
+        "summary": "Non servi",
+        "operationId": "mcpDelete",
+        "security": [],
+        "responses": {
+          "405": {
+            "description": "Serveur sans état : seul POST est servi"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/requests/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Demande de connexion de Claude",
+        "description": "Ce que l'écran de consentement montre, au seul navigateur qui a lancé la demande (cookie piilot_oauth). Exige claude.connect.",
+        "operationId": "getOAuthRequest",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Demande en attente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthConsent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "OAUTH_REQUEST_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/requests/{id}/decision": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Accepter ou refuser la connexion de Claude",
+        "description": "Une seule décision par demande, depuis le navigateur qui l'a lancée (cookie piilot_oauth) et l'origine de l'écran de consentement. La lecture est toujours accordée ; l'écriture seulement si elle était demandée et cochée. Exige claude.connect.",
+        "operationId": "decideOAuthRequest",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "approve"
+                ],
+                "properties": {
+                  "approve": {
+                    "type": "boolean"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "piilot:read",
+                        "piilot:write"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Adresse où renvoyer le navigateur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "redirect_to"
+                  ],
+                  "properties": {
+                    "redirect_to": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "OAUTH_REQUEST_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me/claude": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Carte Claude du compte",
+        "description": "L'adresse du serveur MCP et les connexions en cours. Exige claude.connect.",
+        "operationId": "getMyClaude",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Carte « Claude »",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeAccount"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me/claude/connections/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Déconnecter Claude",
+        "description": "Révoque une connexion du compte : Claude est refusé dès sa requête suivante. Exige claude.connect.",
+        "operationId": "deleteMyClaudeConnection",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Connexion révoquée"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12536,6 +13231,12 @@
         "scheme": "bearer",
         "bearerFormat": "piilot_bot_…",
         "description": "Clé du bot, créée par la commande bot-key depuis le terminal du conteneur. Acceptée sous /api/v1/bot seulement ; ailleurs, elle ne vaut rien."
+      },
+      "oauthBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "piilot_at_…",
+        "description": "Jeton d'accès délivré à Claude par /oauth/token. Accepté sur /mcp seulement ; ailleurs, il ne vaut rien."
       }
     },
     "responses": {
@@ -23696,6 +24397,325 @@
           "next_after": {
             "$ref": "#/components/schemas/BotCursor",
             "description": "Jamais null : sur une page vide, c'est le curseur reçu. À reposer tel quel au prochain appel."
+          }
+        }
+      },
+      "OAuthProtectedResource": {
+        "type": "object",
+        "description": "Métadonnées de la ressource protégée (RFC 9728) : où trouver le serveur d'autorisation de /mcp.",
+        "required": [
+          "resource",
+          "authorization_servers",
+          "scopes_supported",
+          "bearer_methods_supported"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "format": "uri",
+            "examples": [
+              "https://auth.example.fr/mcp"
+            ]
+          },
+          "resource_name": {
+            "type": "string",
+            "examples": [
+              "Piilot"
+            ]
+          },
+          "authorization_servers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "examples": [
+              [
+                "piilot:read",
+                "piilot:write"
+              ]
+            ]
+          },
+          "bearer_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "header"
+              ]
+            }
+          }
+        }
+      },
+      "OAuthServerMetadata": {
+        "type": "object",
+        "description": "Métadonnées du serveur d'autorisation (RFC 8414). Clients publics et identités CIMD : Claude utilise son identité publiée, sans enregistrement dynamique.",
+        "required": [
+          "issuer",
+          "authorization_endpoint",
+          "token_endpoint",
+          "response_types_supported",
+          "grant_types_supported",
+          "token_endpoint_auth_methods_supported",
+          "code_challenge_methods_supported",
+          "scopes_supported",
+          "client_id_metadata_document_supported"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "format": "uri"
+          },
+          "authorization_endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "token_endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "revocation_endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "response_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grant_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "token_endpoint_auth_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revocation_endpoint_auth_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "code_challenge_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "client_id_metadata_document_supported": {
+            "type": "boolean"
+          },
+          "authorization_response_iss_parameter_supported": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OAuthTokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "scope"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "piilot_at_…, une heure."
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer",
+            "examples": [
+              3600
+            ]
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "piilot_rt_…, trente jours, remplacé à chaque usage."
+          },
+          "scope": {
+            "type": "string",
+            "examples": [
+              "piilot:read piilot:write"
+            ]
+          }
+        }
+      },
+      "OAuthErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": [
+              "invalid_grant"
+            ]
+          },
+          "error_description": {
+            "type": "string"
+          }
+        }
+      },
+      "OAuthConsent": {
+        "type": "object",
+        "description": "Une demande de connexion de Claude, en attente du consentement du compte.",
+        "required": [
+          "id",
+          "client",
+          "surface",
+          "host",
+          "redirect_host",
+          "local",
+          "scopes",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "client": {
+            "type": "string",
+            "examples": [
+              "Claude",
+              "Claude Code"
+            ]
+          },
+          "surface": {
+            "type": "string",
+            "examples": [
+              "claude.ai, Claude Desktop et mobile"
+            ]
+          },
+          "host": {
+            "type": "string",
+            "description": "Hôte qui publie l'identité du client.",
+            "examples": [
+              "claude.ai"
+            ]
+          },
+          "redirect_host": {
+            "type": "string",
+            "description": "Où partira le code.",
+            "examples": [
+              "claude.ai",
+              "localhost"
+            ]
+          },
+          "local": {
+            "type": "boolean",
+            "description": "Retour vers la machine locale : tout programme local pourrait l'attendre."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "piilot:read",
+                "piilot:write"
+              ]
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ClaudeConnection": {
+        "type": "object",
+        "required": [
+          "id",
+          "client",
+          "surface",
+          "scopes",
+          "created_at",
+          "last_used_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "client": {
+            "type": "string",
+            "examples": [
+              "Claude"
+            ]
+          },
+          "surface": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "piilot:read",
+                "piilot:write"
+              ]
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ClaudeAccount": {
+        "type": "object",
+        "description": "Carte « Claude » du compte : l'adresse à saisir dans Claude et les connexions en cours.",
+        "required": [
+          "mcp_url",
+          "connections"
+        ],
+        "properties": {
+          "mcp_url": {
+            "type": "string",
+            "format": "uri",
+            "examples": [
+              "https://auth.example.fr/mcp"
+            ]
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaudeConnection"
+            }
           }
         }
       }
