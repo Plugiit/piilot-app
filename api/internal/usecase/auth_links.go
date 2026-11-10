@@ -265,6 +265,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, raw, password string) (
 	if err := q.RevokeAllUserRefreshTokens(ctx, row.UserID); err != nil {
 		return "", fmt.Errorf("revocation des sessions : %w", err)
 	}
+	// Claude aussi : il agissait avec l'accord donne sous l'ancien mot de passe.
+	if err := q.RevokeAllUserOAuthGrants(ctx, row.UserID); err != nil {
+		return "", fmt.Errorf("revocation des connexions de Claude : %w", err)
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return "", fmt.Errorf("validation : %w", err)
