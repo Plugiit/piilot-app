@@ -50,7 +50,15 @@ export function spaceOfPath(path: string): Space | null {
   const under = (prefix: string) => path === prefix || path.startsWith(`${prefix}/`)
 
   if (path === '/' || path === '') return null
-  if (under('/login') || under('/invitation') || under('/mot-de-passe-oublie') || under('/reinitialiser')) return 'auth'
+  // /autoriser : le consentement a la connexion de Claude, a cote de la connexion.
+  if (
+    under('/login') ||
+    under('/invitation') ||
+    under('/mot-de-passe-oublie') ||
+    under('/reinitialiser') ||
+    under('/autoriser')
+  )
+    return 'auth'
   if (under('/client')) return 'client'
   // Le tableau de bord de l'agence est la racine du module PM : seule
   // l'adresse exacte releve de l'administration.
