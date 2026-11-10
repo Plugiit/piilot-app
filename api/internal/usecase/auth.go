@@ -191,6 +191,11 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken, userAgent string, i
 		if err := s.q.RevokeAllUserRefreshTokens(ctx, row.UserID); err != nil {
 			return Session{}, fmt.Errorf("revocation apres rejeu : %w", err)
 		}
+		// Une session volee a pu servir a connecter Claude : ses connexions
+		// tombent avec les sessions.
+		if err := s.q.RevokeAllUserOAuthGrants(ctx, row.UserID); err != nil {
+			return Session{}, fmt.Errorf("revocation de Claude apres rejeu : %w", err)
+		}
 		return Session{}, domain.ErrSessionExpired
 	}
 
@@ -499,6 +504,10 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 
 	if err := s.q.RevokeAllUserRefreshTokens(ctx, userID); err != nil {
 		return fmt.Errorf("revocation des sessions : %w", err)
+	}
+	// Claude aussi : il agissait avec l'accord donne sous l'ancien mot de passe.
+	if err := s.q.RevokeAllUserOAuthGrants(ctx, userID); err != nil {
+		return fmt.Errorf("revocation des connexions de Claude : %w", err)
 	}
 
 	return nil

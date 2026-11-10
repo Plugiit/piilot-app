@@ -85,7 +85,7 @@ var permissionGroups = map[string]string{
 	"tickets": "Tickets", "time": "Temps passé", "clients": "CRM",
 	"users": "Comptes", "roles": "Rôles", "system": "Système",
 	"dashboard": "Pilotage", "budgets": "Pilotage", "pipeline": "CRM",
-	"discord": "Discord",
+	"discord": "Discord", "claude": "Claude",
 }
 
 // ClientRef designe le client d'un compte de portail.
@@ -559,6 +559,10 @@ func (s *AccountService) Disable(ctx context.Context, actor, id uuid.UUID) error
 	// session ne puisse renaitre.
 	if err := q.RevokeAllUserRefreshTokens(ctx, id); err != nil {
 		return fmt.Errorf("revocation des sessions : %w", err)
+	}
+	// Claude cesse d'agir pour ce compte, meme s'il etait reactive plus tard.
+	if err := q.RevokeAllUserOAuthGrants(ctx, id); err != nil {
+		return fmt.Errorf("revocation des connexions de Claude : %w", err)
 	}
 	if err := q.InvalidateUserPasswordResets(ctx, id); err != nil {
 		return fmt.Errorf("annulation des liens de reinitialisation : %w", err)

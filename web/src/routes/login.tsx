@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { HttpError } from '@/lib/api'
 import { homeFor, login, sessionQuery } from '@/lib/auth'
+import { safeRedirect } from '@/lib/redirect'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -99,9 +100,9 @@ function LoginPage() {
       // declenche pas un second aller-retour vers /auth/me.
       queryClient.setQueryData(sessionQuery.queryKey, user)
 
-      // `redirect` porte la page demandee avant la connexion. A defaut, le
-      // role decide de l'espace d'atterrissage.
-      void navigate({ to: redirect ?? homeFor(user) })
+      // `redirect` porte la page demandee avant la connexion, s'il reste dans
+      // l'application. A defaut, le role decide de l'espace d'atterrissage.
+      void navigate({ to: safeRedirect(redirect) ?? homeFor(user) })
     },
     onError: (error) => {
       toast.error(error instanceof HttpError ? error.message : 'Connexion impossible')

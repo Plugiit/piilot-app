@@ -39,6 +39,7 @@ export const AUDIT_FAMILIES: { value: string; label: string }[] = [
   { value: 'settings.', label: 'Réglages' },
   { value: 'inbound.', label: 'Tri des e-mails' },
   { value: 'system.', label: 'Mises à jour' },
+  { value: 'claude.', label: 'Connexions de Claude' },
 ]
 
 /** Une action, dans les mots de l'ecran. */
@@ -81,4 +82,8 @@ export const AUDIT_ACTION: Record<string, string> = {
   'portal.file_downloaded': 'Fichier téléchargé (portail)',
   'portal.deliverable_decided': 'Réponse à un livrable (portail)',
   'portal.deliverable_decided_by_link': 'Réponse à un livrable (lien e-mail)',
+  'claude.connected': 'Claude connecté',
+  'claude.disconnected': 'Claude déconnecté',
+  'claude.refresh_reused': 'Claude coupé (jeton rejoué)',
+  'claude.code_reused': 'Claude coupé (code rejoué)',
 }

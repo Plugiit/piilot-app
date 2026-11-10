@@ -323,3 +323,8 @@ export type PortalReport = components['schemas']['PortalReport']
 /** Carte « Discord » du compte connecte, et le code qu'il tire pour se lier. */
 export type DiscordStatus = components['schemas']['DiscordStatus']
 export type DiscordCode = components['schemas']['DiscordCode']
+
+/** Connecteur Claude : la carte du compte, ses connexions, et une demande a consentir. */
+export type ClaudeAccount = components['schemas']['ClaudeAccount']
+export type ClaudeConnection = components['schemas']['ClaudeConnection']
+export type OAuthConsent = components['schemas']['OAuthConsent']

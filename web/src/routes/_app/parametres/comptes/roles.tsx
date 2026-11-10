@@ -30,6 +30,7 @@ const GROUP_ORDER = [
   'CRM',
   'Comptes',
   'Discord',
+  'Claude',
   'Rôles',
   'Système',
 ]

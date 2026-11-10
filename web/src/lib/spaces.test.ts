@@ -15,6 +15,7 @@ describe('spaceOfPath', () => {
     expect(spaceOfPath('/compte/securite')).toBe('team')
     expect(spaceOfPath('/login')).toBe('auth')
     expect(spaceOfPath('/invitation/abc')).toBe('auth')
+    expect(spaceOfPath('/autoriser')).toBe('auth')
     expect(spaceOfPath('/client/tickets')).toBe('client')
     expect(spaceOfPath('/clientele')).toBe('team')
     expect(spaceOfPath('/pm')).toBe('admin')
