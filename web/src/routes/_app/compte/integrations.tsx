@@ -13,6 +13,7 @@ import figmaUrl from '@/assets/integrations/figma.svg'
 import githubUrl from '@/assets/integrations/github.svg'
 import slackUrl from '@/assets/integrations/slack.svg'
 import { CARD_ACTION, IntegrationCard } from '@/components/integration-card'
+import { ClaudeCard, ClaudeConnections } from '@/features/claude/card'
 import { DiscordCard } from '@/features/discord/card'
 import { can, sessionQuery } from '@/lib/auth'
 
@@ -111,12 +112,19 @@ const PLANNED: Integration[] = [
 
 function IntegrationsPage() {
   const { data: user } = useQuery(sessionQuery)
+  const claude = can(user, 'claude.connect')
+  const discord = can(user, 'discord.link')
 
   return (
     <div className="flex w-full flex-col gap-6">
-      {can(user, 'discord.link') && (
-        <SectionFrame title="Votre compte" hint="Relié à vous seul : ce que vous y faites ne touche que votre compte.">
-          <DiscordCard />
+      {(claude || discord) && (
+        <SectionFrame
+          title="Votre compte"
+          hint="Relié à vous seul : ce que vous y faites ne touche que votre compte."
+          after={claude ? <ClaudeConnections /> : null}
+        >
+          {claude && <ClaudeCard />}
+          {discord && <DiscordCard />}
         </SectionFrame>
       )}
 
@@ -153,7 +161,18 @@ function Section({
   )
 }
 
-function SectionFrame({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+function SectionFrame({
+  title,
+  hint,
+  children,
+  after = null,
+}: {
+  title: string
+  hint: string
+  children: ReactNode
+  /** Sous la grille, en pleine largeur : ce qu'une carte n'a pas la place de montrer. */
+  after?: ReactNode
+}) {
   return (
     <section className="flex w-full flex-col gap-3">
       <header className="flex flex-col gap-0.5">
@@ -167,6 +186,7 @@ function SectionFrame({ title, hint, children }: { title: string; hint: string; 
           repartit sur la largeur disponible plutot que de fixer trois colonnes,
           le panneau des reglages n'ayant pas toujours la meme place. */}
       <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+      {after}
     </section>
   )
 }
