@@ -1182,6 +1182,23 @@ bot-key revoke <id>
 Contrat, réconciliation, données personnelles et adresse interne à donner au
 bot : [docs/discord.md](docs/discord.md).
 
+### Connecteur Claude
+
+Claude (claude.ai, Claude Desktop, Claude Code) agit dans Piilot au nom d'un
+compte, avec ses droits et seulement les siens. Piilot sert d'autorisation
+OAuth 2.1 et de serveur MCP, sur `/mcp`, dans la même image : rien à installer
+ni à configurer, aucune variable d'environnement.
+
+L'adresse à saisir dans Claude s'affiche dans *Mon compte › Intégrations*. Le
+compte consent sur l'écran de Piilot, et coupe l'accès depuis la même carte. La
+permission `claude.connect` (admin et team) ouvre ou ferme le connecteur par
+rôle.
+
+Seul Claude peut se connecter. Rien de ce qu'il fait n'écrit à un client ni
+ne publie sur le portail. Chaque outil rappelle la route de l'interface :
+mêmes permissions, même journal d'audit. Détails, jetons et sécurité :
+[docs/connecteur-claude.md](docs/connecteur-claude.md).
+
 ### Sondes
 
 | Route | Réponse | Usage |

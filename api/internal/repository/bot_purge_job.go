@@ -19,12 +19,18 @@ type Purger interface {
 // flux du bot. Plusieurs instances peuvent la faire tourner ensemble : chaque
 // passage est un DELETE, rejouable sans effet.
 func StartBotPurge(ctx context.Context, log *slog.Logger, purgers ...Purger) {
+	StartHourlyPurge(ctx, log, "donnees du bot", purgers...)
+}
+
+// StartHourlyPurge fait passer des purges toutes les heures ; what nomme ce
+// qu'elles effacent, dans les journaux.
+func StartHourlyPurge(ctx context.Context, log *slog.Logger, what string, purgers ...Purger) {
 	go every(ctx, botPurgeTick, func() {
 		runCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		for _, p := range purgers {
 			if err := p.Purge(runCtx); err != nil {
-				log.Warn("purge des donnees du bot", "error", err)
+				log.Warn("purge des "+what, "error", err)
 			}
 		}
 	})

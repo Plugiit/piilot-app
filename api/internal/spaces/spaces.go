@@ -186,7 +186,9 @@ func OfPath(path string) string {
 	switch {
 	case path == "/" || path == "":
 		return ""
-	case under("/login"), under("/invitation"), under("/mot-de-passe-oublie"), under("/reinitialiser"):
+	// /autoriser : l'ecran ou un compte consent a connecter Claude, a cote de
+	// la connexion — c'est la que le serveur d'autorisation l'envoie.
+	case under("/login"), under("/invitation"), under("/mot-de-passe-oublie"), under("/reinitialiser"), under("/autoriser"):
 		return Auth
 	case under("/client"):
 		return Client

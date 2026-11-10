@@ -3780,6 +3780,234 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Métadonnées de la ressource MCP
+         * @description RFC 9728. Public.
+         */
+        get: operations["getOAuthProtectedResource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Métadonnées de la ressource MCP
+         * @description RFC 9728, forme suffixée par le chemin de la ressource. Public.
+         */
+        get: operations["getOAuthProtectedResourceMcp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-authorization-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Métadonnées du serveur d'autorisation
+         * @description RFC 8414. Public.
+         */
+        get: operations["getOAuthServerMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demande d'autorisation
+         * @description Ouverte par Claude dans le navigateur. Seuls les deux clients de Claude sont admis (identités CIMD d'Anthropic). PKCE S256 obligatoire. Pose le cookie piilot_oauth qui lie la demande à ce navigateur. Une erreur avant validation de l'adresse de retour s'affiche sur l'écran de consentement, sinon elle repart chez le client. Limité par IP.
+         */
+        get: operations["oauthAuthorize"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Échanger un code ou renouveler les jetons
+         * @description RFC 6749. Client public : client_id sans secret. Un code ne sert qu'une fois ; un code rejoué révoque l'autorisation. Le jeton de renouvellement est remplacé à chaque usage ; un jeton déjà servi, rejoué, révoque l'autorisation. Limité par IP.
+         */
+        post: operations["oauthToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Révoquer un jeton
+         * @description RFC 7009. Un jeton de renouvellement emporte toute l'autorisation. 200 même pour un jeton inconnu.
+         */
+        post: operations["oauthRevoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Non servi */
+        get: operations["mcpGet"];
+        put?: never;
+        /**
+         * Serveur MCP
+         * @description Streamable HTTP sans état, réponses JSON. Un message JSON-RPC par requête : les lots sont refusés. Chaque outil rappelle la route REST de l'interface au nom du compte, avec ses permissions. Sans jeton valable : 401 et WWW-Authenticate (resource_metadata, scope). Outil d'écriture avec un jeton en lecture seule : 403 insufficient_scope. Exige claude.connect. 120 appels par minute et par connexion.
+         */
+        post: operations["mcp"];
+        /** Non servi */
+        delete: operations["mcpDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oauth/requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Demande de connexion de Claude
+         * @description Ce que l'écran de consentement montre, au seul navigateur qui a lancé la demande (cookie piilot_oauth). Exige claude.connect.
+         */
+        get: operations["getOAuthRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oauth/requests/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accepter ou refuser la connexion de Claude
+         * @description Une seule décision par demande, depuis le navigateur qui l'a lancée (cookie piilot_oauth) et l'origine de l'écran de consentement. La lecture est toujours accordée ; l'écriture seulement si elle était demandée et cochée. Exige claude.connect.
+         */
+        post: operations["decideOAuthRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/claude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Carte Claude du compte
+         * @description L'adresse du serveur MCP et les connexions en cours. Exige claude.connect.
+         */
+        get: operations["getMyClaude"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/claude/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Déconnecter Claude
+         * @description Révoque une connexion du compte : Claude est refusé dès sa requête suivante. Exige claude.connect.
+         */
+        delete: operations["deleteMyClaudeConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7082,6 +7310,110 @@ export interface components {
             items: components["schemas"]["BotEvent"][];
             /** @description Jamais null : sur une page vide, c'est le curseur reçu. À reposer tel quel au prochain appel. */
             next_after: components["schemas"]["BotCursor"];
+        };
+        /** @description Métadonnées de la ressource protégée (RFC 9728) : où trouver le serveur d'autorisation de /mcp. */
+        OAuthProtectedResource: {
+            /**
+             * Format: uri
+             * @example https://auth.example.fr/mcp
+             */
+            resource: string;
+            /** @example Piilot */
+            resource_name?: string;
+            authorization_servers: string[];
+            /**
+             * @example [
+             *       "piilot:read",
+             *       "piilot:write"
+             *     ]
+             */
+            scopes_supported: string[];
+            bearer_methods_supported: "header"[];
+        };
+        /** @description Métadonnées du serveur d'autorisation (RFC 8414). Clients publics et identités CIMD : Claude utilise son identité publiée, sans enregistrement dynamique. */
+        OAuthServerMetadata: {
+            /** Format: uri */
+            issuer: string;
+            /** Format: uri */
+            authorization_endpoint: string;
+            /** Format: uri */
+            token_endpoint: string;
+            /** Format: uri */
+            revocation_endpoint?: string;
+            response_types_supported: string[];
+            grant_types_supported: string[];
+            token_endpoint_auth_methods_supported: string[];
+            revocation_endpoint_auth_methods_supported?: string[];
+            code_challenge_methods_supported: string[];
+            scopes_supported: string[];
+            client_id_metadata_document_supported: boolean;
+            authorization_response_iss_parameter_supported?: boolean;
+        };
+        OAuthTokenResponse: {
+            /** @description piilot_at_…, une heure. */
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @example 3600 */
+            expires_in: number;
+            /** @description piilot_rt_…, trente jours, remplacé à chaque usage. */
+            refresh_token: string;
+            /** @example piilot:read piilot:write */
+            scope: string;
+        };
+        OAuthErrorBody: {
+            /** @example invalid_grant */
+            error: string;
+            error_description?: string;
+        };
+        /** @description Une demande de connexion de Claude, en attente du consentement du compte. */
+        OAuthConsent: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @example Claude
+             * @example Claude Code
+             */
+            client: string;
+            /** @example claude.ai, Claude Desktop et mobile */
+            surface: string;
+            /**
+             * @description Hôte qui publie l'identité du client.
+             * @example claude.ai
+             */
+            host: string;
+            /**
+             * @description Où partira le code.
+             * @example claude.ai
+             * @example localhost
+             */
+            redirect_host: string;
+            /** @description Retour vers la machine locale : tout programme local pourrait l'attendre. */
+            local: boolean;
+            scopes: ("piilot:read" | "piilot:write")[];
+            /** Format: date-time */
+            expires_at: string;
+        };
+        ClaudeConnection: {
+            /** Format: uuid */
+            id: string;
+            /** @example Claude */
+            client: string;
+            surface: string;
+            scopes: ("piilot:read" | "piilot:write")[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at: string | null;
+        };
+        /** @description Carte « Claude » du compte : l'adresse à saisir dans Claude et les connexions en cours. */
+        ClaudeAccount: {
+            /**
+             * Format: uri
+             * @example https://auth.example.fr/mcp
+             */
+            mcp_url: string;
+            connections: components["schemas"]["ClaudeConnection"][];
         };
     };
     responses: {
@@ -13902,6 +14234,458 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getOAuthProtectedResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Métadonnées */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthProtectedResource"];
+                };
+            };
+        };
+    };
+    getOAuthProtectedResourceMcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Métadonnées */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthProtectedResource"];
+                };
+            };
+        };
+    };
+    getOAuthServerMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Métadonnées */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthServerMetadata"];
+                };
+            };
+        };
+    };
+    oauthAuthorize: {
+        parameters: {
+            query: {
+                response_type: "code";
+                /** @description https://claude.ai/oauth/mcp-oauth-client-metadata ou https://claude.ai/oauth/claude-code-client-metadata */
+                client_id: string;
+                redirect_uri: string;
+                state?: string;
+                code_challenge: string;
+                code_challenge_method: "S256";
+                /** @description piilot:read, piilot:write, offline_access. Vide : lecture et écriture. */
+                scope?: string;
+                /** @description Adresse canonique du serveur MCP (RFC 8707). */
+                resource?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vers l'écran de consentement, ou vers le client avec une erreur */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["RateLimited"];
+            /** @description Erreur interne */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    oauthToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    /** @enum {string} */
+                    grant_type: "authorization_code" | "refresh_token";
+                    client_id: string;
+                    code?: string;
+                    redirect_uri?: string;
+                    code_verifier?: string;
+                    refresh_token?: string;
+                    resource?: string;
+                    scope?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Jetons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthTokenResponse"];
+                };
+            };
+            /** @description Erreur OAuth (RFC 6749, 5.2) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Erreur OAuth (RFC 6749, 5.2) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Erreur OAuth (RFC 6749, 5.2) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Erreur interne (server_error) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    oauthRevoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    token: string;
+                    token_type_hint?: string;
+                    client_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Révoqué, ou inconnu */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Erreur OAuth (RFC 6749, 5.2) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Erreur interne (server_error) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    mcpGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Serveur sans état : seul POST est servi */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Réponse JSON-RPC */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Corps illisible, lot JSON-RPC, ou suite après le message */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Connexion requise */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description insufficient_scope, ou compte sans claude.connect */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Corps compressé (Content-Encoding) */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Trop d'appels */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            /** @description Erreur interne */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    mcpDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Serveur sans état : seul POST est servi */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getOAuthRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande en attente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthConsent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description OAUTH_REQUEST_EXPIRED */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    decideOAuthRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    approve: boolean;
+                    scopes?: ("piilot:read" | "piilot:write")[];
+                };
+            };
+        };
+        responses: {
+            /** @description Adresse où renvoyer le navigateur */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        redirect_to: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description OAUTH_REQUEST_EXPIRED */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getMyClaude: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Carte « Claude » */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaudeAccount"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    deleteMyClaudeConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connexion révoquée */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
         };
     };

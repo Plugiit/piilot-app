@@ -57,6 +57,7 @@ func TestOfPath(t *testing.T) {
 		"/login":              Auth,
 		"/invitation/abc":     Auth,
 		"/reinitialiser/abc":  Auth,
+		"/autoriser":          Auth,
 		"/client":             Client,
 		"/client/livrables/x": Client,
 		"/clientele":          Team,

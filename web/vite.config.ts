@@ -53,6 +53,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // Connecteur Claude : autorisation OAuth, decouverte et serveur MCP, sur
+      // la meme origine que l'ecran de consentement (PUBLIC_BASE_URL du front
+      // en dev). Voir docs/connecteur-claude.md.
+      '/oauth': { target: 'http://localhost:8080', changeOrigin: true },
+      '/.well-known': { target: 'http://localhost:8080', changeOrigin: true },
+      '/mcp': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },
 

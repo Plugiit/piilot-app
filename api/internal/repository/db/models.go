@@ -432,6 +432,50 @@ type Notification struct {
 	DeliverableID *uuid.UUID `json:"deliverable_id"`
 }
 
+type OauthCode struct {
+	CodeHash      []byte     `json:"code_hash"`
+	GrantID       uuid.UUID  `json:"grant_id"`
+	RedirectUri   string     `json:"redirect_uri"`
+	CodeChallenge string     `json:"code_challenge"`
+	Resource      string     `json:"resource"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	UsedAt        *time.Time `json:"used_at"`
+}
+
+type OauthGrant struct {
+	ID         uuid.UUID  `json:"id"`
+	UserID     uuid.UUID  `json:"user_id"`
+	ClientID   string     `json:"client_id"`
+	Scopes     []string   `json:"scopes"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+}
+
+type OauthRequest struct {
+	ID            uuid.UUID `json:"id"`
+	ClientID      string    `json:"client_id"`
+	RedirectUri   string    `json:"redirect_uri"`
+	State         *string   `json:"state"`
+	CodeChallenge string    `json:"code_challenge"`
+	Scopes        []string  `json:"scopes"`
+	Resource      string    `json:"resource"`
+	BrowserHash   []byte    `json:"browser_hash"`
+	CreatedAt     time.Time `json:"created_at"`
+	ExpiresAt     time.Time `json:"expires_at"`
+}
+
+type OauthToken struct {
+	TokenHash []byte     `json:"token_hash"`
+	GrantID   uuid.UUID  `json:"grant_id"`
+	Kind      string     `json:"kind"`
+	Resource  string     `json:"resource"`
+	Scopes    []string   `json:"scopes"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	RevokedAt *time.Time `json:"revoked_at"`
+}
+
 type PasswordReset struct {
 	ID        uuid.UUID  `json:"id"`
 	UserID    uuid.UUID  `json:"user_id"`

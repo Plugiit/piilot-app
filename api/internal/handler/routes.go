@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/plugiit/piilot-app/api/internal/claude"
 	"github.com/plugiit/piilot-app/api/internal/middleware"
 )
 
@@ -47,6 +50,8 @@ type Deps struct {
 	Portal        *Portal
 	Discord       *Discord
 	BotEvents     *BotEvents
+	OAuth         *OAuth
+	Claude        *claude.Server
 
 	Guard *middleware.Guard
 }
@@ -98,6 +103,31 @@ func Register(app *fiber.App, deps Deps) {
 
 	// Compte rendu d'une mise a jour : le jeton du lancement fait office de preuve.
 	v1.Post("/hooks/site-updates", deps.SiteUpdates.Hook)
+
+	registerClaudeRoutes(app, deps)
+}
+
+// registerClaudeRoutes monte le connecteur Claude hors de /api/v1 : les
+// chemins de decouverte sont fixes par les RFC, et /mcp est l'adresse que l'on
+// saisit dans Claude. Montes avant l'application web, qui sinon les servirait.
+//
+// Pas de session ici : /oauth/* porte ses propres preuves (PKCE, codes,
+// jetons), /mcp un jeton d'acces verifie par sa barriere.
+func registerClaudeRoutes(app *fiber.App, deps Deps) {
+	app.Get("/.well-known/oauth-protected-resource", deps.OAuth.ResourceMetadata)
+	app.Get("/.well-known/oauth-protected-resource/mcp", deps.OAuth.ResourceMetadata)
+	app.Get("/.well-known/oauth-authorization-server", deps.OAuth.ServerMetadata)
+	app.Get("/oauth/authorize", deps.OAuth.Authorize)
+	app.Post("/oauth/token", deps.OAuth.Token)
+	app.Post("/oauth/revoke", deps.OAuth.Revoke)
+
+	if deps.Claude != nil {
+		app.Post("/mcp", deps.Claude.Gate, deps.Claude.Handle())
+	} else {
+		app.Post("/mcp", func(c fiber.Ctx) error { return c.SendStatus(http.StatusServiceUnavailable) })
+	}
+	app.Get("/mcp", claude.MethodNotAllowed)
+	app.Delete("/mcp", claude.MethodNotAllowed)
 }
 
 // registerClientRoutes monte le portail client.
@@ -178,6 +208,13 @@ func registerAuthRoutes(r fiber.Router, deps Deps) {
 	r.Get("/me/discord", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.Status)
 	r.Post("/me/discord/code", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.CreateCode)
 	r.Delete("/me/discord", deps.Guard.Authenticated, deps.Guard.RequirePermission("discord.link"), deps.Discord.Unlink)
+
+	// Connecteur Claude : l'ecran de consentement et les connexions du compte.
+	// Chacun ne consent et ne revoque que pour lui-meme.
+	r.Get("/oauth/requests/:id", deps.Guard.Authenticated, deps.Guard.RequirePermission("claude.connect"), deps.OAuth.Consent)
+	r.Post("/oauth/requests/:id/decision", deps.Guard.Authenticated, deps.Guard.RequirePermission("claude.connect"), deps.OAuth.Decide)
+	r.Get("/me/claude", deps.Guard.Authenticated, deps.Guard.RequirePermission("claude.connect"), deps.OAuth.Me)
+	r.Delete("/me/claude/connections/:id", deps.Guard.Authenticated, deps.Guard.RequirePermission("claude.connect"), deps.OAuth.Disconnect)
 
 	// Les photos se lisent entre comptes connectes : elles s'affichent dans les
 	// equipes et les affectations, pas seulement sur ses propres reglages.
