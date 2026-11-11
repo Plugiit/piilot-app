@@ -162,6 +162,13 @@ services:
       UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
       UMAMI_API_KEY: ${UMAMI_API_KEY:-}
 
+      # --- Audience de Piilot ----------------------------------------------------
+      # Mesure d'audience de l'instance elle-meme, par Umami. Rien a voir avec le
+      # module ci-dessus. Vides, aucune page ne charge de script. Adresse https
+      # du script (https://umami.agence.fr/script.js) et identifiant du site.
+      UMAMI_TRACKER_URL: ${UMAMI_TRACKER_URL:-}
+      UMAMI_TRACKER_WEBSITE_ID: ${UMAMI_TRACKER_WEBSITE_ID:-}
+
       # --- HTTP -------------------------------------------------------------
       READ_TIMEOUT: ${READ_TIMEOUT:-30s}
       WRITE_TIMEOUT: ${WRITE_TIMEOUT:-30s}
