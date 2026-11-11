@@ -15,10 +15,10 @@ import (
 
 func newSPAApp(t *testing.T) *fiber.App {
 	t.Helper()
-	return newSPAAppWith(t, spaces.Spaces{})
+	return newSPAAppWith(t, spaces.Spaces{}, SPATracker{})
 }
 
-func newSPAAppWith(t *testing.T, sp spaces.Spaces) *fiber.App {
+func newSPAAppWith(t *testing.T, sp spaces.Spaces, tr SPATracker) *fiber.App {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -34,7 +34,7 @@ func newSPAAppWith(t *testing.T, sp spaces.Spaces) *fiber.App {
 
 	app := fiber.New()
 	app.Get("/health/live", func(c fiber.Ctx) error { return c.SendString("live") })
-	if err := RegisterSPA(app, dir, sp); err != nil {
+	if err := RegisterSPA(app, dir, sp, tr); err != nil {
 		t.Fatal(err)
 	}
 	return app
@@ -80,7 +80,7 @@ func TestSPA(t *testing.T) {
 }
 
 func TestSPAWithoutIndex(t *testing.T) {
-	if err := RegisterSPA(fiber.New(), t.TempDir(), spaces.Spaces{}); err == nil {
+	if err := RegisterSPA(fiber.New(), t.TempDir(), spaces.Spaces{}, SPATracker{}); err == nil {
 		t.Fatal("un STATIC_DIR sans index.html doit faire echouer le demarrage")
 	}
 }
@@ -92,7 +92,7 @@ func TestSPAMultiDomaines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := newSPAAppWith(t, sp)
+	app := newSPAAppWith(t, sp, SPATracker{})
 
 	req := httptest.NewRequest("GET", "/parametres/comptes?onglet=roles", nil)
 	req.Host = "team.agence.fr"
@@ -122,5 +122,33 @@ func TestSPAMultiDomaines(t *testing.T) {
 	req.Host = "client.agence.fr"
 	if resp, _ = app.Test(req); resp.StatusCode != 200 {
 		t.Fatalf("asset : %d", resp.StatusCode)
+	}
+}
+
+// Le script de mesure d'audience n'est jamais une balise script : le front le
+// charge apres avoir pose son filtre. Sans configuration, rien du tout.
+func TestSPATracker(t *testing.T) {
+	get := func(app *fiber.App) string {
+		t.Helper()
+		resp, err := app.Test(httptest.NewRequest("GET", "/", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		return string(body)
+	}
+
+	if body := get(newSPAApp(t)); strings.Contains(body, "piilot-tracker") {
+		t.Fatalf("meta servie sans configuration : %s", body)
+	}
+
+	tr := SPATracker{ScriptURL: "https://umami.agence.fr/script.js", WebsiteID: "7b376ab6-cf03-4a00-9831-c5ea22aa570e"}
+	body := get(newSPAAppWith(t, spaces.Spaces{}, tr))
+	want := `<meta name="piilot-tracker" content="{&#34;src&#34;:&#34;https://umami.agence.fr/script.js&#34;,&#34;websiteId&#34;:&#34;7b376ab6-cf03-4a00-9831-c5ea22aa570e&#34;}"></head>`
+	if !strings.Contains(body, want) {
+		t.Fatalf("meta absente ou mal formee : %s", body)
+	}
+	if strings.Contains(body, "<script") {
+		t.Fatalf("le script ne doit pas etre servi directement : %s", body)
 	}
 }

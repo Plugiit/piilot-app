@@ -26,12 +26,16 @@ import (
 // En mode multi-domaines, une page ouverte sur le mauvais domaine est renvoyee
 // vers celui de son espace, et index.html recoit les quatre domaines : le front
 // en a besoin pour faire de meme quand on navigue sans recharger la page.
-func RegisterSPA(app *fiber.App, dir string, sp spaces.Spaces) error {
+//
+// Si l'instance mesure son audience, index.html recoit aussi l'adresse du
+// script Umami : le front le charge lui-meme, apres avoir pose son filtre.
+func RegisterSPA(app *fiber.App, dir string, sp spaces.Spaces, tr SPATracker) error {
 	index, err := os.ReadFile(filepath.Join(dir, "index.html"))
 	if err != nil {
 		return fmt.Errorf("front introuvable dans STATIC_DIR : %w", err)
 	}
 	index = injectSpaces(index, sp)
+	index = injectTracker(index, tr)
 
 	serveIndex := func(c fiber.Ctx) error {
 		if strings.HasPrefix(c.Path(), "/api/") {
@@ -96,7 +100,31 @@ func injectSpaces(index []byte, sp spaces.Spaces) []byte {
 	payload, _ := json.Marshal(map[string]string{
 		"auth": sp.AuthURL, "team": sp.TeamURL, "admin": sp.AdminURL, "client": sp.ClientURL,
 	})
-	meta := []byte(`<meta name="piilot-spaces" content="` + html.EscapeString(string(payload)) + `">`)
+	return injectMeta(index, "piilot-spaces", payload)
+}
 
+// SPATracker est le script Umami qui mesure l'audience de l'instance. Vide,
+// aucune page n'en charge.
+type SPATracker struct {
+	ScriptURL string
+	WebsiteID string
+}
+
+// injectTracker ajoute a index.html l'adresse du script Umami, dans une meta
+// et non dans une balise script : charge directement, le script enverrait les
+// adresses telles quelles, jetons de reinitialisation et d'invitation compris.
+// Le front le charge apres avoir pose le filtre qui les retire ; si le front
+// ne demarre pas, rien ne part.
+func injectTracker(index []byte, tr SPATracker) []byte {
+	if tr.ScriptURL == "" {
+		return index
+	}
+
+	payload, _ := json.Marshal(map[string]string{"src": tr.ScriptURL, "websiteId": tr.WebsiteID})
+	return injectMeta(index, "piilot-tracker", payload)
+}
+
+func injectMeta(index []byte, name string, payload []byte) []byte {
+	meta := []byte(`<meta name="` + name + `" content="` + html.EscapeString(string(payload)) + `">`)
 	return bytes.Replace(index, []byte("</head>"), append(meta, []byte("</head>")...), 1)
 }

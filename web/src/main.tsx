@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { MaintenanceScreen } from '@/features/system/maintenance-screen'
 import { sessionQuery } from '@/lib/auth'
 import { createQueryClient } from '@/lib/query-client'
+import { startTracker } from '@/lib/tracker'
 import { routeTree } from './routeTree.gen'
 
 import './index.css'
@@ -96,6 +97,8 @@ window.addEventListener('vite:preloadError', (event) => {
   }
   window.location.reload()
 })
+
+startTracker()
 
 const rootElement = document.getElementById('root')
 
