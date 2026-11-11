@@ -697,7 +697,6 @@ que de la laisser répondre 500 à la première requête.
 | `KUMA_URL` / `KUMA_API_KEY` | *(vides)* | Instance Uptime Kuma du module de disponibilité, sans `/metrics`, et sa clé d'API. Vides : elles se règlent dans *Paramètres > Modules* ; renseignées, elles priment et l'écran les montre en lecture seule |
 | `UMAMI_URL` / `UMAMI_USERNAME` / `UMAMI_PASSWORD` | *(vides)* | Instance Umami auto-hébergée du module de statistiques. Renseignées, elles priment sur *Paramètres > Modules* |
 | `UMAMI_API_KEY` | *(vide)* | Umami Cloud, avec `UMAMI_URL=https://api.umami.is/v1`. Exclut `UMAMI_USERNAME` |
-| `UMAMI_TRACKER_URL` / `UMAMI_TRACKER_WEBSITE_ID` | *(vides)* | Mesure d'audience de Piilot lui-même, sans rapport avec le module de statistiques : adresse https du script Umami et identifiant du site. Les deux vont ensemble. Vides, aucune page ne charge de script. Les adresses envoyées perdent query et fragment, et leurs identifiants et jetons sont remplacés par `:id` et `:token` |
 | `BACKUP_STALE_AFTER` | `36h` | Sans sauvegarde réussie depuis ce délai, les admins sont prévenus dans la cloche. `0` pour une instance sauvegardée autrement |
 | `BACKUP_AT` | `03:00` | Heure (Europe/Paris) de la sauvegarde quotidienne du service `backup` |
 | `BACKUP_KEEP_DAILY` / `BACKUP_KEEP_WEEKLY` / `BACKUP_KEEP_MONTHLY` | `7` / `4` / `3` | Rétention des sauvegardes, sur le disque comme sur S3 |

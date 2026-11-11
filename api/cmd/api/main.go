@@ -238,8 +238,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	// Le front, en dernier : il ne recoit que ce qu'aucune route d'API n'a pris.
 	if cfg.StaticDir != "" {
-		tracker := handler.SPATracker{ScriptURL: cfg.Tracker.ScriptURL, WebsiteID: cfg.Tracker.WebsiteID}
-		if err := handler.RegisterSPA(app, cfg.StaticDir, cfg.Spaces, tracker); err != nil {
+		if err := handler.RegisterSPA(app, cfg.StaticDir, cfg.Spaces); err != nil {
 			return err
 		}
 	}
