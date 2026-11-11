@@ -3,9 +3,7 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -96,9 +94,6 @@ type Config struct {
 	Uptime UptimeEnv
 	// Module de statistiques (Umami). Memes regles que le precedent.
 	Analytics AnalyticsEnv
-	// Mesure d'audience de Piilot lui-meme, a ne pas confondre avec le module
-	// de statistiques qui lit celle des sites clients. Vide : aucun script.
-	Tracker TrackerEnv
 	// Retention du journal d'audit.
 	AuditRetention time.Duration
 
@@ -166,10 +161,6 @@ func Load() (Config, error) {
 			UmamiPassword: os.Getenv("UMAMI_PASSWORD"),
 			UmamiAPIKey:   strings.TrimSpace(os.Getenv("UMAMI_API_KEY")),
 		},
-		Tracker: TrackerEnv{
-			ScriptURL: strings.TrimSpace(os.Getenv("UMAMI_TRACKER_URL")),
-			WebsiteID: strings.TrimSpace(os.Getenv("UMAMI_TRACKER_WEBSITE_ID")),
-		},
 		Uptime: UptimeEnv{
 			KumaURL:    strings.TrimSpace(os.Getenv("KUMA_URL")),
 			KumaAPIKey: strings.TrimSpace(os.Getenv("KUMA_API_KEY")),
@@ -203,10 +194,6 @@ func Load() (Config, error) {
 	}
 	if cfg.Analytics.UmamiAPIKey != "" && cfg.Analytics.UmamiUsername != "" {
 		return Config{}, fmt.Errorf("UMAMI_API_KEY et UMAMI_USERNAME s'excluent : la clé pour Umami Cloud, l'identifiant pour une instance")
-	}
-
-	if err := cfg.Tracker.validate(); err != nil {
-		return Config{}, err
 	}
 
 	if u := cfg.Uptime.KumaURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
@@ -422,37 +409,6 @@ type AnalyticsEnv struct {
 
 // AuthFromEnv dit si les identifiants viennent de l'environnement.
 func (e AnalyticsEnv) AuthFromEnv() bool { return e.UmamiUsername != "" || e.UmamiAPIKey != "" }
-
-// TrackerEnv est le script Umami qui mesure l'audience de Piilot lui-meme.
-// Il n'est servi qu'aux instances qui le configurent : une instance
-// auto-hebergee n'envoie rien a personne par defaut.
-type TrackerEnv struct {
-	ScriptURL string
-	WebsiteID string
-}
-
-// Enabled dit si l'instance mesure son audience.
-func (t TrackerEnv) Enabled() bool { return t.ScriptURL != "" }
-
-var websiteIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-
-func (t TrackerEnv) validate() error {
-	if t.ScriptURL == "" && t.WebsiteID == "" {
-		return nil
-	}
-	if t.ScriptURL == "" || t.WebsiteID == "" {
-		return fmt.Errorf("UMAMI_TRACKER_URL et UMAMI_TRACKER_WEBSITE_ID vont ensemble")
-	}
-	// https seulement : le script est charge par chaque page, en clair il
-	// pourrait etre remplace en chemin.
-	if u, err := url.Parse(t.ScriptURL); err != nil || u.Scheme != "https" || u.Host == "" {
-		return fmt.Errorf("UMAMI_TRACKER_URL attend l'adresse https du script, comme https://umami.agence.fr/script.js (actuel : %q)", t.ScriptURL)
-	}
-	if !websiteIDPattern.MatchString(t.WebsiteID) {
-		return fmt.Errorf("UMAMI_TRACKER_WEBSITE_ID attend l'identifiant du site dans Umami, un UUID (actuel : %q)", t.WebsiteID)
-	}
-	return nil
-}
 
 // UptimeEnv est l'instance Uptime Kuma fixee par l'environnement.
 type UptimeEnv struct {
