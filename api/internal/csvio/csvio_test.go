@@ -154,6 +154,8 @@ func TestReaderFormulaPrefix(t *testing.T) {
 		{"'+33612345678", "+33612345678"},
 		{"'-5", "-5"},
 		{"'@nom", "@nom"},
+		{"'=x  ", "=x"},
+		{"''=x", "'=x"},
 		{"'bonjour", "'bonjour"},
 		{"'", "'"},
 		{"  Dupont  ", "Dupont"},
@@ -322,6 +324,8 @@ func TestCell(t *testing.T) {
 		{"\tx", "'\tx"},
 		{"\rx", "'\rx"},
 		{"a=b", "a=b"},
+		{"'=x", "''=x"},
+		{"'bonjour", "'bonjour"},
 	}
 
 	for _, tc := range cases {
@@ -447,7 +451,7 @@ func TestRoundTripTrickyValues(t *testing.T) {
 
 // Une seule valeur par ligne pour ne rien perdre au decoupage par trois.
 func TestRoundTripEachValueAlone(t *testing.T) {
-	for _, v := range []string{"=1+1", "-5", "@x", "a;b", "l1\nl2", `"q"`, "'bonjour"} {
+	for _, v := range []string{"=1+1", "-5", "@x", "a;b", "l1\nl2", `"q"`, "'bonjour", "'=x", "''-5", "'"} {
 		var buf bytes.Buffer
 
 		w := NewWriter(&buf)
