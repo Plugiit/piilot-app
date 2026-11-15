@@ -142,8 +142,12 @@ reste alors en échec, et l'alerte le dit.
 
 *Paramètres → Modules → Coolify* (admins) : Piilot lit la liste des applications
 de l'instance [Coolify](https://coolify.io) de l'agence, en lecture seule. Il ne
-déclenche jamais un déploiement. Ce lot ne relève que les applications ; leur
-liaison aux projets et la lecture des déploiements viennent ensuite.
+déclenche jamais un déploiement. Dans *Projet › Paramètres › Maintenance*, la carte
+*Déploiements* lie le projet à ses applications (production, préproduction) ; Piilot
+relève alors leurs déploiements **réussis** (statut `finished`) sur les trois
+derniers mois, et le rapport mensuel s'appuie sur eux plutôt que sur le webhook Git.
+Un rapport attend une relecture si la dernière relève n'a pas réussi après la fin
+du mois ; le 1er, Piilot demande cette relève avant de créer le brouillon.
 
 1. **Dans Coolify**, activer l'API dans les réglages de l'instance (*Settings →
    Advanced*, option d'accès à l'API ; l'intitulé varie selon la version). Sur une instance auto-hébergée elle est désactivée par défaut, et
