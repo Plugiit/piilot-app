@@ -278,8 +278,8 @@ func TestLesPermissionsDAdministrationNeQuittentPasLeRoleAdmin(t *testing.T) {
 		t.Error("users.write accordee a team")
 	}
 	// Effacer un compte le desactive et coupe ses sessions, importer cree du
-	// temps au nom de n'importe qui : equivalent a users.write, admin seulement.
-	for _, code := range []string{"rgpd.manage", "data.import"} {
+	// temps au nom de n'importe qui, exporter sort les donnees personnelles de tout le CRM : admin seulement.
+	for _, code := range []string{"rgpd.manage", "data.import", "data.export"} {
 		if _, err := accounts.SetRolePermissions(ctx, "team", append(slices.Clone(team.Permissions), code)); err == nil {
 			t.Errorf("%s accordee a team", code)
 		}

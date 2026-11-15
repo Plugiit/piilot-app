@@ -65,8 +65,8 @@ var (
 //
 // rgpd.manage : une demande d'effacement desactive le compte vise et coupe ses
 // sessions, comme users.write. data.import : cree du temps au nom de n'importe
-// quel compte.
-var adminOnly = []string{"roles.write", "system.update", "users.write", "rgpd.manage", "data.import"}
+// quel compte. data.export : sort les donnees personnelles de tout le CRM.
+var adminOnly = []string{"roles.write", "system.update", "users.write", "rgpd.manage", "data.import", "data.export"}
 
 // clientPermissions : ce qu'un compte du portail peut recevoir. Le portail ne
 // voit que ses propres projets ; lui ouvrir une permission du back-office
