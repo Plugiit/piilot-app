@@ -104,6 +104,8 @@ type Config struct {
 	// Module de disponibilite. Vides, il se regle dans Paramètres > Modules ;
 	// renseignees, elles priment et l'ecran les montre en lecture seule.
 	Uptime UptimeEnv
+	// Coolify : l'instance de deploiements fixee par l'environnement.
+	Coolify CoolifyEnv
 	// Module de statistiques (Umami). Memes regles que le precedent.
 	Analytics AnalyticsEnv
 	// Retention du journal d'audit.
@@ -187,6 +189,10 @@ func Load() (Config, error) {
 			KumaURL:    strings.TrimSpace(os.Getenv("KUMA_URL")),
 			KumaAPIKey: strings.TrimSpace(os.Getenv("KUMA_API_KEY")),
 		},
+		Coolify: CoolifyEnv{
+			URL:      strings.TrimSpace(os.Getenv("COOLIFY_URL")),
+			APIToken: strings.TrimSpace(os.Getenv("COOLIFY_API_TOKEN")),
+		},
 		GitWebhookSecret: os.Getenv("GIT_WEBHOOK_SECRET"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
@@ -220,6 +226,10 @@ func Load() (Config, error) {
 
 	if u := cfg.Uptime.KumaURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
 		return Config{}, fmt.Errorf("KUMA_URL attend une adresse http(s) (actuel : %q)", u)
+	}
+
+	if u := cfg.Coolify.URL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+		return Config{}, fmt.Errorf("COOLIFY_URL attend une adresse http(s) (actuel : %q)", u)
 	}
 
 	if len(cfg.JWTSecret) < 32 {
@@ -469,6 +479,14 @@ func (e AnalyticsEnv) AuthFromEnv() bool { return e.UmamiUsername != "" || e.Uma
 type UptimeEnv struct {
 	KumaURL    string
 	KumaAPIKey string
+}
+
+// CoolifyEnv est l'instance Coolify fixee par l'environnement.
+type CoolifyEnv struct {
+	// URL de l'instance, sans /api/v1.
+	URL string
+	// APIToken est le jeton complet, avec son « id| ».
+	APIToken string
 }
 
 // InboundEnv est l'e-mail entrant fixe par l'environnement.
