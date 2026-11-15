@@ -42,7 +42,7 @@ SELECT id, repo_url, (deleted_at IS NOT NULL)::boolean AS deleted FROM projects 
 -- name: ReportGitSyncState :one
 -- Ce qu'il faut pour savoir si un brouillon doit attendre la synchronisation :
 -- le depot, le dernier essai, et si un jeton est la.
-SELECT p.repo_url, g.last_attempt_at,
+SELECT p.repo_url, g.last_attempt_at, g.last_synced_at, g.last_error,
        EXISTS (SELECT 1 FROM site_update_settings)::boolean AS has_token
 FROM projects p
 LEFT JOIN project_git_sync g ON g.project_id = p.id

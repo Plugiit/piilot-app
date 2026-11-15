@@ -393,3 +393,59 @@ func TestGitSyncLeRapportAttendLaSynchronisationDuMoisEcoule(t *testing.T) {
 		t.Fatalf("apres un essai en echec : %s", status)
 	}
 }
+
+func TestGitSyncLeMotifDeRetenueSuitLaSynchronisation(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	march := time.Date(2033, 3, 1, 0, 0, 0, 0, time.UTC)
+	f := gitSyncSetup(t, pool, march)
+	reports := usecase.NewReportService(pool, "https://piilot.test", false, log)
+	held := func() bool {
+		return slices.Contains(reportDataOf(t, reports, pool, f.project, march).HoldReasons, "git_sync_stale")
+	}
+
+	// Sans jeton, rien n'est attendu de GitHub : pas de retenue pour cette raison.
+	if _, err := reports.Generate(ctx, march, &f.project); err != nil {
+		t.Fatal(err)
+	}
+	if held() {
+		t.Fatal("retenu sans jeton")
+	}
+
+	// Avec un jeton et aucune synchronisation apres la fin du mois : retenu.
+	f.setToken(t)
+	id, _ := reportOf(t, pool, f.project, march)
+	if _, err := reports.Regenerate(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if !held() {
+		t.Fatal("non retenu sans synchronisation")
+	}
+
+	// Une synchronisation reussie apres la fin du mois leve la retenue.
+	if err := f.svc.TickAt(ctx, time.Date(2033, 4, 1, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.Regenerate(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if held() {
+		t.Fatal("retenu malgre une synchronisation reussie")
+	}
+
+	// Une synchronisation en echec la remet.
+	f.fake.set(nil, gitsource.ErrForbidden)
+	if _, err := f.svc.RequestSync(ctx, f.project); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.TickAt(ctx, time.Date(2033, 4, 2, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.Regenerate(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if !held() {
+		t.Fatal("non retenu apres un echec")
+	}
+}

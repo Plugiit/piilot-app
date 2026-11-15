@@ -7316,8 +7316,10 @@ export interface components {
             updates: components["schemas"]["ReportUpdates"] | null;
             backups: components["schemas"]["ReportBackups"] | null;
             domain: components["schemas"]["ReportDomains"] | null;
-            /** @description Le projet est suivi par Coolify, le module est actif, et la dernière relève n'a pas réussi après la fin du mois. */
+            /** @description Le projet est suivi par Coolify, le module est actif, et la dernière relève n'a pas réussi après la fin du mois. Réservé à l'équipe : absent des rapports du portail. */
             deployments_stale?: boolean;
+            /** @description Le projet a un dépôt GitHub et le jeton pour le lire, et la dernière synchronisation n'a pas réussi après la fin du mois. Réservé à l'équipe : absent des rapports du portail. */
+            git_sync_stale?: boolean;
         };
         Report: {
             /** Format: uuid */

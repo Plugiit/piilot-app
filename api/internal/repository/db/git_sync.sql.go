@@ -160,7 +160,7 @@ func (q *Queries) RecordGitSync(ctx context.Context, arg RecordGitSyncParams) er
 }
 
 const reportGitSyncState = `-- name: ReportGitSyncState :one
-SELECT p.repo_url, g.last_attempt_at,
+SELECT p.repo_url, g.last_attempt_at, g.last_synced_at, g.last_error,
        EXISTS (SELECT 1 FROM site_update_settings)::boolean AS has_token
 FROM projects p
 LEFT JOIN project_git_sync g ON g.project_id = p.id
@@ -170,6 +170,8 @@ WHERE p.id = $1
 type ReportGitSyncStateRow struct {
 	RepoUrl       string     `json:"repo_url"`
 	LastAttemptAt *time.Time `json:"last_attempt_at"`
+	LastSyncedAt  *time.Time `json:"last_synced_at"`
+	LastError     *string    `json:"last_error"`
 	HasToken      bool       `json:"has_token"`
 }
 
@@ -178,7 +180,13 @@ type ReportGitSyncStateRow struct {
 func (q *Queries) ReportGitSyncState(ctx context.Context, projectID uuid.UUID) (ReportGitSyncStateRow, error) {
 	row := q.db.QueryRow(ctx, reportGitSyncState, projectID)
 	var i ReportGitSyncStateRow
-	err := row.Scan(&i.RepoUrl, &i.LastAttemptAt, &i.HasToken)
+	err := row.Scan(
+		&i.RepoUrl,
+		&i.LastAttemptAt,
+		&i.LastSyncedAt,
+		&i.LastError,
+		&i.HasToken,
+	)
 	return i, err
 }
 
