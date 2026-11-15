@@ -4105,7 +4105,7 @@ export interface paths {
         };
         /**
          * Exporter une entité en CSV
-         * @description CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Seuls les clients sont exportables pour l'instant (422 pour les autres).
+         * @description CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Les quatre entités sont exportables (422 pour une entité inconnue).
          */
         get: operations["getAdminExport"];
         put?: never;

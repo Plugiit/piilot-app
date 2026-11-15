@@ -167,7 +167,10 @@ func NewDataImportService(pool *pgxpool.Pool, files storage.Store, maxBytes int6
 	return &DataImportService{
 		pool: pool, q: db.New(pool), files: files, maxBytes: maxBytes, maxRows: maxRows, log: log,
 		importers: map[string]entityImporter{
-			DataEntityClients: clientImporter{},
+			DataEntityClients:     clientImporter{},
+			DataEntityContacts:    contactImporter{},
+			DataEntityProjects:    projectImporter{},
+			DataEntityTimeEntries: timeEntryImporter{},
 		},
 	}
 }
