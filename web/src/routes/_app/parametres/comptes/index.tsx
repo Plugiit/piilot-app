@@ -38,9 +38,8 @@ import { displayName, lastSeen, ROLE, roleOf, type RoleCode } from '@/features/a
 import { LinkBox } from '@/features/accounts/link-box'
 import { useCancelAction, useExportAction } from '@/features/rgpd/actions'
 import { ErasureBanner } from '@/features/rgpd/erasure-banner'
-import { scheduledErasuresQuery } from '@/features/rgpd/api'
+import { useScheduledErasure } from '@/features/rgpd/api'
 import { ErasureDialog } from '@/features/rgpd/request-dialog'
-import { findScheduled } from '@/features/rgpd/labels'
 import { Avatars } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
 import { can, sessionQuery } from '@/lib/auth'
@@ -240,13 +239,84 @@ function RowActions({
   )
 }
 
+/** Une ligne de compte : l'éventuel effacement planifié est lu pour ce seul compte. */
+function AccountRow({
+  account,
+  canManage,
+  canRgpd,
+  onLink,
+}: {
+  account: Account
+  canManage: boolean
+  canRgpd: boolean
+  onLink: (link: SentLink & { name: string }) => void
+}) {
+  const disabled = account.status === 'disabled'
+  const erasure = useScheduledErasure('user', account.id, canRgpd)
+
+  return (
+    <div
+      className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center border-b border-[#e8e8e9] bg-white px-4 py-2.5 max-md:grid-cols-[1fr_44px] max-md:gap-y-1"
+    >
+      <div className={cn('flex min-w-0 items-center gap-2.5', disabled && 'opacity-55')}>
+        <Avatars people={[account]} max={1} size={32} />
+        <div className="flex min-w-0 flex-col">
+          <span className="flex items-center gap-1.5 truncate text-[14px] font-medium text-[#1b1b1b]">
+            {displayName(account)}
+            {account.is_self && (
+              <span className="rounded-full bg-[#f3f4f4] px-1.5 py-px text-[11px] font-normal text-[#73757c]">
+                Vous
+              </span>
+            )}
+          </span>
+          <span className="truncate text-[13px] text-[#73757c]">{account.email}</span>
+          {erasure !== undefined && <ErasureBanner erasure={erasure} compact />}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 max-md:hidden">
+        <RolePill role={account.role} />
+        {disabled && (
+          <span className="rounded-full bg-[#f3f4f4] px-2 py-0.5 text-[12px] text-[#73757c]">
+            Désactivé
+          </span>
+        )}
+      </div>
+
+      <span className="truncate text-[14px] text-[#1b1b1b] max-md:hidden">
+        {account.client?.name ?? <span className="text-[#c4c4c4]">—</span>}
+      </span>
+
+      <span
+        className={cn(
+          'text-[13px] max-md:hidden',
+          account.last_login_at === null ? 'text-[#a2a3a7]' : 'text-[#4b4b4f]',
+        )}
+        title={account.last_login_at ?? undefined}
+      >
+        {lastSeen(account)}
+      </span>
+
+      <div className="flex justify-end">
+        {canManage && !account.is_self && (
+          <RowActions
+            account={account}
+            canRgpd={canRgpd}
+            erasure={erasure}
+            onLink={(sent) => onLink({ ...sent, name: displayName(account) })}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AccountsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: session } = useQuery(sessionQuery)
   const canManage = session?.permissions.includes('users.write') === true
   const canRgpd = can(session, 'rgpd.manage')
-  const { data: scheduled } = useQuery(scheduledErasuresQuery(canRgpd))
 
   const { data, isPending } = useQuery(
     accountListQuery({
@@ -343,66 +413,9 @@ function AccountsPage() {
           </div>
         )}
 
-        {rows.map((account) => {
-          const disabled = account.status === 'disabled'
-          const erasure = scheduled === undefined ? undefined : findScheduled(scheduled.items, 'user', account.id)
-          return (
-            <div
-              key={account.id}
-              className="grid grid-cols-[minmax(240px,2fr)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_44px] items-center border-b border-[#e8e8e9] bg-white px-4 py-2.5 max-md:grid-cols-[1fr_44px] max-md:gap-y-1"
-            >
-              <div className={cn('flex min-w-0 items-center gap-2.5', disabled && 'opacity-55')}>
-                <Avatars people={[account]} max={1} size={32} />
-                <div className="flex min-w-0 flex-col">
-                  <span className="flex items-center gap-1.5 truncate text-[14px] font-medium text-[#1b1b1b]">
-                    {displayName(account)}
-                    {account.is_self && (
-                      <span className="rounded-full bg-[#f3f4f4] px-1.5 py-px text-[11px] font-normal text-[#73757c]">
-                        Vous
-                      </span>
-                    )}
-                  </span>
-                  <span className="truncate text-[13px] text-[#73757c]">{account.email}</span>
-                  {erasure !== undefined && <ErasureBanner erasure={erasure} compact />}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 max-md:hidden">
-                <RolePill role={account.role} />
-                {disabled && (
-                  <span className="rounded-full bg-[#f3f4f4] px-2 py-0.5 text-[12px] text-[#73757c]">
-                    Désactivé
-                  </span>
-                )}
-              </div>
-
-              <span className="truncate text-[14px] text-[#1b1b1b] max-md:hidden">
-                {account.client?.name ?? <span className="text-[#c4c4c4]">—</span>}
-              </span>
-
-              <span
-                className={cn(
-                  'text-[13px] max-md:hidden',
-                  account.last_login_at === null ? 'text-[#a2a3a7]' : 'text-[#4b4b4f]',
-                )}
-                title={account.last_login_at ?? undefined}
-              >
-                {lastSeen(account)}
-              </span>
-
-              <div className="flex justify-end">
-                {canManage && !account.is_self && (
-                  <RowActions
-                    account={account}
-                    canRgpd={canRgpd}
-                    erasure={erasure}
-                    onLink={(sent) => setLink({ ...sent, name: displayName(account) })}
-                  />
-                )}
-              </div>
-            </div>
-          )
-        })}
+        {rows.map((account) => (
+          <AccountRow key={account.id} account={account} canManage={canManage} canRgpd={canRgpd} onLink={setLink} />
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 p-4">

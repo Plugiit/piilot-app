@@ -4,7 +4,7 @@ import { api, apiUrl, unwrap } from '@/lib/api'
 import { clientKeys } from '@/features/clients/api'
 import type { RgpdErasureItem } from '@/types/api'
 
-import { findScheduled, isExportActive, type ErasureStatus, type SubjectType } from './labels'
+import { isExportActive, type ErasureStatus, type SubjectType } from './labels'
 
 /** Intervalle de sondage tant qu'une archive se construit. */
 const POLL_MS = 3000
@@ -13,7 +13,7 @@ export const rgpdKeys = {
   all: ['rgpd'] as const,
   exports: (page: number) => ['rgpd', 'exports', page] as const,
   erasures: (status: ErasureStatus | undefined, page: number) => ['rgpd', 'erasures', status ?? 'all', page] as const,
-  scheduled: ['rgpd', 'erasures', 'scheduled', 1] as const,
+  scheduled: (subjectType: SubjectType, subjectId: string) => ['rgpd', 'erasures', 'scheduled', subjectType, subjectId] as const,
   settings: ['rgpd', 'settings'] as const,
 }
 
@@ -44,23 +44,28 @@ export const settingsQuery = queryOptions({
 })
 
 /**
- * Les effacements planifiés (première page), pour afficher le bandeau sur la
- * fiche ou la ligne concernée. Désactivé sans `rgpd.manage` : l'API répondrait 403.
+ * L'effacement planifié d'un sujet, demandé à l'API par `subject_type` et
+ * `subject_id` : la réponse ne dépend pas du nombre d'effacements en cours.
+ * Désactivé sans `rgpd.manage` : l'API répondrait 403.
  */
-export function scheduledErasuresQuery(enabled: boolean) {
+export function scheduledErasureQuery(subjectType: SubjectType, subjectId: string, enabled: boolean) {
   return queryOptions({
-    queryKey: rgpdKeys.scheduled,
+    queryKey: rgpdKeys.scheduled(subjectType, subjectId),
     queryFn: async () =>
-      unwrap(await api.GET('/api/v1/admin/rgpd/erasures', { params: { query: { status: 'scheduled', page: 1 } } })),
+      unwrap(
+        await api.GET('/api/v1/admin/rgpd/erasures', {
+          params: { query: { status: 'scheduled', subject_type: subjectType, subject_id: subjectId, page: 1 } },
+        }),
+      ),
     enabled,
   })
 }
 
 /** L'effacement planifié d'un sujet, ou undefined. */
 export function useScheduledErasure(subjectType: SubjectType, subjectId: string, enabled: boolean): RgpdErasureItem | undefined {
-  const { data } = useQuery(scheduledErasuresQuery(enabled))
+  const { data } = useQuery(scheduledErasureQuery(subjectType, subjectId, enabled))
 
-  return data === undefined ? undefined : findScheduled(data.items, subjectType, subjectId)
+  return data?.items[0]
 }
 
 export function useRequestExport() {
