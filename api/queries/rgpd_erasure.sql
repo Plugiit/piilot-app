@@ -238,8 +238,11 @@ WHERE lower(to_address) = ANY(sqlc.arg('emails')::text[])
    OR report_id IN (SELECT r.id FROM reports r JOIN projects p ON p.id = r.project_id WHERE p.client_id = sqlc.arg('client_id'));
 
 -- name: EraseDeleteClientInbound :execrows
+-- Un e-mail recu peut etre rattache a un ticket du client sans porter son
+-- client_id : on suit aussi le ticket.
 DELETE FROM inbound_emails
-WHERE client_id = sqlc.arg('client_id') OR lower(from_address::text) = ANY(sqlc.arg('emails')::text[]);
+WHERE inbound_emails.client_id = sqlc.arg('client_id') OR lower(inbound_emails.from_address::text) = ANY(sqlc.arg('emails')::text[])
+   OR ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('client_id'));
 
 -- name: EraseDeleteClientContacts :execrows
 DELETE FROM contacts WHERE client_id = $1;

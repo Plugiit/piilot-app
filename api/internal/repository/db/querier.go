@@ -323,6 +323,8 @@ type Querier interface {
 	// Cles d'import et lignes de rapport qui designent le client, ses contacts,
 	// ses projets ou leur temps (le libelle d'une ligne peut contenir un nom).
 	EraseDeleteClientImportTraces(ctx context.Context, clientID uuid.UUID) (int64, error)
+	// Un e-mail recu peut etre rattache a un ticket du client sans porter son
+	// client_id : on suit aussi le ticket.
 	EraseDeleteClientInbound(ctx context.Context, arg EraseDeleteClientInboundParams) (int64, error)
 	EraseDeleteClientOutbox(ctx context.Context, arg EraseDeleteClientOutboxParams) (int64, error)
 	// Taches, tickets, livrables, rapports, temps et fichiers suivent par cascade.

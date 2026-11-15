@@ -334,7 +334,8 @@ func (q *Queries) EraseDeleteClientImportTraces(ctx context.Context, clientID uu
 
 const eraseDeleteClientInbound = `-- name: EraseDeleteClientInbound :execrows
 DELETE FROM inbound_emails
-WHERE client_id = $1 OR lower(from_address::text) = ANY($2::text[])
+WHERE inbound_emails.client_id = $1 OR lower(inbound_emails.from_address::text) = ANY($2::text[])
+   OR ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1)
 `
 
 type EraseDeleteClientInboundParams struct {
@@ -342,6 +343,8 @@ type EraseDeleteClientInboundParams struct {
 	Emails   []string   `json:"emails"`
 }
 
+// Un e-mail recu peut etre rattache a un ticket du client sans porter son
+// client_id : on suit aussi le ticket.
 func (q *Queries) EraseDeleteClientInbound(ctx context.Context, arg EraseDeleteClientInboundParams) (int64, error) {
 	result, err := q.db.Exec(ctx, eraseDeleteClientInbound, arg.ClientID, arg.Emails)
 	if err != nil {

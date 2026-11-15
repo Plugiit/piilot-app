@@ -798,18 +798,22 @@ func (s *RgpdErasureService) eraseUser(ctx context.Context, tx pgx.Tx, q *db.Que
 		res.add("avatars", 1)
 	}
 
-	exportKeys, err := q.EraseExportKeysOfSubject(ctx, db.EraseExportKeysOfSubjectParams{SubjectType: RgpdSubjectUser, SubjectID: id})
-	if err != nil {
-		return nil, fmt.Errorf("lecture des exports du compte : %w", err)
-	}
+	// Compte du portail d'un client (detach) : ses exports propres sont aussi a
+	// retirer. Effacement direct d'un compte : run() s'en charge pour le sujet,
+	// inutile de les relire ici.
+	if detach {
+		exportKeys, err := q.EraseExportKeysOfSubject(ctx, db.EraseExportKeysOfSubjectParams{SubjectType: RgpdSubjectUser, SubjectID: id})
+		if err != nil {
+			return nil, fmt.Errorf("lecture des exports du compte : %w", err)
+		}
 
-	if len(exportKeys) > 0 && detach {
-		// Compte du portail d'un client : ses exports propres sont aussi a retirer.
-		res.keys = append(res.keys, exportKeys...)
-		res.add("exports", int64(len(exportKeys)))
+		if len(exportKeys) > 0 {
+			res.keys = append(res.keys, exportKeys...)
+			res.add("exports", int64(len(exportKeys)))
 
-		if _, err := q.EraseRedactExportsOfSubject(ctx, db.EraseRedactExportsOfSubjectParams{SubjectType: RgpdSubjectUser, SubjectID: id}); err != nil {
-			return nil, fmt.Errorf("effacement du libelle des exports : %w", err)
+			if _, err := q.EraseRedactExportsOfSubject(ctx, db.EraseRedactExportsOfSubjectParams{SubjectType: RgpdSubjectUser, SubjectID: id}); err != nil {
+				return nil, fmt.Errorf("effacement du libelle des exports : %w", err)
+			}
 		}
 	}
 

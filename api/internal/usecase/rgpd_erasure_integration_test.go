@@ -439,6 +439,8 @@ func TestRgpdErasure_ClientDeletedWithFiles(t *testing.T) {
 	e.exec(t, `INSERT INTO attachments (ticket_id, filename, content_type, size_bytes, storage_key) VALUES ($1, $2, 'text/plain', 1, $3)`, ticket, e.prefix+"-k", ticketFile)
 	e.exec(t, `UPDATE projects SET logo_key = $2 WHERE id = $1`, project.ID, logo)
 	e.exec(t, `INSERT INTO inbound_emails (source, raw, from_address, subject, client_id) VALUES ('raw', 'brut', $1, $2, $3)`, email, e.prefix+" sujet", client.ID)
+	// Rattache au seul ticket du client : ni client_id, ni adresse connue.
+	e.exec(t, `INSERT INTO inbound_emails (source, raw, from_address, subject, ticket_id) VALUES ('raw', 'brut', $1, $2, $3)`, "inconnu@"+e.prefix+".test", e.prefix+" sujet ticket", ticket)
 	e.exec(t, `INSERT INTO email_outbox (kind, to_address, subject, text_body, html_body) VALUES ('test', $1, 's', 'c', 'c')`, portalEmail)
 	e.exec(t, `INSERT INTO client_interactions (client_id, kind, body) VALUES ($1, 'note', 'echange')`, client.ID)
 
