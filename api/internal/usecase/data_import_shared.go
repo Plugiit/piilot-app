@@ -71,7 +71,9 @@ func (c replayCheck) run(ctx context.Context, q *db.Queries, v map[string]string
 // resolveClient retrouve un client vivant : par SIRET d'abord, puis par nom.
 // Rend nil quand rien ne correspond ; un import ne cree jamais de client.
 func resolveClient(ctx context.Context, q *db.Queries, siret, name string) (*db.Client, error) {
-	if siret = normalizeSiret(siret); siret != "" {
+	siret = normalizeSiret(siret)
+
+	if siret != "" {
 		switch c, err := q.GetClientBySiret(ctx, siret); {
 		case err == nil:
 			return &c, nil
@@ -83,6 +85,12 @@ func resolveClient(ctx context.Context, q *db.Queries, siret, name string) (*db.
 	if name = strings.TrimSpace(name); name != "" {
 		switch c, err := q.GetClientByName(ctx, name); {
 		case err == nil:
+			// Un SIRET fourni mais inconnu ne se rabat sur le nom que si le
+			// client trouve n'a pas de SIRET : sinon c'est un homonyme.
+			if siret != "" && c.Siret != "" {
+				return nil, nil
+			}
+
 			return &c, nil
 		case !errors.Is(err, pgx.ErrNoRows):
 			return nil, fmt.Errorf("recherche du client par nom : %w", err)
