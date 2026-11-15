@@ -19,6 +19,7 @@ SELECT
     rt.expires_at  AS expires_at,
     rt.revoked_at  AS revoked_at,
     u.role         AS user_role,
+    u.email::text  AS user_email,
     u.deleted_at   AS user_deleted_at,
     u.disabled_at  AS user_disabled_at
 FROM refresh_tokens rt
