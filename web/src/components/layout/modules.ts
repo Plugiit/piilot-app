@@ -12,6 +12,7 @@ import {
   MailReceive01Icon,
   PuzzleIcon,
   SecurityCheckIcon,
+  Shield01Icon,
   TextIcon,
   Home03Icon,
   LayoutTable01Icon,
@@ -172,6 +173,7 @@ export const MODULES: AppModule[] = [
         items: [
           { icon: DatabaseIcon, label: 'Sauvegardes', to: '/parametres/sauvegardes', permission: 'system.update' },
           { icon: FileExportIcon, label: 'Import et export', to: '/parametres/import', permission: 'data.import' },
+          { icon: Shield01Icon, label: 'RGPD', to: '/parametres/rgpd', permission: 'rgpd.manage' },
           { icon: SecurityCheckIcon, label: 'Journal d’audit', to: '/parametres/audit', permission: 'audit.read' },
         ],
       },
