@@ -1,4 +1,6 @@
 import {
+  Delete02Icon,
+  FileExportIcon,
   Key01Icon,
   MoreHorizontalIcon,
   ShieldUserIcon,
@@ -34,13 +36,18 @@ import {
 } from '@/features/accounts/api'
 import { displayName, lastSeen, ROLE, roleOf, type RoleCode } from '@/features/accounts/format'
 import { LinkBox } from '@/features/accounts/link-box'
+import { useCancelAction, useExportAction } from '@/features/rgpd/actions'
+import { ErasureBanner } from '@/features/rgpd/erasure-banner'
+import { scheduledErasuresQuery } from '@/features/rgpd/api'
+import { ErasureDialog } from '@/features/rgpd/request-dialog'
+import { findScheduled } from '@/features/rgpd/labels'
 import { Avatars } from '@/features/projects/ui'
 import { HttpError } from '@/lib/api'
-import { sessionQuery } from '@/lib/auth'
+import { can, sessionQuery } from '@/lib/auth'
 import { AccountsToolbar, ToolbarSearch } from '@/features/accounts/toolbar'
 import { useSearchField } from '@/lib/search-field'
 import { cn } from '@/lib/utils'
-import type { Account, SentLink } from '@/types/api'
+import type { Account, RgpdErasureItem, SentLink } from '@/types/api'
 
 const searchSchema = z.object({
   page: z.number().int().min(1).catch(1),
@@ -77,11 +84,25 @@ function RolePill({ role }: { role: string }) {
  * La desactivation passe par une confirmation, qui dit ce qu'elle coupe ;
  * la reactivation, sans consequence, se fait d'un clic.
  */
-function RowActions({ account, onLink }: { account: Account; onLink: (link: SentLink) => void }) {
+function RowActions({
+  account,
+  onLink,
+  canRgpd,
+  erasure,
+}: {
+  account: Account
+  onLink: (link: SentLink) => void
+  canRgpd: boolean
+  erasure: RgpdErasureItem | undefined
+}) {
   const setRole = useSetRole()
   const setEnabled = useSetAccountEnabled()
   const resetLink = usePasswordResetLink()
   const [confirm, setConfirm] = useState(false)
+  const [erasing, setErasing] = useState(false)
+  const subject = { type: 'user' as const, id: account.id, name: displayName(account) }
+  const exporter = useExportAction(subject)
+  const cancelErasure = useCancelAction()
 
   const internal = account.role === 'admin' || account.role === 'team'
   const disabled = account.status === 'disabled'
@@ -153,8 +174,31 @@ function RowActions({ account, onLink }: { account: Account; onLink: (link: Sent
               Désactiver…
             </HoverMenuItem>
           )}
+
+          {canRgpd && (
+            <>
+              <DropdownMenuSeparator />
+              <HoverMenuItem onSelect={exporter.run}>
+                <HugeiconsIcon icon={FileExportIcon} size={16} strokeWidth={1.6} className="text-[#73757c]" />
+                Exporter les données
+              </HoverMenuItem>
+              {erasure === undefined ? (
+                <HoverMenuItem danger onSelect={() => setErasing(true)}>
+                  <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.6} />
+                  Supprimer définitivement…
+                </HoverMenuItem>
+              ) : (
+                <HoverMenuItem onSelect={() => cancelErasure.run(erasure)}>
+                  <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.6} className="text-[#73757c]" />
+                  Annuler la suppression
+                </HoverMenuItem>
+              )}
+            </>
+          )}
         </HoverMenuContent>
       </DropdownMenu>
+
+      {canRgpd && <ErasureDialog subject={subject} open={erasing} onOpenChange={setErasing} />}
 
       <Dialog open={confirm} onOpenChange={setConfirm}>
         <DialogContent className="sm:max-w-[460px]">
@@ -201,6 +245,8 @@ function AccountsPage() {
   const navigate = Route.useNavigate()
   const { data: session } = useQuery(sessionQuery)
   const canManage = session?.permissions.includes('users.write') === true
+  const canRgpd = can(session, 'rgpd.manage')
+  const { data: scheduled } = useQuery(scheduledErasuresQuery(canRgpd))
 
   const { data, isPending } = useQuery(
     accountListQuery({
@@ -299,6 +345,7 @@ function AccountsPage() {
 
         {rows.map((account) => {
           const disabled = account.status === 'disabled'
+          const erasure = scheduled === undefined ? undefined : findScheduled(scheduled.items, 'user', account.id)
           return (
             <div
               key={account.id}
@@ -316,6 +363,7 @@ function AccountsPage() {
                     )}
                   </span>
                   <span className="truncate text-[13px] text-[#73757c]">{account.email}</span>
+                  {erasure !== undefined && <ErasureBanner erasure={erasure} compact />}
                 </div>
               </div>
 
@@ -346,6 +394,8 @@ function AccountsPage() {
                 {canManage && !account.is_self && (
                   <RowActions
                     account={account}
+                    canRgpd={canRgpd}
+                    erasure={erasure}
                     onLink={(sent) => setLink({ ...sent, name: displayName(account) })}
                   />
                 )}
