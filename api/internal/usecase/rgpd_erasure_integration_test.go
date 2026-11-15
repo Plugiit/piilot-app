@@ -769,3 +769,56 @@ func TestRgpdErasure_ExportedFilesEqualErasedFiles(t *testing.T) {
 		t.Error("le fichier d'un autre client a ete supprime")
 	}
 }
+
+func TestRgpdErasure_ListFilteredBySubject(t *testing.T) {
+	e := newErasureEnv(t, 0)
+	ctx := context.Background()
+
+	first := e.member(t, "filtre-a", "team", nil)
+	second := e.member(t, "filtre-b", "team", nil)
+
+	one, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, second); err != nil {
+		t.Fatal(err)
+	}
+
+	scheduled := usecase.RgpdErasureScheduled
+
+	page, err := e.svc.List(ctx, usecase.RgpdErasureFilter{Status: scheduled, SubjectType: usecase.RgpdSubjectUser, SubjectID: &first}, 1)
+	if err != nil {
+		t.Fatalf("List : %v", err)
+	}
+
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != one.ID {
+		t.Fatalf("filtre par sujet : %+v", page)
+	}
+
+	// Meme identifiant, mauvais type : rien.
+	page, err = e.svc.List(ctx, usecase.RgpdErasureFilter{SubjectType: usecase.RgpdSubjectClient, SubjectID: &first}, 1)
+	if err != nil || page.Total != 0 || len(page.Items) != 0 {
+		t.Fatalf("mauvais type : %+v, %v", page, err)
+	}
+
+	// Combine avec le statut : une fois annule, le sujet n'est plus « scheduled ».
+	if _, err := e.svc.Cancel(ctx, nil, one.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err = e.svc.List(ctx, usecase.RgpdErasureFilter{Status: scheduled, SubjectID: &first}, 1)
+	if err != nil || page.Total != 0 {
+		t.Fatalf("apres annulation : %+v, %v", page, err)
+	}
+
+	page, err = e.svc.List(ctx, usecase.RgpdErasureFilter{Status: usecase.RgpdErasureCancelled, SubjectID: &first}, 1)
+	if err != nil || page.Total != 1 {
+		t.Fatalf("annule : %+v, %v", page, err)
+	}
+
+	if _, err := e.svc.List(ctx, usecase.RgpdErasureFilter{SubjectType: "robot"}, 1); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("type inconnu : %v, attendu une validation", err)
+	}
+}

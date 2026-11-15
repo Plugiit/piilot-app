@@ -142,7 +142,7 @@ type Querier interface {
 	CountReportEmailsPending(ctx context.Context, reportID *uuid.UUID) (int32, error)
 	CountReports(ctx context.Context, arg CountReportsParams) (int32, error)
 	CountReportsByStatus(ctx context.Context, month time.Time) (CountReportsByStatusRow, error)
-	CountRgpdErasures(ctx context.Context, status *string) (int64, error)
+	CountRgpdErasures(ctx context.Context, arg CountRgpdErasuresParams) (int64, error)
 	CountRgpdExports(ctx context.Context) (int64, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)

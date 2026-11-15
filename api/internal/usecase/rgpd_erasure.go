@@ -379,26 +379,45 @@ func (s *RgpdErasureService) Cancel(ctx context.Context, actor *uuid.UUID, id uu
 	return rgpdErasureItemOf(e), nil
 }
 
-// List rend une page de l'historique, les plus recents d'abord. status vide :
-// tous.
-func (s *RgpdErasureService) List(ctx context.Context, status string, page int) (RgpdErasurePage, error) {
+// RgpdErasureFilter restreint l'historique : chaque champ vide ou nil laisse
+// le critere ouvert.
+type RgpdErasureFilter struct {
+	Status      string
+	SubjectType string
+	SubjectID   *uuid.UUID
+}
+
+// List rend une page de l'historique, les plus recents d'abord, restreint par
+// le filtre (statut, type et identifiant du sujet, combinables).
+func (s *RgpdErasureService) List(ctx context.Context, f RgpdErasureFilter, page int) (RgpdErasurePage, error) {
 	if page < 1 {
 		page = 1
 	}
 
-	var filter *string
+	var status, subjectType *string
 
-	if status != "" {
-		switch status {
+	if f.Status != "" {
+		switch f.Status {
 		case RgpdErasureScheduled, RgpdErasureCancelled, RgpdErasureRunning, RgpdErasureDone, RgpdErasureFailed:
-			filter = &status
+			status = &f.Status
 		default:
 			return RgpdErasurePage{}, domain.ErrValidation.WithDetails(map[string]any{"status": "Statut inconnu"})
 		}
 	}
 
+	if f.SubjectType != "" {
+		switch f.SubjectType {
+		case RgpdSubjectClient, RgpdSubjectUser:
+			subjectType = &f.SubjectType
+		default:
+			return RgpdErasurePage{}, domain.ErrValidation.WithDetails(map[string]any{"subject_type": "Type inconnu : client ou user"})
+		}
+	}
+
+	filter := db.CountRgpdErasuresParams{Status: status, SubjectType: subjectType, SubjectID: f.SubjectID}
+
 	rows, err := s.q.ListRgpdErasures(ctx, db.ListRgpdErasuresParams{
-		Status: filter, PageSize: RgpdPageSize, PageOffset: int32((page - 1) * RgpdPageSize),
+		Status: status, SubjectType: subjectType, SubjectID: f.SubjectID, PageSize: RgpdPageSize, PageOffset: int32((page - 1) * RgpdPageSize),
 	})
 	if err != nil {
 		return RgpdErasurePage{}, fmt.Errorf("lecture des effacements : %w", err)

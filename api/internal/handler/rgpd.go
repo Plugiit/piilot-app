@@ -23,7 +23,7 @@ type RgpdExportService interface {
 type RgpdErasureService interface {
 	Request(ctx context.Context, actor *uuid.UUID, subjectType string, subjectID uuid.UUID) (usecase.RgpdErasureItem, error)
 	Cancel(ctx context.Context, actor *uuid.UUID, id uuid.UUID) (usecase.RgpdErasureItem, error)
-	List(ctx context.Context, status string, page int) (usecase.RgpdErasurePage, error)
+	List(ctx context.Context, filter usecase.RgpdErasureFilter, page int) (usecase.RgpdErasurePage, error)
 	Settings() usecase.RgpdSettings
 }
 
@@ -118,9 +118,30 @@ func (h *Rgpd) CreateErasure(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
 
-// ListErasures sert l'historique des effacements, filtrable par statut.
+// ListErasures sert l'historique des effacements, filtrable par statut et par
+// sujet (subject_type, subject_id). Une valeur invalide : 422.
 func (h *Rgpd) ListErasures(c fiber.Ctx) error {
-	page, err := h.erasures.List(c.Context(), strings.TrimSpace(c.Query("status")), queryInt(c, "page", 1))
+	filter := usecase.RgpdErasureFilter{
+		Status:      strings.TrimSpace(c.Query("status")),
+		SubjectType: strings.TrimSpace(c.Query("subject_type")),
+	}
+
+	switch filter.SubjectType {
+	case "", usecase.RgpdSubjectClient, usecase.RgpdSubjectUser:
+	default:
+		return domain.ErrValidation.WithDetails(map[string]any{"subject_type": "Type inconnu : client ou user"})
+	}
+
+	if raw := strings.TrimSpace(c.Query("subject_id")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return domain.ErrValidation.WithDetails(map[string]any{"subject_id": "Identifiant invalide"})
+		}
+
+		filter.SubjectID = &id
+	}
+
+	page, err := h.erasures.List(c.Context(), filter, queryInt(c, "page", 1))
 	if err != nil {
 		return err
 	}
