@@ -96,6 +96,7 @@ var auditRules = map[string]auditRule{
 	"POST /api/v1/admin/modules/uptime/rotate":                  {action: "secret.uptime_webhook_rotated"},
 	"PUT /api/v1/admin/modules/coolify":                         {action: "settings.coolify_updated", fields: []string{"enabled", "base_url", "poll_minutes"}},
 	"PUT /api/v1/admin/projects/:id/coolify":                    {action: "project.coolify_applications_updated", target: "project", param: "id"},
+	"POST /api/v1/admin/projects/:id/git/sync":                  {action: "project.git_sync_requested", target: "project", param: "id"},
 	"PUT /api/v1/admin/projects/:id/uptime":                     {action: "project.uptime_sites_updated", target: "project", param: "id"},
 	"PUT /api/v1/admin/modules/analytics":                       {action: "settings.analytics_updated", fields: []string{"enabled", "base_url", "auth_mode", "username", "api_version", "cache_minutes"}},
 	"PUT /api/v1/admin/projects/:id/analytics":                  {action: "project.analytics_sites_updated", target: "project", param: "id"},

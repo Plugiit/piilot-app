@@ -9847,6 +9847,91 @@
         }
       }
     },
+    "/api/v1/admin/projects/{id}/git/sync": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Synchronisation Git d'un projet",
+        "description": "Ou en est le rattrapage des pull requests fusionnées : dernière synchronisation réussie, dernier essai et son erreur éventuelle. Exige projects.read.",
+        "operationId": "getAdminProjectGitSync",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitSync"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Synchroniser les pull requests maintenant",
+        "description": "Demande une synchronisation, faite par la tâche de fond dans la minute : la requête n'appelle pas GitHub. Lit les pull requests fusionnées du mois courant et du précédent, avec le jeton GitHub de l'agence, et n'inscrit que celles que le webhook n'a pas reçues. Exige reports.write.",
+        "operationId": "postAdminProjectGitSync",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitSync"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/api/v1/hooks/uptime/{provider}": {
       "post": {
         "tags": [
@@ -26704,6 +26789,53 @@
                 }
               }
             }
+          }
+        }
+      },
+      "GitSync": {
+        "type": "object",
+        "required": [
+          "eligible",
+          "token_configured",
+          "last_synced_at",
+          "last_attempt_at",
+          "last_error",
+          "pending"
+        ],
+        "properties": {
+          "eligible": {
+            "type": "boolean",
+            "description": "Faux : le projet n'a pas de dépôt GitHub."
+          },
+          "token_configured": {
+            "type": "boolean",
+            "description": "Faux : aucun jeton GitHub n'est enregistré."
+          },
+          "last_synced_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Dernière synchronisation réussie."
+          },
+          "last_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pourquoi le dernier essai a échoué."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "Une synchronisation demandée n'a pas encore eu lieu."
           }
         }
       }

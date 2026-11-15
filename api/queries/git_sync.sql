@@ -37,7 +37,7 @@ ORDER BY p.id, pm.starts_on DESC
 LIMIT 500;
 
 -- name: GitSyncProject :one
-SELECT id, repo_url, deleted_at IS NOT NULL AS deleted FROM projects WHERE id = sqlc.arg('id');
+SELECT id, repo_url, (deleted_at IS NOT NULL)::boolean AS deleted FROM projects WHERE id = sqlc.arg('id');
 
 -- name: ReportGitSyncState :one
 -- Ce qu'il faut pour savoir si un brouillon doit attendre la synchronisation :
@@ -47,3 +47,12 @@ SELECT p.repo_url, g.last_attempt_at,
 FROM projects p
 LEFT JOIN project_git_sync g ON g.project_id = p.id
 WHERE p.id = sqlc.arg('project_id');
+
+-- name: ListGitSyncRequested :many
+-- Les demandes en attente, hors formule : le bouton marche aussi pour un
+-- projet que la formule ne couvre pas.
+SELECT g.project_id, p.repo_url
+FROM project_git_sync g
+JOIN projects p ON p.id = g.project_id AND p.deleted_at IS NULL
+WHERE g.requested_at IS NOT NULL
+LIMIT 100;

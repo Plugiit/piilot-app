@@ -604,6 +604,18 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 				continue
 			}
 		}
+		if waitAudience && slices.Contains(d.Sections, "updates") {
+			// Les pull requests que le webhook a manquees : une synchronisation
+			// apres la fin du mois est demandee, et attendue.
+			waiting, err := s.waitingForGitSync(ctx, d.ProjectID, first)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("synchronisation Git du projet %s : %w", d.ProjectID, err))
+				continue
+			}
+			if waiting {
+				continue
+			}
+		}
 		if err := s.createDraft(ctx, d.ProjectID, first, reportPlan{name: d.PlanName, included: d.IncludedMinutes, sections: d.Sections}); err != nil {
 			errs = append(errs, fmt.Errorf("projet %s : %w", d.ProjectID, err))
 			continue
@@ -629,6 +641,28 @@ func (s *ReportService) waitingForCoolify(ctx context.Context, projectID uuid.UU
 		return false, nil
 	}
 	if err := s.q.RequestCoolifyPollIfNone(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// waitingForGitSync dit si le brouillon d'un projet doit attendre une
+// synchronisation Git faite apres la fin du mois, et la demande au besoin. Un
+// essai ecoule, reussi ou non, ne fait plus attendre : le brouillon se cree
+// avec ce que le webhook a recu. Sans depot GitHub ni jeton, rien a attendre.
+func (s *ReportService) waitingForGitSync(ctx context.Context, projectID uuid.UUID, month time.Time) (bool, error) {
+	state, err := s.q.ReportGitSyncState(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if _, _, ok := githubRepoOf(state.RepoUrl); !ok || !state.HasToken {
+		return false, nil
+	}
+	until := time.Date(month.Year(), month.Month()+1, 1, 0, 0, 0, 0, zone.Location())
+	if state.LastAttemptAt != nil && !state.LastAttemptAt.Before(until) {
+		return false, nil
+	}
+	if err := s.q.RequestGitSyncIfNone(ctx, projectID); err != nil {
 		return false, err
 	}
 	return true, nil
