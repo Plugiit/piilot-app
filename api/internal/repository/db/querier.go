@@ -68,6 +68,9 @@ type Querier interface {
 	// Le prochain e-mail a ranger, verrouille le temps de le traiter : deux
 	// instances pendant un deploiement ne rangent pas deux fois le meme.
 	ClaimPendingInbound(ctx context.Context) (InboundEmail, error)
+	// Le prochain import a traiter. Une seule instruction : le verrou
+	// SKIP LOCKED suffit a ce que deux instances ne prennent pas le meme.
+	ClaimQueuedImport(ctx context.Context) (Import, error)
 	// Une instance a la fois : le lancement passe en « dispatching » avant l'appel,
 	// et n'est jamais repris tout seul si l'instance tombe pendant.
 	ClaimSiteUpdateRun(ctx context.Context, arg ClaimSiteUpdateRunParams) (SiteUpdateRun, error)
@@ -109,6 +112,8 @@ type Querier interface {
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
 	CountHeldInbound(ctx context.Context) (int32, error)
+	CountImportRows(ctx context.Context, arg CountImportRowsParams) (int64, error)
+	CountImports(ctx context.Context) (int64, error)
 	CountInterventions(ctx context.Context, arg CountInterventionsParams) (int32, error)
 	CountOpenInvitations(ctx context.Context) (int64, error)
 	CountPortalInterventions(ctx context.Context, projectID uuid.UUID) (int32, error)
@@ -169,6 +174,10 @@ type Querier interface {
 	// Le livrable nait sans version : c'est la soumission qui lui en donne une.
 	CreateDeliverable(ctx context.Context, arg CreateDeliverableParams) (uuid.UUID, error)
 	CreateDeliverableVersion(ctx context.Context, arg CreateDeliverableVersionParams) (uuid.UUID, error)
+	CreateImport(ctx context.Context, arg CreateImportParams) (Import, error)
+	// Creation par l'import CSV : l'identite complete, plus l'etape du pipeline
+	// et le site, que l'ecran de creation ne demande pas.
+	CreateImportedClient(ctx context.Context, arg CreateImportedClientParams) (Client, error)
 	CreateInteraction(ctx context.Context, arg CreateInteractionParams) (uuid.UUID, error)
 	CreateInvitation(ctx context.Context, arg CreateInvitationParams) (Invitation, error)
 	CreateInvitedUser(ctx context.Context, arg CreateInvitedUserParams) (User, error)
@@ -239,6 +248,8 @@ type Querier interface {
 	// reconnaitre un rejeu.
 	DeleteExpiredRefreshTokens(ctx context.Context, retention pgtype.Interval) error
 	DeleteFutureProjectMaintenance(ctx context.Context, arg DeleteFutureProjectMaintenanceParams) error
+	DeleteImport(ctx context.Context, id uuid.UUID) error
+	DeleteImportRows(ctx context.Context, importID uuid.UUID) error
 	// Seules les saisies a la main s'effacent : un evenement est une trace.
 	DeleteInteraction(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMaintenancePlan(ctx context.Context, id uuid.UUID) (int64, error)
@@ -276,9 +287,17 @@ type Querier interface {
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
 	// Un e-mail de rapport connait son rapport : son abandon se reporte dessus.
 	EnqueueReportEmail(ctx context.Context, arg EnqueueReportEmailParams) error
+	// Une page de l'export CSV, par cle : pas d'OFFSET, la page ne bouge pas si
+	// un client est cree pendant l'export. `source_key` est l'identifiant
+	// d'origine que l'import a retenu, s'il y en a un.
+	ExportClientsAfter(ctx context.Context, arg ExportClientsAfterParams) ([]ExportClientsAfterRow, error)
 	// Une erreur passagere (base, disque) : on reessaie, cinq fois au plus.
 	FailInboundAttempt(ctx context.Context, arg FailInboundAttemptParams) error
 	FailSiteUpdateRun(ctx context.Context, arg FailSiteUpdateRunParams) error
+	// Un import « en cours » qui ne donne plus signe de vie : son instance s'est
+	// arretee. Rejoue, il redirait des lignes deja ecrites ; l'utilisateur
+	// relance, et les cles d'import evitent les doublons.
+	FailStaleImports(ctx context.Context) ([]FailStaleImportsRow, error)
 	FindActiveUserByEmail(ctx context.Context, email string) (FindActiveUserByEmailRow, error)
 	// Les contacts du CRM qui portent cette adresse, sur des clients actifs.
 	FindContactsByEmail(ctx context.Context, email *string) ([]FindContactsByEmailRow, error)
@@ -287,6 +306,8 @@ type Querier interface {
 	// Le site d'un evenement, par la premiere cle connue.
 	FindUptimeMonitorByKeys(ctx context.Context, arg FindUptimeMonitorByKeysParams) (FindUptimeMonitorByKeysRow, error)
 	FinishBackup(ctx context.Context, arg FinishBackupParams) error
+	// Les compteurs sont comptes dans le rapport : une seule source de verite.
+	FinishImport(ctx context.Context, arg FinishImportParams) error
 	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
 	FinishSiteUpdateRun(ctx context.Context, arg FinishSiteUpdateRunParams) (int64, error)
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
@@ -347,6 +368,9 @@ type Querier interface {
 	// de voir si la liaison lui reste.
 	GetDiscordLinkOwner(ctx context.Context, discordUserID string) (GetDiscordLinkOwnerRow, error)
 	GetGitWebhook(ctx context.Context) (GetGitWebhookRow, error)
+	GetImport(ctx context.Context, id uuid.UUID) (Import, error)
+	GetImportKey(ctx context.Context, arg GetImportKeyParams) (ImportKey, error)
+	GetImportMapping(ctx context.Context, entity string) (ImportMapping, error)
 	GetInboundEmail(ctx context.Context, id uuid.UUID) (GetInboundEmailRow, error)
 	// E-mail entrant : reglages, file des e-mails recus, tri.
 	GetInboundSettings(ctx context.Context) (InboundMailSetting, error)
@@ -451,6 +475,9 @@ type Querier interface {
 	// GitLab renvoient volontiers un evenement deux fois.
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
 	InsertDiscordLink(ctx context.Context, arg InsertDiscordLinkParams) (time.Time, error)
+	// Un lot de lignes de rapport, passees en tableau JSON :
+	// [{"line":2,"outcome":"created","reason":"","label":"...","entity_id":""}].
+	InsertImportRows(ctx context.Context, arg InsertImportRowsParams) error
 	// Un e-mail deja recu — releve rejouee, webhook renvoye — ne rentre pas une
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
@@ -594,6 +621,8 @@ type Querier interface {
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
 	// Les e-mails a trier, les plus recents d'abord.
 	ListHeldInbound(ctx context.Context, arg ListHeldInboundParams) ([]ListHeldInboundRow, error)
+	ListImportRows(ctx context.Context, arg ListImportRowsParams) ([]ImportRow, error)
+	ListImports(ctx context.Context, arg ListImportsParams) ([]Import, error)
 	// Interactions client : le journal de la relation.
 	// Le journal, du plus recent au plus ancien, filtre par client et par genre.
 	// Pagination par curseur : la liste s'allonge par le haut.
@@ -1099,6 +1128,10 @@ type Querier interface {
 	// avance le filigrane d'autant : au-dela, rien ne manque.
 	PurgeBotEvents(ctx context.Context, before time.Time) (int64, error)
 	PurgeExpiredDiscordLinkCodes(ctx context.Context) (int64, error)
+	// Met un import en file. Seuls un import depose, ou une simulation terminee
+	// dont le fichier est encore la, peuvent partir : jamais un import en cours.
+	// Les compteurs repartent de zero, le rapport precedent est efface a part.
+	QueueImport(ctx context.Context, arg QueueImportParams) (Import, error)
 	RecordAnalyticsCheck(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
@@ -1306,6 +1339,7 @@ type Querier interface {
 	// ecriture a chaque appel.
 	TouchBotKey(ctx context.Context, id uuid.UUID) error
 	TouchDeliverable(ctx context.Context, id uuid.UUID) error
+	TouchImport(ctx context.Context, id uuid.UUID) error
 	// Au plus une ecriture par minute : l'usage se date sans couter une ecriture
 	// a chaque appel.
 	TouchOAuthGrant(ctx context.Context, id uuid.UUID) error
@@ -1387,6 +1421,10 @@ type Querier interface {
 	UpsertAnalyticsWebsite(ctx context.Context, arg UpsertAnalyticsWebsiteParams) (uuid.UUID, error)
 	// Un seul code par compte : le nouveau remplace le precedent.
 	UpsertDiscordLinkCode(ctx context.Context, arg UpsertDiscordLinkCodeParams) error
+	// Une entite recreee apres suppression reprend sa cle : la cle designe
+	// toujours l'entite vivante.
+	UpsertImportKey(ctx context.Context, arg UpsertImportKeyParams) error
+	UpsertImportMapping(ctx context.Context, arg UpsertImportMappingParams) error
 	// Une pull request se recoit plusieurs fois : ouverture, mises a jour,
 	// fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
 	// posee, ne s'efface pas.
