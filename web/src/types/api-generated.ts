@@ -4169,7 +4169,7 @@ export interface paths {
         };
         /**
          * Historique des effacements RGPD
-         * @description Du plus récent au plus ancien, 25 par page, filtrable par statut. Exige rgpd.manage.
+         * @description Du plus récent au plus ancien, 25 par page, filtrable par statut et par sujet (subject_type, subject_id, combinables). Exige rgpd.manage.
          */
         get: operations["listAdminRgpdErasures"];
         put?: never;
@@ -15369,6 +15369,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "scheduled" | "cancelled" | "running" | "done" | "failed";
+                subject_type?: "client" | "user";
+                subject_id?: string;
                 page?: number;
             };
             header?: never;

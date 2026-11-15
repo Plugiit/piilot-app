@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import type { RgpdErasureItem } from '@/types/api'
-
 import {
   confirmMatches,
   ERASURE_STATUS_LABEL,
@@ -9,7 +7,6 @@ import {
   erasureTotals,
   EXPORT_STATUS_LABEL,
   exportFailureLabel,
-  findScheduled,
   graceLabel,
   isExportActive,
   plannedDate,
@@ -79,20 +76,5 @@ describe('erasureTotals', () => {
 
   it('rend null sans compteurs', () => {
     expect(erasureTotals({})).toBeNull()
-  })
-})
-
-describe('findScheduled', () => {
-  const base = { reason: 'request', scheduled_for: '2026-12-01T00:00:00Z' } as const
-  const items = [
-    { ...base, id: 'a', subject_type: 'client', subject_id: 'c1', status: 'cancelled' },
-    { ...base, id: 'b', subject_type: 'client', subject_id: 'c1', status: 'scheduled' },
-    { ...base, id: 'c', subject_type: 'user', subject_id: 'c1', status: 'scheduled' },
-  ] as RgpdErasureItem[]
-
-  it('ne retient que le planifié du bon sujet', () => {
-    expect(findScheduled(items, 'client', 'c1')?.id).toBe('b')
-    expect(findScheduled(items, 'user', 'c1')?.id).toBe('c')
-    expect(findScheduled(items, 'client', 'zz')).toBeUndefined()
   })
 })

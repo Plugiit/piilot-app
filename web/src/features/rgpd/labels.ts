@@ -113,8 +113,3 @@ export function erasureTotals(summary: Record<string, unknown>): { rows: number;
 
   return { rows, files }
 }
-
-/** Effacement planifié d'un sujet, s'il y en a un. */
-export function findScheduled(items: RgpdErasureItem[], subjectType: SubjectType, subjectId: string): RgpdErasureItem | undefined {
-  return items.find((e) => e.status === 'scheduled' && e.subject_type === subjectType && e.subject_id === subjectId)
-}
