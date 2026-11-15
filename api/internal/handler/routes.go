@@ -39,6 +39,7 @@ type Deps struct {
 	Replies       *ReplyTemplates
 	Audit         *Audit
 	DataImport    *DataImport
+	Rgpd          *Rgpd
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
@@ -295,6 +296,12 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Get("/imports/:id/rows", deps.Guard.RequirePermission("data.import"), deps.DataImport.Rows)
 	r.Delete("/imports/:id", deps.Guard.RequirePermission("data.import"), deps.DataImport.Delete)
 	r.Get("/exports/:entity", deps.Guard.RequirePermission("data.export"), deps.DataImport.Export)
+
+	// RGPD : archives des donnees d'un compte ou d'un client, construites en
+	// tache de fond puis telechargees avant leur expiration.
+	r.Post("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateExport)
+	r.Get("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListExports)
+	r.Get("/rgpd/exports/:id/download", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.DownloadExport)
 
 	// E-mail entrant : le reglage aux admins, le tri a qui traite les tickets.
 	mail := r.Group("/integrations/mail")

@@ -114,6 +114,8 @@ var auditRules = map[string]auditRule{
 	"POST /api/v1/admin/imports/:id/run":                        {action: "import.run", target: "import", param: "id", fields: []string{"dry_run"}},
 	"DELETE /api/v1/admin/imports/:id":                          {action: "import.deleted", target: "import", param: "id"},
 	"GET /api/v1/admin/exports/:entity":                         {action: "export.csv", target: "entity", param: "entity"},
+	"POST /api/v1/admin/rgpd/exports":                           {action: "rgpd.export_requested", target: "rgpd_export", fields: []string{"subject_type", "subject_id"}},
+	"GET /api/v1/admin/rgpd/exports/:id/download":               {action: "rgpd.export_downloaded", target: "rgpd_export", param: "id"},
 	"GET /api/v1/admin/audit/export":                            {action: "export.audit", query: true},
 	"GET /api/v1/client/files/:id":                              {action: "portal.file_downloaded", target: "file", param: "id"},
 	"POST /api/v1/client/deliverables/:id/decision":             {action: "portal.deliverable_decided", target: "deliverable", param: "id", fields: []string{"decision"}},
