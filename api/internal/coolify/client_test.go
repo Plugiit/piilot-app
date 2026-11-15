@@ -216,3 +216,81 @@ func TestMissingBaseURL(t *testing.T) {
 		t.Fatal("une adresse vide a ete acceptee")
 	}
 }
+
+// serveDeployments sert n deploiements, un par jour a partir de base, dans
+// l'ordre voulu, avec la pagination skip/take.
+func serveDeployments(t *testing.T, n int, newestFirst bool, calls *int) *Client {
+	t.Helper()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	return serve(t, func(w http.ResponseWriter, r *http.Request) {
+		*calls++
+		var skip, take int
+		_, _ = fmt.Sscan(r.URL.Query().Get("skip"), &skip)
+		_, _ = fmt.Sscan(r.URL.Query().Get("take"), &take)
+		var items []string
+		for i := skip; i < skip+take && i < n; i++ {
+			day := i + 1
+			if newestFirst {
+				day = n - i
+			}
+			items = append(items, fmt.Sprintf(`{"deployment_uuid":"d%d","status":"finished","created_at":"%s"}`, day, base.AddDate(0, 0, day).Format(time.RFC3339)))
+		}
+		reply(200, "["+strings.Join(items, ",")+"]")(w, r)
+	})
+}
+
+func TestListDeploymentsOldestFirstReadsEverything(t *testing.T) {
+	calls := 0
+	c := serveDeployments(t, 250, false, &calls)
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 200)
+	got, err := c.ListDeployments(context.Background(), "a1", since)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Jours 200 a 250, tous sur la derniere page : aucune lecture anticipee.
+	if len(got) != 51 || calls != 3 {
+		t.Fatalf("%d deploiements, %d appels", len(got), calls)
+	}
+}
+
+func TestListDeploymentsNewestFirstStopsEarly(t *testing.T) {
+	calls := 0
+	c := serveDeployments(t, 1500, true, &calls)
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1450)
+	got, err := c.ListDeployments(context.Background(), "a1", since)
+	if err != nil || len(got) != 51 || calls != 2 {
+		t.Fatalf("%d deploiements, %d appels, err = %v", len(got), calls, err)
+	}
+}
+
+func TestListDeploymentsCapFailsInsteadOfTruncating(t *testing.T) {
+	for _, newestFirst := range []bool{true, false} {
+		calls := 0
+		c := serveDeployments(t, maxPages*pageSize+50, newestFirst, &calls)
+		// since ancien : tout est recent, la lecture ne peut pas s'arreter.
+		_, err := c.ListDeployments(context.Background(), "a1", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+		if err == nil || calls != maxPages {
+			t.Fatalf("newestFirst=%v : err = %v, %d appels", newestFirst, err, calls)
+		}
+	}
+}
+
+func TestIsNewestFirst(t *testing.T) {
+	d := func(day int) Deployment { return Deployment{CreatedAt: time.Date(2026, 1, day, 0, 0, 0, 0, time.UTC)} }
+	for name, c := range map[string]struct {
+		in   []Deployment
+		want bool
+	}{
+		"decroissant":  {[]Deployment{d(3), d(2), d(1)}, true},
+		"croissant":    {[]Deployment{d(1), d(2), d(3)}, false},
+		"desordre":     {[]Deployment{d(3), d(1), d(2)}, false},
+		"un seul":      {[]Deployment{d(1)}, false},
+		"sans dates":   {[]Deployment{{}, {}}, false},
+		"memes dates":  {[]Deployment{d(1), d(1)}, false},
+		"avec un trou": {[]Deployment{d(3), {}, d(1)}, true},
+	} {
+		if got := isNewestFirst(c.in); got != c.want {
+			t.Errorf("%s : %v", name, got)
+		}
+	}
+}

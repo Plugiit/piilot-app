@@ -19,8 +19,8 @@ const (
 	maxBody = 16 << 20
 	// pageSize : deploiements demandes par appel.
 	pageSize = 100
-	// maxPages borne la pagination : 5 000 deploiements par application.
-	maxPages = 50
+	// maxPages borne la pagination : 2 000 deploiements par application.
+	maxPages = 20
 )
 
 // Client appelle l'API de Coolify.
@@ -57,14 +57,19 @@ func (c *Client) ListApplications(ctx context.Context) ([]Application, error) {
 
 // ListDeployments lit GET /deployments/applications/{uuid}, page par page.
 //
-// Coolify rend les deploiements du plus recent au plus ancien : la lecture
-// s'arrete a la premiere page qui ne contient plus que des deploiements
-// anterieurs a since. Un deploiement sans date valide est garde.
+// L'ordre de Coolify n'est pas documente : il se lit sur la premiere page.
+// Du plus recent au plus ancien, la lecture s'arrete a la premiere page qui ne
+// contient plus que des deploiements anterieurs a since. Dans l'ordre inverse,
+// ou s'il est indeterminable, toute la liste est lue, a concurrence de
+// maxPages : au-dela, la lecture echoue plutot que de rendre une liste dont
+// les plus recents manquent peut-etre. Un deploiement sans date valide est
+// garde.
 func (c *Client) ListDeployments(ctx context.Context, appUUID string, since time.Time) ([]Deployment, error) {
 	if strings.TrimSpace(appUUID) == "" {
 		return nil, errors.New("identifiant d'application manquant")
 	}
 	var out []Deployment
+	newestFirst := false
 	for page := 0; page < maxPages; page++ {
 		query := url.Values{}
 		query.Set("skip", fmt.Sprint(page*pageSize))
@@ -77,20 +82,47 @@ func (c *Client) ListDeployments(ctx context.Context, appUUID string, since time
 		if err != nil {
 			return nil, err
 		}
-		recent := false
+		batch := make([]Deployment, 0, len(items))
 		for _, raw := range items {
-			d := deploymentOf(raw)
+			batch = append(batch, deploymentOf(raw))
+		}
+		if page == 0 {
+			newestFirst = isNewestFirst(batch)
+		}
+		recent := false
+		for _, d := range batch {
 			if !since.IsZero() && !d.CreatedAt.IsZero() && d.CreatedAt.Before(since) {
 				continue
 			}
 			recent = true
 			out = append(out, d)
 		}
-		if len(items) < pageSize || (!since.IsZero() && !recent) {
-			break
+		if len(items) < pageSize || (newestFirst && !since.IsZero() && !recent) {
+			return out, nil
 		}
 	}
-	return out, nil
+	return nil, fmt.Errorf("plus de %d déploiements pour l’application %s : lecture abandonnée", maxPages*pageSize, appUUID)
+}
+
+// isNewestFirst dit si une page est strictement du plus recent au plus
+// ancien, d'apres ses dates. Une page trop courte, sans dates ou en desordre
+// ne permet pas de conclure.
+func isNewestFirst(batch []Deployment) bool {
+	var dated []time.Time
+	for _, d := range batch {
+		if !d.CreatedAt.IsZero() {
+			dated = append(dated, d.CreatedAt)
+		}
+	}
+	if len(dated) < 2 {
+		return false
+	}
+	for i := 1; i < len(dated); i++ {
+		if dated[i].After(dated[i-1]) {
+			return false
+		}
+	}
+	return dated[0].After(dated[len(dated)-1])
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte, error) {
