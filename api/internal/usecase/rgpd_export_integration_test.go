@@ -610,6 +610,53 @@ func TestRgpdExport_NoOrphanArchiveWhenExportChangesDuringBuild(t *testing.T) {
 	}
 }
 
+// Des demandes simultanees pour le meme sujet n'en font qu'un export.
+func TestRgpdExport_ConcurrentRequestsCreateOneExport(t *testing.T) {
+	e := newRgpdEnv(t, time.Hour, 64<<20)
+	uid := e.user(t, "concurrent", "team", nil)
+
+	const callers = 12
+
+	var (
+		wg    sync.WaitGroup
+		start = make(chan struct{})
+		ids   = make([]uuid.UUID, callers)
+	)
+
+	for i := range callers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			item, err := e.svc.Request(context.Background(), nil, usecase.RgpdSubjectUser, uid)
+			if err != nil {
+				t.Errorf("Request : %v", err)
+
+				return
+			}
+
+			ids[i] = item.ID
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+
+	for _, id := range ids {
+		if id != ids[0] {
+			t.Fatalf("des identifiants differents : %v", ids)
+		}
+	}
+
+	var n int
+	if err := e.pool.QueryRow(context.Background(), `SELECT count(*) FROM rgpd_exports WHERE subject_id = $1`, uid).Scan(&n); err != nil || n != 1 {
+		t.Errorf("%d exports pour une rafale de demandes (%v)", n, err)
+	}
+}
+
 func TestRgpdExport_TwoWorkersNeverBuildTheSameExportTwice(t *testing.T) {
 	e := newRgpdEnv(t, time.Hour, 64<<20)
 	ctx := context.Background()

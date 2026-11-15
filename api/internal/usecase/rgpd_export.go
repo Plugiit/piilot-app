@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/plugiit/piilot-app/api/internal/domain"
@@ -154,6 +155,18 @@ func (s *RgpdExportService) Request(ctx context.Context, actor *uuid.UUID, subje
 		SubjectType: subjectType, SubjectID: subjectID, SubjectLabel: truncateRunes(label, 200), RequestedBy: actor,
 	})
 	if err != nil {
+		// Deux demandes simultanees : l'index unique n'en laisse passer qu'une,
+		// l'autre retrouve l'export de la premiere.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			active, gerr := s.q.GetActiveRgpdExport(ctx, db.GetActiveRgpdExportParams{SubjectType: subjectType, SubjectID: subjectID})
+			if gerr != nil {
+				return RgpdExportItem{}, fmt.Errorf("lecture de l'export concurrent : %w", gerr)
+			}
+
+			return rgpdItemOf(active), nil
+		}
+
 		return RgpdExportItem{}, fmt.Errorf("creation de l'export : %w", err)
 	}
 
