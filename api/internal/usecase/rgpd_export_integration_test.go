@@ -574,6 +574,42 @@ func TestRgpdExport_TooLargeFailsAndLeavesNoFile(t *testing.T) {
 	}
 }
 
+// Si le sujet est efface (ou la construction jugee abandonnee) pendant que
+// l'archive se construit, le resultat ne s'ecrit pas et l'archive est retiree
+// du disque : elle contient des donnees personnelles que plus rien ne reference.
+func TestRgpdExport_NoOrphanArchiveWhenExportChangesDuringBuild(t *testing.T) {
+	for name, newStatus := range map[string]string{"expire": "expired", "echec": "failed"} {
+		t.Run(name, func(t *testing.T) {
+			e := newRgpdEnv(t, time.Hour, 64<<20)
+			ctx := context.Background()
+
+			uid := e.user(t, "orph-"+name, "team", nil)
+
+			item, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, uid)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			e.svc.AfterBuild(func() {
+				e.exec(t, `UPDATE rgpd_exports SET status = $2, file_key = '' WHERE id = $1`, item.ID, newStatus)
+			})
+
+			if worked, err := e.svc.Process(ctx); err != nil || !worked {
+				t.Fatalf("Process : %v %v", worked, err)
+			}
+
+			got, _ := e.q.GetRgpdExport(ctx, item.ID)
+			if got.Status != newStatus || got.FileKey != "" {
+				t.Errorf("l'export a ete modifie : %s / %q", got.Status, got.FileKey)
+			}
+
+			if n := dirCount(t, e.dir); n != 0 {
+				t.Errorf("%d archive(s) orpheline(s) sur disque", n)
+			}
+		})
+	}
+}
+
 func TestRgpdExport_TwoWorkersNeverBuildTheSameExportTwice(t *testing.T) {
 	e := newRgpdEnv(t, time.Hour, 64<<20)
 	ctx := context.Background()

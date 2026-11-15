@@ -154,7 +154,7 @@ func (q *Queries) FailStaleRgpdExports(ctx context.Context) ([]uuid.UUID, error)
 	return items, nil
 }
 
-const finishRgpdExport = `-- name: FinishRgpdExport :exec
+const finishRgpdExport = `-- name: FinishRgpdExport :execrows
 UPDATE rgpd_exports
 SET status = 'ready', file_key = $1, size_bytes = $2,
     ready_at = now(), expires_at = $3, error = '', updated_at = now()
@@ -168,14 +168,18 @@ type FinishRgpdExportParams struct {
 	ID        uuid.UUID  `json:"id"`
 }
 
-func (q *Queries) FinishRgpdExport(ctx context.Context, arg FinishRgpdExportParams) error {
-	_, err := q.db.Exec(ctx, finishRgpdExport,
+// Rend 0 si l'export n'est plus « running » : l'appelant retire alors l'archive.
+func (q *Queries) FinishRgpdExport(ctx context.Context, arg FinishRgpdExportParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishRgpdExport,
 		arg.FileKey,
 		arg.SizeBytes,
 		arg.ExpiresAt,
 		arg.ID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getActiveRgpdExport = `-- name: GetActiveRgpdExport :one
