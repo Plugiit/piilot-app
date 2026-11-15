@@ -71,6 +71,10 @@ type Querier interface {
 	// Reserve le prochain effacement arrive a echeance, sous verrou, pour la
 	// duree de la transaction de l'appelant : une autre instance passe au suivant.
 	ClaimDueRgpdErasure(ctx context.Context) (RgpdErasure, error)
+	// Reclame le fichier avant de l'effacer : un depot jamais lance est abandonne,
+	// une simulation garde son rapport mais ne peut plus etre confirmee. Rend la
+	// cle du fichier a supprimer ; aucune ligne si quelqu'un l'a prise entre-temps.
+	ClaimImportFile(ctx context.Context, id uuid.UUID) (string, error)
 	// Le prochain e-mail a ranger, verrouille le temps de le traiter : deux
 	// instances pendant un deploiement ne rangent pas deux fois le meme.
 	ClaimPendingInbound(ctx context.Context) (InboundEmail, error)
@@ -83,9 +87,6 @@ type Querier interface {
 	// Une instance a la fois : le lancement passe en « dispatching » avant l'appel,
 	// et n'est jamais repris tout seul si l'instance tombe pendant.
 	ClaimSiteUpdateRun(ctx context.Context, arg ClaimSiteUpdateRunParams) (SiteUpdateRun, error)
-	// Le fichier est supprime : un depot jamais lance est abandonne, une simulation
-	// garde son rapport mais ne peut plus etre confirmee.
-	ClearImportFile(ctx context.Context, id uuid.UUID) error
 	// Retire la designation qui pointe vers ce contact, quel que soit le client.
 	// Appelee avant la suppression logique : la cle etrangere ne se declenche que
 	// sur un DELETE reel, et laisserait sinon un client designant un contact mort.
