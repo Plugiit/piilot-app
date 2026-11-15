@@ -4116,6 +4116,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/rgpd/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des exports RGPD
+         * @description Du plus récent au plus ancien, 25 par page. Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdExports"];
+        put?: never;
+        /**
+         * Demander l'export des données d'un compte ou d'un client
+         * @description Met l'export en file ; la tâche de fond (toutes les minutes) construit une archive zip : manifest.json, data/<section>.json et files/. Un export déjà en attente ou en cours pour le même sujet est rendu tel quel. L'archive est conservée RGPD_EXPORT_TTL (168 h par défaut), puis supprimée ; elle échoue (`too_large`) au-delà de RGPD_EXPORT_MAX_MIB. Les notes internes des tickets ne sont pas incluses dans l'archive d'un client. 404 si le sujet n'existe pas. Journalisé. Exige rgpd.manage.
+         */
+        post: operations["createAdminRgpdExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/exports/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Télécharger l'archive d'un export RGPD
+         * @description Archive zip d'un export prêt et non expiré. 409 si elle n'est pas (ou plus) disponible. Journalisé. Exige rgpd.manage.
+         */
+        get: operations["downloadAdminRgpdExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7608,6 +7652,42 @@ export interface components {
             };
             /** @default false */
             dry_run: boolean;
+        };
+        CreateRgpdExportRequest: {
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+        };
+        RgpdExportItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+            subject_label: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "ready" | "failed" | "expired";
+            /** Format: int64 */
+            size_bytes: number;
+            /** Format: uuid */
+            requested_by: string | null;
+            /** Format: date-time */
+            ready_at: string | null;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** @description Code d'échec : too_large, interrupted ou internal. Vide sinon. */
+            error: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RgpdExportPage: {
+            items: components["schemas"]["RgpdExportItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
         };
     };
     responses: {
@@ -15083,6 +15163,90 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminRgpdExports: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdExportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAdminRgpdExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRgpdExportRequest"];
+            };
+        };
+        responses: {
+            /** @description En file */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdExportItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    downloadAdminRgpdExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archive zip */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Archive indisponible */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

@@ -361,14 +361,10 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 
 	switch subjectType {
 	case RgpdSubjectUser:
-		u := func(f func(ctx context.Context, after uuid.UUID) ([]rgpdRow, error)) func(context.Context, uuid.UUID) ([]rgpdRow, error) {
-			return f
-		}
-
 		return []rgpdSection{
-			{"profile", u(func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
+			{"profile", func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
 				return rowsOf(q.RgpdUserProfile(ctx, db.RgpdUserProfileParams{Subject: id, After: a, PageSize: n}))
-			})},
+			}},
 			{"sessions", func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
 				return rowsOf(q.RgpdUserSessions(ctx, db.RgpdUserSessionsParams{Subject: id, After: a, PageSize: n}))
 			}},

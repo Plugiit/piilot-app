@@ -13597,6 +13597,148 @@
           }
         }
       }
+    },
+    "/api/v1/admin/rgpd/exports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des exports RGPD",
+        "description": "Du plus récent au plus ancien, 25 par page. Exige rgpd.manage.",
+        "operationId": "listAdminRgpdExports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdExportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Demander l'export des données d'un compte ou d'un client",
+        "description": "Met l'export en file ; la tâche de fond (toutes les minutes) construit une archive zip : manifest.json, data/<section>.json et files/. Un export déjà en attente ou en cours pour le même sujet est rendu tel quel. L'archive est conservée RGPD_EXPORT_TTL (168 h par défaut), puis supprimée ; elle échoue (`too_large`) au-delà de RGPD_EXPORT_MAX_MIB. Les notes internes des tickets ne sont pas incluses dans l'archive d'un client. 404 si le sujet n'existe pas. Journalisé. Exige rgpd.manage.",
+        "operationId": "createAdminRgpdExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRgpdExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "En file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdExportItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/exports/{id}/download": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Télécharger l'archive d'un export RGPD",
+        "description": "Archive zip d'un export prêt et non expiré. 409 si elle n'est pas (ou plus) disponible. Journalisé. Exige rgpd.manage.",
+        "operationId": "downloadAdminRgpdExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archive zip",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Archive indisponible"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -25402,6 +25544,132 @@
           "dry_run": {
             "type": "boolean",
             "default": false
+          }
+        }
+      },
+      "CreateRgpdExportRequest": {
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_id"
+        ],
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RgpdExportItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "subject_type",
+          "subject_id",
+          "subject_label",
+          "status",
+          "size_bytes",
+          "requested_by",
+          "ready_at",
+          "expires_at",
+          "error",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "expired"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec : too_large, interrupted ou internal. Vide sinon."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdExportPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdExportItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
           }
         }
       }
