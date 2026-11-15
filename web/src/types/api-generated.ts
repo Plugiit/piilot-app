@@ -4224,6 +4224,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/rgpd/deleted-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clients supprimés du CRM, données conservées
+         * @description Les clients supprimés dans le CRM (suppression logique) gardent toutes leurs données : le CRM ne les montre plus, cette liste permet de les exporter ou d'en demander l'effacement. Du plus récemment supprimé au plus ancien, 25 par page. Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdDeletedClients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7804,6 +7824,20 @@ export interface components {
             /** @description Inactivité au-delà de laquelle un compte non admin est planifié (RGPD_INACTIVE_AFTER) ; 0 si désactivé. */
             inactive_after_hours: number;
             inactive_purge_enabled: boolean;
+        };
+        RgpdDeletedClient: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            deleted_at: string;
+        };
+        RgpdDeletedClientPage: {
+            items: components["schemas"]["RgpdDeletedClient"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
         };
     };
     responses: {
@@ -15481,6 +15515,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RgpdSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminRgpdDeletedClients: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdDeletedClientPage"];
                 };
             };
             401: components["responses"]["Unauthorized"];

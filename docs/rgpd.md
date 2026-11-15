@@ -16,6 +16,10 @@ Piilot permet à un administrateur (permission `rgpd.manage`, réservée au rôl
 3. **Exécution** : une tâche de fond (toutes les minutes) exécute les effacements échus. Chacun tient dans **une seule transaction** : si une étape échoue, rien n'est modifié. L'effacement est alors marqué « échoué » (le détail est dans les logs) et ne se rejoue pas tout seul ; un administrateur en planifie un nouveau après avoir corrigé la cause. Deux instances de l'application ne peuvent pas exécuter le même effacement (verrou `SKIP LOCKED`).
 4. **Fichiers** : leurs clés sont relevées dans la transaction, et les fichiers du disque sont supprimés **après** le COMMIT. Un échec de suppression est écrit dans les logs sans rien défaire : un fichier orphelin vaut mieux qu'un effacement annulé à moitié.
 
+### Clients supprimés dans le CRM
+
+Supprimer un client dans le CRM est une suppression **logique** : il disparaît des écrans mais toutes ses données restent en base. Il reste donc exportable et effaçable : l'onglet « Clients supprimés » de l'écran RGPD (`GET /api/v1/admin/rgpd/deleted-clients`) les liste, avec les boutons d'export et d'effacement. Un client supprimé du CRM pendant le délai de rétractation d'un effacement est effacé normalement à l'échéance.
+
 ## Ce qui est effacé
 
 ### Compte (anonymisation)

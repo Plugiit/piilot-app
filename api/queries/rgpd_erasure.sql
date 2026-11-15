@@ -78,7 +78,9 @@ SELECT id, email::text AS email, role, client_id, avatar_url, disabled_at, delet
 FROM users WHERE id = $1 FOR UPDATE;
 
 -- name: LockClientForErasure :one
-SELECT id, name FROM clients WHERE id = $1 AND deleted_at IS NULL FOR UPDATE;
+-- Sans filtre sur deleted_at : un client supprime logiquement dans le CRM garde
+-- ses donnees, et doit pouvoir etre efface (demande comme execution).
+SELECT id, name FROM clients WHERE id = $1 FOR UPDATE;
 
 -- name: ListClientUsersForErasure :many
 -- Les comptes du portail d'un client, effaces ou non (la cle etrangere

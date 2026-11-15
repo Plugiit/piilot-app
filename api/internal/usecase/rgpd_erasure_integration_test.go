@@ -448,6 +448,88 @@ func TestRgpdErasure_ClientDeletedWithFiles(t *testing.T) {
 	}
 }
 
+// Un client supprime dans le CRM (suppression logique) garde ses donnees : il
+// doit rester retrouvable, exportable et effacable, et un client supprime
+// pendant le delai de retractation doit s'effacer quand meme.
+func TestRgpdErasure_SoftDeletedClient(t *testing.T) {
+	e := newErasureEnv(t, 0)
+	ctx := context.Background()
+
+	mk := func(name string) uuid.UUID {
+		client, err := e.q.CreateImportedClient(ctx, db.CreateImportedClientParams{Name: e.prefix + " " + name, Kind: usecase.ClientProfessionnel, Status: "actif"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := e.q.CreateProject(ctx, db.CreateProjectParams{ClientID: client.ID, Name: e.prefix + " projet " + name, Status: "production", Priority: "high"}); err != nil {
+			t.Fatal(err)
+		}
+
+		return client.ID
+	}
+
+	t.Run("supprime avant la demande", func(t *testing.T) {
+		id := mk("deja-supprime")
+		e.exec(t, `UPDATE clients SET deleted_at = now() WHERE id = $1`, id)
+
+		page, err := e.svc.DeletedClients(ctx, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		found := false
+
+		for _, c := range page.Items {
+			found = found || c.ID == id
+		}
+
+		if !found {
+			t.Error("le client supprime n'est pas dans la liste des clients supprimes")
+		}
+
+		// Exportable (l'export est celui de l'ecran RGPD).
+		exporter := newRgpdEnv(t, time.Hour, 64<<20)
+		exporter.buildOne(t, usecase.RgpdSubjectClient, id)
+
+		item, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectClient, id)
+		if err != nil {
+			t.Fatalf("demande d'effacement d'un client supprime : %v", err)
+		}
+
+		e.makeDue(t, item.ID)
+		e.drain(t)
+
+		if got := e.erasure(t, item.ID); got.Status != usecase.RgpdErasureDone {
+			t.Fatalf("effacement : %+v", got)
+		}
+
+		if e.count(t, `SELECT count(*) FROM clients WHERE id = $1`, id)+e.count(t, `SELECT count(*) FROM projects WHERE client_id = $1`, id) != 0 {
+			t.Error("les donnees du client supprime sont conservees")
+		}
+	})
+
+	t.Run("supprime pendant le delai", func(t *testing.T) {
+		id := mk("supprime-pendant")
+
+		item, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectClient, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		e.exec(t, `UPDATE clients SET deleted_at = now() WHERE id = $1`, id)
+		e.makeDue(t, item.ID)
+		e.drain(t)
+
+		if got := e.erasure(t, item.ID); got.Status != usecase.RgpdErasureDone {
+			t.Fatalf("effacement : statut %q, erreur %q", got.Status, got.Error)
+		}
+
+		if e.count(t, `SELECT count(*) FROM clients WHERE id = $1`, id) != 0 {
+			t.Error("le client supprime pendant le delai est toujours la")
+		}
+	})
+}
+
 func TestRgpdErasure_InactiveUsersAndLoginCancels(t *testing.T) {
 	e := newErasureEnv(t, 48*time.Hour)
 	ctx := context.Background()

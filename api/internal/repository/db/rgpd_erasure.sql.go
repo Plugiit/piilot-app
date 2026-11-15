@@ -782,7 +782,7 @@ func (q *Queries) ListRgpdErasures(ctx context.Context, arg ListRgpdErasuresPara
 }
 
 const lockClientForErasure = `-- name: LockClientForErasure :one
-SELECT id, name FROM clients WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+SELECT id, name FROM clients WHERE id = $1 FOR UPDATE
 `
 
 type LockClientForErasureRow struct {
@@ -790,6 +790,8 @@ type LockClientForErasureRow struct {
 	Name string    `json:"name"`
 }
 
+// Sans filtre sur deleted_at : un client supprime logiquement dans le CRM garde
+// ses donnees, et doit pouvoir etre efface (demande comme execution).
 func (q *Queries) LockClientForErasure(ctx context.Context, id uuid.UUID) (LockClientForErasureRow, error) {
 	row := q.db.QueryRow(ctx, lockClientForErasure, id)
 	var i LockClientForErasureRow

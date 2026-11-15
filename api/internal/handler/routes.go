@@ -307,6 +307,7 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Post("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateErasure)
 	r.Get("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListErasures)
 	r.Post("/rgpd/erasures/:id/cancel", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CancelErasure)
+	r.Get("/rgpd/deleted-clients", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListDeletedClients)
 	r.Get("/rgpd/settings", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.Settings)
 
 	// E-mail entrant : le reglage aux admins, le tri a qui traite les tickets.
