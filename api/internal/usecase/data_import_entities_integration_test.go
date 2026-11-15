@@ -651,3 +651,29 @@ func TestImportTimeEntriesBench(t *testing.T) {
 
 	t.Logf("BENCH import reel de %d lignes de temps : %s (%.0f lignes/s) ; rejeu : %s", total, real, total/real.Seconds(), rejeu)
 }
+
+// Un SIRET fourni mais inconnu ne se rabat sur le nom que si le client trouve
+// n'a pas de SIRET : un homonyme d'un autre SIRET est refuse.
+func TestImportContactsHomonymClient(t *testing.T) {
+	e := newEntitiesEnv(t, 1000)
+
+	other := e.newClient(t, "Homonyme", randomSiret())
+	noSiret := e.newClient(t, "SansSiret", "")
+
+	header := []string{"Prénom", "Nom", "E-mail", "Client", "SIRET client"}
+	mail := func(tag string) string { return tag + "@" + e.prefix + ".test" }
+
+	_, rows := e.importCSV(t, usecase.DataEntityContacts, csvOf(t, header,
+		[]string{e.name("Hom"), "Onyme", mail("hom"), other.Name, randomSiret()},     // autre SIRET : refuse
+		[]string{e.name("Repli"), "Nom", mail("repli"), noSiret.Name, randomSiret()}, // client sans SIRET : repli
+	))
+
+	expectReasons(t, rows, map[int][2]string{
+		2: {usecase.ImportRowError, usecase.ReasonUnknownClient},
+		3: {"created", ""},
+	})
+
+	if c, err := e.q.GetContactByEmail(context.Background(), mail("hom")); err == nil {
+		t.Errorf("contact rattache a un homonyme : %+v", c)
+	}
+}
