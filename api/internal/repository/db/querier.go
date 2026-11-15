@@ -1299,8 +1299,8 @@ type Querier interface {
 	RecordCoolifyPoll(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
-	// Un essai termine. Un succes pose last_synced_at et efface l'erreur ; un
-	// echec garde le dernier succes et dit pourquoi.
+	// Un essai termine, a l'instant donne. Un succes pose last_synced_at et efface
+	// l'erreur ; un echec garde le dernier succes et dit pourquoi.
 	RecordGitSync(ctx context.Context, arg RecordGitSyncParams) error
 	RecordInboundPoll(ctx context.Context, error string) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction

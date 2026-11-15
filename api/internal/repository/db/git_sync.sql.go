@@ -138,23 +138,24 @@ func (q *Queries) ListGitSyncTargets(ctx context.Context, arg ListGitSyncTargets
 
 const recordGitSync = `-- name: RecordGitSync :exec
 INSERT INTO project_git_sync (project_id, last_attempt_at, last_synced_at, last_error)
-VALUES ($1, now(), CASE WHEN $2::text IS NULL THEN now() END, $2)
+VALUES ($1, $2::timestamptz, CASE WHEN $3::text IS NULL THEN $2::timestamptz END, $3)
 ON CONFLICT (project_id) DO UPDATE SET
     requested_at    = NULL,
-    last_attempt_at = now(),
-    last_synced_at  = CASE WHEN $2::text IS NULL THEN now() ELSE project_git_sync.last_synced_at END,
-    last_error      = $2
+    last_attempt_at = $2::timestamptz,
+    last_synced_at  = CASE WHEN $3::text IS NULL THEN $2::timestamptz ELSE project_git_sync.last_synced_at END,
+    last_error      = $3
 `
 
 type RecordGitSyncParams struct {
 	ProjectID uuid.UUID `json:"project_id"`
+	At        time.Time `json:"at"`
 	Error     *string   `json:"error"`
 }
 
-// Un essai termine. Un succes pose last_synced_at et efface l'erreur ; un
-// echec garde le dernier succes et dit pourquoi.
+// Un essai termine, a l'instant donne. Un succes pose last_synced_at et efface
+// l'erreur ; un echec garde le dernier succes et dit pourquoi.
 func (q *Queries) RecordGitSync(ctx context.Context, arg RecordGitSyncParams) error {
-	_, err := q.db.Exec(ctx, recordGitSync, arg.ProjectID, arg.Error)
+	_, err := q.db.Exec(ctx, recordGitSync, arg.ProjectID, arg.At, arg.Error)
 	return err
 }
 

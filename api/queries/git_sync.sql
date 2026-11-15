@@ -11,14 +11,14 @@ INSERT INTO project_git_sync (project_id, requested_at) VALUES (sqlc.arg('projec
 ON CONFLICT (project_id) DO UPDATE SET requested_at = now() WHERE project_git_sync.requested_at IS NULL;
 
 -- name: RecordGitSync :exec
--- Un essai termine. Un succes pose last_synced_at et efface l'erreur ; un
--- echec garde le dernier succes et dit pourquoi.
+-- Un essai termine, a l'instant donne. Un succes pose last_synced_at et efface
+-- l'erreur ; un echec garde le dernier succes et dit pourquoi.
 INSERT INTO project_git_sync (project_id, last_attempt_at, last_synced_at, last_error)
-VALUES (sqlc.arg('project_id'), now(), CASE WHEN sqlc.narg('error')::text IS NULL THEN now() END, sqlc.narg('error'))
+VALUES (sqlc.arg('project_id'), sqlc.arg('at')::timestamptz, CASE WHEN sqlc.narg('error')::text IS NULL THEN sqlc.arg('at')::timestamptz END, sqlc.narg('error'))
 ON CONFLICT (project_id) DO UPDATE SET
     requested_at    = NULL,
-    last_attempt_at = now(),
-    last_synced_at  = CASE WHEN sqlc.narg('error')::text IS NULL THEN now() ELSE project_git_sync.last_synced_at END,
+    last_attempt_at = sqlc.arg('at')::timestamptz,
+    last_synced_at  = CASE WHEN sqlc.narg('error')::text IS NULL THEN sqlc.arg('at')::timestamptz ELSE project_git_sync.last_synced_at END,
     last_error      = sqlc.narg('error');
 
 -- name: ListGitSyncTargets :many

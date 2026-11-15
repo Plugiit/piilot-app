@@ -136,7 +136,11 @@ func (s *GitSyncService) RequestSync(ctx context.Context, projectID uuid.UUID) (
 // rapport ne se genere. Un projet en echec n'empeche pas les autres : son
 // erreur s'inscrit sur sa fiche.
 func (s *GitSyncService) Tick(ctx context.Context) error {
-	now := s.now()
+	return s.TickAt(ctx, s.now())
+}
+
+// TickAt est le passage de la tache a un instant donne.
+func (s *GitSyncService) TickAt(ctx context.Context, now time.Time) error {
 	local := now.In(zone.Location())
 	firstOfMonth := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, zone.Location())
 	from := time.Date(local.Year(), local.Month()-gitSyncLookbackMonths, 1, 0, 0, 0, 0, time.UTC)
@@ -178,7 +182,7 @@ func (s *GitSyncService) syncProject(ctx context.Context, projectID uuid.UUID, r
 		text := err.Error()
 		msg = &text
 	}
-	if rerr := s.q.RecordGitSync(ctx, db.RecordGitSyncParams{ProjectID: projectID, Error: msg}); rerr != nil {
+	if rerr := s.q.RecordGitSync(ctx, db.RecordGitSyncParams{ProjectID: projectID, At: now, Error: msg}); rerr != nil {
 		return errors.Join(err, fmt.Errorf("enregistrement de la synchronisation : %w", rerr))
 	}
 	if err == nil {
