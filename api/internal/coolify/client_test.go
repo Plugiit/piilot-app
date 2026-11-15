@@ -294,3 +294,27 @@ func TestIsNewestFirst(t *testing.T) {
 		}
 	}
 }
+
+func TestReponseTropVolumineuseEstRefusee(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(strings.Repeat(" ", maxBody+1)))
+	})
+	if _, err := c.ListApplications(context.Background()); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("erreur = %v", err)
+	}
+}
+
+func TestUneRedirectionEstRefusee(t *testing.T) {
+	var hits int
+	other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits++ }))
+	t.Cleanup(other.Close)
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusFound)
+	})
+	c.Client = NewHTTPClient()
+	_, err := c.ListApplications(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "redirige") || hits != 0 {
+		t.Fatalf("erreur = %v, appels a l'autre hote = %d", err, hits)
+	}
+}
