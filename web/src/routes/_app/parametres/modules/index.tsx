@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 
+import coolifyUrl from '@/assets/sidebar/app-coolify.svg'
 import umamiUrl from '@/assets/integrations/umami.svg'
 import uptimeUrl from '@/assets/sidebar/app-uptime-kuma.svg'
 import { CARD_ACTION, IntegrationCard } from '@/components/integration-card'
@@ -33,10 +34,14 @@ const STATE: Record<Module['state'], { label: string; color: string; pill: { bg:
 }
 
 /** Le logo de chaque module, par son code. */
-const LOGOS: Record<Module['code'], string> = { uptime: uptimeUrl, analytics: umamiUrl }
+const LOGOS: Record<Module['code'], string> = { uptime: uptimeUrl, deployments: coolifyUrl, analytics: umamiUrl }
 
 /** La page de chaque module. */
-const PAGES = { uptime: '/parametres/modules/uptime', analytics: '/parametres/modules/umami' } as const
+const PAGES = {
+  uptime: '/parametres/modules/uptime',
+  deployments: '/parametres/modules/coolify',
+  analytics: '/parametres/modules/umami',
+} as const
 
 function ModulesPage() {
   const { data } = useQuery(modulesQuery)

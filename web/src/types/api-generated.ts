@@ -2810,6 +2810,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/modules/coolify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages du module de déploiements
+         * @description Exige users.write.
+         */
+        get: operations["getAdminModuleCoolify"];
+        /**
+         * Enregistrer le module de déploiements
+         * @description Demande aussi une relève, pour que l'écran dise aussitôt si l'adresse et le jeton conviennent. Exige users.write.
+         */
+        put: operations["putAdminModuleCoolify"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/coolify/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tester la connexion à Coolify
+         * @description Demande une relève, faite par la tâche de fond dans les quinze secondes : la requête n'appelle pas Coolify. Exige users.write.
+         */
+        post: operations["postAdminModuleCoolifyPoll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/coolify/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Applications Coolify
+         * @description Les applications vues à la dernière relève, sans appeler Coolify. Exige projects.write : sert aussi au choix d'une application pour un projet.
+         */
+        get: operations["getAdminModuleCoolifyApplications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/projects/{id}/uptime": {
         parameters: {
             query?: never;
@@ -6725,7 +6789,7 @@ export interface components {
         };
         Module: {
             /** @enum {string} */
-            code: "uptime" | "analytics";
+            code: "uptime" | "deployments" | "analytics";
             name: string;
             provider: string;
             description: string;
@@ -7838,6 +7902,49 @@ export interface components {
             total: number;
             page: number;
             page_size: number;
+        };
+        CoolifyStatus: {
+            /** @enum {string} */
+            state: "off" | "pending" | "ok" | "error";
+            /** Format: date-time */
+            last_poll_at: string | null;
+            last_poll_error: string | null;
+            /** @description Une relève demandée n'a pas encore eu lieu. */
+            poll_pending: boolean;
+            /** @description Applications vues à la dernière relève. */
+            applications: number;
+        };
+        /** @description Réglages du module de déploiements. Le jeton d'API n'en sort jamais. COOLIFY_URL et COOLIFY_API_TOKEN priment et sont signalés. */
+        CoolifySettings: {
+            enabled: boolean;
+            base_url: string;
+            base_url_from_env: boolean;
+            api_token_set: boolean;
+            api_token_from_env: boolean;
+            poll_minutes: number;
+            status: components["schemas"]["CoolifyStatus"];
+        };
+        CoolifySettingsRequest: {
+            enabled: boolean;
+            /** @description Adresse de l'instance Coolify, sans /api/v1. */
+            base_url: string;
+            /** @description Jeton complet, avec son préfixe « id| ». Absent ou nul : le jeton en base est gardé. Vide : il est effacé. */
+            api_token?: string | null;
+            poll_minutes: number;
+        };
+        CoolifyApplication: {
+            /** Format: uuid */
+            id: string;
+            /** @description Identifiant de l'application chez Coolify. */
+            uuid: string;
+            name: string;
+            fqdn: string;
+            environment_name: string;
+            project_name: string;
+            /** @description Faux : l'application n'était plus dans la dernière relève. */
+            present: boolean;
+            /** Format: date-time */
+            last_seen_at: string;
         };
     };
     responses: {
@@ -12988,6 +13095,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UptimeIncidentPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminModuleCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoolifySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminModuleCoolifyPoll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleCoolifyApplications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CoolifyApplication"][];
+                    };
                 };
             };
             401: components["responses"]["Unauthorized"];
