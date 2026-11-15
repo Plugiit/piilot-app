@@ -277,7 +277,8 @@ WHERE id = (
 )
 RETURNING *;
 
--- name: FinishRgpdExport :exec
+-- name: FinishRgpdExport :execrows
+-- Rend 0 si l'export n'est plus « running » : l'appelant retire alors l'archive.
 UPDATE rgpd_exports
 SET status = 'ready', file_key = sqlc.arg('file_key'), size_bytes = sqlc.arg('size_bytes'),
     ready_at = now(), expires_at = sqlc.arg('expires_at'), error = '', updated_at = now()

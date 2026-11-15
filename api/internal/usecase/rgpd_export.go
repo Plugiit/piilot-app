@@ -97,6 +97,10 @@ type RgpdExportService struct {
 	ttl      time.Duration
 	maxBytes int64
 	log      *slog.Logger
+
+	// afterBuild, nil en production, laisse un test agir entre la fin de la
+	// construction de l'archive et l'ecriture du resultat.
+	afterBuild func()
 }
 
 // NewRgpdExportService construit le service. ttl : duree de vie d'une archive
@@ -241,12 +245,26 @@ func (s *RgpdExportService) Process(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
-	if err := s.q.FinishRgpdExport(context.WithoutCancel(ctx), db.FinishRgpdExportParams{
+	if s.afterBuild != nil {
+		s.afterBuild()
+	}
+
+	n, err := s.q.FinishRgpdExport(context.WithoutCancel(ctx), db.FinishRgpdExportParams{
 		ID: e.ID, FileKey: key, SizeBytes: size, ExpiresAt: ptrTime(time.Now().Add(s.ttl)),
-	}); err != nil {
+	})
+	if err != nil {
 		_ = s.files.Remove(key)
 
 		return true, fmt.Errorf("ecriture du resultat : %w", err)
+	}
+
+	// Aucune ligne : l'export n'est plus « en cours » (le sujet a ete efface,
+	// ou la construction a ete jugee abandonnee). Personne ne saura que
+	// l'archive existe : elle contient des donnees personnelles, on la retire.
+	if n == 0 {
+		if err := s.files.Remove(key); err != nil {
+			s.log.Warn("export rgpd : archive orpheline non supprimee", "id", e.ID, "error", err)
+		}
 	}
 
 	return true, nil

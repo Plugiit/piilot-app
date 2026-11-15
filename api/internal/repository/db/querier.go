@@ -386,7 +386,8 @@ type Querier interface {
 	// Les compteurs sont comptes dans le rapport : une seule source de verite.
 	FinishImport(ctx context.Context, arg FinishImportParams) error
 	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
-	FinishRgpdExport(ctx context.Context, arg FinishRgpdExportParams) error
+	// Rend 0 si l'export n'est plus « running » : l'appelant retire alors l'archive.
+	FinishRgpdExport(ctx context.Context, arg FinishRgpdExportParams) (int64, error)
 	FinishSiteUpdateRun(ctx context.Context, arg FinishSiteUpdateRunParams) (int64, error)
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Question posee par la garde a chaque appel du bot : lecture par index unique.
