@@ -190,7 +190,7 @@ func Load() (Config, error) {
 			KumaAPIKey: strings.TrimSpace(os.Getenv("KUMA_API_KEY")),
 		},
 		Coolify: CoolifyEnv{
-			URL:      strings.TrimSpace(os.Getenv("COOLIFY_URL")),
+			URL:      strings.TrimSpace(os.Getenv("COOLIFY_API_URL")),
 			APIToken: strings.TrimSpace(os.Getenv("COOLIFY_API_TOKEN")),
 		},
 		GitWebhookSecret: os.Getenv("GIT_WEBHOOK_SECRET"),
@@ -229,7 +229,7 @@ func Load() (Config, error) {
 	}
 
 	if u := cfg.Coolify.URL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
-		return Config{}, fmt.Errorf("COOLIFY_URL attend une adresse http(s) (actuel : %q)", u)
+		return Config{}, fmt.Errorf("COOLIFY_API_URL attend une adresse http(s) (actuel : %q)", u)
 	}
 
 	if len(cfg.JWTSecret) < 32 {
