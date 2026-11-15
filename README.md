@@ -683,6 +683,8 @@ que de la laisser répondre 500 à la première requête.
 | `MAX_UPLOAD_MIB` | `25` | Taille maximale d'une pièce jointe |
 | `IMPORT_MAX_MIB` | `10` | Taille maximale d'un fichier CSV d'import. Ne peut pas dépasser `MAX_UPLOAD_MIB` |
 | `IMPORT_MAX_ROWS` | `50000` | Nombre maximal de lignes d'un import |
+| `RGPD_EXPORT_TTL` | `168h` | Durée de conservation d'une archive d'export RGPD prête (7 jours), puis le fichier est supprimé. Au moins `1h` |
+| `RGPD_EXPORT_MAX_MIB` | `2048` | Taille maximale d'une archive d'export RGPD. Au-delà, l'export échoue (`too_large`) |
 | `ACCESS_TOKEN_TTL` | `15m` | Durée du jeton d'accès |
 | `REFRESH_TOKEN_TTL` | `720h` | Durée d'une session sans reconnexion (30 jours) |
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
