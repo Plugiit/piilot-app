@@ -23,6 +23,18 @@ const (
 	maxPages = 20
 )
 
+// ErrTooLarge : la reponse depasse maxBody.
+var ErrTooLarge = errors.New("réponse de Coolify trop volumineuse")
+
+// NewHTTPClient rend un client HTTP qui ne suit aucune redirection : le jeton
+// ne doit pas partir vers une autre adresse que celle enregistree.
+func NewHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:       timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+}
+
 // Client appelle l'API de Coolify.
 type Client struct {
 	// BaseURL est l'adresse de l'instance, sans /api/v1.
@@ -91,6 +103,10 @@ func (c *Client) ListDeployments(ctx context.Context, appUUID string, since time
 		}
 		recent := false
 		for _, d := range batch {
+			// since filtre sur created_at, pas sur la fin du deploiement : un
+			// deploiement cree juste avant since et fini apres est ecarte. Sans
+			// effet pratique (un deploiement dure des minutes, since est un debut
+			// de mois), donc laisse tel quel.
 			if !since.IsZero() && !d.CreatedAt.IsZero() && d.CreatedAt.Before(since) {
 				continue
 			}
@@ -144,7 +160,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte
 
 	client := c.Client
 	if client == nil {
-		client = &http.Client{Timeout: timeout}
+		client = NewHTTPClient()
 	}
 	res, err := client.Do(req)
 	if err != nil {
@@ -153,9 +169,15 @@ func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte
 	}
 	defer func() { _ = res.Body.Close() }()
 
-	body, err := io.ReadAll(io.LimitReader(res.Body, maxBody))
+	body, err := io.ReadAll(io.LimitReader(res.Body, maxBody+1))
 	if err != nil {
 		return nil, fmt.Errorf("lecture de la réponse de Coolify : %w", err)
+	}
+	if len(body) > maxBody {
+		return nil, ErrTooLarge
+	}
+	if res.StatusCode >= 300 && res.StatusCode < 400 {
+		return nil, fmt.Errorf("Coolify redirige (%d) vers une autre adresse : vérifiez l’adresse enregistrée (https, sans redirection)", res.StatusCode)
 	}
 	switch {
 	case res.StatusCode == http.StatusUnauthorized:
