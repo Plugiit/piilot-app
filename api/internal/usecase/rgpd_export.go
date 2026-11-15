@@ -392,7 +392,7 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 
 	switch subjectType {
 	case RgpdSubjectUser:
-		return []rgpdSection{
+		sections := []rgpdSection{
 			{"profile", func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
 				return rowsOf(q.RgpdUserProfile(ctx, db.RgpdUserProfileParams{Subject: id, After: a, PageSize: n}))
 			}},
@@ -424,7 +424,8 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 				return rowsOf(q.RgpdUserAttachments(ctx, db.RgpdUserAttachmentsParams{Subject: id, After: a, PageSize: n}))
 			}},
 			{"discord", s.discordSection(id)},
-		}, func(ctx context.Context, a uuid.UUID) ([]rgpdFile, error) {
+		}
+		files := func(ctx context.Context, a uuid.UUID) ([]rgpdFile, error) {
 			rows, err := q.RgpdUserFiles(ctx, db.RgpdUserFilesParams{Subject: id, After: a, PageSize: n})
 			if err != nil {
 				return nil, err
@@ -436,10 +437,12 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 			}
 
 			return out, nil
-		}, nil
+		}
+
+		return sections, files, nil
 
 	case RgpdSubjectClient:
-		return []rgpdSection{
+		sections := []rgpdSection{
 			{"client", func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
 				return rowsOf(q.RgpdClientRecord(ctx, db.RgpdClientRecordParams{Subject: id, After: a, PageSize: n}))
 			}},
@@ -484,7 +487,8 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 			{"attachments", func(ctx context.Context, a uuid.UUID) ([]rgpdRow, error) {
 				return rowsOf(q.RgpdClientAttachments(ctx, db.RgpdClientAttachmentsParams{Subject: id, After: a, PageSize: n}))
 			}},
-		}, func(ctx context.Context, a uuid.UUID) ([]rgpdFile, error) {
+		}
+		files := func(ctx context.Context, a uuid.UUID) ([]rgpdFile, error) {
 			rows, err := q.RgpdClientFiles(ctx, db.RgpdClientFilesParams{Subject: id, After: a, PageSize: n})
 			if err != nil {
 				return nil, err
@@ -496,7 +500,9 @@ func (s *RgpdExportService) sectionsOf(subjectType string, id uuid.UUID) ([]rgpd
 			}
 
 			return out, nil
-		}, nil
+		}
+
+		return sections, files, nil
 	}
 
 	return nil, nil, fmt.Errorf("sujet %q inconnu", subjectType)
