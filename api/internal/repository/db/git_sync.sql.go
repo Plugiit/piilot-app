@@ -30,13 +30,13 @@ func (q *Queries) GetProjectGitSync(ctx context.Context, projectID uuid.UUID) (P
 }
 
 const gitSyncProject = `-- name: GitSyncProject :one
-SELECT id, repo_url, deleted_at IS NOT NULL AS deleted FROM projects WHERE id = $1
+SELECT id, repo_url, (deleted_at IS NOT NULL)::boolean AS deleted FROM projects WHERE id = $1
 `
 
 type GitSyncProjectRow struct {
-	ID      uuid.UUID   `json:"id"`
-	RepoUrl string      `json:"repo_url"`
-	Deleted interface{} `json:"deleted"`
+	ID      uuid.UUID `json:"id"`
+	RepoUrl string    `json:"repo_url"`
+	Deleted bool      `json:"deleted"`
 }
 
 func (q *Queries) GitSyncProject(ctx context.Context, id uuid.UUID) (GitSyncProjectRow, error) {
@@ -44,6 +44,41 @@ func (q *Queries) GitSyncProject(ctx context.Context, id uuid.UUID) (GitSyncProj
 	var i GitSyncProjectRow
 	err := row.Scan(&i.ID, &i.RepoUrl, &i.Deleted)
 	return i, err
+}
+
+const listGitSyncRequested = `-- name: ListGitSyncRequested :many
+SELECT g.project_id, p.repo_url
+FROM project_git_sync g
+JOIN projects p ON p.id = g.project_id AND p.deleted_at IS NULL
+WHERE g.requested_at IS NOT NULL
+LIMIT 100
+`
+
+type ListGitSyncRequestedRow struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	RepoUrl   string    `json:"repo_url"`
+}
+
+// Les demandes en attente, hors formule : le bouton marche aussi pour un
+// projet que la formule ne couvre pas.
+func (q *Queries) ListGitSyncRequested(ctx context.Context) ([]ListGitSyncRequestedRow, error) {
+	rows, err := q.db.Query(ctx, listGitSyncRequested)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGitSyncRequestedRow{}
+	for rows.Next() {
+		var i ListGitSyncRequestedRow
+		if err := rows.Scan(&i.ProjectID, &i.RepoUrl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listGitSyncTargets = `-- name: ListGitSyncTargets :many

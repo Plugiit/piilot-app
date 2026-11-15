@@ -754,6 +754,9 @@ type Querier interface {
 	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
 	// client, et le nouveau ne peut pas le lui prendre.
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
+	// Les demandes en attente, hors formule : le bouton marche aussi pour un
+	// projet que la formule ne couvre pas.
+	ListGitSyncRequested(ctx context.Context) ([]ListGitSyncRequestedRow, error)
 	// Les projets a synchroniser : un depot GitHub, et une formule qui compte les
 	// mises a jour sur la fenetre donnee.
 	ListGitSyncTargets(ctx context.Context, arg ListGitSyncTargetsParams) ([]ListGitSyncTargetsRow, error)

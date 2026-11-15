@@ -2928,6 +2928,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/projects/{id}/git/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Synchronisation Git d'un projet
+         * @description Ou en est le rattrapage des pull requests fusionnées : dernière synchronisation réussie, dernier essai et son erreur éventuelle. Exige projects.read.
+         */
+        get: operations["getAdminProjectGitSync"];
+        put?: never;
+        /**
+         * Synchroniser les pull requests maintenant
+         * @description Demande une synchronisation, faite par la tâche de fond dans la minute : la requête n'appelle pas GitHub. Lit les pull requests fusionnées du mois courant et du précédent, avec le jeton GitHub de l'agence, et n'inscrit que celles que le webhook n'a pas reçues. Exige reports.write.
+         */
+        post: operations["postAdminProjectGitSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hooks/uptime/{provider}": {
         parameters: {
             query?: never;
@@ -8011,6 +8038,23 @@ export interface components {
                 /** @enum {string} */
                 environment: "prod" | "preprod";
             }[];
+        };
+        GitSync: {
+            /** @description Faux : le projet n'a pas de dépôt GitHub. */
+            eligible: boolean;
+            /** @description Faux : aucun jeton GitHub n'est enregistré. */
+            token_configured: boolean;
+            /**
+             * Format: date-time
+             * @description Dernière synchronisation réussie.
+             */
+            last_synced_at: string | null;
+            /** Format: date-time */
+            last_attempt_at: string | null;
+            /** @description Pourquoi le dernier essai a échoué. */
+            last_error: string | null;
+            /** @description Une synchronisation demandée n'a pas encore eu lieu. */
+            pending: boolean;
         };
     };
     responses: {
@@ -13368,6 +13412,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectCoolify"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectGitSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSync"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postAdminProjectGitSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSync"];
                 };
             };
             401: components["responses"]["Unauthorized"];
