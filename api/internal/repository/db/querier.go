@@ -71,6 +71,9 @@ type Querier interface {
 	// Le prochain import a traiter. Une seule instruction : le verrou
 	// SKIP LOCKED suffit a ce que deux instances ne prennent pas le meme.
 	ClaimQueuedImport(ctx context.Context) (Import, error)
+	// Le prochain export a construire. Une seule instruction : le verrou
+	// SKIP LOCKED suffit a ce que deux instances ne prennent pas le meme.
+	ClaimQueuedRgpdExport(ctx context.Context) (RgpdExport, error)
 	// Une instance a la fois : le lancement passe en « dispatching » avant l'appel,
 	// et n'est jamais repris tout seul si l'instance tombe pendant.
 	ClaimSiteUpdateRun(ctx context.Context, arg ClaimSiteUpdateRunParams) (SiteUpdateRun, error)
@@ -133,6 +136,7 @@ type Querier interface {
 	CountReportEmailsPending(ctx context.Context, reportID *uuid.UUID) (int32, error)
 	CountReports(ctx context.Context, arg CountReportsParams) (int32, error)
 	CountReportsByStatus(ctx context.Context, month time.Time) (CountReportsByStatusRow, error)
+	CountRgpdExports(ctx context.Context) (int64, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	// Total de chaque colonne du kanban, filtres compris.
@@ -199,6 +203,7 @@ type Querier interface {
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateReplyTemplate(ctx context.Context, arg CreateReplyTemplateParams) (TicketReplyTemplate, error)
+	CreateRgpdExport(ctx context.Context, arg CreateRgpdExportParams) (RgpdExport, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (CreateServiceRow, error)
 	// Le rang par defaut place la nouvelle app en queue : on ajoute au bout, on
 	// reordonne ensuite si besoin.
@@ -302,11 +307,15 @@ type Querier interface {
 	ExportTimeEntriesAfter(ctx context.Context, arg ExportTimeEntriesAfterParams) ([]ExportTimeEntriesAfterRow, error)
 	// Une erreur passagere (base, disque) : on reessaie, cinq fois au plus.
 	FailInboundAttempt(ctx context.Context, arg FailInboundAttemptParams) error
+	FailRgpdExport(ctx context.Context, arg FailRgpdExportParams) error
 	FailSiteUpdateRun(ctx context.Context, arg FailSiteUpdateRunParams) error
 	// Un import « en cours » qui ne donne plus signe de vie : son instance s'est
 	// arretee. Rejoue, il redirait des lignes deja ecrites ; l'utilisateur
 	// relance, et les cles d'import evitent les doublons.
 	FailStaleImports(ctx context.Context) ([]FailStaleImportsRow, error)
+	// Un export « en cours » qui ne donne plus signe de vie : son instance s'est
+	// arretee. Il n'est pas rejoue tout seul, l'admin en redemande un.
+	FailStaleRgpdExports(ctx context.Context) ([]uuid.UUID, error)
 	FindActiveUserByEmail(ctx context.Context, email string) (FindActiveUserByEmailRow, error)
 	// Les contacts du CRM qui portent cette adresse, sur des clients actifs.
 	FindContactsByEmail(ctx context.Context, email *string) ([]FindContactsByEmailRow, error)
@@ -326,12 +335,16 @@ type Querier interface {
 	// Les compteurs sont comptes dans le rapport : une seule source de verite.
 	FinishImport(ctx context.Context, arg FinishImportParams) error
 	FinishInboundEmail(ctx context.Context, arg FinishInboundEmailParams) error
+	FinishRgpdExport(ctx context.Context, arg FinishRgpdExportParams) error
 	FinishSiteUpdateRun(ctx context.Context, arg FinishSiteUpdateRunParams) (int64, error)
 	FinishUpdateRequest(ctx context.Context, arg FinishUpdateRequestParams) error
 	// Question posee par la garde a chaque appel du bot : lecture par index unique.
 	GetActiveBotKeyByHash(ctx context.Context, keyHash []byte) (GetActiveBotKeyByHashRow, error)
 	// Une liaison n'existe pour le bot que si son compte est actif.
 	GetActiveDiscordLink(ctx context.Context, discordUserID string) (GetActiveDiscordLinkRow, error)
+	// Un export deja demande, pas encore fini, pour ce sujet : une seconde demande
+	// le retrouve au lieu de lancer une seconde construction.
+	GetActiveRgpdExport(ctx context.Context, arg GetActiveRgpdExportParams) (RgpdExport, error)
 	// Question posee par la garde a chaque requete authentifiee : ce compte
 	// est-il toujours actif, et avec quel role ? Relue en base plutot que lue dans
 	// le jeton : desactiver un compte ou changer son role prend effet a la requete
@@ -358,7 +371,7 @@ type Querier interface {
 	GetClientName(ctx context.Context, id uuid.UUID) (string, error)
 	GetClientTicketStats(ctx context.Context, clientID uuid.UUID) (ClientTicketStat, error)
 	GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error)
-	// Doublon d'import : l'adresse est unique a la casse ppres (citext), tous
+	// Doublon d'import : l'adresse est unique a la casse pres (citext), tous
 	// clients confondus. Un meme e-mail chez deux clients est presque toujours
 	// la meme personne importee deux fois.
 	GetContactByEmail(ctx context.Context, email string) (Contact, error)
@@ -443,6 +456,7 @@ type Querier interface {
 	GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error)
 	GetReport(ctx context.Context, id uuid.UUID) (GetReportRow, error)
 	GetReportSettings(ctx context.Context) (ReportSetting, error)
+	GetRgpdExport(ctx context.Context, id uuid.UUID) (RgpdExport, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
 	// Sauvegardes et domaines des sites : l'ecran du projet, le point d'appel des
@@ -635,6 +649,10 @@ type Querier interface {
 	// Les brouillons du mois dont les donnees datent : une intervention saisie en
 	// retard, ou l'audience arrivee depuis, doit y entrer sans geste de personne.
 	ListDraftsToRefresh(ctx context.Context, arg ListDraftsToRefreshParams) ([]uuid.UUID, error)
+	// Archives arrivees a echeance. Le fichier est supprime AVANT de marquer
+	// l'export : un arret entre les deux laisse l'export « ready », repris au
+	// tour suivant, plutot qu'une archive de donnees personnelles orpheline.
+	ListExpiredRgpdExports(ctx context.Context) ([]ListExpiredRgpdExportsRow, error)
 	// Projets etoiles par l'appelant, pour les raccourcis de la barre laterale.
 	//
 	// Bornee en dur : c'est une liste de navigation, pas un ecran. Vingt raccourcis
@@ -794,6 +812,7 @@ type Querier interface {
 	// L'envoi automatique : les rapports du mois pas encore envoyes, sauf ceux
 	// qu'un admin retient et les projets en relecture obligatoire.
 	ListReportsToSend(ctx context.Context, month time.Time) ([]ListReportsToSendRow, error)
+	ListRgpdExports(ctx context.Context, arg ListRgpdExportsParams) ([]RgpdExport, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
 	// permissions.
@@ -1029,6 +1048,7 @@ type Querier interface {
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
 	MarkReleaseNotified(ctx context.Context, notifiedVersion string) error
 	MarkReportSent(ctx context.Context, arg MarkReportSentParams) (int64, error)
+	MarkRgpdExportExpired(ctx context.Context, id uuid.UUID) error
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
 	MarkSiteBackupAlerted(ctx context.Context, arg MarkSiteBackupAlertedParams) error
@@ -1228,6 +1248,68 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	// Depuis Mon compte : seulement une autorisation de ce compte.
 	RevokeUserOAuthGrant(ctx context.Context, arg RevokeUserOAuthGrantParams) (RevokeUserOAuthGrantRow, error)
+	// Client : la liste des fichiers de ses projets.
+	RgpdClientAttachments(ctx context.Context, arg RgpdClientAttachmentsParams) ([]RgpdClientAttachmentsRow, error)
+	// Client : ses contacts.
+	RgpdClientContacts(ctx context.Context, arg RgpdClientContactsParams) ([]RgpdClientContactsRow, error)
+	// Client : les versions de ces livrables.
+	RgpdClientDeliverableVersions(ctx context.Context, arg RgpdClientDeliverableVersionsParams) ([]RgpdClientDeliverableVersionsRow, error)
+	// Client : les livrables de ses projets.
+	RgpdClientDeliverables(ctx context.Context, arg RgpdClientDeliverablesParams) ([]RgpdClientDeliverablesRow, error)
+	// Client : les fichiers de ses projets, a ajouter a l'archive.
+	RgpdClientFiles(ctx context.Context, arg RgpdClientFilesParams) ([]RgpdClientFilesRow, error)
+	// Client : les e-mails recus (metadonnees, sans le message brut).
+	RgpdClientInboundEmails(ctx context.Context, arg RgpdClientInboundEmailsParams) ([]RgpdClientInboundEmailsRow, error)
+	// Client : son historique d'echanges.
+	RgpdClientInteractions(ctx context.Context, arg RgpdClientInteractionsParams) ([]RgpdClientInteractionsRow, error)
+	RgpdClientLabel(ctx context.Context, id uuid.UUID) (string, error)
+	// Client : les jalons de ses projets.
+	RgpdClientMilestones(ctx context.Context, arg RgpdClientMilestonesParams) ([]RgpdClientMilestonesRow, error)
+	// Client : ses comptes du portail, sans mot de passe ni secret TOTP.
+	RgpdClientPortalUsers(ctx context.Context, arg RgpdClientPortalUsersParams) ([]RgpdClientPortalUsersRow, error)
+	// Client : ses projets.
+	RgpdClientProjects(ctx context.Context, arg RgpdClientProjectsParams) ([]RgpdClientProjectsRow, error)
+	// Client : la fiche.
+	RgpdClientRecord(ctx context.Context, arg RgpdClientRecordParams) ([]RgpdClientRecordRow, error)
+	// Client : les rapports mensuels de ses projets.
+	RgpdClientReports(ctx context.Context, arg RgpdClientReportsParams) ([]RgpdClientReportsRow, error)
+	// Client : les messages de ces tickets. Les notes internes ne sortent que si with_internal est vrai (decision de l'appelant, un seul point : usecase.rgpdIncludeInternalNotes).
+	RgpdClientTicketMessages(ctx context.Context, arg RgpdClientTicketMessagesParams) ([]RgpdClientTicketMessagesRow, error)
+	// Client : les tickets de ses projets.
+	RgpdClientTickets(ctx context.Context, arg RgpdClientTicketsParams) ([]RgpdClientTicketsRow, error)
+	// Client : le temps passe sur ses projets.
+	RgpdClientTimeEntries(ctx context.Context, arg RgpdClientTimeEntriesParams) ([]RgpdClientTimeEntriesRow, error)
+	// Compte : la liste des fichiers qu'il a deposes.
+	RgpdUserAttachments(ctx context.Context, arg RgpdUserAttachmentsParams) ([]RgpdUserAttachmentsRow, error)
+	// Compte : les lignes du journal d'audit dont il est l'acteur.
+	RgpdUserAudit(ctx context.Context, arg RgpdUserAuditParams) ([]RgpdUserAuditRow, error)
+	// Compte : les fichiers qu'il a deposes.
+	RgpdUserFiles(ctx context.Context, arg RgpdUserFilesParams) ([]RgpdUserFilesRow, error)
+	RgpdUserLabel(ctx context.Context, id uuid.UUID) (RgpdUserLabelRow, error)
+	// Compte : ses notifications.
+	RgpdUserNotifications(ctx context.Context, arg RgpdUserNotificationsParams) ([]RgpdUserNotificationsRow, error)
+	// Compte : ses connexions d'outils (Claude), sans jeton.
+	RgpdUserOauthGrants(ctx context.Context, arg RgpdUserOauthGrantsParams) ([]RgpdUserOauthGrantsRow, error)
+	// Lectures de l'export RGPD, une par section de l'archive.
+	//
+	// Toutes rendent (id, data) : `data` est la ligne en JSON, et la pagination se
+	// fait par cle (`id > after ORDER BY id`), jamais par OFFSET, pour que
+	// l'archive se construise sans tout garder en memoire. Les colonnes secretes
+	// (mot de passe, TOTP, empreintes de jetons, courrier brut) ne sortent pas : les
+	// tables qui en portent listent leurs colonnes une a une plutot que de
+	// retirer celles qu'on connait aujourd'hui.
+	// Compte : le profil, sans mot de passe ni secret TOTP.
+	RgpdUserProfile(ctx context.Context, arg RgpdUserProfileParams) ([]RgpdUserProfileRow, error)
+	// Compte : les sessions (sans l'empreinte du jeton).
+	RgpdUserSessions(ctx context.Context, arg RgpdUserSessionsParams) ([]RgpdUserSessionsRow, error)
+	// Compte : ses commentaires de taches.
+	RgpdUserTaskComments(ctx context.Context, arg RgpdUserTaskCommentsParams) ([]RgpdUserTaskCommentsRow, error)
+	// Compte : les taches qu'il a creees ou qui lui sont confiees.
+	RgpdUserTasks(ctx context.Context, arg RgpdUserTasksParams) ([]RgpdUserTasksRow, error)
+	// Compte : ses messages de tickets, notes internes comprises (ce sont les siens).
+	RgpdUserTicketMessages(ctx context.Context, arg RgpdUserTicketMessagesParams) ([]RgpdUserTicketMessagesRow, error)
+	// Compte : son temps passe.
+	RgpdUserTimeEntries(ctx context.Context, arg RgpdUserTimeEntriesParams) ([]RgpdUserTimeEntriesRow, error)
 	// Question posee par la garde a chaque requete protegee. Les deux jointures
 	// portent sur des cles primaires et des index uniques : c'est une lecture
 	// indexee, pas un balayage.
