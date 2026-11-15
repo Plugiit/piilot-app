@@ -29,6 +29,7 @@ type Deps struct {
 	Backups       *Backups
 	Inbound       *Inbound
 	Uptime        *Uptime
+	Coolify       *Coolify
 	Analytics     *Analytics
 	Maintenance   *Maintenance
 	Reports       *Reports
@@ -327,6 +328,13 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Les sites : la liste du module, et le choix d'un site pour un projet.
 	upt.Get("/monitors", deps.Guard.RequirePermission("projects.write"), deps.Uptime.Monitors)
 	upt.Get("/incidents", deps.Guard.RequirePermission("users.write"), deps.Uptime.Incidents)
+	// Deploiements (Coolify) : le reglage aux admins, la liste des
+	// applications a qui relie un projet.
+	cool := r.Group("/modules/coolify")
+	cool.Get("", deps.Guard.RequirePermission("users.write"), deps.Coolify.Settings)
+	cool.Put("", deps.Guard.RequirePermission("users.write"), deps.Coolify.UpdateSettings)
+	cool.Post("/poll", deps.Guard.RequirePermission("users.write"), deps.Coolify.Poll)
+	cool.Get("/applications", deps.Guard.RequirePermission("projects.write"), deps.Coolify.Applications)
 
 	// Maintenance : les formules aux admins, le journal a qui lit le temps.
 	plans := r.Group("/maintenance-plans")

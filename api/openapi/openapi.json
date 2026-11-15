@@ -9503,6 +9503,160 @@
         ]
       }
     },
+    "/api/v1/admin/modules/coolify": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Réglages du module de déploiements",
+        "description": "Exige users.write.",
+        "operationId": "getAdminModuleCoolify",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoolifySettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Enregistrer le module de déploiements",
+        "description": "Demande aussi une relève, pour que l'écran dise aussitôt si l'adresse et le jeton conviennent. Exige users.write.",
+        "operationId": "putAdminModuleCoolify",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoolifySettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoolifySettingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/coolify/poll": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Tester la connexion à Coolify",
+        "description": "Demande une relève, faite par la tâche de fond dans les quinze secondes : la requête n'appelle pas Coolify. Exige users.write.",
+        "operationId": "postAdminModuleCoolifyPoll",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Demande enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoolifySettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/modules/coolify/applications": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Applications Coolify",
+        "description": "Les applications vues à la dernière relève, sans appeler Coolify. Exige projects.write : sert aussi au choix d'une application pour un projet.",
+        "operationId": "getAdminModuleCoolifyApplications",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CoolifyApplication"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/api/v1/admin/projects/{id}/uptime": {
       "parameters": [
         {
@@ -22011,6 +22165,7 @@
             "type": "string",
             "enum": [
               "uptime",
+              "deployments",
               "analytics"
             ]
           },
@@ -26162,6 +26317,158 @@
           },
           "page_size": {
             "type": "integer"
+          }
+        }
+      },
+      "CoolifyStatus": {
+        "type": "object",
+        "required": [
+          "state",
+          "last_poll_at",
+          "last_poll_error",
+          "poll_pending",
+          "applications"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "pending",
+              "ok",
+              "error"
+            ]
+          },
+          "last_poll_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_poll_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "poll_pending": {
+            "type": "boolean",
+            "description": "Une relève demandée n'a pas encore eu lieu."
+          },
+          "applications": {
+            "type": "integer",
+            "description": "Applications vues à la dernière relève."
+          }
+        }
+      },
+      "CoolifySettings": {
+        "type": "object",
+        "description": "Réglages du module de déploiements. Le jeton d'API n'en sort jamais. COOLIFY_URL et COOLIFY_API_TOKEN priment et sont signalés.",
+        "required": [
+          "enabled",
+          "base_url",
+          "base_url_from_env",
+          "api_token_set",
+          "api_token_from_env",
+          "poll_minutes",
+          "status"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "base_url_from_env": {
+            "type": "boolean"
+          },
+          "api_token_set": {
+            "type": "boolean"
+          },
+          "api_token_from_env": {
+            "type": "boolean"
+          },
+          "poll_minutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 1440
+          },
+          "status": {
+            "$ref": "#/components/schemas/CoolifyStatus"
+          }
+        }
+      },
+      "CoolifySettingsRequest": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "base_url",
+          "poll_minutes"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Adresse de l'instance Coolify, sans /api/v1."
+          },
+          "api_token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Jeton complet, avec son préfixe « id| ». Absent ou nul : le jeton en base est gardé. Vide : il est effacé."
+          },
+          "poll_minutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 1440
+          }
+        }
+      },
+      "CoolifyApplication": {
+        "type": "object",
+        "required": [
+          "id",
+          "uuid",
+          "name",
+          "fqdn",
+          "environment_name",
+          "project_name",
+          "present",
+          "last_seen_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uuid": {
+            "type": "string",
+            "description": "Identifiant de l'application chez Coolify."
+          },
+          "name": {
+            "type": "string"
+          },
+          "fqdn": {
+            "type": "string"
+          },
+          "environment_name": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean",
+            "description": "Faux : l'application n'était plus dans la dernière relève."
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

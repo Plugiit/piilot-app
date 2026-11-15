@@ -149,6 +149,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	siteUpdateService := usecase.NewSiteUpdateService(pool, githubactions.New(), cfg.JWTSecret, cfg.URLFor(spaces.Team), sender.Configured(), log)
 	analyticsService := usecase.NewAnalyticsService(pool, cfg.Analytics, cfg.JWTSecret, log)
 	uptimeService := usecase.NewUptimeService(pool, cfg.Uptime, cfg.JWTSecret, cfg.URLFor(spaces.Team), log)
+	coolifyService := usecase.NewCoolifyService(pool, cfg.Coolify, cfg.JWTSecret, log)
 	portalService := usecase.NewPortalService(pool, files, cfg.MaxUploadMiB*(1<<20), deliverableService, ticketService)
 	portalService.SetLinkSecret(cfg.JWTSecret)
 
@@ -225,12 +226,13 @@ func run(cfg config.Config, log *slog.Logger) error {
 		Backups:       handler.NewBackups(usecase.NewBackupService(pool, cfg.BackupStaleAfter)),
 		Inbound:       handler.NewInbound(inboundService),
 		Uptime:        handler.NewUptime(uptimeService),
+		Coolify:       handler.NewCoolify(coolifyService),
 		Analytics:     handler.NewAnalytics(analyticsService),
 		Maintenance:   handler.NewMaintenance(usecase.NewMaintenanceService(pool)),
 		Reports:       handler.NewReports(reportService),
 		SiteSources:   handler.NewSiteSources(siteSourcesService),
 		SiteUpdates:   handler.NewSiteUpdates(siteUpdateService),
-		Modules:       handler.NewModules(uptimeService, analyticsService),
+		Modules:       handler.NewModules(uptimeService, coolifyService, analyticsService),
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
@@ -294,6 +296,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	repository.StartRGPD(ctx, rgpdExportService, rgpdErasureService, log)
 	// Disponibilite des sites : releve du service de surveillance.
 	repository.StartUptime(ctx, uptimeService, log)
+	// Deploiements : releve des applications de Coolify.
+	repository.StartCoolify(ctx, coolifyService, log)
 	// Statistiques des sites : cache, visiteurs du moment, photos du mois.
 	repository.StartAnalytics(ctx, analyticsService, log)
 	// Rapports mensuels : brouillons le 1er, envoi automatique s'il est regle.
