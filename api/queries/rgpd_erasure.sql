@@ -175,16 +175,6 @@ SELECT count(*) FROM time_entries WHERE user_id = $1;
 -- name: EraseClientContactEmails :many
 SELECT lower(email::text)::text AS email FROM contacts WHERE client_id = $1 AND email IS NOT NULL AND email::text <> '';
 
--- name: EraseClientAttachmentKeys :many
--- Fichiers des projets, de leurs taches et de leurs tickets.
-SELECT a.storage_key FROM attachments a
-WHERE a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = sqlc.arg('client_id'))
-   OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('client_id'))
-   OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('client_id'));
-
--- name: EraseClientLogoKeys :many
-SELECT logo_key::text AS logo_key FROM projects WHERE client_id = $1 AND logo_key IS NOT NULL AND logo_key <> '';
-
 -- name: EraseClientCounts :one
 SELECT
     (SELECT count(*) FROM contacts c WHERE c.client_id = sqlc.arg('client_id'))::bigint AS contacts,

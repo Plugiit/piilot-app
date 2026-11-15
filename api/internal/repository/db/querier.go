@@ -310,11 +310,8 @@ type Querier interface {
 	EraseAnonymizeUser(ctx context.Context, arg EraseAnonymizeUserParams) error
 	EraseBlankMessageSender(ctx context.Context, email string) (int64, error)
 	EraseBlankTicketRequester(ctx context.Context, email string) (int64, error)
-	// Fichiers des projets, de leurs taches et de leurs tickets.
-	EraseClientAttachmentKeys(ctx context.Context, clientID uuid.UUID) ([]string, error)
 	EraseClientContactEmails(ctx context.Context, clientID *uuid.UUID) ([]string, error)
 	EraseClientCounts(ctx context.Context, clientID *uuid.UUID) (EraseClientCountsRow, error)
-	EraseClientLogoKeys(ctx context.Context, clientID uuid.UUID) ([]string, error)
 	EraseCountTimeEntriesOfUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	EraseDeleteAssignments(ctx context.Context, userID uuid.UUID) (int64, error)
 	EraseDeleteClient(ctx context.Context, id uuid.UUID) (int64, error)
@@ -1313,7 +1310,7 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	// Depuis Mon compte : seulement une autorisation de ce compte.
 	RevokeUserOAuthGrant(ctx context.Context, arg RevokeUserOAuthGrantParams) (RevokeUserOAuthGrantRow, error)
-	// Client : la liste des fichiers de ses projets.
+	// Client : la liste des fichiers de ses projets, de leurs taches et de leurs tickets.
 	RgpdClientAttachments(ctx context.Context, arg RgpdClientAttachmentsParams) ([]RgpdClientAttachmentsRow, error)
 	// Client : ses contacts.
 	RgpdClientContacts(ctx context.Context, arg RgpdClientContactsParams) ([]RgpdClientContactsRow, error)
@@ -1321,7 +1318,9 @@ type Querier interface {
 	RgpdClientDeliverableVersions(ctx context.Context, arg RgpdClientDeliverableVersionsParams) ([]RgpdClientDeliverableVersionsRow, error)
 	// Client : les livrables de ses projets.
 	RgpdClientDeliverables(ctx context.Context, arg RgpdClientDeliverablesParams) ([]RgpdClientDeliverablesRow, error)
-	// Client : les fichiers de ses projets, a ajouter a l'archive.
+	// Client : TOUS les fichiers du client (pieces jointes des projets, des taches
+	// et des tickets, plus le logo de chaque projet). Source unique : l'archive
+	// d'export les ajoute, et l'effacement releve ses cles ici pour les supprimer.
 	RgpdClientFiles(ctx context.Context, arg RgpdClientFilesParams) ([]RgpdClientFilesRow, error)
 	// Client : les e-mails recus (metadonnees, sans le message brut).
 	RgpdClientInboundEmails(ctx context.Context, arg RgpdClientInboundEmailsParams) ([]RgpdClientInboundEmailsRow, error)

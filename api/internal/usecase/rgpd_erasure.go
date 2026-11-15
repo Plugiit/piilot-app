@@ -744,20 +744,13 @@ func (s *RgpdErasureService) eraseClient(ctx context.Context, tx pgx.Tx, q *db.Q
 	}
 
 	// Les cles de fichiers sont relevees AVANT la suppression des lignes.
-	attKeys, err := q.EraseClientAttachmentKeys(ctx, clientID)
+	// Meme requete que l'export : ce qui est archive est exactement ce qui est efface.
+	nFiles, err := s.clientFileKeys(ctx, q, clientID, res)
 	if err != nil {
-		return nil, fmt.Errorf("lecture des fichiers : %w", err)
+		return nil, err
 	}
 
-	logoKeys, err := q.EraseClientLogoKeys(ctx, clientID)
-	if err != nil {
-		return nil, fmt.Errorf("lecture des logos : %w", err)
-	}
-
-	res.keys = append(res.keys, attKeys...)
-	res.keys = append(res.keys, logoKeys...)
-	res.add("attachments", int64(len(attKeys)))
-	res.add("logos", int64(len(logoKeys)))
+	res.add("files", nFiles)
 
 	if err := s.step("files"); err != nil {
 		return nil, err
@@ -856,4 +849,30 @@ func (s *RgpdErasureService) ScheduleInactive(ctx context.Context) (int, error) 
 	}
 
 	return total, nil
+}
+
+// clientFileKeys releve les cles de tous les fichiers d'un client, page par
+// page, avec la requete de l'export (RgpdClientFiles).
+func (s *RgpdErasureService) clientFileKeys(ctx context.Context, q *db.Queries, clientID uuid.UUID, res *erasure) (int64, error) {
+	var (
+		total int64
+		after uuid.UUID
+	)
+
+	for {
+		rows, err := q.RgpdClientFiles(ctx, db.RgpdClientFilesParams{Subject: clientID, After: after, PageSize: rgpdPageSize})
+		if err != nil {
+			return total, fmt.Errorf("lecture des fichiers : %w", err)
+		}
+
+		for _, r := range rows {
+			res.keys = append(res.keys, r.StorageKey)
+			after = r.ID
+			total++
+		}
+
+		if len(rows) < rgpdPageSize {
+			return total, nil
+		}
+	}
 }

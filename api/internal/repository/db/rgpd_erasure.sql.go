@@ -204,34 +204,6 @@ func (q *Queries) EraseBlankTicketRequester(ctx context.Context, email string) (
 	return result.RowsAffected(), nil
 }
 
-const eraseClientAttachmentKeys = `-- name: EraseClientAttachmentKeys :many
-SELECT a.storage_key FROM attachments a
-WHERE a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = $1)
-   OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1)
-   OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1)
-`
-
-// Fichiers des projets, de leurs taches et de leurs tickets.
-func (q *Queries) EraseClientAttachmentKeys(ctx context.Context, clientID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, eraseClientAttachmentKeys, clientID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var storage_key string
-		if err := rows.Scan(&storage_key); err != nil {
-			return nil, err
-		}
-		items = append(items, storage_key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const eraseClientContactEmails = `-- name: EraseClientContactEmails :many
 SELECT lower(email::text)::text AS email FROM contacts WHERE client_id = $1 AND email IS NOT NULL AND email::text <> ''
 `
@@ -281,30 +253,6 @@ func (q *Queries) EraseClientCounts(ctx context.Context, clientID *uuid.UUID) (E
 		&i.Tickets,
 	)
 	return i, err
-}
-
-const eraseClientLogoKeys = `-- name: EraseClientLogoKeys :many
-SELECT logo_key::text AS logo_key FROM projects WHERE client_id = $1 AND logo_key IS NOT NULL AND logo_key <> ''
-`
-
-func (q *Queries) EraseClientLogoKeys(ctx context.Context, clientID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, eraseClientLogoKeys, clientID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var logo_key string
-		if err := rows.Scan(&logo_key); err != nil {
-			return nil, err
-		}
-		items = append(items, logo_key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const eraseCountTimeEntriesOfUser = `-- name: EraseCountTimeEntriesOfUser :one
