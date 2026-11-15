@@ -530,6 +530,88 @@ func TestRgpdErasure_SoftDeletedClient(t *testing.T) {
 	})
 }
 
+// Annuler un effacement ne reactive pas un compte que l'effacement de son
+// client (ou le sien) vise encore ; une fois le dernier annule, il retrouve
+// son etat d'origine.
+func TestRgpdErasure_CancelKeepsAccountDisabledWhileAnotherErasureTargetsIt(t *testing.T) {
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (*erasureEnv, uuid.UUID, uuid.UUID) {
+		e := newErasureEnv(t, 0)
+
+		client, err := e.q.CreateImportedClient(ctx, db.CreateImportedClientParams{Name: e.prefix + " Double", Kind: usecase.ClientProfessionnel, Status: "actif"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return e, client.ID, e.member(t, "portail-double", "client", &client.ID)
+	}
+
+	disabled := func(t *testing.T, e *erasureEnv, id uuid.UUID) bool {
+		return e.count(t, `SELECT count(*) FROM users WHERE id = $1 AND disabled_at IS NOT NULL`, id) == 1
+	}
+
+	t.Run("compte puis client, annulation du compte", func(t *testing.T) {
+		e, clientID, user := setup(t)
+
+		byUser, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, user)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		byClient, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectClient, clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := e.svc.Cancel(ctx, nil, byUser.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		if !disabled(t, e, user) {
+			t.Fatal("le compte a ete reactive alors que l'effacement de son client est planifie")
+		}
+
+		if _, err := e.svc.Cancel(ctx, nil, byClient.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		if disabled(t, e, user) {
+			t.Error("le compte reste desactive apres l'annulation du dernier effacement")
+		}
+	})
+
+	t.Run("client puis compte, annulation du client", func(t *testing.T) {
+		e, clientID, user := setup(t)
+
+		byClient, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectClient, clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		byUser, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, user)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := e.svc.Cancel(ctx, nil, byClient.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		if !disabled(t, e, user) {
+			t.Fatal("le compte a ete reactive alors que son propre effacement est planifie")
+		}
+
+		if _, err := e.svc.Cancel(ctx, nil, byUser.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		if disabled(t, e, user) {
+			t.Error("le compte reste desactive apres l'annulation du dernier effacement")
+		}
+	})
+}
+
 func TestRgpdErasure_InactiveUsersAndLoginCancels(t *testing.T) {
 	e := newErasureEnv(t, 48*time.Hour)
 	ctx := context.Background()

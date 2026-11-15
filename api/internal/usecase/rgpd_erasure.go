@@ -370,6 +370,23 @@ func (s *RgpdErasureService) Cancel(ctx context.Context, actor *uuid.UUID, id uu
 			return RgpdErasureItem{}, fmt.Errorf("identifiant precedent illisible : %w", err)
 		}
 
+		// Un autre effacement planifie vise encore ce compte (lui-meme ou son
+		// client) : le reactiver le ferait vivre pendant un delai qui court
+		// toujours. Il reste desactive, et l'etat d'avant est confie a
+		// l'effacement restant pour que son annulation le rende.
+		others, err := q.ListOtherScheduledErasuresOfUser(ctx, db.ListOtherScheduledErasuresOfUserParams{Excluded: id, UserID: userID})
+		if err != nil {
+			return RgpdErasureItem{}, fmt.Errorf("lecture des autres effacements du compte : %w", err)
+		}
+
+		if len(others) > 0 {
+			if err := handOverPrevDisabled(ctx, q, e, others, rawID, disabledAt); err != nil {
+				return RgpdErasureItem{}, err
+			}
+
+			continue
+		}
+
 		if err := q.SetUserDisabledAt(ctx, db.SetUserDisabledAtParams{ID: userID, DisabledAt: disabledAt}); err != nil {
 			return RgpdErasureItem{}, fmt.Errorf("restauration du compte : %w", err)
 		}
@@ -393,6 +410,40 @@ func (s *RgpdErasureService) Cancel(ctx context.Context, actor *uuid.UUID, id uu
 	}
 
 	return rgpdErasureItemOf(e), nil
+}
+
+// handOverPrevDisabled confie l'etat d'avant un compte aux effacements qui le
+// visent encore. Une demande posterieure a celle qu'on annule a releve la
+// desactivation de celle-ci comme « etat d'avant » : sans correction, son
+// annulation laisserait le compte desactive pour toujours.
+func handOverPrevDisabled(
+	ctx context.Context, q *db.Queries, cancelled db.RgpdErasure, others []db.RgpdErasure, rawUserID string, disabledAt *time.Time,
+) error {
+	for _, o := range others {
+		if !o.CreatedAt.After(cancelled.CreatedAt) {
+			continue // Posterieure a l'autre : son etat d'avant est deja le bon.
+		}
+
+		prev := map[string]*time.Time{}
+		if len(o.PrevDisabled) > 0 {
+			if err := json.Unmarshal(o.PrevDisabled, &prev); err != nil {
+				return fmt.Errorf("etat precedent illisible : %w", err)
+			}
+		}
+
+		prev[rawUserID] = disabledAt
+
+		raw, err := json.Marshal(prev)
+		if err != nil {
+			return fmt.Errorf("etat precedent : %w", err)
+		}
+
+		if err := q.SetRgpdErasurePrevDisabled(ctx, db.SetRgpdErasurePrevDisabledParams{ID: o.ID, PrevDisabled: raw}); err != nil {
+			return fmt.Errorf("transmission de l'etat precedent : %w", err)
+		}
+	}
+
+	return nil
 }
 
 // RgpdErasureFilter restreint l'historique : chaque champ vide ou nil laisse

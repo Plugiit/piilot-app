@@ -48,6 +48,22 @@ SET status = 'cancelled', cancelled_by = subject_id, cancelled_at = now(), updat
 WHERE subject_type = 'user' AND subject_id = $1 AND reason = 'inactivity' AND status = 'scheduled'
 RETURNING id;
 
+-- name: ListOtherScheduledErasuresOfUser :many
+-- Les autres demandes d'effacement planifiees qui visent ce compte, soit
+-- directement, soit par son client. Seules les demandes (pas la purge des
+-- inactifs) desactivent le compte.
+SELECT e.* FROM rgpd_erasures e
+WHERE e.status = 'scheduled' AND e.reason = 'request' AND e.id <> sqlc.arg('excluded')::uuid
+  AND (
+      (e.subject_type = 'user' AND e.subject_id = sqlc.arg('user_id')::uuid)
+      OR (e.subject_type = 'client' AND e.subject_id = (SELECT u.client_id FROM users u WHERE u.id = sqlc.arg('user_id')::uuid))
+  )
+ORDER BY e.created_at, e.id
+FOR UPDATE;
+
+-- name: SetRgpdErasurePrevDisabled :exec
+UPDATE rgpd_erasures SET prev_disabled = $2, updated_at = now() WHERE id = $1;
+
 -- name: MarkRgpdErasureDone :exec
 UPDATE rgpd_erasures
 SET status = 'done', executed_at = now(), summary = sqlc.arg('summary'), subject_label = 'Supprimé',
