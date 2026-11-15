@@ -336,3 +336,10 @@ export type ImportPage = components['schemas']['ImportPage']
 export type ImportRow = components['schemas']['ImportRow']
 export type ImportRowPage = components['schemas']['ImportRowPage']
 export type DataField = components['schemas']['DataField']
+
+/** RGPD : exports de donnees, effacements planifies et delais en vigueur. */
+export type RgpdExportItem = components['schemas']['RgpdExportItem']
+export type RgpdExportPage = components['schemas']['RgpdExportPage']
+export type RgpdErasureItem = components['schemas']['RgpdErasureItem']
+export type RgpdErasurePage = components['schemas']['RgpdErasurePage']
+export type RgpdSettings = components['schemas']['RgpdSettings']
