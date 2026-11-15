@@ -120,6 +120,7 @@ type Querier interface {
 	CountAnalyticsWebsites(ctx context.Context, q_ string) (int32, error)
 	CountAnalyticsWebsitesPresent(ctx context.Context) (CountAnalyticsWebsitesPresentRow, error)
 	CountAudit(ctx context.Context, arg CountAuditParams) (int32, error)
+	CountCoolifyApplications(ctx context.Context) (CountCoolifyApplicationsRow, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	CountDeletedClients(ctx context.Context) (int64, error)
@@ -441,6 +442,7 @@ type Querier interface {
 	// Doublon d'import des contacts sans e-mail : prenom + nom chez le meme
 	// client (ou libres tous les deux), sans tenir compte de la casse.
 	GetContactByName(ctx context.Context, arg GetContactByNameParams) (Contact, error)
+	GetCoolifySettings(ctx context.Context) (CoolifySetting, error)
 	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs
 	// que le tableau montre deja.
 	GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientRow, error)
@@ -659,6 +661,8 @@ type Querier interface {
 	// Cast explicite pour sqlc, qui sans lui rend un `interface{}`.
 	// Les siens d'abord : ce sont eux qu'on cherche le plus souvent.
 	ListContactsOfClient(ctx context.Context, arg ListContactsOfClientParams) ([]ListContactsOfClientRow, error)
+	// Une instance compte quelques dizaines d'applications : pas de pagination.
+	ListCoolifyApplications(ctx context.Context) ([]CoolifyApplication, error)
 	// Liste paginee de l'ecran CRM.
 	//
 	// Distincte de ListClients, qui sert le champ « Client » d'un formulaire :
@@ -1122,6 +1126,8 @@ type Querier interface {
 	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
 	MarkAnalyticsWebsitesAbsent(ctx context.Context, arg MarkAnalyticsWebsitesAbsentParams) error
+	// Les applications que la releve n'a plus vues.
+	MarkCoolifyApplicationsAbsent(ctx context.Context, seen []uuid.UUID) error
 	MarkDomainFailureAlerted(ctx context.Context, arg MarkDomainFailureAlertedParams) error
 	MarkEmailFailed(ctx context.Context, arg MarkEmailFailedParams) error
 	MarkEmailRetry(ctx context.Context, arg MarkEmailRetryParams) error
@@ -1268,6 +1274,7 @@ type Querier interface {
 	// Les compteurs repartent de zero, le rapport precedent est efface a part.
 	QueueImport(ctx context.Context, arg QueueImportParams) (Import, error)
 	RecordAnalyticsCheck(ctx context.Context, error *string) error
+	RecordCoolifyPoll(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
 	RecordInboundPoll(ctx context.Context, error string) error
@@ -1307,6 +1314,7 @@ type Querier interface {
 	// sommes des agregats journaliers du mois.
 	ReportUptimeSites(ctx context.Context, arg ReportUptimeSitesParams) ([]ReportUptimeSitesRow, error)
 	RequestAnalyticsCheck(ctx context.Context) error
+	RequestCoolifyPoll(ctx context.Context) error
 	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
 	RequestReleaseCheck(ctx context.Context) error
@@ -1568,6 +1576,9 @@ type Querier interface {
 	// passe par la designation du contact principal, qui sait tenir la cle
 	// etrangere composite dans le bon ordre.
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
+	// Le jeton ne change que sur demande : un formulaire renvoye sans lui garde
+	// celui qui est en base.
+	UpdateCoolifySettings(ctx context.Context, arg UpdateCoolifySettingsParams) error
 	// Le mot de passe n'est remplace que s'il est fourni : l'ecran ne le relit
 	// jamais, et un champ laisse vide garde celui en place.
 	UpdateInboundSettings(ctx context.Context, arg UpdateInboundSettingsParams) error
@@ -1623,6 +1634,7 @@ type Querier interface {
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertAnalyticsCache(ctx context.Context, arg UpsertAnalyticsCacheParams) error
 	UpsertAnalyticsWebsite(ctx context.Context, arg UpsertAnalyticsWebsiteParams) (uuid.UUID, error)
+	UpsertCoolifyApplication(ctx context.Context, arg UpsertCoolifyApplicationParams) (uuid.UUID, error)
 	// Un seul code par compte : le nouveau remplace le precedent.
 	UpsertDiscordLinkCode(ctx context.Context, arg UpsertDiscordLinkCodeParams) error
 	// Une entite recreee apres suppression reprend sa cle : la cle designe

@@ -247,6 +247,30 @@ type Contact struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
+type CoolifyApplication struct {
+	ID              uuid.UUID `json:"id"`
+	Uuid            string    `json:"uuid"`
+	Name            string    `json:"name"`
+	Fqdn            string    `json:"fqdn"`
+	EnvironmentName string    `json:"environment_name"`
+	ProjectName     string    `json:"project_name"`
+	Present         bool      `json:"present"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type CoolifySetting struct {
+	ID              int32      `json:"id"`
+	Enabled         bool       `json:"enabled"`
+	BaseUrl         string     `json:"base_url"`
+	ApiTokenEnc     []byte     `json:"api_token_enc"`
+	PollMinutes     int32      `json:"poll_minutes"`
+	LastPollAt      *time.Time `json:"last_poll_at"`
+	LastPollError   *string    `json:"last_poll_error"`
+	PollRequestedAt *time.Time `json:"poll_requested_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 type DailyActivity struct {
 	Day                   time.Time `json:"day"`
 	TasksDone             int32     `json:"tasks_done"`
