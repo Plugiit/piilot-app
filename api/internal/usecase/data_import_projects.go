@@ -95,6 +95,22 @@ func (projectImporter) importRow(ctx context.Context, q *db.Queries, importID uu
 		}
 	}
 
+	check := replayCheck{
+		entity: DataEntityProjects, label: label,
+		exists: func(ctx context.Context, q *db.Queries, id uuid.UUID) (bool, error) {
+			ok, err := q.ProjectExists(ctx, id)
+			if err != nil {
+				return false, fmt.Errorf("recherche du projet : %w", err)
+			}
+
+			return ok, nil
+		},
+	}
+
+	if res, done, err := check.checkID(ctx, q, v); err != nil || done {
+		return res, err
+	}
+
 	if normalizeSiret(v["client_siret"]) == "" && strings.TrimSpace(v["client"]) == "" {
 		return importResult{Outcome: ImportRowError, Reason: ReasonUnknownClient, Label: label + " : client : le client est requis"}, nil
 	}
@@ -108,19 +124,7 @@ func (projectImporter) importRow(ctx context.Context, q *db.Queries, importID uu
 		return importResult{Outcome: ImportRowError, Reason: ReasonUnknownClient, Label: label + " : client : client introuvable"}, nil
 	}
 
-	check := replayCheck{
-		entity: DataEntityProjects, label: label,
-		exists: func(ctx context.Context, q *db.Queries, id uuid.UUID) (bool, error) {
-			ok, err := q.ProjectExists(ctx, id)
-			if err != nil {
-				return false, fmt.Errorf("recherche du projet : %w", err)
-			}
-
-			return ok, nil
-		},
-	}
-
-	res, sourceKey, done, err := check.run(ctx, q, v, "project:"+client.ID.String()+"|"+strings.ToLower(name))
+	res, sourceKey, done, err := check.checkKey(ctx, q, v, "project:"+client.ID.String()+"|"+strings.ToLower(name))
 	if err != nil || done {
 		return res, err
 	}

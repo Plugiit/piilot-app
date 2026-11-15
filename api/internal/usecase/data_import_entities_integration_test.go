@@ -677,3 +677,29 @@ func TestImportContactsHomonymClient(t *testing.T) {
 		t.Errorf("contact rattache a un homonyme : %+v", c)
 	}
 }
+
+// Rejouer un export apres avoir renomme le client : l'Identifiant Piilot vivant
+// est controle avant la resolution du client.
+func TestImportReplayAfterClientRename(t *testing.T) {
+	e := newEntitiesEnv(t, 1000)
+
+	b := e.newClient(t, "Renomme", "")
+	p := e.newProject(t, b, "ProjetRenomme")
+	_ = p
+
+	header := []string{"Prénom", "Nom", "E-mail", "Client"}
+	e.importCSV(t, usecase.DataEntityContacts, csvOf(t, header,
+		[]string{e.name("Ren"), "Ame", "ren@" + e.prefix + ".test", b.Name},
+	))
+
+	contacts := e.exportOurs(t, usecase.DataEntityContacts)
+	projects := e.exportOurs(t, usecase.DataEntityProjects)
+
+	e.mustExec(t, `UPDATE clients SET name = $1 WHERE id = $2`, e.name("Renomme2"), b.ID)
+
+	_, rows := e.importCSV(t, usecase.DataEntityContacts, csvOf(t, contacts...))
+	expectReasons(t, rows, map[int][2]string{2: {usecase.ImportRowSkipped, usecase.ReasonAlreadyExists}})
+
+	_, rows = e.importCSV(t, usecase.DataEntityProjects, csvOf(t, projects...))
+	expectReasons(t, rows, map[int][2]string{2: {usecase.ImportRowSkipped, usecase.ReasonAlreadyExists}})
+}
