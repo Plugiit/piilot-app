@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { maintenancePlansQuery, projectMaintenanceQuery, useSetProjectMaintenance } from '@/features/maintenance/api'
 import { monthLabel, monthOf } from '@/features/maintenance/format'
+import { CoolifyCard } from '@/features/coolify/card'
 import { reportRecipientsQuery, useSetReportRecipients } from '@/features/reports/api'
 import { SiteSourcesCard } from '@/features/site-sources/card'
 import { SiteUpdatesCard } from '@/features/site-updates/card'
@@ -45,6 +46,7 @@ function MaintenanceTab() {
       <PlanForm key={data.current?.id ?? 'none'} projectId={id} view={data} canEdit={can(session, 'projects.write')} canManagePlans={can(session, 'reports.write')} />
       <RecipientsCard projectId={id} canEdit={can(session, 'projects.write')} />
       <SiteUpdatesCard projectId={id} canManage={can(session, 'reports.write')} />
+      <CoolifyCard projectId={id} canEdit={can(session, 'projects.write')} canConfigure={can(session, 'users.write')} />
       <SiteSourcesCard projectId={id} canEdit={can(session, 'projects.write')} canManageToken={can(session, 'reports.write')} />
       {data.history.length > 0 && (
         <Card title="Historique">

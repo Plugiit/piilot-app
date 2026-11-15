@@ -12,6 +12,7 @@ export const HOLD_REASON_LABEL: Record<string, string> = {
   domain_expiring: 'Un domaine expire dans moins de 30 jours',
   updates_missing: 'Aucune mise à jour ce mois-ci : le robot ou la CI est peut-être en panne',
   update_failed: 'Le dernier lancement de mise à jour du mois a échoué',
+  deployments_stale: 'Coolify n’a pas été relevé avec succès depuis la fin du mois : les mises en ligne ont pu changer',
 }
 
 export function holdReasonLabel(code: string): string {
