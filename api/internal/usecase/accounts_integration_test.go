@@ -277,6 +277,18 @@ func TestLesPermissionsDAdministrationNeQuittentPasLeRoleAdmin(t *testing.T) {
 	if _, err := accounts.SetRolePermissions(ctx, "team", append(slices.Clone(team.Permissions), "users.write")); err == nil {
 		t.Error("users.write accordee a team")
 	}
+	// Effacer un compte le desactive et coupe ses sessions, importer cree du
+	// temps au nom de n'importe qui : equivalent a users.write, admin seulement.
+	for _, code := range []string{"rgpd.manage", "data.import"} {
+		if _, err := accounts.SetRolePermissions(ctx, "team", append(slices.Clone(team.Permissions), code)); err == nil {
+			t.Errorf("%s accordee a team", code)
+		}
+		for _, r := range matrix.Roles {
+			if r.Code == "team" && slices.Contains(r.Grantable, code) {
+				t.Errorf("%s annoncee comme attribuable a team", code)
+			}
+		}
+	}
 	if _, err := accounts.SetRolePermissions(ctx, "client", []string{"tasks.read"}); err == nil {
 		t.Error("une permission du back-office accordee au portail")
 	}
