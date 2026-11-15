@@ -11,6 +11,11 @@ import (
 // module ; une demande « Tester » est servie au tick suivant.
 const coolifyTick = 15 * time.Second
 
+// coolifyBudget borne une releve entiere : la liste des applications (20 s
+// par appel) puis, par application liee, au plus deux minutes. Le service
+// borne chaque application ; ce plafond ne coupe que les releves tres longues.
+const coolifyBudget = 15 * time.Minute
+
 // CoolifyWorker est ce que la tache attend du module de deploiements.
 type CoolifyWorker interface {
 	PollDue(ctx context.Context) bool
@@ -21,7 +26,7 @@ type CoolifyWorker interface {
 // Piilot l'appelle : les ecrans lisent ce que la releve a ecrit.
 func StartCoolify(ctx context.Context, w CoolifyWorker, log *slog.Logger) {
 	go every(ctx, coolifyTick, func() {
-		pollCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		pollCtx, cancel := context.WithTimeout(ctx, coolifyBudget)
 		defer cancel()
 		if !w.PollDue(pollCtx) {
 			return

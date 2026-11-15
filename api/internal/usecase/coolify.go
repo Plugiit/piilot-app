@@ -46,7 +46,7 @@ const (
 func NewCoolifyService(pool *pgxpool.Pool, env config.CoolifyEnv, secret []byte, log *slog.Logger) *CoolifyService {
 	s := &CoolifyService{
 		pool: pool, q: db.New(pool), env: env, sealKey: security.DeriveKey(secret, "coolify-api-token"),
-		client: &http.Client{Timeout: 20 * time.Second}, log: log,
+		client: coolify.NewHTTPClient(), log: log,
 	}
 	s.newProvider = func(baseURL, token string) coolify.Provider {
 		return &coolify.Client{BaseURL: baseURL, Token: token, Client: s.client}
@@ -149,6 +149,16 @@ func normalizeCoolifyURL(raw string) string {
 	return strings.TrimRight(raw, "/")
 }
 
+// sameCoolifyHost compare les hotes (avec port) de deux adresses.
+func sameCoolifyHost(a, b string) bool {
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return strings.EqualFold(ua.Host, ub.Host)
+}
+
 // UpdateSettings enregistre les reglages. Ce que l'environnement fixe n'est
 // pas modifiable ici.
 func (s *CoolifyService) UpdateSettings(ctx context.Context, in CoolifySettingsInput) (CoolifySettingsView, error) {
@@ -160,6 +170,17 @@ func (s *CoolifyService) UpdateSettings(ctx context.Context, in CoolifySettingsI
 		u, err := url.Parse(in.BaseURL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			details["base_url"] = "Une adresse complète : https://coolify.agence.fr"
+		}
+	}
+	if len(details) == 0 && in.BaseURL != "" && s.env.URL == "" && s.env.APIToken == "" && in.APIToken == nil {
+		// Le jeton enregistre appartient a l'ancienne adresse : un autre hote ne
+		// doit pas le recevoir sans que l'on ait ressaisi un jeton.
+		row, err := s.q.GetCoolifySettings(ctx)
+		if err != nil {
+			return CoolifySettingsView{}, fmt.Errorf("lecture du module : %w", err)
+		}
+		if len(row.ApiTokenEnc) > 0 && row.BaseUrl != "" && !sameCoolifyHost(row.BaseUrl, in.BaseURL) {
+			details["api_token"] = "L’adresse a changé d’hôte : ressaisissez le jeton d’API pour cette instance"
 		}
 	}
 	if in.PollMinutes == 0 {
@@ -344,16 +365,33 @@ func coolifyName(a coolify.Application) string {
 	return a.UUID
 }
 
+// coolifyRecordTimeout borne l'ecriture du resultat d'une releve.
+const coolifyRecordTimeout = 10 * time.Second
+
+// coolifyAppBudget borne la lecture des deploiements d'une application : une
+// application lente ne prive pas les suivantes de tout le temps du job.
+const coolifyAppBudget = 2 * time.Minute
+
+// recordPoll ecrit le resultat de la releve. Il s'ecrit avec un contexte
+// detache : quand le delai de la releve est depasse, son contexte est expire
+// et l'ecriture echouerait, laissant la demande en place (la releve repartirait
+// a chaque tick sans rien afficher).
 func (s *CoolifyService) recordPoll(ctx context.Context, pollErr error) error {
 	var msg *string
 	if pollErr != nil {
 		text := pollErr.Error()
-		if errors.Is(pollErr, coolify.ErrUnauthorized) {
+		switch {
+		case errors.Is(pollErr, coolify.ErrUnauthorized):
 			text = "Coolify refuse le jeton : vérifiez-le (Keys & Tokens → API tokens), avec son préfixe « 1| »"
+		case errors.Is(pollErr, context.DeadlineExceeded):
+			text = "la relève a dépassé son délai : Coolify met trop de temps à répondre"
+			pollErr = errors.New(text)
 		}
 		msg = &text
 	}
-	if err := s.q.RecordCoolifyPoll(ctx, msg); err != nil {
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), coolifyRecordTimeout)
+	defer cancel()
+	if err := s.q.RecordCoolifyPoll(wctx, msg); err != nil {
 		return fmt.Errorf("enregistrement de la releve : %w", err)
 	}
 	return pollErr
@@ -405,7 +443,12 @@ func (s *CoolifyService) pollDeployments(ctx context.Context, provider coolify.P
 	var errs []error
 	unknown := map[string]bool{}
 	for _, appUUID := range order {
-		deployments, err := provider.ListDeployments(ctx, appUUID, since)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		appCtx, cancel := context.WithTimeout(ctx, coolifyAppBudget)
+		deployments, err := provider.ListDeployments(appCtx, appUUID, since)
+		cancel()
 		if err != nil {
 			if errors.Is(err, coolify.ErrUnauthorized) || errors.Is(err, coolify.ErrForbidden) {
 				return err
