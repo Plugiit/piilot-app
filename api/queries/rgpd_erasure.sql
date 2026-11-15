@@ -16,12 +16,16 @@ SELECT * FROM rgpd_erasures WHERE id = $1 FOR UPDATE;
 -- name: ListRgpdErasures :many
 SELECT * FROM rgpd_erasures
 WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
+  AND (sqlc.narg('subject_type')::text IS NULL OR subject_type = sqlc.narg('subject_type')::text)
+  AND (sqlc.narg('subject_id')::uuid IS NULL OR subject_id = sqlc.narg('subject_id')::uuid)
 ORDER BY created_at DESC, id
 LIMIT sqlc.arg('page_size') OFFSET sqlc.arg('page_offset');
 
 -- name: CountRgpdErasures :one
 SELECT count(*) FROM rgpd_erasures
-WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text);
+WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
+  AND (sqlc.narg('subject_type')::text IS NULL OR subject_type = sqlc.narg('subject_type')::text)
+  AND (sqlc.narg('subject_id')::uuid IS NULL OR subject_id = sqlc.narg('subject_id')::uuid);
 
 -- name: ClaimDueRgpdErasure :one
 -- Reserve le prochain effacement arrive a echeance, sous verrou, pour la

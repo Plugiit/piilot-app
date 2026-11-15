@@ -13746,7 +13746,7 @@
           "admin"
         ],
         "summary": "Historique des effacements RGPD",
-        "description": "Du plus récent au plus ancien, 25 par page, filtrable par statut. Exige rgpd.manage.",
+        "description": "Du plus récent au plus ancien, 25 par page, filtrable par statut et par sujet (subject_type, subject_id, combinables). Exige rgpd.manage.",
         "operationId": "listAdminRgpdErasures",
         "security": [
           {
@@ -13766,6 +13766,25 @@
                 "done",
                 "failed"
               ]
+            }
+          },
+          {
+            "name": "subject_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "client",
+                "user"
+              ]
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           },
           {

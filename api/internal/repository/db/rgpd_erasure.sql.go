@@ -80,10 +80,18 @@ func (q *Queries) ClaimDueRgpdErasure(ctx context.Context) (RgpdErasure, error) 
 const countRgpdErasures = `-- name: CountRgpdErasures :one
 SELECT count(*) FROM rgpd_erasures
 WHERE ($1::text IS NULL OR status = $1::text)
+  AND ($2::text IS NULL OR subject_type = $2::text)
+  AND ($3::uuid IS NULL OR subject_id = $3::uuid)
 `
 
-func (q *Queries) CountRgpdErasures(ctx context.Context, status *string) (int64, error) {
-	row := q.db.QueryRow(ctx, countRgpdErasures, status)
+type CountRgpdErasuresParams struct {
+	Status      *string    `json:"status"`
+	SubjectType *string    `json:"subject_type"`
+	SubjectID   *uuid.UUID `json:"subject_id"`
+}
+
+func (q *Queries) CountRgpdErasures(ctx context.Context, arg CountRgpdErasuresParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRgpdErasures, arg.Status, arg.SubjectType, arg.SubjectID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -716,18 +724,28 @@ func (q *Queries) ListInactiveUsers(ctx context.Context, arg ListInactiveUsersPa
 const listRgpdErasures = `-- name: ListRgpdErasures :many
 SELECT id, subject_type, subject_id, subject_label, reason, status, scheduled_for, requested_by, cancelled_by, cancelled_at, executed_at, summary, error, prev_disabled, created_at, updated_at FROM rgpd_erasures
 WHERE ($1::text IS NULL OR status = $1::text)
+  AND ($2::text IS NULL OR subject_type = $2::text)
+  AND ($3::uuid IS NULL OR subject_id = $3::uuid)
 ORDER BY created_at DESC, id
-LIMIT $3 OFFSET $2
+LIMIT $5 OFFSET $4
 `
 
 type ListRgpdErasuresParams struct {
-	Status     *string `json:"status"`
-	PageOffset int32   `json:"page_offset"`
-	PageSize   int32   `json:"page_size"`
+	Status      *string    `json:"status"`
+	SubjectType *string    `json:"subject_type"`
+	SubjectID   *uuid.UUID `json:"subject_id"`
+	PageOffset  int32      `json:"page_offset"`
+	PageSize    int32      `json:"page_size"`
 }
 
 func (q *Queries) ListRgpdErasures(ctx context.Context, arg ListRgpdErasuresParams) ([]RgpdErasure, error) {
-	rows, err := q.db.Query(ctx, listRgpdErasures, arg.Status, arg.PageOffset, arg.PageSize)
+	rows, err := q.db.Query(ctx, listRgpdErasures,
+		arg.Status,
+		arg.SubjectType,
+		arg.SubjectID,
+		arg.PageOffset,
+		arg.PageSize,
+	)
 	if err != nil {
 		return nil, err
 	}
