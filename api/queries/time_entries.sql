@@ -110,3 +110,43 @@ JOIN projects p ON p.id = e.project_id AND p.deleted_at IS NULL
 LEFT JOIN tasks t ON t.id = e.task_id AND t.deleted_at IS NULL
 LEFT JOIN services s ON s.id = e.service_id AND s.deleted_at IS NULL
 WHERE e.id = sqlc.arg('id') AND e.user_id = sqlc.arg('user_id') AND e.deleted_at IS NULL;
+
+-- name: FindImportUserByEmail :one
+-- Le compte d'une saisie importee : un compte vivant de l'equipe ou un admin,
+-- jamais un compte client.
+SELECT id FROM users
+WHERE email = sqlc.arg('email')::citext AND role IN ('admin', 'team') AND deleted_at IS NULL;
+
+-- name: FindServiceByName :one
+SELECT id FROM services
+WHERE lower(name) = lower(sqlc.arg('name')::text) AND deleted_at IS NULL;
+
+-- name: TimeEntryExists :one
+SELECT EXISTS (SELECT 1 FROM time_entries WHERE id = $1 AND deleted_at IS NULL);
+
+-- name: ExportTimeEntriesAfter :many
+-- Une page de l'export CSV, par cle (pas d'OFFSET). Seules les saisies dont le
+-- compte, le projet et le client sont vivants sortent : les autres ne se
+-- reimporteraient pas.
+SELECT
+    e.id,
+    e.spent_on,
+    e.minutes,
+    e.note,
+    u.email  AS user_email,
+    c.name   AS client_name,
+    p.name   AS project_name,
+    coalesce(s.name, '')::text AS service_name,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'time_entries' AND k.entity_id = e.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM time_entries e
+JOIN users u    ON u.id = e.user_id AND u.deleted_at IS NULL
+JOIN projects p ON p.id = e.project_id AND p.deleted_at IS NULL
+JOIN clients c  ON c.id = p.client_id AND c.deleted_at IS NULL
+LEFT JOIN services s ON s.id = e.service_id AND s.deleted_at IS NULL
+WHERE e.deleted_at IS NULL AND e.id > sqlc.arg('after')::uuid
+ORDER BY e.id
+LIMIT sqlc.arg('page_size');

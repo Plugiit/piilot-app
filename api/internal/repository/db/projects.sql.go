@@ -314,6 +314,151 @@ func (q *Queries) DeleteAttachment(ctx context.Context, id uuid.UUID) (Attachmen
 	return i, err
 }
 
+const exportProjectsAfter = `-- name: ExportProjectsAfter :many
+SELECT
+    p.id, p.client_id, p.name, p.status, p.progress, p.hours_sold, p.hours_spent, p.starts_on, p.due_on, p.tasks_total, p.tasks_done, p.created_by, p.created_at, p.updated_at, p.deleted_at, p.description, p.priority, p.figma_url, p.prod_url, p.preprod_url, p.deliverables_pending, p.is_internal, p.logo_key, p.repo_url,
+    c.name  AS client_name,
+    c.siret AS client_siret,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'projects' AND k.entity_id = p.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM projects p
+JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
+WHERE p.deleted_at IS NULL AND p.id > $1::uuid
+ORDER BY p.id
+LIMIT $2
+`
+
+type ExportProjectsAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	PageSize int32     `json:"page_size"`
+}
+
+type ExportProjectsAfterRow struct {
+	ID                  uuid.UUID  `json:"id"`
+	ClientID            uuid.UUID  `json:"client_id"`
+	Name                string     `json:"name"`
+	Status              string     `json:"status"`
+	Progress            int16      `json:"progress"`
+	HoursSold           float64    `json:"hours_sold"`
+	HoursSpent          float64    `json:"hours_spent"`
+	StartsOn            *time.Time `json:"starts_on"`
+	DueOn               *time.Time `json:"due_on"`
+	TasksTotal          int32      `json:"tasks_total"`
+	TasksDone           int32      `json:"tasks_done"`
+	CreatedBy           *uuid.UUID `json:"created_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
+	Description         string     `json:"description"`
+	Priority            string     `json:"priority"`
+	FigmaUrl            string     `json:"figma_url"`
+	ProdUrl             string     `json:"prod_url"`
+	PreprodUrl          string     `json:"preprod_url"`
+	DeliverablesPending int32      `json:"deliverables_pending"`
+	IsInternal          bool       `json:"is_internal"`
+	LogoKey             *string    `json:"logo_key"`
+	RepoUrl             string     `json:"repo_url"`
+	ClientName          string     `json:"client_name"`
+	ClientSiret         string     `json:"client_siret"`
+	SourceKey           string     `json:"source_key"`
+}
+
+// Une page de l'export CSV, par cle (pas d'OFFSET).
+func (q *Queries) ExportProjectsAfter(ctx context.Context, arg ExportProjectsAfterParams) ([]ExportProjectsAfterRow, error) {
+	rows, err := q.db.Query(ctx, exportProjectsAfter, arg.After, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExportProjectsAfterRow{}
+	for rows.Next() {
+		var i ExportProjectsAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.Name,
+			&i.Status,
+			&i.Progress,
+			&i.HoursSold,
+			&i.HoursSpent,
+			&i.StartsOn,
+			&i.DueOn,
+			&i.TasksTotal,
+			&i.TasksDone,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Description,
+			&i.Priority,
+			&i.FigmaUrl,
+			&i.ProdUrl,
+			&i.PreprodUrl,
+			&i.DeliverablesPending,
+			&i.IsInternal,
+			&i.LogoKey,
+			&i.RepoUrl,
+			&i.ClientName,
+			&i.ClientSiret,
+			&i.SourceKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findProjectsForTimeImport = `-- name: FindProjectsForTimeImport :many
+SELECT p.id, p.name
+FROM projects p
+JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
+WHERE p.deleted_at IS NULL
+  AND lower(p.name) = lower($1::text)
+  AND ($2::text IS NULL OR lower(c.name) = lower($2::text))
+ORDER BY p.created_at, p.id
+LIMIT 2
+`
+
+type FindProjectsForTimeImportParams struct {
+	Name       string  `json:"name"`
+	ClientName *string `json:"client_name"`
+}
+
+type FindProjectsForTimeImportRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// Projets vivants de ce nom, chez ce client (ou chez n'importe lequel quand
+// le fichier ne dit pas lequel). Deux lignes au plus : le second resultat
+// suffit a signaler l'ambiguite.
+func (q *Queries) FindProjectsForTimeImport(ctx context.Context, arg FindProjectsForTimeImportParams) ([]FindProjectsForTimeImportRow, error) {
+	rows, err := q.db.Query(ctx, findProjectsForTimeImport, arg.Name, arg.ClientName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FindProjectsForTimeImportRow{}
+	for rows.Next() {
+		var i FindProjectsForTimeImportRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAttachment = `-- name: GetAttachment :one
 SELECT id, project_id, filename, content_type, size_bytes, storage_key, uploaded_by, created_at, task_id, shared_with_client, ticket_id FROM attachments WHERE id = $1
 `
@@ -529,6 +674,52 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (GetProj
 		&i.ClientContactRole,
 		&i.ClientContactEmail,
 		&i.IsFavorite,
+	)
+	return i, err
+}
+
+const getProjectByClientAndName = `-- name: GetProjectByClientAndName :one
+SELECT id, client_id, name, status, progress, hours_sold, hours_spent, starts_on, due_on, tasks_total, tasks_done, created_by, created_at, updated_at, deleted_at, description, priority, figma_url, prod_url, preprod_url, deliverables_pending, is_internal, logo_key, repo_url FROM projects
+WHERE client_id = $1 AND lower(name) = lower($2::text) AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1
+`
+
+type GetProjectByClientAndNameParams struct {
+	ClientID uuid.UUID `json:"client_id"`
+	Name     string    `json:"name"`
+}
+
+// Doublon d'import : un nom de projet est unique chez un client, sans tenir
+// compte de la casse.
+func (q *Queries) GetProjectByClientAndName(ctx context.Context, arg GetProjectByClientAndNameParams) (Project, error) {
+	row := q.db.QueryRow(ctx, getProjectByClientAndName, arg.ClientID, arg.Name)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Name,
+		&i.Status,
+		&i.Progress,
+		&i.HoursSold,
+		&i.HoursSpent,
+		&i.StartsOn,
+		&i.DueOn,
+		&i.TasksTotal,
+		&i.TasksDone,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Description,
+		&i.Priority,
+		&i.FigmaUrl,
+		&i.ProdUrl,
+		&i.PreprodUrl,
+		&i.DeliverablesPending,
+		&i.IsInternal,
+		&i.LogoKey,
+		&i.RepoUrl,
 	)
 	return i, err
 }
@@ -971,6 +1162,17 @@ func (q *Queries) ListTaskFiles(ctx context.Context, taskIds []uuid.UUID) ([]Att
 		return nil, err
 	}
 	return items, nil
+}
+
+const projectExists = `-- name: ProjectExists :one
+SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL)
+`
+
+func (q *Queries) ProjectExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, projectExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const projectLogoKeyInUse = `-- name: ProjectLogoKeyInUse :one

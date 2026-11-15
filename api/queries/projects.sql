@@ -354,3 +354,44 @@ SELECT
 FROM months m
 ORDER BY m.month
 LIMIT 12;
+
+-- name: GetProjectByClientAndName :one
+-- Doublon d'import : un nom de projet est unique chez un client, sans tenir
+-- compte de la casse.
+SELECT * FROM projects
+WHERE client_id = sqlc.arg('client_id') AND lower(name) = lower(sqlc.arg('name')::text) AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1;
+
+-- name: ProjectExists :one
+SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL);
+
+-- name: ExportProjectsAfter :many
+-- Une page de l'export CSV, par cle (pas d'OFFSET).
+SELECT
+    p.*,
+    c.name  AS client_name,
+    c.siret AS client_siret,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'projects' AND k.entity_id = p.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM projects p
+JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
+WHERE p.deleted_at IS NULL AND p.id > sqlc.arg('after')::uuid
+ORDER BY p.id
+LIMIT sqlc.arg('page_size');
+
+-- name: FindProjectsForTimeImport :many
+-- Projets vivants de ce nom, chez ce client (ou chez n'importe lequel quand
+-- le fichier ne dit pas lequel). Deux lignes au plus : le second resultat
+-- suffit a signaler l'ambiguite.
+SELECT p.id, p.name
+FROM projects p
+JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
+WHERE p.deleted_at IS NULL
+  AND lower(p.name) = lower(sqlc.arg('name')::text)
+  AND (sqlc.narg('client_name')::text IS NULL OR lower(c.name) = lower(sqlc.narg('client_name')::text))
+ORDER BY p.created_at, p.id
+LIMIT 2;

@@ -173,3 +173,41 @@ UPDATE contacts
 SET deleted_at = now(),
     updated_at = now()
 WHERE client_id = $1 AND deleted_at IS NULL;
+
+-- name: GetContactByEmail :one
+-- Doublon d'import : l'adresse est unique a la casse pres (citext), tous
+-- clients confondus. Un meme e-mail chez deux clients est presque toujours
+-- la meme personne importee deux fois.
+SELECT * FROM contacts
+WHERE email = sqlc.arg('email')::citext AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1;
+
+-- name: GetContactByName :one
+-- Doublon d'import des contacts sans e-mail : prenom + nom chez le meme
+-- client (ou libres tous les deux), sans tenir compte de la casse.
+SELECT * FROM contacts
+WHERE lower(firstname) = lower(sqlc.arg('firstname')::text)
+  AND lower(lastname) = lower(sqlc.arg('lastname')::text)
+  AND client_id IS NOT DISTINCT FROM sqlc.narg('client_id')::uuid
+  AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1;
+
+-- name: ExportContactsAfter :many
+-- Une page de l'export CSV, par cle (pas d'OFFSET). Le client est rendu par
+-- son nom et son SIRET : l'import retrouve le client par l'un ou l'autre.
+SELECT
+    ct.*,
+    coalesce(c.name, '')::text  AS client_name,
+    coalesce(c.siret, '')::text AS client_siret,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'contacts' AND k.entity_id = ct.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM contacts ct
+LEFT JOIN clients c ON c.id = ct.client_id AND c.deleted_at IS NULL
+WHERE ct.deleted_at IS NULL AND ct.id > sqlc.arg('after')::uuid
+ORDER BY ct.id
+LIMIT sqlc.arg('page_size');

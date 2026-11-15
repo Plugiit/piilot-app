@@ -72,6 +72,107 @@ func (q *Queries) DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams
 	return result.RowsAffected(), nil
 }
 
+const exportTimeEntriesAfter = `-- name: ExportTimeEntriesAfter :many
+SELECT
+    e.id,
+    e.spent_on,
+    e.minutes,
+    e.note,
+    u.email  AS user_email,
+    c.name   AS client_name,
+    p.name   AS project_name,
+    coalesce(s.name, '')::text AS service_name,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'time_entries' AND k.entity_id = e.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM time_entries e
+JOIN users u    ON u.id = e.user_id AND u.deleted_at IS NULL
+JOIN projects p ON p.id = e.project_id AND p.deleted_at IS NULL
+JOIN clients c  ON c.id = p.client_id AND c.deleted_at IS NULL
+LEFT JOIN services s ON s.id = e.service_id AND s.deleted_at IS NULL
+WHERE e.deleted_at IS NULL AND e.id > $1::uuid
+ORDER BY e.id
+LIMIT $2
+`
+
+type ExportTimeEntriesAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	PageSize int32     `json:"page_size"`
+}
+
+type ExportTimeEntriesAfterRow struct {
+	ID          uuid.UUID `json:"id"`
+	SpentOn     time.Time `json:"spent_on"`
+	Minutes     int32     `json:"minutes"`
+	Note        string    `json:"note"`
+	UserEmail   string    `json:"user_email"`
+	ClientName  string    `json:"client_name"`
+	ProjectName string    `json:"project_name"`
+	ServiceName string    `json:"service_name"`
+	SourceKey   string    `json:"source_key"`
+}
+
+// Une page de l'export CSV, par cle (pas d'OFFSET). Seules les saisies dont le
+// compte, le projet et le client sont vivants sortent : les autres ne se
+// reimporteraient pas.
+func (q *Queries) ExportTimeEntriesAfter(ctx context.Context, arg ExportTimeEntriesAfterParams) ([]ExportTimeEntriesAfterRow, error) {
+	rows, err := q.db.Query(ctx, exportTimeEntriesAfter, arg.After, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExportTimeEntriesAfterRow{}
+	for rows.Next() {
+		var i ExportTimeEntriesAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpentOn,
+			&i.Minutes,
+			&i.Note,
+			&i.UserEmail,
+			&i.ClientName,
+			&i.ProjectName,
+			&i.ServiceName,
+			&i.SourceKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findImportUserByEmail = `-- name: FindImportUserByEmail :one
+SELECT id FROM users
+WHERE email = $1::citext AND role IN ('admin', 'team') AND deleted_at IS NULL
+`
+
+// Le compte d'une saisie importee : un compte vivant de l'equipe ou un admin,
+// jamais un compte client.
+func (q *Queries) FindImportUserByEmail(ctx context.Context, email string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findImportUserByEmail, email)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findServiceByName = `-- name: FindServiceByName :one
+SELECT id FROM services
+WHERE lower(name) = lower($1::text) AND deleted_at IS NULL
+`
+
+func (q *Queries) FindServiceByName(ctx context.Context, name string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findServiceByName, name)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getTimeEntry = `-- name: GetTimeEntry :one
 SELECT
     e.id,
@@ -312,6 +413,17 @@ func (q *Queries) SumTimeEntriesByDay(ctx context.Context, arg SumTimeEntriesByD
 		return nil, err
 	}
 	return items, nil
+}
+
+const timeEntryExists = `-- name: TimeEntryExists :one
+SELECT EXISTS (SELECT 1 FROM time_entries WHERE id = $1 AND deleted_at IS NULL)
+`
+
+func (q *Queries) TimeEntryExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, timeEntryExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const updateTimeEntry = `-- name: UpdateTimeEntry :one
