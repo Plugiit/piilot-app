@@ -179,6 +179,176 @@ func (q *Queries) CreateCrmClient(ctx context.Context, arg CreateCrmClientParams
 	return i, err
 }
 
+const createImportedClient = `-- name: CreateImportedClient :one
+INSERT INTO clients (
+    name, kind, legal_name, legal_form, siret, vat_number, status, website,
+    phone, address, postal_code, city, country
+)
+VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11, $12, $13
+)
+RETURNING id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at
+`
+
+type CreateImportedClientParams struct {
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	LegalName  string `json:"legal_name"`
+	LegalForm  string `json:"legal_form"`
+	Siret      string `json:"siret"`
+	VatNumber  string `json:"vat_number"`
+	Status     string `json:"status"`
+	Website    string `json:"website"`
+	Phone      string `json:"phone"`
+	Address    string `json:"address"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
+	Country    string `json:"country"`
+}
+
+// Creation par l'import CSV : l'identite complete, plus l'etape du pipeline
+// et le site, que l'ecran de creation ne demande pas.
+func (q *Queries) CreateImportedClient(ctx context.Context, arg CreateImportedClientParams) (Client, error) {
+	row := q.db.QueryRow(ctx, createImportedClient,
+		arg.Name,
+		arg.Kind,
+		arg.LegalName,
+		arg.LegalForm,
+		arg.Siret,
+		arg.VatNumber,
+		arg.Status,
+		arg.Website,
+		arg.Phone,
+		arg.Address,
+		arg.PostalCode,
+		arg.City,
+		arg.Country,
+	)
+	var i Client
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ProjectsActive,
+		&i.PortalUsers,
+		&i.PrimaryContactID,
+		&i.Status,
+		&i.AccountManagerID,
+		&i.Website,
+		&i.Phone,
+		&i.Address,
+		&i.PostalCode,
+		&i.City,
+		&i.Country,
+		&i.Siret,
+		&i.VatNumber,
+		&i.StatusChangedAt,
+		&i.Kind,
+		&i.LegalName,
+		&i.LegalForm,
+		&i.RegistryCheckedAt,
+	)
+	return i, err
+}
+
+const exportClientsAfter = `-- name: ExportClientsAfter :many
+SELECT
+    c.id, c.name, c.created_at, c.updated_at, c.deleted_at, c.projects_active, c.portal_users, c.primary_contact_id, c.status, c.account_manager_id, c.website, c.phone, c.address, c.postal_code, c.city, c.country, c.siret, c.vat_number, c.status_changed_at, c.kind, c.legal_name, c.legal_form, c.registry_checked_at,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'clients' AND k.entity_id = c.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM clients c
+WHERE c.deleted_at IS NULL AND c.id > $1::uuid
+ORDER BY c.id
+LIMIT $2
+`
+
+type ExportClientsAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	PageSize int32     `json:"page_size"`
+}
+
+type ExportClientsAfterRow struct {
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
+	ProjectsActive    int32      `json:"projects_active"`
+	PortalUsers       int32      `json:"portal_users"`
+	PrimaryContactID  *uuid.UUID `json:"primary_contact_id"`
+	Status            string     `json:"status"`
+	AccountManagerID  *uuid.UUID `json:"account_manager_id"`
+	Website           string     `json:"website"`
+	Phone             string     `json:"phone"`
+	Address           string     `json:"address"`
+	PostalCode        string     `json:"postal_code"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
+	Siret             string     `json:"siret"`
+	VatNumber         string     `json:"vat_number"`
+	StatusChangedAt   time.Time  `json:"status_changed_at"`
+	Kind              string     `json:"kind"`
+	LegalName         string     `json:"legal_name"`
+	LegalForm         string     `json:"legal_form"`
+	RegistryCheckedAt *time.Time `json:"registry_checked_at"`
+	SourceKey         string     `json:"source_key"`
+}
+
+// Une page de l'export CSV, par cle : pas d'OFFSET, la page ne bouge pas si
+// un client est cree pendant l'export. `source_key` est l'identifiant
+// d'origine que l'import a retenu, s'il y en a un.
+func (q *Queries) ExportClientsAfter(ctx context.Context, arg ExportClientsAfterParams) ([]ExportClientsAfterRow, error) {
+	rows, err := q.db.Query(ctx, exportClientsAfter, arg.After, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExportClientsAfterRow{}
+	for rows.Next() {
+		var i ExportClientsAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ProjectsActive,
+			&i.PortalUsers,
+			&i.PrimaryContactID,
+			&i.Status,
+			&i.AccountManagerID,
+			&i.Website,
+			&i.Phone,
+			&i.Address,
+			&i.PostalCode,
+			&i.City,
+			&i.Country,
+			&i.Siret,
+			&i.VatNumber,
+			&i.StatusChangedAt,
+			&i.Kind,
+			&i.LegalName,
+			&i.LegalForm,
+			&i.RegistryCheckedAt,
+			&i.SourceKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getClientByID = `-- name: GetClientByID :one
 SELECT id, name, created_at, updated_at, deleted_at, projects_active, portal_users, primary_contact_id, status, account_manager_id, website, phone, address, postal_code, city, country, siret, vat_number, status_changed_at, kind, legal_name, legal_form, registry_checked_at FROM clients
 WHERE id = $1 AND deleted_at IS NULL
