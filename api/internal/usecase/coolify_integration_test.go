@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/plugiit/piilot-app/api/internal/config"
 	"github.com/plugiit/piilot-app/api/internal/coolify"
+	"github.com/plugiit/piilot-app/api/internal/domain"
 	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
 
@@ -28,21 +31,36 @@ type fakeCoolify struct {
 	err     error
 	deploys map[string][]coolify.Deployment
 	depErr  error
+	// hang : l'appel attend la fin de son contexte, comme un Coolify qui ne repond pas.
+	hang    bool
+	depHang bool
 	baseURL string
 	token   string
 	calls   int
 }
 
-func (f *fakeCoolify) ListApplications(context.Context) ([]coolify.Application, error) {
+func (f *fakeCoolify) ListApplications(ctx context.Context) ([]coolify.Application, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	if f.hang {
+		f.mu.Unlock()
+		<-ctx.Done()
+		f.mu.Lock()
+		return nil, fmt.Errorf("appel de Coolify : %w", ctx.Err())
+	}
 	return f.apps, f.err
 }
 
-func (f *fakeCoolify) ListDeployments(_ context.Context, appUUID string, _ time.Time) ([]coolify.Deployment, error) {
+func (f *fakeCoolify) ListDeployments(ctx context.Context, appUUID string, _ time.Time) ([]coolify.Deployment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.depHang {
+		f.mu.Unlock()
+		<-ctx.Done()
+		f.mu.Lock()
+		return nil, fmt.Errorf("appel de Coolify : %w", ctx.Err())
+	}
 	return f.deploys[appUUID], f.depErr
 }
 
@@ -242,5 +260,91 @@ func TestCoolifyValidation(t *testing.T) {
 	}
 	if view, _ := svc.Settings(ctx); view.Status.LastPollError == nil {
 		t.Fatal("l'erreur n'est pas enregistree")
+	}
+}
+
+// pollState lit ce que l'ecran lit : l'erreur et la demande en attente.
+func pollState(t *testing.T, pool *pgxpool.Pool) (lastErr *string, requested bool) {
+	t.Helper()
+	var at *time.Time
+	if err := pool.QueryRow(context.Background(), `SELECT last_poll_error, poll_requested_at FROM coolify_settings WHERE id = 1`).Scan(&lastErr, &at); err != nil {
+		t.Fatal(err)
+	}
+	return lastErr, at != nil
+}
+
+func TestCoolifyUneReleveQuiDepasseSonDelaiEcritUneErreurEtEfface(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	svc, fake := newCoolify(t, pool, config.CoolifyEnv{})
+	token := "1|t"
+	if _, err := svc.UpdateSettings(ctx, usecase.CoolifySettingsInput{Enabled: true, BaseURL: "https://coolify.test", APIToken: &token}); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	fake.hang = true
+	fake.mu.Unlock()
+
+	short, cancel := context.WithTimeout(ctx, 150*time.Millisecond)
+	defer cancel()
+	if err := svc.Poll(short); err == nil {
+		t.Fatal("le delai depasse n'a pas ete signale")
+	}
+	msg, requested := pollState(t, pool)
+	if msg == nil || !strings.Contains(*msg, "délai") || requested {
+		t.Fatalf("apres le delai : erreur %v, demande en attente %v", msg, requested)
+	}
+	// La releve suivante ne repart pas en boucle : rien n'est du avant l'intervalle.
+	if svc.PollDue(ctx) {
+		t.Fatal("la releve est encore due : elle repartirait a chaque tick")
+	}
+	view, _ := svc.Settings(ctx)
+	if view.Status.State != "error" {
+		t.Fatalf("etat : %+v", view.Status)
+	}
+}
+
+func TestCoolifyUneApplicationQuiDepasseSonDelaiEcritUneErreur(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	svc, fake := newCoolify(t, pool, config.CoolifyEnv{})
+	linkedProject(t, pool, fake, svc)
+	fake.mu.Lock()
+	fake.depHang = true
+	fake.mu.Unlock()
+
+	short, cancel := context.WithTimeout(ctx, 150*time.Millisecond)
+	defer cancel()
+	if err := svc.Poll(short); err == nil {
+		t.Fatal("le delai depasse n'a pas ete signale")
+	}
+	msg, requested := pollState(t, pool)
+	if msg == nil || !strings.Contains(*msg, "délai") || requested || svc.PollDue(ctx) {
+		t.Fatalf("apres le delai : erreur %v, demande en attente %v", msg, requested)
+	}
+}
+
+func TestCoolifyChangerDHoteExigeLeJeton(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	svc, _ := newCoolify(t, pool, config.CoolifyEnv{})
+	token := "1|t"
+	if _, err := svc.UpdateSettings(ctx, usecase.CoolifySettingsInput{Enabled: true, BaseURL: "https://coolify.test", APIToken: &token}); err != nil {
+		t.Fatal(err)
+	}
+	// Meme hote (chemin different) : accepte sans jeton.
+	if _, err := svc.UpdateSettings(ctx, usecase.CoolifySettingsInput{Enabled: true, BaseURL: "https://coolify.test/api/v1"}); err != nil {
+		t.Fatalf("meme hote : %v", err)
+	}
+	// Autre hote sans jeton : 422.
+	_, err := svc.UpdateSettings(ctx, usecase.CoolifySettingsInput{Enabled: true, BaseURL: "https://autre.test"})
+	var de *domain.Error
+	if !errors.As(err, &de) || de.Status != 422 {
+		t.Fatalf("autre hote sans jeton : %v", err)
+	}
+	// Autre hote avec un nouveau jeton : accepte.
+	next := "2|n"
+	if _, err := svc.UpdateSettings(ctx, usecase.CoolifySettingsInput{Enabled: true, BaseURL: "https://autre.test", APIToken: &next}); err != nil {
+		t.Fatalf("autre hote avec jeton : %v", err)
 	}
 }
