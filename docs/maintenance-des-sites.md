@@ -14,8 +14,11 @@ pas non plus : la cloche reste alors le seul signal.
 ## Mises à jour
 
 Prérequis, une seule fois : un jeton GitHub à portée fine, limité aux dépôts des
-sites, avec la seule permission *Actions : lecture et écriture*, enregistré dans
-*Paramètres › Dépôts Git*.
+sites, avec les permissions *Actions : lecture et écriture* et *Pull requests :
+lecture*, enregistré dans *Paramètres › Dépôts Git*. La seconde sert au rattrapage
+des pull requests fusionnées (voir *Rapport mensuel*) ; sans elle, les lancements
+fonctionnent, mais le rattrapage signale une erreur d'accès. Un jeton déjà
+enregistré se complète côté GitHub, sans le retirer d'ici.
 
 Puis, pour chaque projet : renseigner son dépôt GitHub, choisir **l'environnement**
 (aucun n'est choisi d'office), le workflow, la branche et, si vous le souhaitez,
@@ -173,9 +176,40 @@ l'erreur de relève affichée sur l'écran du module.
 
 Ajoutez les sections *Mises à jour*, *Sauvegardes* et *Domaine* à une formule. Les
 mises à jour comptent les lancements réussis, par environnement, et les pull
-requests fusionnées de Renovate ou Dependabot, reçues par le webhook Git. Un
+requests fusionnées, reçues par le webhook Git. Un
 lancement en préproduction s'affiche comme tel, et ne vaut jamais une mise à jour
 de la production pour lever une retenue.
+
+### Rattrapage des pull requests
+
+Le webhook peut manquer un évènement (coupure de Piilot, webhook mal réglé). Pour
+les projets qui ont un dépôt **GitHub** et une formule avec la section *Mises à
+jour*, Piilot relit donc GitHub une fois par jour, et le 1er du mois avant de créer
+le brouillon : il lit les pull requests fusionnées du mois courant et du précédent,
+et n'inscrit que celles qui manquent. Une pull request déjà reçue par le webhook
+n'est jamais écrasée, et la synchronisation ne touche ni aux tickets ni aux tâches.
+Le brouillon d'un projet attend cette synchronisation pendant le délai d'attente
+des rapports ; un essai en échec ne le retient pas.
+
+*Projet › Paramètres › Maintenance*, carte *Pull requests fusionnées* : date de la
+dernière synchronisation réussie, erreur du dernier essai, et *Synchroniser
+maintenant* (permission `reports.write`). Les erreurs sont dites en clair : aucun
+jeton, jeton refusé ou expiré, permission « Pull requests : lecture » manquante,
+dépôt introuvable ou inaccessible, limite de débit GitHub. GitLab n'est pas encore
+pris en charge pour le rattrapage : seul son webhook compte.
+
+Une mise à jour de dépendance est reconnue à son auteur (`renovate[bot]`,
+`dependabot[bot]`), à sa branche (`renovate/…`, `dependabot/…`) ou à l'étiquette
+`dependencies`. Un correctif de sécurité l'est à une étiquette contenant
+`security` ou `sécurité`, ou à un titre contenant `[SECURITY]`, `CVE-` ou `GHSA-`.
+
+**Limite connue** : Piilot ne lit pas les alertes Dependabot. Un correctif de
+sécurité de Dependabot sans étiquette de sécurité, au titre sans `CVE-` ni `GHSA-`,
+compte comme une mise à jour ordinaire : le nombre de correctifs de sécurité peut
+être sous-estimé. Le mieux est d'étiqueter ces pull requests `security` (option
+`labels` de `dependabot.yml`).
+
+### Envoi automatique
 
 L'envoi automatique, dans *Paramètres › Formules de maintenance*, n'envoie que ce
 qui ne pose pas de question. Un rapport attend une relecture, et les admins sont
