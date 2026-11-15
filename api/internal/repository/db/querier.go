@@ -291,6 +291,15 @@ type Querier interface {
 	// un client est cree pendant l'export. `source_key` est l'identifiant
 	// d'origine que l'import a retenu, s'il y en a un.
 	ExportClientsAfter(ctx context.Context, arg ExportClientsAfterParams) ([]ExportClientsAfterRow, error)
+	// Une page de l'export CSV, par cle (pas d'OFFSET). Le client est rendu par
+	// son nom et son SIRET : l'import retrouve le client par l'un ou l'autre.
+	ExportContactsAfter(ctx context.Context, arg ExportContactsAfterParams) ([]ExportContactsAfterRow, error)
+	// Une page de l'export CSV, par cle (pas d'OFFSET).
+	ExportProjectsAfter(ctx context.Context, arg ExportProjectsAfterParams) ([]ExportProjectsAfterRow, error)
+	// Une page de l'export CSV, par cle (pas d'OFFSET). Seules les saisies dont le
+	// compte, le projet et le client sont vivants sortent : les autres ne se
+	// reimporteraient pas.
+	ExportTimeEntriesAfter(ctx context.Context, arg ExportTimeEntriesAfterParams) ([]ExportTimeEntriesAfterRow, error)
 	// Une erreur passagere (base, disque) : on reessaie, cinq fois au plus.
 	FailInboundAttempt(ctx context.Context, arg FailInboundAttemptParams) error
 	FailSiteUpdateRun(ctx context.Context, arg FailSiteUpdateRunParams) error
@@ -301,6 +310,14 @@ type Querier interface {
 	FindActiveUserByEmail(ctx context.Context, email string) (FindActiveUserByEmailRow, error)
 	// Les contacts du CRM qui portent cette adresse, sur des clients actifs.
 	FindContactsByEmail(ctx context.Context, email *string) ([]FindContactsByEmailRow, error)
+	// Le compte d'une saisie importee : un compte vivant de l'equipe ou un admin,
+	// jamais un compte client.
+	FindImportUserByEmail(ctx context.Context, email string) (uuid.UUID, error)
+	// Projets vivants de ce nom, chez ce client (ou chez n'importe lequel quand
+	// le fichier ne dit pas lequel). Deux lignes au plus : le second resultat
+	// suffit a signaler l'ambiguite.
+	FindProjectsForTimeImport(ctx context.Context, arg FindProjectsForTimeImportParams) ([]FindProjectsForTimeImportRow, error)
+	FindServiceByName(ctx context.Context, name string) (uuid.UUID, error)
 	FindSiteBackupProject(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
 	FindSiteUpdateRunByToken(ctx context.Context, arg FindSiteUpdateRunByTokenParams) (FindSiteUpdateRunByTokenRow, error)
 	// Le site d'un evenement, par la premiere cle connue.
@@ -341,6 +358,13 @@ type Querier interface {
 	GetClientName(ctx context.Context, id uuid.UUID) (string, error)
 	GetClientTicketStats(ctx context.Context, clientID uuid.UUID) (ClientTicketStat, error)
 	GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error)
+	// Doublon d'import : l'adresse est unique a la casse ppres (citext), tous
+	// clients confondus. Un meme e-mail chez deux clients est presque toujours
+	// la meme personne importee deux fois.
+	GetContactByEmail(ctx context.Context, email string) (Contact, error)
+	// Doublon d'import des contacts sans e-mail : prenom + nom chez le meme
+	// client (ou libres tous les deux), sans tenir compte de la casse.
+	GetContactByName(ctx context.Context, arg GetContactByNameParams) (Contact, error)
 	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs
 	// que le tableau montre deja.
 	GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientRow, error)
@@ -398,6 +422,9 @@ type Querier interface {
 	// Un rapport envoye, pour le client du projet seulement.
 	GetPortalReport(ctx context.Context, arg GetPortalReportParams) (GetPortalReportRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
+	// Doublon d'import : un nom de projet est unique chez un client, sans tenir
+	// compte de la casse.
+	GetProjectByClientAndName(ctx context.Context, arg GetProjectByClientAndNameParams) (Project, error)
 	GetProjectByRepoURL(ctx context.Context, repoUrl string) (Project, error)
 	// Le client d'un projet choisi au tri. Un projet interne n'en a pas a qui
 	// repondre : il est refuse.
@@ -1110,6 +1137,7 @@ type Querier interface {
 	// et leurs agregats depuis une date : la disponibilite du portail. Un releve
 	// manque ne compte ni pour ni contre.
 	PortalUptimeSites(ctx context.Context, arg PortalUptimeSitesParams) ([]PortalUptimeSitesRow, error)
+	ProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// Dit si une cle du magasin est le logo d'un projet : le magasin est commun
 	// aux pieces jointes, et la route des logos ne doit servir qu'eux.
 	ProjectLogoKeyInUse(ctx context.Context, key string) (bool, error)
@@ -1300,6 +1328,7 @@ type Querier interface {
 	SumTimeEntries(ctx context.Context, arg SumTimeEntriesParams) (int64, error)
 	// Total par jour de la plage, pour la barre de la semaine.
 	SumTimeEntriesByDay(ctx context.Context, arg SumTimeEntriesByDayParams) ([]SumTimeEntriesByDayRow, error)
+	TimeEntryExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// Detail des saisies, la plus recente en tete. Sert la liste paginee et
 	// l'export, qui la parcourt avec une borne haute.
 	TimeReportEntries(ctx context.Context, arg TimeReportEntriesParams) ([]TimeReportEntriesRow, error)
