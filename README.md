@@ -702,6 +702,7 @@ que de la laisser répondre 500 à la première requête.
 | `INBOUND_IMAP_USERNAME` / `INBOUND_IMAP_PASSWORD` / `INBOUND_IMAP_FOLDER` | *(vides)* / `INBOX` | Identifiants et dossier de la boîte |
 | `INBOUND_WEBHOOK_SECRET` | *(vide)* | Secret des webhooks des fournisseurs d'e-mail. Vide : Piilot en tire un, visible à l'écran |
 | `KUMA_URL` / `KUMA_API_KEY` | *(vides)* | Instance Uptime Kuma du module de disponibilité, sans `/metrics`, et sa clé d'API. Vides : elles se règlent dans *Paramètres > Modules* ; renseignées, elles priment et l'écran les montre en lecture seule |
+| `COOLIFY_URL` / `COOLIFY_API_TOKEN` | *(vides)* | Instance Coolify du module de déploiements, sans `/api/v1`, et son jeton d'API complet (`1\|…`). Vides : elles se règlent dans *Paramètres > Modules* ; renseignées, elles priment et l'écran les montre en lecture seule |
 | `UMAMI_URL` / `UMAMI_USERNAME` / `UMAMI_PASSWORD` | *(vides)* | Instance Umami auto-hébergée du module de statistiques. Renseignées, elles priment sur *Paramètres > Modules* |
 | `UMAMI_API_KEY` | *(vide)* | Umami Cloud, avec `UMAMI_URL=https://api.umami.is/v1`. Exclut `UMAMI_USERNAME` |
 | `BACKUP_STALE_AFTER` | `36h` | Sans sauvegarde réussie depuis ce délai, les admins sont prévenus dans la cloche. `0` pour une instance sauvegardée autrement |

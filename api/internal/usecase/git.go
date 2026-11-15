@@ -271,10 +271,10 @@ func (s *GitService) HandleGitHub(ctx context.Context, event string, body []byte
 			Title: p.PullRequest.Title, URL: p.PullRequest.HTMLURL, Branch: p.PullRequest.Head.Ref,
 			Author: p.PullRequest.User.Login, State: state, Description: desc,
 			OpenedAt: p.PullRequest.CreatedAt, MergedAt: p.PullRequest.MergedAt,
-			Security: slices.ContainsFunc(p.PullRequest.Labels, func(l struct {
+			Labels: labelNames(p.PullRequest.Labels, func(l struct {
 				Name string `json:"name"`
-			}) bool {
-				return isSecurityLabel(l.Name)
+			}) string {
+				return l.Name
 			}),
 		})
 
@@ -416,10 +416,10 @@ func (s *GitService) HandleGitLab(ctx context.Context, body []byte) (Outcome, er
 			Title: p.ObjectAttributes.Title, URL: p.ObjectAttributes.URL, Branch: p.ObjectAttributes.SourceBranch,
 			Author: author, State: state, Description: p.ObjectAttributes.Description,
 			OpenedAt: gitlabTime(p.ObjectAttributes.CreatedAt), MergedAt: gitlabTime(p.ObjectAttributes.MergedAt),
-			Security: slices.ContainsFunc(p.Labels, func(l struct {
+			Labels: labelNames(p.Labels, func(l struct {
 				Title string `json:"title"`
-			}) bool {
-				return isSecurityLabel(l.Title)
+			}) string {
+				return l.Title
 			}),
 		})
 
@@ -478,8 +478,25 @@ type incomingPullRequest struct {
 	Title, URL, Branch, Author string
 	State, Description         string
 	OpenedAt, MergedAt         *time.Time
-	Security                   bool
+	// Labels : les etiquettes de la pull request. Elles disent aussi si elle
+	// porte un correctif de securite.
+	Labels []string
 }
+
+// labelNames rend les noms non vides d'une liste d'etiquettes. Jamais nil :
+// la colonne ne prend pas NULL.
+func labelNames[T any](labels []T, name func(T) string) []string {
+	out := make([]string, 0, len(labels))
+	for _, l := range labels {
+		if n := strings.TrimSpace(name(l)); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// hasSecurityLabel : une des etiquettes dit « securite ».
+func hasSecurityLabel(labels []string) bool { return slices.ContainsFunc(labels, isSecurityLabel) }
 
 // isSecurityLabel : « security », « type: security », « sécurité »…
 func isSecurityLabel(label string) bool {
@@ -524,7 +541,7 @@ func (s *GitService) pullRequest(ctx context.Context, in incomingPullRequest) (O
 
 	pr, err := s.q.UpsertPullRequest(ctx, db.UpsertPullRequestParams{
 		ProjectID: project.ID, Provider: in.Provider, Number: in.Number, Title: strings.TrimSpace(in.Title),
-		Url: in.URL, Branch: in.Branch, Author: in.Author, State: in.State, OpenedAt: in.OpenedAt, MergedAt: in.MergedAt, Security: in.Security,
+		Url: in.URL, Branch: in.Branch, Author: in.Author, State: in.State, OpenedAt: in.OpenedAt, MergedAt: in.MergedAt, Security: hasSecurityLabel(in.Labels), Labels: in.Labels,
 	})
 	if err != nil {
 		return Outcome{}, fmt.Errorf("enregistrement de la pull request : %w", err)

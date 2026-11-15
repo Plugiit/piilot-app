@@ -247,6 +247,30 @@ type Contact struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
+type CoolifyApplication struct {
+	ID              uuid.UUID `json:"id"`
+	Uuid            string    `json:"uuid"`
+	Name            string    `json:"name"`
+	Fqdn            string    `json:"fqdn"`
+	EnvironmentName string    `json:"environment_name"`
+	ProjectName     string    `json:"project_name"`
+	Present         bool      `json:"present"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type CoolifySetting struct {
+	ID              int32      `json:"id"`
+	Enabled         bool       `json:"enabled"`
+	BaseUrl         string     `json:"base_url"`
+	ApiTokenEnc     []byte     `json:"api_token_enc"`
+	PollMinutes     int32      `json:"poll_minutes"`
+	LastPollAt      *time.Time `json:"last_poll_at"`
+	LastPollError   *string    `json:"last_poll_error"`
+	PollRequestedAt *time.Time `json:"poll_requested_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 type DailyActivity struct {
 	Day                   time.Time `json:"day"`
 	TasksDone             int32     `json:"tasks_done"`
@@ -291,6 +315,7 @@ type Deployment struct {
 	Url         string    `json:"url"`
 	Environment string    `json:"environment"`
 	DeployedAt  time.Time `json:"deployed_at"`
+	ExternalID  string    `json:"external_id"`
 }
 
 type DiscordLink struct {
@@ -576,6 +601,13 @@ type ProjectAnalyticsWebsite struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type ProjectCoolifyApplication struct {
+	ProjectID       uuid.UUID `json:"project_id"`
+	ApplicationUuid string    `json:"application_uuid"`
+	Environment     string    `json:"environment"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 type ProjectDomain struct {
 	ID             uuid.UUID  `json:"id"`
 	ProjectID      uuid.UUID  `json:"project_id"`
@@ -593,6 +625,14 @@ type ProjectFavorite struct {
 	UserID    uuid.UUID `json:"user_id"`
 	ProjectID uuid.UUID `json:"project_id"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectGitSync struct {
+	ProjectID     uuid.UUID  `json:"project_id"`
+	RequestedAt   *time.Time `json:"requested_at"`
+	LastAttemptAt *time.Time `json:"last_attempt_at"`
+	LastSyncedAt  *time.Time `json:"last_synced_at"`
+	LastError     *string    `json:"last_error"`
 }
 
 type ProjectMaintenance struct {
@@ -686,6 +726,7 @@ type PullRequest struct {
 	MergedAt  *time.Time `json:"merged_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	Security  bool       `json:"security"`
+	Labels    []string   `json:"labels"`
 }
 
 type PullRequestLink struct {

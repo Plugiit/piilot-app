@@ -3,6 +3,7 @@ package usecase
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestHoldReasonsOf(t *testing.T) {
@@ -59,5 +60,55 @@ func TestLAlerteNeSeRepeteQueSiLaSituationSAggrave(t *testing.T) {
 				t.Errorf("worseThan = %v, attendu %v", got, c.want)
 			}
 		})
+	}
+}
+
+func TestHoldReasonsOfLesDeploiementsCoolifyPerimes(t *testing.T) {
+	stale := ReportData{DeploymentsStale: true}
+	if got := holdReasonsOf(stale, []string{"deployments"}, 1); !reflect.DeepEqual(got, []string{holdDeploymentsStale}) {
+		t.Errorf("section voulue : %v", got)
+	}
+	// Une formule sans la section ne se retient pas pour elle.
+	if got := holdReasonsOf(stale, []string{"interventions"}, 1); len(got) != 0 {
+		t.Errorf("section absente : %v", got)
+	}
+	if got := holdReasonsOf(ReportData{}, []string{"deployments"}, 1); len(got) != 0 {
+		t.Errorf("a jour : %v", got)
+	}
+}
+
+func TestHoldReasonsOfLaSynchronisationGitPerimee(t *testing.T) {
+	stale := ReportData{GitSyncStale: true, Updates: &ReportUpdates{DependencyCount: 2}}
+	if got := holdReasonsOf(stale, []string{"updates"}, 1); !reflect.DeepEqual(got, []string{holdGitSyncStale}) {
+		t.Errorf("section voulue : %v", got)
+	}
+	if got := holdReasonsOf(stale, []string{"interventions"}, 1); len(got) != 0 {
+		t.Errorf("section absente : %v", got)
+	}
+	if got := holdReasonsOf(ReportData{Updates: &ReportUpdates{DependencyCount: 2}}, []string{"updates"}, 1); len(got) != 0 {
+		t.Errorf("a jour : %v", got)
+	}
+}
+
+func TestLeRapportDuMailDitLaSourceEtLesCompteurs(t *testing.T) {
+	d := ReportData{Month: "2026-10"}
+	d.Deployments = &ReportDeployments{Source: "coolify", Items: []ReportDeployment{{Name: "v1", Environment: "production", DeployedAt: time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)}}}
+	d.Updates = &ReportUpdates{DependencyCount: 3, SecurityCount: 1}
+	m := reportMailOf(d, "")
+	if m.DeploymentsSource != "d’après Coolify" || len(m.Deployments) != 1 {
+		t.Errorf("source : %q, %d", m.DeploymentsSource, len(m.Deployments))
+	}
+	figures := map[string]string{}
+	for _, f := range m.Figures {
+		figures[f.Label] = f.Value
+	}
+	if figures["Mises à jour de dépendances"] != "3" || figures["Correctifs de sécurité"] != "1" {
+		t.Errorf("compteurs : %v", figures)
+	}
+	for source, want := range map[string]string{"webhook": "d’après le dépôt", "": ""} {
+		d.Deployments.Source = source
+		if got := reportMailOf(d, "").DeploymentsSource; got != want {
+			t.Errorf("source %q : %q", source, got)
+		}
 	}
 }

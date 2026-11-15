@@ -12,6 +12,30 @@ export const HOLD_REASON_LABEL: Record<string, string> = {
   domain_expiring: 'Un domaine expire dans moins de 30 jours',
   updates_missing: 'Aucune mise à jour ce mois-ci : le robot ou la CI est peut-être en panne',
   update_failed: 'Le dernier lancement de mise à jour du mois a échoué',
+  deployments_stale: 'Coolify n’a pas été relevé avec succès depuis la fin du mois : les mises en ligne ont pu changer',
+  git_sync_stale: 'Le dépôt GitHub n’a pas été synchronisé avec succès depuis la fin du mois : une pull request fusionnée a pu manquer au webhook',
+}
+
+/**
+ * Les motifs qui se reglent dans l'onglet Maintenance du projet : une
+ * relève ou une synchronisation en défaut, à relancer ou à corriger là-bas.
+ */
+const MAINTENANCE_HOLD_REASONS = new Set(['deployments_stale', 'git_sync_stale'])
+
+export function holdReasonInMaintenance(code: string): boolean {
+  return MAINTENANCE_HOLD_REASONS.has(code)
+}
+
+/** D'où viennent les mises en ligne du rapport. Absente des rapports d'avant la 1.6 : rien n'est dit. */
+export function deploymentsSourceLabel(source: string | undefined): string | null {
+  switch (source) {
+    case 'coolify':
+      return 'd’après Coolify'
+    case 'webhook':
+      return 'd’après le dépôt'
+    default:
+      return null
+  }
 }
 
 export function holdReasonLabel(code: string): string {

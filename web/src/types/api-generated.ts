@@ -2810,6 +2810,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/modules/coolify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réglages du module de déploiements
+         * @description Exige users.write.
+         */
+        get: operations["getAdminModuleCoolify"];
+        /**
+         * Enregistrer le module de déploiements
+         * @description Demande aussi une relève, pour que l'écran dise aussitôt si l'adresse et le jeton conviennent. Exige users.write.
+         */
+        put: operations["putAdminModuleCoolify"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/coolify/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tester la connexion à Coolify
+         * @description Demande une relève, faite par la tâche de fond dans les quinze secondes : la requête n'appelle pas Coolify. Exige users.write.
+         */
+        post: operations["postAdminModuleCoolifyPoll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/coolify/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Applications Coolify
+         * @description Les applications vues à la dernière relève, sans appeler Coolify. Exige projects.write : sert aussi au choix d'une application pour un projet.
+         */
+        get: operations["getAdminModuleCoolifyApplications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/projects/{id}/uptime": {
         parameters: {
             query?: never;
@@ -2831,6 +2895,60 @@ export interface paths {
          */
         put: operations["putAdminProjectUptime"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/coolify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Déploiements d'un projet
+         * @description Les applications Coolify liées, et les cinq derniers déploiements relevés, sans appeler Coolify. Exige projects.read.
+         */
+        get: operations["getAdminProjectCoolify"];
+        /**
+         * Lier des applications Coolify à un projet
+         * @description Remplace la liste ; vide, elle détache tout. Demande une relève pour que les déploiements arrivent sans attendre. Exige projects.write.
+         */
+        put: operations["putAdminProjectCoolify"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects/{id}/git/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Synchronisation Git d'un projet
+         * @description Ou en est le rattrapage des pull requests fusionnées : dernière synchronisation réussie, dernier essai et son erreur éventuelle. Exige projects.read.
+         */
+        get: operations["getAdminProjectGitSync"];
+        put?: never;
+        /**
+         * Synchroniser les pull requests maintenant
+         * @description Demande une synchronisation, faite par la tâche de fond dans la minute : la requête n'appelle pas GitHub. Lit les pull requests fusionnées du mois courant et du précédent, avec le jeton GitHub de l'agence, et n'inscrit que celles que le webhook n'a pas reçues. Exige reports.write.
+         */
+        post: operations["postAdminProjectGitSync"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6725,7 +6843,7 @@ export interface components {
         };
         Module: {
             /** @enum {string} */
-            code: "uptime" | "analytics";
+            code: "uptime" | "deployments" | "analytics";
             name: string;
             provider: string;
             description: string;
@@ -7174,6 +7292,11 @@ export interface components {
         };
         ReportDeployments: {
             items: components["schemas"]["ReportDeployment"][];
+            /**
+             * @description Une seule source par projet et par mois : Coolify s'il a relevé des mises en ligne ce mois-là. Absent des rapports d'avant la 1.6.
+             * @enum {string}
+             */
+            source?: "coolify" | "webhook";
         };
         /** @description Contenu figé d'un rapport. Une section nulle n'est pas dans la formule, ou n'a pas de données ce mois-là. */
         ReportData: {
@@ -7193,6 +7316,10 @@ export interface components {
             updates: components["schemas"]["ReportUpdates"] | null;
             backups: components["schemas"]["ReportBackups"] | null;
             domain: components["schemas"]["ReportDomains"] | null;
+            /** @description Le projet est suivi par Coolify, le module est actif, et la dernière relève n'a pas réussi après la fin du mois. Réservé à l'équipe : absent des rapports du portail. */
+            deployments_stale?: boolean;
+            /** @description Le projet a un dépôt GitHub et le jeton pour le lire, et la dernière synchronisation n'a pas réussi après la fin du mois. Réservé à l'équipe : absent des rapports du portail. */
+            git_sync_stale?: boolean;
         };
         Report: {
             /** Format: uuid */
@@ -7838,6 +7965,98 @@ export interface components {
             total: number;
             page: number;
             page_size: number;
+        };
+        CoolifyStatus: {
+            /** @enum {string} */
+            state: "off" | "pending" | "ok" | "error";
+            /** Format: date-time */
+            last_poll_at: string | null;
+            last_poll_error: string | null;
+            /** @description Une relève demandée n'a pas encore eu lieu. */
+            poll_pending: boolean;
+            /** @description Applications vues à la dernière relève. */
+            applications: number;
+        };
+        /** @description Réglages du module de déploiements. Le jeton d'API n'en sort jamais. COOLIFY_URL et COOLIFY_API_TOKEN priment et sont signalés. */
+        CoolifySettings: {
+            enabled: boolean;
+            base_url: string;
+            base_url_from_env: boolean;
+            api_token_set: boolean;
+            api_token_from_env: boolean;
+            poll_minutes: number;
+            status: components["schemas"]["CoolifyStatus"];
+        };
+        CoolifySettingsRequest: {
+            enabled: boolean;
+            /** @description Adresse de l'instance Coolify, sans /api/v1. */
+            base_url: string;
+            /** @description Jeton complet, avec son préfixe « id| ». Absent ou nul : le jeton en base est gardé. Vide : il est effacé. */
+            api_token?: string | null;
+            poll_minutes: number;
+        };
+        CoolifyApplication: {
+            /** Format: uuid */
+            id: string;
+            /** @description Identifiant de l'application chez Coolify. */
+            uuid: string;
+            name: string;
+            fqdn: string;
+            environment_name: string;
+            project_name: string;
+            /** @description Faux : l'application n'était plus dans la dernière relève. */
+            present: boolean;
+            /** Format: date-time */
+            last_seen_at: string;
+        };
+        ProjectCoolifyApplication: {
+            application_uuid: string;
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            name: string;
+            fqdn: string;
+            /** @description Faux : la dernière relève ne l'a plus vue chez Coolify. */
+            present: boolean;
+        };
+        ProjectCoolifyDeployment: {
+            name: string;
+            environment: string;
+            url: string;
+            /** Format: date-time */
+            deployed_at: string;
+        };
+        ProjectCoolify: {
+            module_enabled: boolean;
+            applications: components["schemas"]["ProjectCoolifyApplication"][];
+            /** @description Les cinq derniers déploiements relevés. */
+            deployments: components["schemas"]["ProjectCoolifyDeployment"][];
+            /** Format: date-time */
+            last_poll_at: string | null;
+            last_poll_error: string | null;
+        };
+        ProjectCoolifyRequest: {
+            applications: {
+                application_uuid: string;
+                /** @enum {string} */
+                environment: "prod" | "preprod";
+            }[];
+        };
+        GitSync: {
+            /** @description Faux : le projet n'a pas de dépôt GitHub. */
+            eligible: boolean;
+            /** @description Faux : aucun jeton GitHub n'est enregistré. */
+            token_configured: boolean;
+            /**
+             * Format: date-time
+             * @description Dernière synchronisation réussie.
+             */
+            last_synced_at: string | null;
+            /** Format: date-time */
+            last_attempt_at: string | null;
+            /** @description Pourquoi le dernier essai a échoué. */
+            last_error: string | null;
+            /** @description Une synchronisation demandée n'a pas encore eu lieu. */
+            pending: boolean;
         };
     };
     responses: {
@@ -12994,6 +13213,101 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    getAdminModuleCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putAdminModuleCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoolifySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    postAdminModuleCoolifyPoll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoolifySettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminModuleCoolifyApplications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CoolifyApplication"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getAdminProjectUptime: {
         parameters: {
             query?: never;
@@ -13043,6 +13357,116 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectUptime"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCoolify"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCoolifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCoolify"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectGitSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSync"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postAdminProjectGitSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande enregistrée */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitSync"];
                 };
             };
             401: components["responses"]["Unauthorized"];

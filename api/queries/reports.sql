@@ -274,11 +274,29 @@ LIMIT 200;
 SELECT coalesce((SELECT minutes FROM maintenance_months WHERE project_id = sqlc.arg('project_id') AND month = sqlc.arg('month')::date), 0)::integer;
 
 -- name: ReportDeployments :many
+-- Les mises en ligne signalees par webhook. Celles de Coolify ont leur
+-- requete : une seule source par projet et par mois.
 SELECT name, environment, url, deployed_at
 FROM deployments
-WHERE project_id = sqlc.arg('project_id') AND deployed_at >= sqlc.arg('since') AND deployed_at < sqlc.arg('until')
+WHERE project_id = sqlc.arg('project_id') AND provider <> 'coolify'
+  AND deployed_at >= sqlc.arg('since') AND deployed_at < sqlc.arg('until')
 ORDER BY deployed_at
 LIMIT 50;
+
+-- name: ReportCoolifyDeployments :many
+SELECT name, environment, url, deployed_at
+FROM deployments
+WHERE project_id = sqlc.arg('project_id') AND provider = 'coolify'
+  AND deployed_at >= sqlc.arg('since') AND deployed_at < sqlc.arg('until')
+ORDER BY deployed_at
+LIMIT 50;
+
+-- name: ReportCoolifyState :one
+-- Le projet est-il suivi par Coolify, le module est-il actif, et ou en est sa
+-- derniere releve.
+SELECT s.enabled, s.last_poll_at, s.last_poll_error,
+       EXISTS (SELECT 1 FROM project_coolify_applications WHERE project_id = sqlc.arg('project_id'))::boolean AS linked
+FROM coolify_settings s WHERE s.id = 1;
 
 -- name: ListReportAdmins :many
 -- Qui prevenir de ce qui menace un site ou un rapport : les comptes actifs qui

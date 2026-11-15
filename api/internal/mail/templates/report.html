@@ -9,7 +9,7 @@
 {{range .Interventions}}<p style="margin:0 0 6px 0;font-size:13px;line-height:1.5;"><span style="color:#73757c;">{{.Date}}</span> · {{.Label}}{{if .Detail}} <span style="color:#73757c;">— {{.Detail}}</span>{{end}}</p>{{end}}{{end}}
 {{if .Pages}}<h2 style="margin:24px 0 8px 0;font-size:15px;font-weight:600;">Pages les plus vues</h2>{{template "bars" .Pages}}{{end}}
 {{if .Sources}}<h2 style="margin:24px 0 8px 0;font-size:15px;font-weight:600;">Sources de trafic</h2>{{template "bars" .Sources}}{{end}}
-{{if .Deployments}}<h2 style="margin:24px 0 8px 0;font-size:15px;font-weight:600;">Mises en ligne</h2>{{range .Deployments}}<p style="margin:0 0 6px 0;font-size:13px;line-height:1.5;"><span style="color:#73757c;">{{.Date}}</span> · {{.Label}}{{if .Detail}} <span style="color:#73757c;">— {{.Detail}}</span>{{end}}</p>{{end}}{{end}}
+{{if .Deployments}}<h2 style="margin:24px 0 8px 0;font-size:15px;font-weight:600;">Mises en ligne{{if .DeploymentsSource}} <span style="font-size:12px;font-weight:400;color:#73757c;">{{.DeploymentsSource}}</span>{{end}}</h2>{{range .Deployments}}<p style="margin:0 0 6px 0;font-size:13px;line-height:1.5;"><span style="color:#73757c;">{{.Date}}</span> · {{.Label}}{{if .Detail}} <span style="color:#73757c;">— {{.Detail}}</span>{{end}}</p>{{end}}{{end}}
 {{end}}{{template "button" .}}
 <p style="margin:0;font-size:13px;line-height:1.6;color:#73757c;">Le rapport complet, avec ses graphiques, se trouve dans votre espace client, où vous pouvez aussi l'enregistrer en PDF.</p>{{end}}
 

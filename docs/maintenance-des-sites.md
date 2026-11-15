@@ -14,8 +14,11 @@ pas non plus : la cloche reste alors le seul signal.
 ## Mises à jour
 
 Prérequis, une seule fois : un jeton GitHub à portée fine, limité aux dépôts des
-sites, avec la seule permission *Actions : lecture et écriture*, enregistré dans
-*Paramètres › Dépôts Git*.
+sites, avec les permissions *Actions : lecture et écriture* et *Pull requests :
+lecture*, enregistré dans *Paramètres › Dépôts Git*. La seconde sert au rattrapage
+des pull requests fusionnées (voir *Rapport mensuel*) ; sans elle, les lancements
+fonctionnent, mais le rattrapage signale une erreur d'accès. Un jeton déjà
+enregistré se complète côté GitHub, sans le retirer d'ici.
 
 Puis, pour chaque projet : renseigner son dépôt GitHub, choisir **l'environnement**
 (aucun n'est choisi d'office), le workflow, la branche et, si vous le souhaitez,
@@ -138,13 +141,156 @@ prévenus à 60, 30, 14, 7 et 1 jours, et si le relevé ne réussit plus depuis 
 jours. Certaines extensions nationales ne publient pas leur date : le relevé
 reste alors en échec, et l'alerte le dit.
 
+## Déploiements (Coolify)
+
+*Paramètres → Modules → Coolify* (admins) : Piilot lit les applications de
+l'instance [Coolify](https://coolify.io) de l'agence et leurs déploiements, en
+lecture seule. Il ne déclenche jamais un déploiement.
+
+### Prérequis
+
+1. **Dans Coolify**, activer l'API dans les réglages de l'instance (*Settings →
+   Advanced*, option d'accès à l'API ; l'intitulé varie selon la version). Sur une
+   instance auto-hébergée elle est désactivée par défaut, et Coolify répond alors
+   « accès refusé ».
+2. Si une liste d'adresses IP autorisées est renseignée, y ajouter l'adresse IP
+   **sortante** du serveur qui héberge Piilot. Une adresse non autorisée donne la
+   même erreur d'accès refusé.
+3. *Keys & Tokens → API tokens* (intitulé à vérifier selon la version) : créer un
+   jeton avec la seule permission **read** (jamais *write* ni *deploy*), limité aux
+   projets et ressources utiles quand l'écran le propose, avec une expiration.
+   Copier le jeton **complet**, préfixe compris (`1|…`) : Coolify ne le montre
+   qu'une fois.
+4. **Dans Piilot**, renseigner l'adresse de l'instance (sans `/api/v1`) et le
+   jeton, cocher *Activer le module*, choisir l'intervalle (15 minutes à 24
+   heures, 1 heure par défaut), enregistrer. *Tester la connexion* demande une
+   relève tout de suite ; le résultat s'affiche en haut de l'écran.
+
+Le jeton est chiffré en base et ne ressort jamais de l'API. `COOLIFY_URL` et
+`COOLIFY_API_TOKEN` peuvent le fixer par l'environnement : elles priment alors, et
+l'écran les montre en lecture seule. Un jeton expiré ou révoqué se repère à
+l'erreur de relève affichée sur l'écran du module.
+
+Pour le « jeton » GitHub du rattrapage des pull requests, voir *Mises à jour* plus
+haut : il lui faut la permission *Pull requests : lecture*.
+
+### Fonctionnement
+
+- **Liaison** : dans *Projet › Paramètres › Maintenance*, la carte *Déploiements*
+  lie le projet à ses applications Coolify (production, préproduction, dix au plus),
+  choisies dans la liste relevée.
+- **Fréquence** : la liste des applications est relue à l'intervalle du module. Pour
+  les applications liées, les déploiements **réussis** (statut `finished`) du mois
+  courant et des deux précédents sont relus à chaque passage, et écrits une seule
+  fois (un déploiement porte son identifiant Coolify : deux relèves ne doublent
+  rien). Les échecs, déploiements en cours et statuts inconnus ne sont pas écrits ;
+  un statut inconnu est signalé dans les journaux.
+- **Priorité sur le webhook** : pour un projet et un mois, la section *Mises en
+  ligne* du rapport n'affiche qu'**une** source. Si Coolify a relevé des
+  déploiements ce mois-là, ce sont eux (« d'après Coolify ») ; sinon, ceux du
+  webhook Git (« d'après le dépôt »). Les rapports d'avant la 1.6 ne disent pas leur
+  source. Le journal du client n'est pas alimenté par les déploiements Coolify.
+- **Le 1er du mois** : avant de créer le brouillon d'un projet lié, Piilot demande
+  une relève et l'attend, pendant le délai d'attente des rapports. Une relève
+  terminée, même en échec, ne fait plus attendre.
+- **Retenue** : un brouillon d'un projet lié ne part pas tout seul tant que la
+  dernière relève n'a pas **réussi** après la fin du mois (motif *Coolify n'a pas
+  été relevé avec succès…*, avec un lien vers l'onglet Maintenance). Les déploiements
+  ont pu changer depuis. Un module inactif ne retient rien.
+
+### Limites connues
+
+- Retirer une application d'un projet **ne supprime pas** les déploiements déjà
+  relevés : ils restent dans le rapport (la table ne retient pas l'application
+  d'origine).
+- La relève ne remonte pas plus de **trois mois** (mois courant et deux
+  précédents) : un déploiement plus ancien qui n'a pas été relevé à temps ne l'est
+  plus.
+- La lecture s'interrompt (et la relève passe en erreur) au-delà de 2 000
+  déploiements pour une application, plutôt que de rendre une liste tronquée.
+- **Une erreur sur une application liée met tout le module en erreur.** Les autres
+  applications sont tout de même lues et écrites, mais la relève est en erreur : les
+  rapports de **tous** les projets liés sont retenus (voir *Retenue*) tant qu'une
+  relève n'a pas réussi pour toutes les applications.
+- Une relève qui dépasse son délai (deux minutes par application) s'inscrit en erreur
+  lisible sur l'écran du module, et la demande est effacée : elle ne se répète pas
+  toutes les quinze secondes.
+- Changer l'hôte de l'adresse de Coolify exige de ressaisir le jeton (il n'est pas
+  envoyé à une autre instance). Coolify ne doit pas rediriger : une redirection est
+  refusée.
+- L'heure retenue pour un déploiement est celle de sa fin (`updated_at`, à défaut
+  `created_at`), dans le fuseau de l'agence pour les bornes du mois.
+
+### À vérifier sur une instance Coolify réelle
+
+Le schéma de l'API est mal documenté ; le client lit les réponses avec
+tolérance, mais ces points n'ont été vérifiés que sur la documentation :
+
+1. **Statut de succès** : `finished` est le seul statut retenu
+   (`coolifySuccessStatuses`, dans `api/internal/usecase/coolify.go`). Si Coolify
+   en emploie un autre pour un déploiement réussi, la section restera vide : c'est
+   là qu'on l'ajoute.
+2. **Champs `environment` et `project`** d'une application : Piilot lit
+   `environment.name` et `environment.project.name`, ou à plat `environment_name`
+   et `project_name`. Si la réponse ne donne que `environment_id`, ces deux champs
+   resteront vides dans le menu de choix (sans conséquence sur les rapports).
+3. **Ordre de la pagination** de `/deployments/applications/{uuid}` : détecté sur
+   la première page, et le code ne s'y fie pas pour être exact ; seul le nombre
+   d'appels en dépend. À confirmer, ainsi que le nom des champs `deployment_uuid`,
+   `git_commit_sha`, `commit_message`, `created_at` et `updated_at`.
+4. **Message d'une API désactivée ou d'une IP refusée** : il est repris tel quel
+   dans l'erreur de relève ; vérifier qu'il est lisible.
+
 ## Rapport mensuel
 
-Ajoutez les sections *Mises à jour*, *Sauvegardes* et *Domaine* à une formule. Les
+Ajoutez les sections *Mises en ligne*, *Mises à jour*, *Sauvegardes* et *Domaine* à une formule. Les
 mises à jour comptent les lancements réussis, par environnement, et les pull
-requests fusionnées de Renovate ou Dependabot, reçues par le webhook Git. Un
+requests fusionnées, reçues par le webhook Git. Un
 lancement en préproduction s'affiche comme tel, et ne vaut jamais une mise à jour
 de la production pour lever une retenue.
+
+### Rattrapage des pull requests
+
+Le webhook peut manquer un évènement (coupure de Piilot, webhook mal réglé). Pour
+les projets qui ont un dépôt **GitHub** et une formule avec la section *Mises à
+jour*, Piilot relit donc GitHub une fois par jour, et le 1er du mois avant de créer
+le brouillon : il lit les pull requests fusionnées du mois courant et du précédent,
+et n'inscrit que celles qui manquent. Une pull request déjà reçue par le webhook
+n'est jamais écrasée, et la synchronisation ne touche ni aux tickets ni aux tâches.
+Le brouillon d'un projet attend cette synchronisation pendant le délai d'attente
+des rapports ; un essai terminé, même en échec, ne le fait plus attendre. En
+revanche, tant que la dernière synchronisation n'a pas **réussi** après la fin du
+mois, le brouillon ne part pas tout seul (motif *Le dépôt GitHub n'a pas été
+synchronisé avec succès…*, avec un lien vers l'onglet Maintenance). Sans jeton
+GitHub enregistré, rien n'est attendu et rien ne retient : le webhook fait foi.
+
+*Projet › Paramètres › Maintenance*, carte *Pull requests fusionnées* : date de la
+dernière synchronisation réussie, erreur du dernier essai, et *Synchroniser
+maintenant* (permission `reports.write`). Les erreurs sont dites en clair : aucun
+jeton, jeton refusé ou expiré, permission « Pull requests : lecture » manquante,
+dépôt introuvable ou inaccessible, limite de débit GitHub. GitLab n'est pas encore
+pris en charge pour le rattrapage : seul son webhook compte.
+
+Une mise à jour de dépendance est reconnue à son auteur (`renovate[bot]`,
+`dependabot[bot]`), à sa branche (`renovate/…`, `dependabot/…`) ou à l'étiquette
+`dependencies`. Un correctif de sécurité l'est à une étiquette contenant
+`security` ou `sécurité`, ou à un titre contenant `[SECURITY]`, `CVE-` ou `GHSA-`.
+
+**Limites connues**
+- Piilot ne lit pas les alertes Dependabot. Un correctif de sécurité de Dependabot
+  sans étiquette de sécurité, au titre sans `CVE-` ni `GHSA-`, compte comme une
+  mise à jour ordinaire : le nombre de correctifs de sécurité peut être
+  sous-estimé. Le mieux est d'étiqueter ces pull requests `security` (option
+  `labels` de `dependabot.yml`).
+- Le rattrapage ne lit que le mois courant et le précédent : pas de rattrapage
+  au-delà, et une pull request fusionnée plus tôt que le mois précédent, jamais
+  reçue par le webhook, n'est pas retrouvée.
+- **GitLab n'est pas encore pris en charge** par le rattrapage : seul son webhook
+  compte, et ses merge requests ne sont pas rattrapées.
+- Le rattrapage n'inscrit que des pull requests pour le rapport : il ne fait
+  avancer ni ticket ni tâche (ce que seul le webhook fait).
+
+### Envoi automatique
 
 L'envoi automatique, dans *Paramètres › Formules de maintenance*, n'envoie que ce
 qui ne pose pas de question. Un rapport attend une relecture, et les admins sont
@@ -158,6 +304,8 @@ prévenus, si :
 | Sauvegardes | non surveillées, ou en défaut à la fin du mois |
 | Domaine | échéance inconnue, ou à moins de 30 jours |
 | Mises à jour | ni dépendance fusionnée ni lancement réussi en production dans le mois, ou dernier lancement en production en échec |
+| Synchronisation Git | dépôt GitHub et jeton présents, mais dernière synchronisation non réussie après la fin du mois |
+| Déploiements | projet lié à Coolify, module actif, mais dernière relève non réussie après la fin du mois |
 | Relecture | rapport remis en brouillon, ou projet en « Toujours relire » |
 
 Valider un rapport à la main enregistre la version relue : si ses données ont
