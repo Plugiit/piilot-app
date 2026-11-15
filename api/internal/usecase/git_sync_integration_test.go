@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,9 +26,11 @@ const gitSyncSecret = "secret-de-test-suffisamment-long-32"
 // fakeGitHub remplace l'API de GitHub : ses pull requests se reglent, et il
 // retient le jeton et la periode demandes.
 type fakeGitHub struct {
-	mu    sync.Mutex
-	prs   []gitsource.PullRequest
-	err   error
+	mu  sync.Mutex
+	prs []gitsource.PullRequest
+	err error
+	// hang : l'appel attend la fin de son contexte, comme un GitHub qui ne repond pas.
+	hang  bool
 	token string
 	since time.Time
 	until time.Time
@@ -35,11 +38,17 @@ type fakeGitHub struct {
 	calls int
 }
 
-func (f *fakeGitHub) MergedPullRequests(_ context.Context, repoURL string, since, until time.Time) ([]gitsource.PullRequest, error) {
+func (f *fakeGitHub) MergedPullRequests(ctx context.Context, repoURL string, since, until time.Time) ([]gitsource.PullRequest, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
 	f.repo, f.since, f.until = repoURL, since, until
+	if f.hang {
+		f.mu.Unlock()
+		<-ctx.Done()
+		f.mu.Lock()
+		return nil, ctx.Err()
+	}
 	return f.prs, f.err
 }
 
@@ -447,5 +456,30 @@ func TestGitSyncLeMotifDeRetenueSuitLaSynchronisation(t *testing.T) {
 	}
 	if !held() {
 		t.Fatal("non retenu apres un echec")
+	}
+}
+
+func TestGitSyncQuiDepasseSonDelaiEcritUneErreurEtEfface(t *testing.T) {
+	_, pool := newService(t)
+	ctx := context.Background()
+	march := time.Date(2033, 3, 1, 0, 0, 0, 0, time.UTC)
+	f := gitSyncSetup(t, pool, march)
+	f.setToken(t)
+	f.fake.mu.Lock()
+	f.fake.hang = true
+	f.fake.mu.Unlock()
+	now := time.Date(2033, 3, 10, 12, 0, 0, 0, time.UTC)
+	if _, err := f.svc.RequestSync(ctx, f.project); err != nil {
+		t.Fatal(err)
+	}
+
+	short, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
+	if err := f.svc.TickAt(short, now); err != nil {
+		t.Fatal(err)
+	}
+	view, _ := f.svc.Status(ctx, f.project)
+	if view.Pending || view.LastError == nil || !strings.Contains(*view.LastError, "délai") || view.LastAttemptAt == nil {
+		t.Fatalf("apres le delai : %+v", view)
 	}
 }

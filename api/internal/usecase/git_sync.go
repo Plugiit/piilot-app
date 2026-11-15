@@ -156,9 +156,17 @@ func (s *GitSyncService) TickAt(ctx context.Context, now time.Time) error {
 		if !due {
 			continue
 		}
+		if ctx.Err() != nil {
+			// Budget du passage epuise : les projets restants restent dus.
+			break
+		}
 		if err := s.syncProject(ctx, t.ProjectID, t.RepoUrl, now); err != nil {
 			s.log.Warn("synchronisation Git", "project", t.ProjectID, "error", err)
 		}
+	}
+	if ctx.Err() != nil {
+		// Budget epuise : les demandes en attente restent posees pour le prochain passage.
+		return errors.Join(errs...)
 	}
 	// Les demandes de projets hors formule (bouton) sont servies aussi.
 	pending, err := s.q.ListGitSyncRequested(ctx)
@@ -166,6 +174,9 @@ func (s *GitSyncService) TickAt(ctx context.Context, now time.Time) error {
 		errs = append(errs, fmt.Errorf("demandes en attente : %w", err))
 	}
 	for _, p := range pending {
+		if ctx.Err() != nil {
+			break
+		}
 		if err := s.syncProject(ctx, p.ProjectID, p.RepoUrl, now); err != nil {
 			s.log.Warn("synchronisation Git", "project", p.ProjectID, "error", err)
 		}
@@ -173,16 +184,32 @@ func (s *GitSyncService) TickAt(ctx context.Context, now time.Time) error {
 	return errors.Join(errs...)
 }
 
+const (
+	// gitSyncProjectBudget borne la lecture de GitHub pour un projet.
+	gitSyncProjectBudget = time.Minute
+	// gitSyncRecordTimeout borne l'ecriture du resultat.
+	gitSyncRecordTimeout = 10 * time.Second
+)
+
 // syncProject lit GitHub et inscrit ce qui manque. Son erreur est inscrite sur
 // la fiche du projet et rendue a l'appelant, qui la journalise.
 func (s *GitSyncService) syncProject(ctx context.Context, projectID uuid.UUID, repoURL string, now time.Time) error {
-	n, err := s.sync(ctx, projectID, repoURL, now)
+	syncCtx, cancelSync := context.WithTimeout(ctx, gitSyncProjectBudget)
+	n, err := s.sync(syncCtx, projectID, repoURL, now)
+	cancelSync()
 	var msg *string
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("la synchronisation a dépassé son délai : GitHub met trop de temps à répondre")
+		}
 		text := err.Error()
 		msg = &text
 	}
-	if rerr := s.q.RecordGitSync(ctx, db.RecordGitSyncParams{ProjectID: projectID, At: now, Error: msg}); rerr != nil {
+	// Ecriture detachee : si le delai est depasse, le contexte est expire et
+	// l'ecriture echouerait, laissant la demande en place.
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gitSyncRecordTimeout)
+	defer cancel()
+	if rerr := s.q.RecordGitSync(wctx, db.RecordGitSyncParams{ProjectID: projectID, At: now, Error: msg}); rerr != nil {
 		return errors.Join(err, fmt.Errorf("enregistrement de la synchronisation : %w", rerr))
 	}
 	if err == nil {
