@@ -69,6 +69,10 @@ type ReportData struct {
 	// et la derniere releve n'a pas reussi apres la fin du mois. Les mises en
 	// ligne ont pu changer depuis : le brouillon se retient.
 	DeploymentsStale bool `json:"deployments_stale,omitempty"`
+	// GitSyncStale : le projet a un depot GitHub et le jeton pour le lire, et
+	// la derniere synchronisation n'a pas reussi apres la fin du mois. Une pull
+	// request fusionnee a pu manquer au webhook : le brouillon se retient.
+	GitSyncStale bool `json:"git_sync_stale,omitempty"`
 }
 
 // ReportAvailability est la section « Disponibilite ».
@@ -387,6 +391,14 @@ func isSecurityUpdate(flagged bool, labels []string, title string) bool {
 }
 
 func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
+	sync, err := q.ReportGitSyncState(ctx, in.projectID)
+	if err != nil {
+		return fmt.Errorf("synchronisation Git : %w", err)
+	}
+	if _, _, github := githubRepoOf(sync.RepoUrl); github && sync.HasToken {
+		fresh := sync.LastError == nil && sync.LastSyncedAt != nil && !sync.LastSyncedAt.Before(in.until)
+		out.GitSyncStale = !fresh
+	}
 	rows, err := q.ReportMergedPullRequests(ctx, db.ReportMergedPullRequestsParams{ProjectID: in.projectID, Since: &in.since, Until: &in.until})
 	if err != nil {
 		return fmt.Errorf("mises a jour du mois : %w", err)
@@ -703,6 +715,7 @@ const (
 	holdUpdatesMissing      = "updates_missing"
 	holdUpdateFailed        = "update_failed"
 	holdDeploymentsStale    = "deployments_stale"
+	holdGitSyncStale        = "git_sync_stale"
 
 	// domainHoldDays : a moins d'un mois de l'echeance, un humain regarde.
 	domainHoldDays = 30
@@ -748,6 +761,9 @@ func holdReasonsOf(data ReportData, sections []string, recipients int) []string 
 		// peut-etre en panne, ca merite un regard.
 		if data.Updates == nil || (data.Updates.DependencyCount == 0 && !hasProductionRun(data.Updates.Runs)) {
 			reasons = append(reasons, holdUpdatesMissing)
+		}
+		if data.GitSyncStale {
+			reasons = append(reasons, holdGitSyncStale)
 		}
 		if data.Updates != nil && data.Updates.LastRunFailed {
 			reasons = append(reasons, holdUpdateFailed)
@@ -1632,6 +1648,7 @@ func (s *ReportService) PortalReport(ctx context.Context, userID, id uuid.UUID) 
 	if data.Updates != nil {
 		data.Updates.LastRunFailed = false
 	}
+	data.DeploymentsStale, data.GitSyncStale = false, false
 	if data.Backups != nil {
 		data.Backups.Healthy = false
 	}
@@ -1767,6 +1784,7 @@ func reportMailOf(d ReportData, editorial string) mailer.ReportMail {
 	}
 
 	if dep := d.Deployments; dep != nil {
+		out.DeploymentsSource = deploymentsSourceText(dep.Source)
 		for _, it := range dep.Items {
 			out.Deployments = append(out.Deployments, mailer.ReportItem{Date: dayName(it.DeployedAt.In(zone.Location())), Label: it.Name, Detail: it.Environment})
 		}
@@ -1822,4 +1840,16 @@ func barsOf(rows []StatisticsRow, label func(string) string) []mailer.ReportRow 
 		out = append(out, mailer.ReportRow{Label: label(r.Value), Value: numberText(r.Count), Ratio: max(ratio, 2)})
 	}
 	return out
+}
+
+// deploymentsSourceText dit d'ou viennent les mises en ligne, pour le client.
+// Les rapports d'avant la 1.6 n'ont pas de source : rien n'est dit.
+func deploymentsSourceText(source string) string {
+	switch source {
+	case "coolify":
+		return "d’après Coolify"
+	case "webhook":
+		return "d’après le dépôt"
+	}
+	return ""
 }
