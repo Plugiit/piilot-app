@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/plugiit/piilot-app/api/internal/csvio"
@@ -193,12 +194,19 @@ func (s *DataImportService) PurgeFiles(ctx context.Context) (int, error) {
 	n := 0
 
 	for _, d := range due {
-		if err := s.files.Remove(d.FileKey); err != nil {
-			return n, fmt.Errorf("suppression du fichier d'import : %w", err)
+		// On reclame la ligne d'abord : une confirmation concurrente ne la
+		// trouve plus a l'etat « done » et ne lit jamais un fichier efface.
+		fileKey, err := s.q.ClaimImportFile(ctx, d.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
 		}
 
-		if err := s.q.ClearImportFile(ctx, d.ID); err != nil {
+		if err != nil {
 			return n, fmt.Errorf("expiration de l'import : %w", err)
+		}
+
+		if err := s.files.Remove(fileKey); err != nil {
+			return n, fmt.Errorf("suppression du fichier d'import : %w", err)
 		}
 
 		n++
@@ -749,7 +757,7 @@ func (s *DataImportService) runRow(
 		// Deux imports simultanes ont pu creer le meme nom entre notre
 		// verification et notre ecriture : c'est un doublon, pas un incident.
 		if isUniqueViolation(err) {
-			return importResult{Outcome: ImportRowSkipped, Reason: ReasonDuplicateName, Label: res.Label}, nil
+			return importResult{Outcome: ImportRowSkipped, Reason: uniqueViolationReason(err), Label: res.Label}, nil
 		}
 
 		return importResult{}, err
@@ -764,6 +772,24 @@ func (s *DataImportService) runRow(
 	}
 
 	return res, nil
+}
+
+// uniqueViolationReason donne le motif de doublon selon la contrainte violee.
+// Une contrainte inconnue se range sous le motif generique du nom.
+func uniqueViolationReason(err error) string {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return ReasonDuplicateName
+	}
+
+	switch pgErr.ConstraintName {
+	case "contacts_email_unique":
+		return ReasonDuplicateEmail
+	case "import_keys_pkey":
+		return ReasonAlreadyImported
+	default:
+		return ReasonDuplicateName
+	}
 }
 
 // openCSV ouvre un fichier range et en lit les en-tetes.

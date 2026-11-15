@@ -64,12 +64,20 @@ WHERE file_key <> '' AND status IN ('uploaded', 'done') AND updated_at < sqlc.ar
 ORDER BY updated_at
 LIMIT sqlc.arg('batch');
 
--- name: ClearImportFile :exec
--- Le fichier est supprime : un depot jamais lance est abandonne, une simulation
--- garde son rapport mais ne peut plus etre confirmee.
+-- name: ClaimImportFile :one
+-- Reclame le fichier avant de l'effacer : un depot jamais lance est abandonne,
+-- une simulation garde son rapport mais ne peut plus etre confirmee. Rend la
+-- cle du fichier a supprimer ; aucune ligne si quelqu'un l'a prise entre-temps.
+WITH old AS (
+    SELECT i.id, i.file_key FROM imports i
+    WHERE i.id = $1 AND i.status IN ('uploaded', 'done') AND i.file_key <> ''
+    FOR UPDATE
+)
 UPDATE imports
-SET file_key = '', status = CASE WHEN status = 'uploaded' THEN 'cancelled' ELSE status END, updated_at = now()
-WHERE id = $1 AND status IN ('uploaded', 'done') AND file_key <> '';
+SET file_key = '', status = CASE WHEN imports.status = 'uploaded' THEN 'cancelled' ELSE imports.status END, updated_at = now()
+FROM old
+WHERE imports.id = old.id
+RETURNING old.file_key;
 
 -- name: FinishImport :exec
 -- Les compteurs sont comptes dans le rapport : une seule source de verite.

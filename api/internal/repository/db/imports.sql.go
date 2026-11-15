@@ -12,6 +12,29 @@ import (
 	uuid "github.com/google/uuid"
 )
 
+const claimImportFile = `-- name: ClaimImportFile :one
+WITH old AS (
+    SELECT i.id, i.file_key FROM imports i
+    WHERE i.id = $1 AND i.status IN ('uploaded', 'done') AND i.file_key <> ''
+    FOR UPDATE
+)
+UPDATE imports
+SET file_key = '', status = CASE WHEN imports.status = 'uploaded' THEN 'cancelled' ELSE imports.status END, updated_at = now()
+FROM old
+WHERE imports.id = old.id
+RETURNING old.file_key
+`
+
+// Reclame le fichier avant de l'effacer : un depot jamais lance est abandonne,
+// une simulation garde son rapport mais ne peut plus etre confirmee. Rend la
+// cle du fichier a supprimer ; aucune ligne si quelqu'un l'a prise entre-temps.
+func (q *Queries) ClaimImportFile(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, claimImportFile, id)
+	var file_key string
+	err := row.Scan(&file_key)
+	return file_key, err
+}
+
 const claimQueuedImport = `-- name: ClaimQueuedImport :one
 UPDATE imports
 SET status = 'running', started_at = now(), updated_at = now()
@@ -54,19 +77,6 @@ func (q *Queries) ClaimQueuedImport(ctx context.Context) (Import, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const clearImportFile = `-- name: ClearImportFile :exec
-UPDATE imports
-SET file_key = '', status = CASE WHEN status = 'uploaded' THEN 'cancelled' ELSE status END, updated_at = now()
-WHERE id = $1 AND status IN ('uploaded', 'done') AND file_key <> ''
-`
-
-// Le fichier est supprime : un depot jamais lance est abandonne, une simulation
-// garde son rapport mais ne peut plus etre confirmee.
-func (q *Queries) ClearImportFile(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, clearImportFile, id)
-	return err
 }
 
 const countImportRows = `-- name: CountImportRows :one
