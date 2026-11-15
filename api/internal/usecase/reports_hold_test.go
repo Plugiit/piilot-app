@@ -61,3 +61,17 @@ func TestLAlerteNeSeRepeteQueSiLaSituationSAggrave(t *testing.T) {
 		})
 	}
 }
+
+func TestHoldReasonsOfLesDeploiementsCoolifyPerimes(t *testing.T) {
+	stale := ReportData{DeploymentsStale: true}
+	if got := holdReasonsOf(stale, []string{"deployments"}, 1); !reflect.DeepEqual(got, []string{holdDeploymentsStale}) {
+		t.Errorf("section voulue : %v", got)
+	}
+	// Une formule sans la section ne se retient pas pour elle.
+	if got := holdReasonsOf(stale, []string{"interventions"}, 1); len(got) != 0 {
+		t.Errorf("section absente : %v", got)
+	}
+	if got := holdReasonsOf(ReportData{}, []string{"deployments"}, 1); len(got) != 0 {
+		t.Errorf("a jour : %v", got)
+	}
+}
