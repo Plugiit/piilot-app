@@ -143,6 +143,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	)
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
 	dataImportService := usecase.NewDataImportService(pool, files, cfg.ImportMaxMiB*(1<<20), cfg.ImportMaxRows, log)
+	dataImportService.SetFileTTL(cfg.ImportFileTTL)
 	reportService := usecase.NewReportService(pool, cfg.URLFor(spaces.Client), sender.Configured(), log)
 	siteSourcesService := usecase.NewSiteSourcesService(pool, rdap.New(), cfg.URLFor(spaces.Team), sender.Configured(), log)
 	siteUpdateService := usecase.NewSiteUpdateService(pool, githubactions.New(), cfg.JWTSecret, cfg.URLFor(spaces.Team), sender.Configured(), log)

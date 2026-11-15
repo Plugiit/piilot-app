@@ -56,6 +56,21 @@ SET status = 'failed', error = 'interrupted', finished_at = now(), updated_at = 
 WHERE status = 'running' AND updated_at < now() - interval '15 minutes'
 RETURNING id, file_key, dry_run;
 
+-- name: ListExpiredImportFiles :many
+-- Fichiers d'import gardes sans usage : deposes jamais lances, ou simulations
+-- terminees jamais confirmees. Ils contiennent des donnees personnelles.
+SELECT id, file_key, status FROM imports
+WHERE file_key <> '' AND status IN ('uploaded', 'done') AND updated_at < sqlc.arg('before')
+ORDER BY updated_at
+LIMIT sqlc.arg('batch');
+
+-- name: ClearImportFile :exec
+-- Le fichier est supprime : un depot jamais lance est abandonne, une simulation
+-- garde son rapport mais ne peut plus etre confirmee.
+UPDATE imports
+SET file_key = '', status = CASE WHEN status = 'uploaded' THEN 'cancelled' ELSE status END, updated_at = now()
+WHERE id = $1 AND status IN ('uploaded', 'done') AND file_key <> '';
+
 -- name: FinishImport :exec
 -- Les compteurs sont comptes dans le rapport : une seule source de verite.
 UPDATE imports

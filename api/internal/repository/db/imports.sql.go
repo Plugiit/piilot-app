@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
 )
@@ -53,6 +54,19 @@ func (q *Queries) ClaimQueuedImport(ctx context.Context) (Import, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const clearImportFile = `-- name: ClearImportFile :exec
+UPDATE imports
+SET file_key = '', status = CASE WHEN status = 'uploaded' THEN 'cancelled' ELSE status END, updated_at = now()
+WHERE id = $1 AND status IN ('uploaded', 'done') AND file_key <> ''
+`
+
+// Le fichier est supprime : un depot jamais lance est abandonne, une simulation
+// garde son rapport mais ne peut plus etre confirmee.
+func (q *Queries) ClearImportFile(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearImportFile, id)
+	return err
 }
 
 const countImportRows = `-- name: CountImportRows :one
@@ -318,6 +332,46 @@ type InsertImportRowsParams struct {
 func (q *Queries) InsertImportRows(ctx context.Context, arg InsertImportRowsParams) error {
 	_, err := q.db.Exec(ctx, insertImportRows, arg.ImportID, arg.Rows)
 	return err
+}
+
+const listExpiredImportFiles = `-- name: ListExpiredImportFiles :many
+SELECT id, file_key, status FROM imports
+WHERE file_key <> '' AND status IN ('uploaded', 'done') AND updated_at < $1
+ORDER BY updated_at
+LIMIT $2
+`
+
+type ListExpiredImportFilesParams struct {
+	Before time.Time `json:"before"`
+	Batch  int32     `json:"batch"`
+}
+
+type ListExpiredImportFilesRow struct {
+	ID      uuid.UUID `json:"id"`
+	FileKey string    `json:"file_key"`
+	Status  string    `json:"status"`
+}
+
+// Fichiers d'import gardes sans usage : deposes jamais lances, ou simulations
+// terminees jamais confirmees. Ils contiennent des donnees personnelles.
+func (q *Queries) ListExpiredImportFiles(ctx context.Context, arg ListExpiredImportFilesParams) ([]ListExpiredImportFilesRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredImportFiles, arg.Before, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpiredImportFilesRow{}
+	for rows.Next() {
+		var i ListExpiredImportFilesRow
+		if err := rows.Scan(&i.ID, &i.FileKey, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listImportRows = `-- name: ListImportRows :many

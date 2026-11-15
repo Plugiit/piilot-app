@@ -159,6 +159,52 @@ type DataImportService struct {
 	maxRows   int
 	log       *slog.Logger
 	importers map[string]entityImporter
+	fileTTL   time.Duration
+}
+
+// DefaultImportFileTTL : duree pendant laquelle un fichier d'import inutilise
+// est garde (7 jours).
+const DefaultImportFileTTL = 7 * 24 * time.Hour
+
+// importPurgeBatch borne le nombre de fichiers retires a chaque passage.
+const importPurgeBatch = 100
+
+// SetFileTTL regle la duree de garde d'un fichier d'import inutilise (zero :
+// DefaultImportFileTTL).
+func (s *DataImportService) SetFileTTL(d time.Duration) { s.fileTTL = d }
+
+// PurgeFiles supprime les fichiers d'import deposes ou simules depuis plus de
+// la duree de garde sans avoir ete lances. Un fichier est donnee personnelle :
+// sans cela il resterait indefiniment. Le fichier part avant que la ligne
+// change d'etat ; un arret entre les deux est repris au passage suivant.
+func (s *DataImportService) PurgeFiles(ctx context.Context) (int, error) {
+	ttl := s.fileTTL
+	if ttl <= 0 {
+		ttl = DefaultImportFileTTL
+	}
+
+	due, err := s.q.ListExpiredImportFiles(ctx, db.ListExpiredImportFilesParams{
+		Before: time.Now().Add(-ttl), Batch: importPurgeBatch,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("lecture des fichiers d'import expires : %w", err)
+	}
+
+	n := 0
+
+	for _, d := range due {
+		if err := s.files.Remove(d.FileKey); err != nil {
+			return n, fmt.Errorf("suppression du fichier d'import : %w", err)
+		}
+
+		if err := s.q.ClearImportFile(ctx, d.ID); err != nil {
+			return n, fmt.Errorf("expiration de l'import : %w", err)
+		}
+
+		n++
+	}
+
+	return n, nil
 }
 
 // NewDataImportService construit le service. maxBytes borne le fichier,
@@ -454,6 +500,10 @@ func (s *DataImportService) Process(ctx context.Context) (bool, error) {
 		if !st.DryRun && st.FileKey != "" {
 			_ = s.files.Remove(st.FileKey)
 		}
+	}
+
+	if _, err := s.PurgeFiles(ctx); err != nil {
+		s.log.Warn("purge des fichiers d'import", "error", err)
 	}
 
 	imp, err := s.q.ClaimQueuedImport(ctx)

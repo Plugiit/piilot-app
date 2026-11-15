@@ -68,6 +68,7 @@ type Config struct {
 	ImportMaxRows int
 
 	// Export RGPD : duree de vie d'une archive prete, et taille maximale.
+	ImportFileTTL    time.Duration
 	RgpdExportTTL    time.Duration
 	RgpdExportMaxMiB int64
 	// Effacement RGPD : delai de retractation avant l'execution, et inactivite
@@ -148,6 +149,7 @@ func Load() (Config, error) {
 		ImportMaxMiB:    int64(envInt("IMPORT_MAX_MIB", 10)),
 		ImportMaxRows:   envInt("IMPORT_MAX_ROWS", 50000),
 
+		ImportFileTTL:    envDuration("IMPORT_FILE_TTL", 168*time.Hour),
 		RgpdExportTTL:    envDuration("RGPD_EXPORT_TTL", 168*time.Hour),
 		RgpdExportMaxMiB: int64(envInt("RGPD_EXPORT_MAX_MIB", 2048)),
 
@@ -266,6 +268,10 @@ func Load() (Config, error) {
 
 	if cfg.ImportMaxRows < 1 {
 		return Config{}, fmt.Errorf("IMPORT_MAX_ROWS doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxRows)
+	}
+
+	if cfg.ImportFileTTL < time.Hour {
+		return Config{}, fmt.Errorf("IMPORT_FILE_TTL vaut au moins 1h (actuel : %s)", cfg.ImportFileTTL)
 	}
 
 	if cfg.RgpdExportTTL < time.Hour {
