@@ -12,6 +12,7 @@ import {
   MailReceive01Icon,
   PuzzleIcon,
   SecurityCheckIcon,
+  Shield01Icon,
   TextIcon,
   Home03Icon,
   LayoutTable01Icon,
@@ -26,6 +27,7 @@ import {
   UserMultipleIcon,
   Wrench01Icon,
   FileChartLineIcon,
+  FileExportIcon,
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { useRouterState } from '@tanstack/react-router'
@@ -170,6 +172,8 @@ export const MODULES: AppModule[] = [
         label: 'Système',
         items: [
           { icon: DatabaseIcon, label: 'Sauvegardes', to: '/parametres/sauvegardes', permission: 'system.update' },
+          { icon: FileExportIcon, label: 'Import et export', to: '/parametres/import', permission: 'data.import' },
+          { icon: Shield01Icon, label: 'RGPD', to: '/parametres/rgpd', permission: 'rgpd.manage' },
           { icon: SecurityCheckIcon, label: 'Journal d’audit', to: '/parametres/audit', permission: 'audit.read' },
         ],
       },

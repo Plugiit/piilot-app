@@ -171,3 +171,22 @@ func TestSiteAlertEchappeEtPorteLeLien(t *testing.T) {
 		t.Error("un nom de projet n'est pas echappe")
 	}
 }
+
+func TestErasureNoticeDitLaDateEtLeLien(t *testing.T) {
+	deadline := time.Date(2026, 12, 9, 12, 30, 0, 0, time.UTC)
+
+	msg, err := ErasureNotice("lea@example.fr", "Léa", "https://auth.example.fr/login", deadline)
+	if err != nil {
+		t.Fatalf("ErasureNotice : %v", err)
+	}
+
+	for _, want := range []string{"Bonjour Léa", "9 décembre 2026 à 13 h 30", "https://auth.example.fr/login", "connecter"} {
+		if !strings.Contains(msg.Text, want) {
+			t.Errorf("texte sans %q :\n%s", want, msg.Text)
+		}
+	}
+
+	if !strings.Contains(msg.HTML, "https://auth.example.fr/login") {
+		t.Error("le HTML n'a pas le lien")
+	}
+}

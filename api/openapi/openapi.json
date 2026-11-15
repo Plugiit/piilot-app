@@ -133,7 +133,7 @@
           "auth"
         ],
         "summary": "Ouvre une session",
-        "description": "Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
+        "description": "Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse. Une connexion reussie annule l'effacement RGPD planifie pour inactivite.",
         "operationId": "login",
         "requestBody": {
           "required": true,
@@ -13216,6 +13216,803 @@
           }
         }
       }
+    },
+    "/api/v1/admin/imports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des imports CSV",
+        "description": "Du plus récent au plus ancien, 25 par page. Exige data.import.",
+        "operationId": "listAdminImports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Déposer un fichier CSV",
+        "description": "Détecte l'encodage (UTF-8, sinon Windows-1252) et le séparateur (; , tabulation), compte les lignes et propose une correspondance. Rien n'est importé. 422 si le fichier dépasse IMPORT_MAX_MIB (10 Mio par défaut) ou IMPORT_MAX_ROWS (50 000 lignes), s'il est vide ou si un en-tête est en double. Exige data.import.",
+        "operationId": "uploadAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "entity",
+                  "file"
+                ],
+                "properties": {
+                  "entity": {
+                    "type": "string",
+                    "enum": [
+                      "clients",
+                      "contacts",
+                      "projects",
+                      "time_entries"
+                    ]
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fichier reçu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lire un import",
+        "description": "Avec l'aperçu et la correspondance proposée tant que le fichier est conservé. Exige data.import.",
+        "operationId": "getAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "L'import",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer un import",
+        "description": "Retire l'import, son rapport et son fichier. 409 s'il est en file ou en cours. Les clés d'import restent : rejouer le fichier ne recrée rien. Journalisé. Exige data.import.",
+        "operationId": "deleteAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Import en file ou en cours"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}/run": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lancer un import",
+        "description": "Met l'import en file ; la tâche de fond le traite (lots de 500 lignes, une ligne refusée n'arrête pas les autres). Avec dry_run, tout est exécuté puis annulé : seul le rapport reste, et le fichier est conservé pour l'import réel. Un doublon est ignoré, jamais mis à jour. 409 si l'import n'est plus lançable. Journalisé. Exige data.import.",
+        "operationId": "runAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "En file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Import déjà lancé"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}/rows": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Rapport d'un import",
+        "description": "Une ligne par ligne du fichier traitée, 25 par page. Exige data.import.",
+        "operationId": "listAdminImportRows",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "skipped",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRowPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/exports/{entity}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Exporter une entité en CSV",
+        "description": "CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Les quatre entités sont exportables (422 pour une entité inconnue).",
+        "operationId": "getAdminExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "clients",
+                "contacts",
+                "projects",
+                "time_entries"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fichier CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/exports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des exports RGPD",
+        "description": "Du plus récent au plus ancien, 25 par page. Exige rgpd.manage.",
+        "operationId": "listAdminRgpdExports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdExportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Demander l'export des données d'un compte ou d'un client",
+        "description": "Met l'export en file ; la tâche de fond (toutes les minutes) construit une archive zip : manifest.json, data/<section>.json et files/. Un export déjà en attente ou en cours pour le même sujet est rendu tel quel. L'archive est conservée RGPD_EXPORT_TTL (168 h par défaut), puis supprimée ; elle échoue (`too_large`) au-delà de RGPD_EXPORT_MAX_MIB. Les notes internes des tickets ne sont pas incluses dans l'archive d'un client. 404 si le sujet n'existe pas. Journalisé. Exige rgpd.manage.",
+        "operationId": "createAdminRgpdExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRgpdExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "En file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdExportItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/exports/{id}/download": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Télécharger l'archive d'un export RGPD",
+        "description": "Archive zip d'un export prêt et non expiré. 409 si elle n'est pas (ou plus) disponible. Journalisé. Exige rgpd.manage.",
+        "operationId": "downloadAdminRgpdExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archive zip",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Archive indisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/erasures": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des effacements RGPD",
+        "description": "Du plus récent au plus ancien, 25 par page, filtrable par statut et par sujet (subject_type, subject_id, combinables). Exige rgpd.manage.",
+        "operationId": "listAdminRgpdErasures",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "cancelled",
+                "running",
+                "done",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "subject_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "client",
+                "user"
+              ]
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasurePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Planifier l'effacement d'un compte ou d'un client",
+        "description": "Planifie l'effacement à l'issue du délai de rétractation (RGPD_ERASURE_GRACE, 720 h par défaut). Tout de suite : les comptes concernés (le compte, ou les comptes du portail du client) sont désactivés et leurs sessions révoquées ; leur état précédent est gardé pour l'annulation. À l'échéance, la tâche de fond exécute en une transaction : un compte est anonymisé (le temps saisi est conservé) ; un client est supprimé avec ses contacts, projets, e-mails reçus et fichiers. 404 si le sujet n'existe pas ; 409 si un effacement est déjà en cours pour ce sujet (CONFLICT) ou si c'est le dernier administrateur actif (LAST_ADMIN). Journalisé. Exige rgpd.manage.",
+        "operationId": "createAdminRgpdErasure",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRgpdErasureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Planifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasureItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "CONFLICT (effacement déjà en cours) ou LAST_ADMIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/erasures/{id}/cancel": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Annuler un effacement planifié",
+        "description": "Rien n'est effacé ; les comptes désactivés par la demande retrouvent leur état d'avant (un compte déjà désactivé le reste). 404 si l'effacement n'existe pas ; 409 s'il n'est plus planifié (CONFLICT). Journalisé. Exige rgpd.manage.",
+        "operationId": "cancelAdminRgpdErasure",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annulé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasureItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "CONFLICT : l'effacement n'est plus planifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Délais RGPD en vigueur",
+        "description": "Délai de rétractation des effacements et seuil d'inactivité de la purge automatique. Exige rgpd.manage.",
+        "operationId": "getAdminRgpdSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Réglages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/deleted-clients": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Clients supprimés du CRM, données conservées",
+        "description": "Les clients supprimés dans le CRM (suppression logique) gardent toutes leurs données : le CRM ne les montre plus, cette liste permet de les exporter ou d'en demander l'effacement. Du plus récemment supprimé au plus ancien, 25 par page. Exige rgpd.manage.",
+        "operationId": "listAdminRgpdDeletedClients",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdDeletedClientPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -24716,6 +25513,655 @@
             "items": {
               "$ref": "#/components/schemas/ClaudeConnection"
             }
+          }
+        }
+      },
+      "DataField": {
+        "type": "object",
+        "required": [
+          "key",
+          "header",
+          "aliases",
+          "required"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Identifiant stable du champ, celui du mapping."
+          },
+          "header": {
+            "type": "string",
+            "description": "En-tête écrit à l'export."
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ImportItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "entity",
+          "status",
+          "dry_run",
+          "file_name",
+          "size_bytes",
+          "delimiter",
+          "encoding",
+          "headers",
+          "row_count",
+          "mapping",
+          "created_n",
+          "skipped_n",
+          "error_n",
+          "error",
+          "created_by",
+          "started_at",
+          "finished_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "enum": [
+              "clients",
+              "contacts",
+              "projects",
+              "time_entries"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "dry_run": {
+            "type": "boolean",
+            "description": "Simulation : tout est exécuté, rien n'est conservé."
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "utf-8",
+              "windows-1252"
+            ]
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "row_count": {
+            "type": "integer"
+          },
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Champ de Piilot -> en-tête du fichier."
+          },
+          "created_n": {
+            "type": "integer"
+          },
+          "skipped_n": {
+            "type": "integer"
+          },
+          "error_n": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec : interrupted, file_unreadable ou internal. Vide sinon."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ImportDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ImportItem"
+          },
+          {
+            "type": "object",
+            "required": [
+              "fields",
+              "preview",
+              "suggested_mapping"
+            ],
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataField"
+                }
+              },
+              "preview": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": "Premières lignes du fichier, tant qu'il est conservé."
+              },
+              "suggested_mapping": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Dernier mapping utilisé si les en-têtes concordent, sinon déduit des noms de colonnes."
+              }
+            }
+          }
+        ]
+      },
+      "ImportPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "ImportRow": {
+        "type": "object",
+        "required": [
+          "line",
+          "outcome",
+          "reason",
+          "label",
+          "entity_id"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "description": "Numéro de ligne dans le fichier, en-tête comprise."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "skipped",
+              "error"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Code stable : already_exists, already_imported, duplicate_siret, duplicate_name, duplicate_email, invalid, unknown_client, unknown_project, unknown_user. Vide pour une ligne créée."
+          },
+          "label": {
+            "type": "string",
+            "description": "Nom de la ligne ; pour invalid, suivi du champ et du motif."
+          },
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ImportRowPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRow"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "RunImportRequest": {
+        "type": "object",
+        "required": [
+          "mapping"
+        ],
+        "properties": {
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Champ de Piilot -> en-tête du fichier. Les champs obligatoires doivent y figurer."
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CreateRgpdExportRequest": {
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_id"
+        ],
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RgpdExportItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "subject_type",
+          "subject_id",
+          "subject_label",
+          "status",
+          "size_bytes",
+          "requested_by",
+          "ready_at",
+          "expires_at",
+          "error",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "expired"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec : too_large, interrupted ou internal. Vide sinon."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdExportPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdExportItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "CreateRgpdErasureRequest": {
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_id"
+        ],
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RgpdErasureItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "subject_type",
+          "subject_id",
+          "subject_label",
+          "reason",
+          "status",
+          "scheduled_for",
+          "requested_by",
+          "cancelled_by",
+          "cancelled_at",
+          "executed_at",
+          "summary",
+          "error",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_label": {
+            "type": "string",
+            "description": "Libellé du sujet ; « Supprimé » une fois l'effacement exécuté."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "request",
+              "inactivity"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "cancelled",
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requested_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "cancelled_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "cancelled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "executed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Une fois exécuté : `counts` (lignes supprimées ou vidées par catégorie, jamais de nom) et `files` (fichiers supprimés). Vide sinon."
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec (internal). Vide sinon."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdErasurePage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdErasureItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "RgpdSettings": {
+        "type": "object",
+        "required": [
+          "erasure_grace_hours",
+          "inactive_after_hours",
+          "inactive_purge_enabled"
+        ],
+        "properties": {
+          "erasure_grace_hours": {
+            "type": "integer",
+            "description": "Délai de rétractation avant l'exécution (RGPD_ERASURE_GRACE)."
+          },
+          "inactive_after_hours": {
+            "type": "integer",
+            "description": "Inactivité au-delà de laquelle un compte non admin est planifié (RGPD_INACTIVE_AFTER) ; 0 si désactivé."
+          },
+          "inactive_purge_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RgpdDeletedClient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "deleted_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdDeletedClientPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdDeletedClient"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
           }
         }
       }

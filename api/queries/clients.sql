@@ -259,3 +259,33 @@ SET deleted_at = now(),
     primary_contact_id = NULL,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: CreateImportedClient :one
+-- Creation par l'import CSV : l'identite complete, plus l'etape du pipeline
+-- et le site, que l'ecran de creation ne demande pas.
+INSERT INTO clients (
+    name, kind, legal_name, legal_form, siret, vat_number, status, website,
+    phone, address, postal_code, city, country
+)
+VALUES (
+    sqlc.arg('name'), sqlc.arg('kind'), sqlc.arg('legal_name'), sqlc.arg('legal_form'),
+    sqlc.arg('siret'), sqlc.arg('vat_number'), sqlc.arg('status'), sqlc.arg('website'),
+    sqlc.arg('phone'), sqlc.arg('address'), sqlc.arg('postal_code'), sqlc.arg('city'), sqlc.arg('country')
+)
+RETURNING *;
+
+-- name: ExportClientsAfter :many
+-- Une page de l'export CSV, par cle : pas d'OFFSET, la page ne bouge pas si
+-- un client est cree pendant l'export. `source_key` est l'identifiant
+-- d'origine que l'import a retenu, s'il y en a un.
+SELECT
+    c.*,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'clients' AND k.entity_id = c.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM clients c
+WHERE c.deleted_at IS NULL AND c.id > sqlc.arg('after')::uuid
+ORDER BY c.id
+LIMIT sqlc.arg('page_size');
