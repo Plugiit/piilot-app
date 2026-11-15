@@ -302,6 +302,12 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	r.Post("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateExport)
 	r.Get("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListExports)
 	r.Get("/rgpd/exports/:id/download", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.DownloadExport)
+	// Effacements : planifies avec un delai de retractation, annulables
+	// jusqu'a l'echeance, executes par la tache de fond.
+	r.Post("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateErasure)
+	r.Get("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListErasures)
+	r.Post("/rgpd/erasures/:id/cancel", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CancelErasure)
+	r.Get("/rgpd/settings", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.Settings)
 
 	// E-mail entrant : le reglage aux admins, le tri a qui traite les tickets.
 	mail := r.Group("/integrations/mail")

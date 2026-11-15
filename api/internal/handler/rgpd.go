@@ -19,13 +19,24 @@ type RgpdExportService interface {
 	Open(ctx context.Context, id uuid.UUID) (usecase.RgpdExportItem, io.ReadCloser, error)
 }
 
+// RgpdErasureService est le contrat dont l'ecran des effacements a besoin.
+type RgpdErasureService interface {
+	Request(ctx context.Context, actor *uuid.UUID, subjectType string, subjectID uuid.UUID) (usecase.RgpdErasureItem, error)
+	Cancel(ctx context.Context, actor *uuid.UUID, id uuid.UUID) (usecase.RgpdErasureItem, error)
+	List(ctx context.Context, status string, page int) (usecase.RgpdErasurePage, error)
+	Settings() usecase.RgpdSettings
+}
+
 // Rgpd porte les endpoints RGPD.
 type Rgpd struct {
-	exports RgpdExportService
+	exports  RgpdExportService
+	erasures RgpdErasureService
 }
 
 // NewRgpd construit le handler.
-func NewRgpd(exports RgpdExportService) *Rgpd { return &Rgpd{exports: exports} }
+func NewRgpd(exports RgpdExportService, erasures RgpdErasureService) *Rgpd {
+	return &Rgpd{exports: exports, erasures: erasures}
+}
 
 // requestRgpdExport est le corps de POST /admin/rgpd/exports.
 type requestRgpdExport struct {
@@ -85,4 +96,54 @@ func (h *Rgpd) DownloadExport(c fiber.Ctx) error {
 	c.Set(fiber.HeaderCacheControl, "no-store")
 
 	return c.SendStream(content, int(item.SizeBytes))
+}
+
+// CreateErasure planifie un effacement : 201, l'execution a lieu a l'echeance.
+func (h *Rgpd) CreateErasure(c fiber.Ctx) error {
+	var req requestRgpdExport
+	if err := c.Bind().Body(&req); err != nil {
+		return domain.ErrValidation.WithCause(err)
+	}
+
+	id, err := uuid.Parse(strings.TrimSpace(req.SubjectID))
+	if err != nil {
+		return domain.ErrValidation.WithDetails(map[string]any{"subject_id": "Identifiant invalide"})
+	}
+
+	item, err := h.erasures.Request(c.Context(), actorOf(c), req.SubjectType, id)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(item)
+}
+
+// ListErasures sert l'historique des effacements, filtrable par statut.
+func (h *Rgpd) ListErasures(c fiber.Ctx) error {
+	page, err := h.erasures.List(c.Context(), strings.TrimSpace(c.Query("status")), queryInt(c, "page", 1))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(page)
+}
+
+// CancelErasure annule un effacement planifie.
+func (h *Rgpd) CancelErasure(c fiber.Ctx) error {
+	id, err := pathUUID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	item, err := h.erasures.Cancel(c.Context(), actorOf(c), id)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(item)
+}
+
+// Settings sert les delais RGPD en vigueur.
+func (h *Rgpd) Settings(c fiber.Ctx) error {
+	return c.JSON(h.erasures.Settings())
 }

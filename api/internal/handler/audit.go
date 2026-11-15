@@ -116,6 +116,8 @@ var auditRules = map[string]auditRule{
 	"GET /api/v1/admin/exports/:entity":                         {action: "export.csv", target: "entity", param: "entity"},
 	"POST /api/v1/admin/rgpd/exports":                           {action: "rgpd.export_requested", target: "rgpd_export", fields: []string{"subject_type", "subject_id"}},
 	"GET /api/v1/admin/rgpd/exports/:id/download":               {action: "rgpd.export_downloaded", target: "rgpd_export", param: "id"},
+	"POST /api/v1/admin/rgpd/erasures":                          {action: "rgpd.erasure_requested", target: "rgpd_erasure", fields: []string{"subject_type", "subject_id"}},
+	"POST /api/v1/admin/rgpd/erasures/:id/cancel":               {action: "rgpd.erasure_cancelled", target: "rgpd_erasure", param: "id"},
 	"GET /api/v1/admin/audit/export":                            {action: "export.audit", query: true},
 	"GET /api/v1/client/files/:id":                              {action: "portal.file_downloaded", target: "file", param: "id"},
 	"POST /api/v1/client/deliverables/:id/decision":             {action: "portal.deliverable_decided", target: "deliverable", param: "id", fields: []string{"decision"}},
