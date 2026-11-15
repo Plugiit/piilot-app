@@ -118,6 +118,7 @@ type Querier interface {
 	CountAudit(ctx context.Context, arg CountAuditParams) (int32, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
+	CountDeletedClients(ctx context.Context) (int64, error)
 	// Total pour la pagination, aux memes conditions que la liste.
 	CountDeliverables(ctx context.Context, arg CountDeliverablesParams) (int64, error)
 	CountHeldInbound(ctx context.Context) (int32, error)
@@ -675,6 +676,9 @@ type Querier interface {
 	// clients a la fin de chaque mois, et les heures vendues sur les projets
 	// ouverts dans le mois. Memes tables bornees que GetDashboardStats.
 	ListDashboardMonths(ctx context.Context) ([]ListDashboardMonthsRow, error)
+	// Les clients supprimes dans le CRM mais dont les donnees sont toujours la : le
+	// CRM ne les montre plus, l'ecran RGPD doit pouvoir les retrouver.
+	ListDeletedClients(ctx context.Context, arg ListDeletedClientsParams) ([]ListDeletedClientsRow, error)
 	// Qui prevenir quand le client tranche un livrable : les administrateurs,
 	// l'equipe du projet et la personne qui a depose la version.
 	ListDeliverableNotificationRecipients(ctx context.Context, arg ListDeliverableNotificationRecipientsParams) ([]uuid.UUID, error)
@@ -1061,6 +1065,8 @@ type Querier interface {
 	ListVersionsToRemind(ctx context.Context, afterSeconds float64) ([]ListVersionsToRemindRow, error)
 	ListWatchedAnalyticsActive(ctx context.Context, arg ListWatchedAnalyticsActiveParams) ([]ListWatchedAnalyticsActiveRow, error)
 	LockActiveUserRole(ctx context.Context, id uuid.UUID) (string, error)
+	// Sans filtre sur deleted_at : un client supprime logiquement dans le CRM garde
+	// ses donnees, et doit pouvoir etre efface (demande comme execution).
 	LockClientForErasure(ctx context.Context, id uuid.UUID) (LockClientForErasureRow, error)
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
 	// simultanees prendraient sinon le meme numero.
@@ -1326,6 +1332,8 @@ type Querier interface {
 	RgpdClientInboundEmails(ctx context.Context, arg RgpdClientInboundEmailsParams) ([]RgpdClientInboundEmailsRow, error)
 	// Client : son historique d'echanges.
 	RgpdClientInteractions(ctx context.Context, arg RgpdClientInteractionsParams) ([]RgpdClientInteractionsRow, error)
+	// Un client supprime dans le CRM (suppression logique) garde toutes ses
+	// donnees : il reste exportable et effacable.
 	RgpdClientLabel(ctx context.Context, id uuid.UUID) (string, error)
 	// Client : les jalons de ses projets.
 	RgpdClientMilestones(ctx context.Context, arg RgpdClientMilestonesParams) ([]RgpdClientMilestonesRow, error)

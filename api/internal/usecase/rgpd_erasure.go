@@ -83,6 +83,22 @@ type RgpdErasurePage struct {
 	PageSize int               `json:"page_size"`
 }
 
+// RgpdDeletedClient est un client supprime dans le CRM dont les donnees sont
+// toujours conservees.
+type RgpdDeletedClient struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+// RgpdDeletedClientPage est une page de clients supprimes.
+type RgpdDeletedClientPage struct {
+	Items    []RgpdDeletedClient `json:"items"`
+	Total    int64               `json:"total"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"page_size"`
+}
+
 // RgpdSettings expose les delais en vigueur.
 type RgpdSettings struct {
 	ErasureGraceHours    int  `json:"erasure_grace_hours"`
@@ -434,6 +450,36 @@ func (s *RgpdErasureService) List(ctx context.Context, f RgpdErasureFilter, page
 	}
 
 	return RgpdErasurePage{Items: items, Total: total, Page: page, PageSize: RgpdPageSize}, nil
+}
+
+// DeletedClients liste les clients supprimes dans le CRM (suppression
+// logique) : leurs donnees existent toujours, l'ecran RGPD doit pouvoir les
+// exporter ou les effacer.
+func (s *RgpdErasureService) DeletedClients(ctx context.Context, page int) (RgpdDeletedClientPage, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	rows, err := s.q.ListDeletedClients(ctx, db.ListDeletedClientsParams{
+		PageSize: RgpdPageSize, PageOffset: int32((page - 1) * RgpdPageSize),
+	})
+	if err != nil {
+		return RgpdDeletedClientPage{}, fmt.Errorf("lecture des clients supprimes : %w", err)
+	}
+
+	total, err := s.q.CountDeletedClients(ctx)
+	if err != nil {
+		return RgpdDeletedClientPage{}, fmt.Errorf("compte des clients supprimes : %w", err)
+	}
+
+	items := make([]RgpdDeletedClient, 0, len(rows))
+	for _, r := range rows {
+		if r.DeletedAt != nil {
+			items = append(items, RgpdDeletedClient{ID: r.ID, Name: r.Name, DeletedAt: *r.DeletedAt})
+		}
+	}
+
+	return RgpdDeletedClientPage{Items: items, Total: total, Page: page, PageSize: RgpdPageSize}, nil
 }
 
 // erasure accumule ce qu'une execution a fait : des compteurs (jamais de nom)

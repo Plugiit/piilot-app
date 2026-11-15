@@ -48,6 +48,17 @@ func (q *Queries) ClaimQueuedRgpdExport(ctx context.Context) (RgpdExport, error)
 	return i, err
 }
 
+const countDeletedClients = `-- name: CountDeletedClients :one
+SELECT count(*) FROM clients WHERE deleted_at IS NOT NULL
+`
+
+func (q *Queries) CountDeletedClients(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeletedClients)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRgpdExports = `-- name: CountRgpdExports :one
 SELECT count(*) FROM rgpd_exports
 `
@@ -226,6 +237,46 @@ func (q *Queries) GetRgpdExport(ctx context.Context, id uuid.UUID) (RgpdExport, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listDeletedClients = `-- name: ListDeletedClients :many
+SELECT id, name, deleted_at FROM clients
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC, id
+LIMIT $2 OFFSET $1
+`
+
+type ListDeletedClientsParams struct {
+	PageOffset int32 `json:"page_offset"`
+	PageSize   int32 `json:"page_size"`
+}
+
+type ListDeletedClientsRow struct {
+	ID        uuid.UUID  `json:"id"`
+	Name      string     `json:"name"`
+	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+// Les clients supprimes dans le CRM mais dont les donnees sont toujours la : le
+// CRM ne les montre plus, l'ecran RGPD doit pouvoir les retrouver.
+func (q *Queries) ListDeletedClients(ctx context.Context, arg ListDeletedClientsParams) ([]ListDeletedClientsRow, error) {
+	rows, err := q.db.Query(ctx, listDeletedClients, arg.PageOffset, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDeletedClientsRow{}
+	for rows.Next() {
+		var i ListDeletedClientsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.DeletedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listExpiredRgpdExports = `-- name: ListExpiredRgpdExports :many
@@ -612,9 +663,11 @@ func (q *Queries) RgpdClientInteractions(ctx context.Context, arg RgpdClientInte
 }
 
 const rgpdClientLabel = `-- name: RgpdClientLabel :one
-SELECT name FROM clients WHERE id = $1 AND deleted_at IS NULL
+SELECT name FROM clients WHERE id = $1
 `
 
+// Un client supprime dans le CRM (suppression logique) garde toutes ses
+// donnees : il reste exportable et effacable.
 func (q *Queries) RgpdClientLabel(ctx context.Context, id uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, rgpdClientLabel, id)
 	var name string

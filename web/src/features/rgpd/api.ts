@@ -14,6 +14,7 @@ export const rgpdKeys = {
   exports: (page: number) => ['rgpd', 'exports', page] as const,
   erasures: (status: ErasureStatus | undefined, page: number) => ['rgpd', 'erasures', status ?? 'all', page] as const,
   scheduled: (subjectType: SubjectType, subjectId: string) => ['rgpd', 'erasures', 'scheduled', subjectType, subjectId] as const,
+  deletedClients: (page: number) => ['rgpd', 'deleted-clients', page] as const,
   settings: ['rgpd', 'settings'] as const,
 }
 
@@ -32,6 +33,18 @@ export function erasuresQuery(status: ErasureStatus | undefined, page: number) {
     queryKey: rgpdKeys.erasures(status, page),
     queryFn: async () =>
       unwrap(await api.GET('/api/v1/admin/rgpd/erasures', { params: { query: { status, page } } })),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Clients supprimés du CRM dont les données sont conservées : le CRM ne les
+ * montre plus, c'est ici qu'on les retrouve pour les exporter ou les effacer.
+ */
+export function deletedClientsQuery(page: number) {
+  return queryOptions({
+    queryKey: rgpdKeys.deletedClients(page),
+    queryFn: async () => unwrap(await api.GET('/api/v1/admin/rgpd/deleted-clients', { params: { query: { page } } })),
     placeholderData: keepPreviousData,
   })
 }

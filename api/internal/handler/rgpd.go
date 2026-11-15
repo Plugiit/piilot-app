@@ -24,6 +24,7 @@ type RgpdErasureService interface {
 	Request(ctx context.Context, actor *uuid.UUID, subjectType string, subjectID uuid.UUID) (usecase.RgpdErasureItem, error)
 	Cancel(ctx context.Context, actor *uuid.UUID, id uuid.UUID) (usecase.RgpdErasureItem, error)
 	List(ctx context.Context, filter usecase.RgpdErasureFilter, page int) (usecase.RgpdErasurePage, error)
+	DeletedClients(ctx context.Context, page int) (usecase.RgpdDeletedClientPage, error)
 	Settings() usecase.RgpdSettings
 }
 
@@ -167,4 +168,15 @@ func (h *Rgpd) CancelErasure(c fiber.Ctx) error {
 // Settings sert les delais RGPD en vigueur.
 func (h *Rgpd) Settings(c fiber.Ctx) error {
 	return c.JSON(h.erasures.Settings())
+}
+
+// ListDeletedClients sert les clients supprimes dans le CRM dont les donnees
+// sont conservees : eux seuls ne sont plus joignables depuis le CRM.
+func (h *Rgpd) ListDeletedClients(c fiber.Ctx) error {
+	page, err := h.erasures.DeletedClients(c.Context(), queryInt(c, "page", 1))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(page)
 }

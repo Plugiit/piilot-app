@@ -232,7 +232,20 @@ SELECT btrim(firstname || ' ' || lastname) AS name, email::text AS email
 FROM users WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: RgpdClientLabel :one
-SELECT name FROM clients WHERE id = $1 AND deleted_at IS NULL;
+-- Un client supprime dans le CRM (suppression logique) garde toutes ses
+-- donnees : il reste exportable et effacable.
+SELECT name FROM clients WHERE id = $1;
+
+-- name: ListDeletedClients :many
+-- Les clients supprimes dans le CRM mais dont les donnees sont toujours la : le
+-- CRM ne les montre plus, l'ecran RGPD doit pouvoir les retrouver.
+SELECT id, name, deleted_at FROM clients
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC, id
+LIMIT sqlc.arg('page_size') OFFSET sqlc.arg('page_offset');
+
+-- name: CountDeletedClients :one
+SELECT count(*) FROM clients WHERE deleted_at IS NOT NULL;
 
 -- name: CreateRgpdExport :one
 INSERT INTO rgpd_exports (subject_type, subject_id, subject_label, requested_by)

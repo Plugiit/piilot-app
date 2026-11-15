@@ -13969,6 +13969,50 @@
           }
         }
       }
+    },
+    "/api/v1/admin/rgpd/deleted-clients": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Clients supprimés du CRM, données conservées",
+        "description": "Les clients supprimés dans le CRM (suppression logique) gardent toutes leurs données : le CRM ne les montre plus, cette liste permet de les exporter ou d'en demander l'effacement. Du plus récemment supprimé au plus ancien, 25 par page. Exige rgpd.manage.",
+        "operationId": "listAdminRgpdDeletedClients",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdDeletedClientPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -26070,6 +26114,54 @@
           },
           "inactive_purge_enabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "RgpdDeletedClient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "deleted_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdDeletedClientPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdDeletedClient"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
           }
         }
       }
