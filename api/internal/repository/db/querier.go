@@ -112,6 +112,7 @@ type Querier interface {
 	// Une demande ne se tranche qu'une fois, et seulement depuis le navigateur qui
 	// l'a lancee : la decision la retire.
 	ConsumeOAuthRequest(ctx context.Context, arg ConsumeOAuthRequestParams) (ConsumeOAuthRequestRow, error)
+	CoolifyProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
@@ -121,6 +122,7 @@ type Querier interface {
 	CountAnalyticsWebsitesPresent(ctx context.Context) (CountAnalyticsWebsitesPresentRow, error)
 	CountAudit(ctx context.Context, arg CountAuditParams) (int32, error)
 	CountCoolifyApplications(ctx context.Context) (CountCoolifyApplicationsRow, error)
+	CountCoolifyApplicationsByUUID(ctx context.Context, uuids []string) (int64, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	CountDeletedClients(ctx context.Context) (int64, error)
@@ -277,6 +279,7 @@ type Querier interface {
 	DeleteMaintenancePlan(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) error
+	DeleteProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectDomain(ctx context.Context, arg DeleteProjectDomainParams) (int64, error)
 	DeleteProjectReportOptOuts(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectReportRecipients(ctx context.Context, projectID uuid.UUID) error
@@ -578,6 +581,9 @@ type Querier interface {
 	// Journal d'audit : en ajout seul. Ni UPDATE ni DELETE ici, sauf la purge de
 	// retention, que le declencheur n'admet que declaree.
 	InsertAudit(ctx context.Context, arg InsertAuditParams) error
+	// Idempotent : un deploiement deja releve (meme identifiant) n'est pas
+	// reecrit, et ce qui a ete fige dans un rapport ne bouge pas.
+	InsertCoolifyDeployment(ctx context.Context, arg InsertCoolifyDeploymentParams) error
 	// Aucune ligne rendue quand la mise en ligne est deja connue : GitHub et
 	// GitLab renvoient volontiers un evenement deux fois.
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
@@ -589,6 +595,7 @@ type Querier interface {
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
 	InsertProjectAnalyticsWebsite(ctx context.Context, arg InsertProjectAnalyticsWebsiteParams) error
+	InsertProjectCoolifyApplication(ctx context.Context, arg InsertProjectCoolifyApplicationParams) error
 	InsertProjectDomain(ctx context.Context, arg InsertProjectDomainParams) (ProjectDomain, error)
 	InsertProjectReportOptOut(ctx context.Context, arg InsertProjectReportOptOutParams) error
 	InsertProjectReportRecipient(ctx context.Context, arg InsertProjectReportRecipientParams) error
@@ -663,6 +670,10 @@ type Querier interface {
 	ListContactsOfClient(ctx context.Context, arg ListContactsOfClientParams) ([]ListContactsOfClientRow, error)
 	// Une instance compte quelques dizaines d'applications : pas de pagination.
 	ListCoolifyApplications(ctx context.Context) ([]CoolifyApplication, error)
+	ListCoolifyDeploymentsOfProject(ctx context.Context, arg ListCoolifyDeploymentsOfProjectParams) ([]ListCoolifyDeploymentsOfProjectRow, error)
+	// Ce que la releve des deploiements doit lire : les applications liees a un
+	// projet qui existe encore.
+	ListCoolifyLinks(ctx context.Context) ([]ListCoolifyLinksRow, error)
 	// Liste paginee de l'ecran CRM.
 	//
 	// Distincte de ListClients, qui sert le champ « Client » d'un formulaire :
@@ -840,6 +851,9 @@ type Querier interface {
 	// seuls que la tache tient a jour.
 	ListProdAnalyticsWebsites(ctx context.Context) ([]ListProdAnalyticsWebsitesRow, error)
 	ListProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) ([]ListProjectAnalyticsWebsitesRow, error)
+	// Les applications d'un projet, avec ce que la releve en sait. Une application
+	// que la releve n'a jamais vue garde son uuid pour seul nom.
+	ListProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) ([]ListProjectCoolifyApplicationsRow, error)
 	ListProjectDomains(ctx context.Context, projectID uuid.UUID) ([]ProjectDomain, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
@@ -1296,6 +1310,12 @@ type Querier interface {
 	ReportAudienceSnapshot(ctx context.Context, arg ReportAudienceSnapshotParams) (ReportAudienceSnapshotRow, error)
 	ReportBackupCounts(ctx context.Context, arg ReportBackupCountsParams) (ReportBackupCountsRow, error)
 	ReportConsumed(ctx context.Context, arg ReportConsumedParams) (int32, error)
+	ReportCoolifyDeployments(ctx context.Context, arg ReportCoolifyDeploymentsParams) ([]ReportCoolifyDeploymentsRow, error)
+	// Le projet est-il suivi par Coolify, le module est-il actif, et ou en est sa
+	// derniere releve.
+	ReportCoolifyState(ctx context.Context, projectID uuid.UUID) (ReportCoolifyStateRow, error)
+	// Les mises en ligne signalees par webhook. Celles de Coolify ont leur
+	// requete : une seule source par projet et par mois.
 	ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error)
 	ReportHasAudienceSite(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// Les incidents qui touchent le mois, meme commences avant.
@@ -1315,6 +1335,8 @@ type Querier interface {
 	ReportUptimeSites(ctx context.Context, arg ReportUptimeSitesParams) ([]ReportUptimeSitesRow, error)
 	RequestAnalyticsCheck(ctx context.Context) error
 	RequestCoolifyPoll(ctx context.Context) error
+	// Une releve est demandee, sauf si l'une l'est deja.
+	RequestCoolifyPollIfNone(ctx context.Context) error
 	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
 	RequestReleaseCheck(ctx context.Context) error

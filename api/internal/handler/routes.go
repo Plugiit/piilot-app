@@ -434,6 +434,8 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.Get)
 	projects.Get("/:id/uptime", deps.Guard.RequirePermission("projects.read"), deps.Uptime.Project)
 	projects.Put("/:id/uptime", deps.Guard.RequirePermission("projects.write"), deps.Uptime.SetProject)
+	projects.Get("/:id/coolify", deps.Guard.RequirePermission("projects.read"), deps.Coolify.Project)
+	projects.Put("/:id/coolify", deps.Guard.RequirePermission("projects.write"), deps.Coolify.SetProject)
 	projects.Get("/:id/analytics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Project)
 	projects.Get("/:id/maintenance", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.Project)
 	projects.Put("/:id/maintenance", deps.Guard.RequirePermission("projects.write"), deps.Maintenance.SetProject)

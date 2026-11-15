@@ -2901,6 +2901,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/projects/{id}/coolify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Déploiements d'un projet
+         * @description Les applications Coolify liées, et les cinq derniers déploiements relevés, sans appeler Coolify. Exige projects.read.
+         */
+        get: operations["getAdminProjectCoolify"];
+        /**
+         * Lier des applications Coolify à un projet
+         * @description Remplace la liste ; vide, elle détache tout. Demande une relève pour que les déploiements arrivent sans attendre. Exige projects.write.
+         */
+        put: operations["putAdminProjectCoolify"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hooks/uptime/{provider}": {
         parameters: {
             query?: never;
@@ -7238,6 +7265,11 @@ export interface components {
         };
         ReportDeployments: {
             items: components["schemas"]["ReportDeployment"][];
+            /**
+             * @description Une seule source par projet et par mois : Coolify s'il a relevé des mises en ligne ce mois-là. Absent des rapports d'avant la 1.6.
+             * @enum {string}
+             */
+            source?: "coolify" | "webhook";
         };
         /** @description Contenu figé d'un rapport. Une section nulle n'est pas dans la formule, ou n'a pas de données ce mois-là. */
         ReportData: {
@@ -7257,6 +7289,8 @@ export interface components {
             updates: components["schemas"]["ReportUpdates"] | null;
             backups: components["schemas"]["ReportBackups"] | null;
             domain: components["schemas"]["ReportDomains"] | null;
+            /** @description Le projet est suivi par Coolify, le module est actif, et la dernière relève n'a pas réussi après la fin du mois. */
+            deployments_stale?: boolean;
         };
         Report: {
             /** Format: uuid */
@@ -7945,6 +7979,38 @@ export interface components {
             present: boolean;
             /** Format: date-time */
             last_seen_at: string;
+        };
+        ProjectCoolifyApplication: {
+            application_uuid: string;
+            /** @enum {string} */
+            environment: "prod" | "preprod";
+            name: string;
+            fqdn: string;
+            /** @description Faux : la dernière relève ne l'a plus vue chez Coolify. */
+            present: boolean;
+        };
+        ProjectCoolifyDeployment: {
+            name: string;
+            environment: string;
+            url: string;
+            /** Format: date-time */
+            deployed_at: string;
+        };
+        ProjectCoolify: {
+            module_enabled: boolean;
+            applications: components["schemas"]["ProjectCoolifyApplication"][];
+            /** @description Les cinq derniers déploiements relevés. */
+            deployments: components["schemas"]["ProjectCoolifyDeployment"][];
+            /** Format: date-time */
+            last_poll_at: string | null;
+            last_poll_error: string | null;
+        };
+        ProjectCoolifyRequest: {
+            applications: {
+                application_uuid: string;
+                /** @enum {string} */
+                environment: "prod" | "preprod";
+            }[];
         };
     };
     responses: {
@@ -13245,6 +13311,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectUptime"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminProjectCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCoolify"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAdminProjectCoolify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du projet */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCoolifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCoolify"];
                 };
             };
             401: components["responses"]["Unauthorized"];
