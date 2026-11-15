@@ -685,6 +685,8 @@ que de la laisser répondre 500 à la première requête.
 | `IMPORT_MAX_ROWS` | `50000` | Nombre maximal de lignes d'un import |
 | `RGPD_EXPORT_TTL` | `168h` | Durée de conservation d'une archive d'export RGPD prête (7 jours), puis le fichier est supprimé. Au moins `1h` |
 | `RGPD_EXPORT_MAX_MIB` | `2048` | Taille maximale d'une archive d'export RGPD. Au-delà, l'export échoue (`too_large`) |
+| `RGPD_ERASURE_GRACE` | `720h` | Délai de rétractation d'un effacement RGPD (30 jours) : les comptes concernés sont désactivés tout de suite, l'effacement a lieu à l'échéance et reste annulable d'ici là. Au moins `1h`. Voir [docs/rgpd.md](docs/rgpd.md) |
+| `RGPD_INACTIVE_AFTER` | `0` | Inactivité au bout de laquelle un compte non administrateur est planifié pour effacement (`0` : purge désactivée). Sinon au moins `720h` ; `26280h` (3 ans) est un bon point de départ. Une connexion annule l'effacement |
 | `ACCESS_TOKEN_TTL` | `15m` | Durée du jeton d'accès |
 | `REFRESH_TOKEN_TTL` | `720h` | Durée d'une session sans reconnexion (30 jours) |
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |
