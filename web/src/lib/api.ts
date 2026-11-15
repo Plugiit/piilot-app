@@ -88,8 +88,15 @@ export function apiUrl(path: string): string {
  * frontiere multipart qu'il vient de tirer, et l'ecraser casserait le
  * decoupage cote serveur.
  */
-export async function postFile<T>(path: string, field: string, file: File): Promise<T> {
+export async function postFile<T>(
+  path: string,
+  field: string,
+  file: File,
+  /** Champs de formulaire joints au fichier. Posés avant lui : le serveur les lit en premier. */
+  extra: Record<string, string> = {},
+): Promise<T> {
   const form = new FormData()
+  for (const [name, value] of Object.entries(extra)) form.append(name, value)
   form.append(field, file)
 
   const response = await fetchWithRefresh(

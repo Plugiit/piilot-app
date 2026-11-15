@@ -63,6 +63,18 @@ type Config struct {
 	// plusieurs derriere un repartiteur.
 	FilesDir     string
 	MaxUploadMiB int64
+	// Import CSV : taille maximale du fichier (Mio) et nombre maximal de lignes.
+	ImportMaxMiB  int64
+	ImportMaxRows int
+
+	// Export RGPD : duree de vie d'une archive prete, et taille maximale.
+	ImportFileTTL    time.Duration
+	RgpdExportTTL    time.Duration
+	RgpdExportMaxMiB int64
+	// Effacement RGPD : delai de retractation avant l'execution, et inactivite
+	// au bout de laquelle un compte non admin est planifie (0 : desactive).
+	RgpdErasureGrace  time.Duration
+	RgpdInactiveAfter time.Duration
 
 	// Repertoire du build de la SPA (web/dist). Renseigne, l'API sert aussi le
 	// front sur la meme origine : une seule image, un seul domaine, ni CORS ni
@@ -134,7 +146,17 @@ func Load() (Config, error) {
 		RunMigrations:   envBool("RUN_MIGRATIONS", true),
 		FilesDir:        env("FILES_DIR", "./data/files"),
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
-		StaticDir:       os.Getenv("STATIC_DIR"),
+		ImportMaxMiB:    int64(envInt("IMPORT_MAX_MIB", 10)),
+		ImportMaxRows:   envInt("IMPORT_MAX_ROWS", 50000),
+
+		ImportFileTTL:    envDuration("IMPORT_FILE_TTL", 168*time.Hour),
+		RgpdExportTTL:    envDuration("RGPD_EXPORT_TTL", 168*time.Hour),
+		RgpdExportMaxMiB: int64(envInt("RGPD_EXPORT_MAX_MIB", 2048)),
+
+		RgpdErasureGrace:  envDuration("RGPD_ERASURE_GRACE", 720*time.Hour),
+		RgpdInactiveAfter: envDuration("RGPD_INACTIVE_AFTER", 0),
+
+		StaticDir: os.Getenv("STATIC_DIR"),
 
 		UpdateCheck:      envBool("UPDATE_CHECK", true),
 		UpdateRepository: env("UPDATE_REPOSITORY", "Plugiit/piilot-app"),
@@ -233,6 +255,39 @@ func Load() (Config, error) {
 
 	if cfg.MaxUploadMiB < 1 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
+	}
+
+	if cfg.ImportMaxMiB < 1 {
+		return Config{}, fmt.Errorf("IMPORT_MAX_MIB doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxMiB)
+	}
+
+	// Le fichier d'import passe par le meme depot que les pieces jointes.
+	if cfg.ImportMaxMiB > cfg.MaxUploadMiB {
+		return Config{}, fmt.Errorf("IMPORT_MAX_MIB (%d) ne peut pas depasser MAX_UPLOAD_MIB (%d)", cfg.ImportMaxMiB, cfg.MaxUploadMiB)
+	}
+
+	if cfg.ImportMaxRows < 1 {
+		return Config{}, fmt.Errorf("IMPORT_MAX_ROWS doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxRows)
+	}
+
+	if cfg.ImportFileTTL < time.Hour {
+		return Config{}, fmt.Errorf("IMPORT_FILE_TTL vaut au moins 1h (actuel : %s)", cfg.ImportFileTTL)
+	}
+
+	if cfg.RgpdExportTTL < time.Hour {
+		return Config{}, fmt.Errorf("RGPD_EXPORT_TTL vaut au moins 1h (actuel : %s)", cfg.RgpdExportTTL)
+	}
+
+	if cfg.RgpdErasureGrace < time.Hour {
+		return Config{}, fmt.Errorf("RGPD_ERASURE_GRACE vaut au moins 1h (actuel : %s)", cfg.RgpdErasureGrace)
+	}
+
+	if cfg.RgpdInactiveAfter != 0 && cfg.RgpdInactiveAfter < 720*time.Hour {
+		return Config{}, fmt.Errorf("RGPD_INACTIVE_AFTER vaut 0 (desactive) ou au moins 720h (actuel : %s)", cfg.RgpdInactiveAfter)
+	}
+
+	if cfg.RgpdExportMaxMiB < 1 {
+		return Config{}, fmt.Errorf("RGPD_EXPORT_MAX_MIB doit valoir au moins 1 (actuel : %d)", cfg.RgpdExportMaxMiB)
 	}
 
 	// En local, personne ne route vers une autre instance : attendre ne

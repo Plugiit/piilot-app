@@ -681,6 +681,13 @@ que de la laisser répondre 500 à la première requête.
 | `POSTGRES_DB` | `piilot` | Nom de la base |
 | `RUN_MIGRATIONS` | `true` | Applique les migrations au démarrage |
 | `MAX_UPLOAD_MIB` | `25` | Taille maximale d'une pièce jointe |
+| `IMPORT_MAX_MIB` | `10` | Taille maximale d'un fichier CSV d'import. Ne peut pas dépasser `MAX_UPLOAD_MIB` |
+| `IMPORT_MAX_ROWS` | `50000` | Nombre maximal de lignes d'un import |
+| `IMPORT_FILE_TTL` | `168h` | Durée de garde d'un fichier d'import CSV déposé mais jamais lancé, ou simulé sans confirmation (7 jours), puis le fichier est supprimé (le dépôt est abandonné ; une simulation garde son rapport). Les fichiers contiennent des données personnelles. Au moins `1h` |
+| `RGPD_EXPORT_TTL` | `168h` | Durée de conservation d'une archive d'export RGPD prête (7 jours), puis le fichier est supprimé. Au moins `1h` |
+| `RGPD_EXPORT_MAX_MIB` | `2048` | Taille maximale d'une archive d'export RGPD. Au-delà, l'export échoue (`too_large`) |
+| `RGPD_ERASURE_GRACE` | `720h` | Délai de rétractation d'un effacement RGPD (30 jours) : les comptes concernés sont désactivés tout de suite, l'effacement a lieu à l'échéance et reste annulable d'ici là. Au moins `1h`. Voir [docs/rgpd.md](docs/rgpd.md) |
+| `RGPD_INACTIVE_AFTER` | `0` | Inactivité au bout de laquelle un compte non administrateur est planifié pour effacement (`0` : purge désactivée). Sinon au moins `720h` ; `26280h` (3 ans) est un bon point de départ. Une connexion annule l'effacement |
 | `ACCESS_TOKEN_TTL` | `15m` | Durée du jeton d'accès |
 | `REFRESH_TOKEN_TTL` | `720h` | Durée d'une session sans reconnexion (30 jours) |
 | `READ_TIMEOUT` / `WRITE_TIMEOUT` | `30s` | Timeouts HTTP |

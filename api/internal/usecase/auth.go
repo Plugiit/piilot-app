@@ -5,6 +5,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -153,6 +154,13 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (Session, error)
 		return Session{}, fmt.Errorf("mise a jour de la derniere connexion : %w", err)
 	}
 
+	// Une connexion reussie annule l'effacement planifie pour inactivite. En
+	// cas d'echec la connexion echoue aussi : mieux vaut un refus qu'un compte
+	// actif efface par erreur.
+	if err := cancelInactivityErasure(ctx, s.q, user.ID, user.Email, "login"); err != nil {
+		return Session{}, err
+	}
+
 	session, err := s.issue(ctx, s.q, user.ID, user.Role, in.UserAgent, in.IP)
 	if err != nil {
 		return Session{}, err
@@ -164,6 +172,31 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (Session, error)
 	}
 
 	return session, nil
+}
+
+// cancelInactivityErasure annule l'effacement pour inactivite en cours de ce
+// compte, et l'ecrit au journal d'audit. `via` dit ce qui a prouve l'activite
+// (« login » ou « refresh »).
+func cancelInactivityErasure(ctx context.Context, q *db.Queries, userID uuid.UUID, email, via string) error {
+	id, err := q.CancelInactivityErasureOfUser(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("annulation de l'effacement pour inactivite : %w", err)
+	}
+
+	details, _ := json.Marshal(map[string]any{"via": via, "erasure_id": id})
+
+	if err := q.InsertAudit(ctx, db.InsertAuditParams{
+		ActorID: &userID, ActorEmail: email, Action: "rgpd.erasure_cancelled",
+		TargetType: "rgpd_erasure", TargetID: id.String(), Details: details,
+	}); err != nil {
+		return fmt.Errorf("audit de l'annulation : %w", err)
+	}
+
+	return nil
 }
 
 // Refresh echange un jeton de rafraichissement contre une session neuve.
@@ -221,6 +254,17 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken, userAgent string, i
 
 	if err := qtx.RevokeRefreshToken(ctx, row.TokenID); err != nil {
 		return Session{}, fmt.Errorf("revocation du jeton consomme : %w", err)
+	}
+
+	// Une session qui se prolonge est une personne active : sans cela, un
+	// compte connecte en permanence (jamais de mot de passe saisi) serait
+	// planifie puis anonymise comme inactif. Meme transaction que la rotation.
+	if err := qtx.TouchUserLogin(ctx, row.UserID); err != nil {
+		return Session{}, fmt.Errorf("mise a jour de l'activite : %w", err)
+	}
+
+	if err := cancelInactivityErasure(ctx, qtx, row.UserID, row.UserEmail, "refresh"); err != nil {
+		return Session{}, err
 	}
 
 	session, err := s.issue(ctx, qtx, row.UserID, row.UserRole, userAgent, ip)

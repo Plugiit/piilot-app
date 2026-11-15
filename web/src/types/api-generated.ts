@@ -72,7 +72,7 @@ export interface paths {
         put?: never;
         /**
          * Ouvre une session
-         * @description Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.
+         * @description Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse. Une connexion reussie annule l'effacement RGPD planifie pour inactivite.
          */
         post: operations["login"];
         delete?: never;
@@ -4008,6 +4008,242 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des imports CSV
+         * @description Du plus récent au plus ancien, 25 par page. Exige data.import.
+         */
+        get: operations["listAdminImports"];
+        put?: never;
+        /**
+         * Déposer un fichier CSV
+         * @description Détecte l'encodage (UTF-8, sinon Windows-1252) et le séparateur (; , tabulation), compte les lignes et propose une correspondance. Rien n'est importé. 422 si le fichier dépasse IMPORT_MAX_MIB (10 Mio par défaut) ou IMPORT_MAX_ROWS (50 000 lignes), s'il est vide ou si un en-tête est en double. Exige data.import.
+         */
+        post: operations["uploadAdminImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lire un import
+         * @description Avec l'aperçu et la correspondance proposée tant que le fichier est conservé. Exige data.import.
+         */
+        get: operations["getAdminImport"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un import
+         * @description Retire l'import, son rapport et son fichier. 409 s'il est en file ou en cours. Les clés d'import restent : rejouer le fichier ne recrée rien. Journalisé. Exige data.import.
+         */
+        delete: operations["deleteAdminImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lancer un import
+         * @description Met l'import en file ; la tâche de fond le traite (lots de 500 lignes, une ligne refusée n'arrête pas les autres). Avec dry_run, tout est exécuté puis annulé : seul le rapport reste, et le fichier est conservé pour l'import réel. Un doublon est ignoré, jamais mis à jour. 409 si l'import n'est plus lançable. Journalisé. Exige data.import.
+         */
+        post: operations["runAdminImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rapport d'un import
+         * @description Une ligne par ligne du fichier traitée, 25 par page. Exige data.import.
+         */
+        get: operations["listAdminImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/exports/{entity}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Exporter une entité en CSV
+         * @description CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Les quatre entités sont exportables (422 pour une entité inconnue).
+         */
+        get: operations["getAdminExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des exports RGPD
+         * @description Du plus récent au plus ancien, 25 par page. Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdExports"];
+        put?: never;
+        /**
+         * Demander l'export des données d'un compte ou d'un client
+         * @description Met l'export en file ; la tâche de fond (toutes les minutes) construit une archive zip : manifest.json, data/<section>.json et files/. Un export déjà en attente ou en cours pour le même sujet est rendu tel quel. L'archive est conservée RGPD_EXPORT_TTL (168 h par défaut), puis supprimée ; elle échoue (`too_large`) au-delà de RGPD_EXPORT_MAX_MIB. Les notes internes des tickets ne sont pas incluses dans l'archive d'un client. 404 si le sujet n'existe pas. Journalisé. Exige rgpd.manage.
+         */
+        post: operations["createAdminRgpdExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/exports/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Télécharger l'archive d'un export RGPD
+         * @description Archive zip d'un export prêt et non expiré. 409 si elle n'est pas (ou plus) disponible. Journalisé. Exige rgpd.manage.
+         */
+        get: operations["downloadAdminRgpdExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des effacements RGPD
+         * @description Du plus récent au plus ancien, 25 par page, filtrable par statut et par sujet (subject_type, subject_id, combinables). Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdErasures"];
+        put?: never;
+        /**
+         * Planifier l'effacement d'un compte ou d'un client
+         * @description Planifie l'effacement à l'issue du délai de rétractation (RGPD_ERASURE_GRACE, 720 h par défaut). Tout de suite : les comptes concernés (le compte, ou les comptes du portail du client) sont désactivés et leurs sessions révoquées ; leur état précédent est gardé pour l'annulation. À l'échéance, la tâche de fond exécute en une transaction : un compte est anonymisé (le temps saisi est conservé) ; un client est supprimé avec ses contacts, projets, e-mails reçus et fichiers. 404 si le sujet n'existe pas ; 409 si un effacement est déjà en cours pour ce sujet (CONFLICT) ou si c'est le dernier administrateur actif (LAST_ADMIN). Journalisé. Exige rgpd.manage.
+         */
+        post: operations["createAdminRgpdErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/erasures/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Annuler un effacement planifié
+         * @description Rien n'est effacé ; les comptes désactivés par la demande retrouvent leur état d'avant (un compte déjà désactivé le reste). 404 si l'effacement n'existe pas ; 409 s'il n'est plus planifié (CONFLICT). Journalisé. Exige rgpd.manage.
+         */
+        post: operations["cancelAdminRgpdErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Délais RGPD en vigueur
+         * @description Délai de rétractation des effacements et seuil d'inactivité de la purge automatique. Exige rgpd.manage.
+         */
+        get: operations["getAdminRgpdSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/deleted-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clients supprimés du CRM, données conservées
+         * @description Les clients supprimés dans le CRM (suppression logique) gardent toutes leurs données : le CRM ne les montre plus, cette liste permet de les exporter ou d'en demander l'effacement. Du plus récemment supprimé au plus ancien, 25 par page. Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdDeletedClients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7414,6 +7650,194 @@ export interface components {
              */
             mcp_url: string;
             connections: components["schemas"]["ClaudeConnection"][];
+        };
+        DataField: {
+            /** @description Identifiant stable du champ, celui du mapping. */
+            key: string;
+            /** @description En-tête écrit à l'export. */
+            header: string;
+            aliases: string[];
+            required: boolean;
+        };
+        ImportItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            entity: "clients" | "contacts" | "projects" | "time_entries";
+            /** @enum {string} */
+            status: "uploaded" | "queued" | "running" | "done" | "failed" | "cancelled";
+            /** @description Simulation : tout est exécuté, rien n'est conservé. */
+            dry_run: boolean;
+            file_name: string;
+            /** Format: int64 */
+            size_bytes: number;
+            delimiter: string;
+            /** @enum {string} */
+            encoding: "utf-8" | "windows-1252";
+            headers: string[];
+            row_count: number;
+            /** @description Champ de Piilot -> en-tête du fichier. */
+            mapping: {
+                [key: string]: string;
+            };
+            created_n: number;
+            skipped_n: number;
+            error_n: number;
+            /** @description Code d'échec : interrupted, file_unreadable ou internal. Vide sinon. */
+            error: string;
+            /** Format: uuid */
+            created_by: string | null;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ImportDetail: components["schemas"]["ImportItem"] & {
+            fields: components["schemas"]["DataField"][];
+            /** @description Premières lignes du fichier, tant qu'il est conservé. */
+            preview: string[][];
+            /** @description Dernier mapping utilisé si les en-têtes concordent, sinon déduit des noms de colonnes. */
+            suggested_mapping: {
+                [key: string]: string;
+            };
+        };
+        ImportPage: {
+            items: components["schemas"]["ImportItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        ImportRow: {
+            /** @description Numéro de ligne dans le fichier, en-tête comprise. */
+            line: number;
+            /** @enum {string} */
+            outcome: "created" | "skipped" | "error";
+            /** @description Code stable : already_exists, already_imported, duplicate_siret, duplicate_name, duplicate_email, invalid, unknown_client, unknown_project, unknown_user. Vide pour une ligne créée. */
+            reason: string;
+            /** @description Nom de la ligne ; pour invalid, suivi du champ et du motif. */
+            label: string;
+            /** Format: uuid */
+            entity_id: string | null;
+        };
+        ImportRowPage: {
+            items: components["schemas"]["ImportRow"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        RunImportRequest: {
+            /** @description Champ de Piilot -> en-tête du fichier. Les champs obligatoires doivent y figurer. */
+            mapping: {
+                [key: string]: string;
+            };
+            /** @default false */
+            dry_run: boolean;
+        };
+        CreateRgpdExportRequest: {
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+        };
+        RgpdExportItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+            subject_label: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "ready" | "failed" | "expired";
+            /** Format: int64 */
+            size_bytes: number;
+            /** Format: uuid */
+            requested_by: string | null;
+            /** Format: date-time */
+            ready_at: string | null;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** @description Code d'échec : too_large, interrupted ou internal. Vide sinon. */
+            error: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RgpdExportPage: {
+            items: components["schemas"]["RgpdExportItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        CreateRgpdErasureRequest: {
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+        };
+        RgpdErasureItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+            /** @description Libellé du sujet ; « Supprimé » une fois l'effacement exécuté. */
+            subject_label: string;
+            /** @enum {string} */
+            reason: "request" | "inactivity";
+            /** @enum {string} */
+            status: "scheduled" | "cancelled" | "running" | "done" | "failed";
+            /** Format: date-time */
+            scheduled_for: string;
+            /** Format: uuid */
+            requested_by: string | null;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: date-time */
+            executed_at: string | null;
+            /** @description Une fois exécuté : `counts` (lignes supprimées ou vidées par catégorie, jamais de nom) et `files` (fichiers supprimés). Vide sinon. */
+            summary: {
+                [key: string]: unknown;
+            };
+            /** @description Code d'échec (internal). Vide sinon. */
+            error: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RgpdErasurePage: {
+            items: components["schemas"]["RgpdErasureItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        RgpdSettings: {
+            /** @description Délai de rétractation avant l'exécution (RGPD_ERASURE_GRACE). */
+            erasure_grace_hours: number;
+            /** @description Inactivité au-delà de laquelle un compte non admin est planifié (RGPD_INACTIVE_AFTER) ; 0 si désactivé. */
+            inactive_after_hours: number;
+            inactive_purge_enabled: boolean;
+        };
+        RgpdDeletedClient: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            deleted_at: string;
+        };
+        RgpdDeletedClientPage: {
+            items: components["schemas"]["RgpdDeletedClient"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
         };
     };
     responses: {
@@ -14687,6 +15111,438 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminImports: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    uploadAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** @enum {string} */
+                    entity: "clients" | "contacts" | "projects" | "time_entries";
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Fichier reçu */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description L'import */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Import en file ou en cours */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    runAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunImportRequest"];
+            };
+        };
+        responses: {
+            /** @description En file */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Import déjà lancé */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminImportRows: {
+        parameters: {
+            query?: {
+                outcome?: "created" | "skipped" | "error";
+                page?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRowPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: "clients" | "contacts" | "projects" | "time_entries";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminRgpdExports: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdExportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAdminRgpdExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRgpdExportRequest"];
+            };
+        };
+        responses: {
+            /** @description En file */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdExportItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    downloadAdminRgpdExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archive zip */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Archive indisponible */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAdminRgpdErasures: {
+        parameters: {
+            query?: {
+                status?: "scheduled" | "cancelled" | "running" | "done" | "failed";
+                subject_type?: "client" | "user";
+                subject_id?: string;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasurePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createAdminRgpdErasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRgpdErasureRequest"];
+            };
+        };
+        responses: {
+            /** @description Planifié */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasureItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description CONFLICT (effacement déjà en cours) ou LAST_ADMIN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    cancelAdminRgpdErasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Annulé */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasureItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description CONFLICT : l'effacement n'est plus planifié */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminRgpdSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Réglages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminRgpdDeletedClients: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdDeletedClientPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

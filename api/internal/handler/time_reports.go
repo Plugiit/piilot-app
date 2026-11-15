@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
+	"github.com/plugiit/piilot-app/api/internal/csvio"
 	"github.com/plugiit/piilot-app/api/internal/domain"
 	"github.com/plugiit/piilot-app/api/internal/usecase"
 )
@@ -183,16 +184,9 @@ func (h *TimeReports) Export(c fiber.Ctx) error {
 }
 
 // csvCell neutralise une cellule qu'un tableur prendrait pour une formule.
-//
-// Une note commencant par « = » s'executerait a l'ouverture du fichier : une
-// apostrophe en tete la fait lire comme du texte. Les notes et les noms sont
-// saisis par des personnes, et le fichier est ouvert par d'autres.
+// La logique vit dans csvio, que l'import relit a l'identique.
 func csvCell(value string) string {
-	if value != "" && strings.ContainsRune("=+-@\t\r", rune(value[0])) {
-		return "'" + value
-	}
-
-	return value
+	return csvio.Cell(value)
 }
 
 func deref(value *string) string {

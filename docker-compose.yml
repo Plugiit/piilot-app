@@ -84,6 +84,13 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       MAX_UPLOAD_MIB: ${MAX_UPLOAD_MIB:-25}
+      IMPORT_MAX_MIB: ${IMPORT_MAX_MIB:-10}
+      IMPORT_MAX_ROWS: ${IMPORT_MAX_ROWS:-50000}
+      IMPORT_FILE_TTL: ${IMPORT_FILE_TTL:-168h}
+      RGPD_EXPORT_TTL: ${RGPD_EXPORT_TTL:-168h}
+      RGPD_EXPORT_MAX_MIB: ${RGPD_EXPORT_MAX_MIB:-2048}
+      RGPD_ERASURE_GRACE: ${RGPD_ERASURE_GRACE:-720h}
+      RGPD_INACTIVE_AFTER: ${RGPD_INACTIVE_AFTER:-0}
 
       # --- Authentification -------------------------------------------------
       # 64 caracteres generes par Coolify ; l'API refuse de demarrer sous 32.

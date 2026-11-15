@@ -331,6 +331,54 @@ type GitWebhook struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Import struct {
+	ID         uuid.UUID  `json:"id"`
+	Entity     string     `json:"entity"`
+	Status     string     `json:"status"`
+	DryRun     bool       `json:"dry_run"`
+	FileKey    string     `json:"file_key"`
+	FileName   string     `json:"file_name"`
+	SizeBytes  int64      `json:"size_bytes"`
+	Delimiter  string     `json:"delimiter"`
+	Encoding   string     `json:"encoding"`
+	Headers    []string   `json:"headers"`
+	RowCount   int32      `json:"row_count"`
+	Mapping    []byte     `json:"mapping"`
+	CreatedN   int32      `json:"created_n"`
+	SkippedN   int32      `json:"skipped_n"`
+	ErrorN     int32      `json:"error_n"`
+	Error      string     `json:"error"`
+	CreatedBy  *uuid.UUID `json:"created_by"`
+	StartedAt  *time.Time `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type ImportKey struct {
+	Entity    string     `json:"entity"`
+	SourceKey string     `json:"source_key"`
+	EntityID  uuid.UUID  `json:"entity_id"`
+	ImportID  *uuid.UUID `json:"import_id"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type ImportMapping struct {
+	Entity    string     `json:"entity"`
+	Mapping   []byte     `json:"mapping"`
+	UpdatedBy *uuid.UUID `json:"updated_by"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type ImportRow struct {
+	ImportID uuid.UUID  `json:"import_id"`
+	Line     int32      `json:"line"`
+	Outcome  string     `json:"outcome"`
+	Reason   string     `json:"reason"`
+	Label    string     `json:"label"`
+	EntityID *uuid.UUID `json:"entity_id"`
+}
+
 type InboundEmail struct {
 	ID              uuid.UUID  `json:"id"`
 	ReceivedAt      time.Time  `json:"received_at"`
@@ -433,6 +481,7 @@ type Notification struct {
 }
 
 type OauthCode struct {
+	ID            uuid.UUID  `json:"id"`
 	CodeHash      []byte     `json:"code_hash"`
 	GrantID       uuid.UUID  `json:"grant_id"`
 	RedirectUri   string     `json:"redirect_uri"`
@@ -466,6 +515,7 @@ type OauthRequest struct {
 }
 
 type OauthToken struct {
+	ID        uuid.UUID  `json:"id"`
 	TokenHash []byte     `json:"token_hash"`
 	GrantID   uuid.UUID  `json:"grant_id"`
 	Kind      string     `json:"kind"`
@@ -683,6 +733,41 @@ type ReportSetting struct {
 	SendDay   int32     `json:"send_day"`
 	WaitDays  int32     `json:"wait_days"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type RgpdErasure struct {
+	ID           uuid.UUID  `json:"id"`
+	SubjectType  string     `json:"subject_type"`
+	SubjectID    uuid.UUID  `json:"subject_id"`
+	SubjectLabel string     `json:"subject_label"`
+	Reason       string     `json:"reason"`
+	Status       string     `json:"status"`
+	ScheduledFor time.Time  `json:"scheduled_for"`
+	RequestedBy  *uuid.UUID `json:"requested_by"`
+	CancelledBy  *uuid.UUID `json:"cancelled_by"`
+	CancelledAt  *time.Time `json:"cancelled_at"`
+	ExecutedAt   *time.Time `json:"executed_at"`
+	Summary      []byte     `json:"summary"`
+	Error        string     `json:"error"`
+	PrevDisabled []byte     `json:"prev_disabled"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type RgpdExport struct {
+	ID           uuid.UUID  `json:"id"`
+	SubjectType  string     `json:"subject_type"`
+	SubjectID    uuid.UUID  `json:"subject_id"`
+	SubjectLabel string     `json:"subject_label"`
+	Status       string     `json:"status"`
+	FileKey      string     `json:"file_key"`
+	SizeBytes    int64      `json:"size_bytes"`
+	RequestedBy  *uuid.UUID `json:"requested_by"`
+	ReadyAt      *time.Time `json:"ready_at"`
+	ExpiresAt    *time.Time `json:"expires_at"`
+	Error        string     `json:"error"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 type Role struct {

@@ -38,6 +38,8 @@ type Deps struct {
 	ClientSites   *ClientSites
 	Replies       *ReplyTemplates
 	Audit         *Audit
+	DataImport    *DataImport
+	Rgpd          *Rgpd
 	Accounts      *Accounts
 	AuthLinks     *AuthLinks
 	MyWork        *MyWork
@@ -284,6 +286,29 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Journal d'audit, aux seuls admins.
 	r.Get("/audit", deps.Guard.RequirePermission("audit.read"), deps.Audit.List)
 	r.Get("/audit/export", deps.Guard.RequirePermission("audit.read"), deps.Audit.Export)
+
+	// Import et export CSV. Le fichier est depose, mis en correspondance puis
+	// traite en tache de fond : /run repond 202.
+	r.Get("/imports", deps.Guard.RequirePermission("data.import"), deps.DataImport.List)
+	r.Post("/imports", deps.Guard.RequirePermission("data.import"), deps.DataImport.Upload)
+	r.Get("/imports/:id", deps.Guard.RequirePermission("data.import"), deps.DataImport.Get)
+	r.Post("/imports/:id/run", deps.Guard.RequirePermission("data.import"), deps.DataImport.Run)
+	r.Get("/imports/:id/rows", deps.Guard.RequirePermission("data.import"), deps.DataImport.Rows)
+	r.Delete("/imports/:id", deps.Guard.RequirePermission("data.import"), deps.DataImport.Delete)
+	r.Get("/exports/:entity", deps.Guard.RequirePermission("data.export"), deps.DataImport.Export)
+
+	// RGPD : archives des donnees d'un compte ou d'un client, construites en
+	// tache de fond puis telechargees avant leur expiration.
+	r.Post("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateExport)
+	r.Get("/rgpd/exports", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListExports)
+	r.Get("/rgpd/exports/:id/download", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.DownloadExport)
+	// Effacements : planifies avec un delai de retractation, annulables
+	// jusqu'a l'echeance, executes par la tache de fond.
+	r.Post("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CreateErasure)
+	r.Get("/rgpd/erasures", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListErasures)
+	r.Post("/rgpd/erasures/:id/cancel", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.CancelErasure)
+	r.Get("/rgpd/deleted-clients", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.ListDeletedClients)
+	r.Get("/rgpd/settings", deps.Guard.RequirePermission("rgpd.manage"), deps.Rgpd.Settings)
 
 	// E-mail entrant : le reglage aux admins, le tri a qui traite les tickets.
 	mail := r.Group("/integrations/mail")

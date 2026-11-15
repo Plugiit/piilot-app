@@ -118,6 +118,24 @@ func PasswordReset(to, firstname, url string, expires time.Time) (Message, error
 	return compose("password_reset", to, v, "password_reset.html", text)
 }
 
+// ErasureNotice previent le titulaire d'un compte inactif que ce compte sera
+// supprime a l'echeance, et qu'une connexion avant cette date l'annule.
+func ErasureNotice(to, firstname, url string, deadline time.Time) (Message, error) {
+	v := view{
+		Subject:   "Votre compte Piilot sera supprimé",
+		Title:     "Votre compte sera supprimé pour inactivité",
+		Action:    "Me connecter",
+		URL:       url,
+		Expires:   dateTime(deadline),
+		Firstname: firstname,
+	}
+
+	text := fmt.Sprintf("Bonjour%s,\n\nVotre compte Piilot n'a pas été utilisé depuis longtemps. Conformément à notre politique de conservation des données personnelles, il sera supprimé le %s.\n\nPour le conserver, il vous suffit de vous connecter avant cette date :\n\n%s\n\nSi vous ne souhaitez plus utiliser votre compte, vous n'avez rien à faire.\n",
+		prefixed(firstname), v.Expires, url)
+
+	return compose("erasure_notice", to, v, "erasure_notice.html", text)
+}
+
 // DeliverableSubmitted previent un compte du portail qu'un livrable attend sa
 // reponse : un nouveau livrable, ou une nouvelle version apres des retours.
 //

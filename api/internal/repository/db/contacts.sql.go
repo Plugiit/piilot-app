@@ -135,6 +135,80 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) (C
 	return i, err
 }
 
+const exportContactsAfter = `-- name: ExportContactsAfter :many
+SELECT
+    ct.id, ct.client_id, ct.firstname, ct.lastname, ct.role, ct.email, ct.phone, ct.created_at, ct.updated_at, ct.deleted_at,
+    coalesce(c.name, '')::text  AS client_name,
+    coalesce(c.siret, '')::text AS client_siret,
+    coalesce((
+        SELECT substr(k.source_key, 5) FROM import_keys k
+        WHERE k.entity = 'contacts' AND k.entity_id = ct.id AND k.source_key LIKE 'ext:%'
+        ORDER BY k.created_at DESC LIMIT 1
+    ), '')::text AS source_key
+FROM contacts ct
+LEFT JOIN clients c ON c.id = ct.client_id AND c.deleted_at IS NULL
+WHERE ct.deleted_at IS NULL AND ct.id > $1::uuid
+ORDER BY ct.id
+LIMIT $2
+`
+
+type ExportContactsAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	PageSize int32     `json:"page_size"`
+}
+
+type ExportContactsAfterRow struct {
+	ID          uuid.UUID  `json:"id"`
+	ClientID    *uuid.UUID `json:"client_id"`
+	Firstname   string     `json:"firstname"`
+	Lastname    string     `json:"lastname"`
+	Role        string     `json:"role"`
+	Email       *string    `json:"email"`
+	Phone       string     `json:"phone"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
+	ClientName  string     `json:"client_name"`
+	ClientSiret string     `json:"client_siret"`
+	SourceKey   string     `json:"source_key"`
+}
+
+// Une page de l'export CSV, par cle (pas d'OFFSET). Le client est rendu par
+// son nom et son SIRET : l'import retrouve le client par l'un ou l'autre.
+func (q *Queries) ExportContactsAfter(ctx context.Context, arg ExportContactsAfterParams) ([]ExportContactsAfterRow, error) {
+	rows, err := q.db.Query(ctx, exportContactsAfter, arg.After, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExportContactsAfterRow{}
+	for rows.Next() {
+		var i ExportContactsAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.Firstname,
+			&i.Lastname,
+			&i.Role,
+			&i.Email,
+			&i.Phone,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ClientName,
+			&i.ClientSiret,
+			&i.SourceKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getContact = `-- name: GetContact :one
 SELECT ct.id, ct.client_id, ct.firstname, ct.lastname, ct.role, ct.email, ct.phone, ct.created_at, ct.updated_at, ct.deleted_at, c.name AS client_name
 FROM contacts ct
@@ -171,6 +245,70 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, 
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.ClientName,
+	)
+	return i, err
+}
+
+const getContactByEmail = `-- name: GetContactByEmail :one
+SELECT id, client_id, firstname, lastname, role, email, phone, created_at, updated_at, deleted_at FROM contacts
+WHERE email = $1::citext AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1
+`
+
+// Doublon d'import : l'adresse est unique a la casse pres (citext), tous
+// clients confondus. Un meme e-mail chez deux clients est presque toujours
+// la meme personne importee deux fois.
+func (q *Queries) GetContactByEmail(ctx context.Context, email string) (Contact, error) {
+	row := q.db.QueryRow(ctx, getContactByEmail, email)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Role,
+		&i.Email,
+		&i.Phone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getContactByName = `-- name: GetContactByName :one
+SELECT id, client_id, firstname, lastname, role, email, phone, created_at, updated_at, deleted_at FROM contacts
+WHERE lower(firstname) = lower($1::text)
+  AND lower(lastname) = lower($2::text)
+  AND client_id IS NOT DISTINCT FROM $3::uuid
+  AND deleted_at IS NULL
+ORDER BY created_at, id
+LIMIT 1
+`
+
+type GetContactByNameParams struct {
+	Firstname string     `json:"firstname"`
+	Lastname  string     `json:"lastname"`
+	ClientID  *uuid.UUID `json:"client_id"`
+}
+
+// Doublon d'import des contacts sans e-mail : prenom + nom chez le meme
+// client (ou libres tous les deux), sans tenir compte de la casse.
+func (q *Queries) GetContactByName(ctx context.Context, arg GetContactByNameParams) (Contact, error) {
+	row := q.db.QueryRow(ctx, getContactByName, arg.Firstname, arg.Lastname, arg.ClientID)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Role,
+		&i.Email,
+		&i.Phone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
