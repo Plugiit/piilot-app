@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -136,11 +137,14 @@ func (r *Reader) Next() (Row, error) {
 	return Row{Line: line, Cells: cells}, nil
 }
 
-// cleanCell retire l'apostrophe anti-formule posee par Cell ; sinon rogne les
-// espaces. Une apostrophe devant autre chose qu'un declencheur est du texte.
+// cleanCell retire l'apostrophe anti-formule posee par Cell (une seule, voir
+// Cell) et rogne les espaces de fin ; sinon rogne les espaces. Une apostrophe
+// devant autre chose qu'un declencheur est du texte. Pas de rognage a gauche
+// quand l'apostrophe part : la valeur commence par un declencheur, dont la
+// tabulation, qu'il faut garder.
 func cleanCell(c string) string {
-	if len(c) > 1 && c[0] == '\'' && strings.ContainsRune(formulaTriggers, rune(c[1])) {
-		return c[1:]
+	if len(c) > 1 && c[0] == '\'' && formulaAfterQuotes(c) {
+		return strings.TrimRightFunc(c[1:], unicode.IsSpace)
 	}
 
 	return strings.TrimSpace(c)

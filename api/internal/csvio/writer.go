@@ -29,12 +29,24 @@ const formulaTriggers = "=+-@\t\r"
 // apostrophe en tete la fait lire comme du texte. Les notes et les noms sont
 // saisis par des personnes, et le fichier est ouvert par d'autres. La lecture
 // (Reader) retire cette apostrophe : l'aller-retour ne perd rien.
+//
+// Une valeur qui commence deja par des apostrophes suivies d'un declencheur
+// (« '=x » saisi tel quel) recoit une apostrophe de plus : a la lecture on n'en
+// retire qu'une, et la valeur revient intacte.
 func Cell(value string) string {
-	if value != "" && strings.ContainsRune(formulaTriggers, rune(value[0])) {
+	if formulaAfterQuotes(value) {
 		return "'" + value
 	}
 
 	return value
+}
+
+// formulaAfterQuotes dit si la valeur, apostrophes de tete mises de cote,
+// commence par un declencheur de formule.
+func formulaAfterQuotes(value string) bool {
+	rest := strings.TrimLeft(value, "'")
+
+	return rest != "" && strings.ContainsRune(formulaTriggers, rune(rest[0]))
 }
 
 // FormatDecimal ecrit un nombre a la virgule (« 1,50 »), pour qu'une somme se

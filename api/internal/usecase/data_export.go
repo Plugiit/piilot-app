@@ -113,8 +113,8 @@ func (s *DataExportService) clientsPage(ctx context.Context, after uuid.UUID) ([
 			"kind":           c.Kind,
 			"legal_name":     csvio.Cell(c.LegalName),
 			"legal_form":     csvio.Cell(c.LegalForm),
-			"siret":          c.Siret,
-			"vat_number":     c.VatNumber,
+			"siret":          csvio.Cell(c.Siret),
+			"vat_number":     csvio.Cell(c.VatNumber),
 			"status":         c.Status,
 			"website":        csvio.Cell(c.Website),
 			"phone":          csvio.Cell(c.Phone),
@@ -151,10 +151,10 @@ func (s *DataExportService) contactsPage(ctx context.Context, after uuid.UUID) (
 			"firstname":      csvio.Cell(c.Firstname),
 			"lastname":       csvio.Cell(c.Lastname),
 			"role":           csvio.Cell(c.Role),
-			"email":          email,
+			"email":          csvio.Cell(email),
 			"phone":          csvio.Cell(c.Phone),
 			"client":         csvio.Cell(c.ClientName),
-			"client_siret":   c.ClientSiret,
+			"client_siret":   csvio.Cell(c.ClientSiret),
 		})
 	}
 
@@ -178,7 +178,7 @@ func (s *DataExportService) projectsPage(ctx context.Context, after uuid.UUID) (
 			FieldKeySourceID: csvio.Cell(p.SourceKey),
 			"name":           csvio.Cell(p.Name),
 			"client":         csvio.Cell(p.ClientName),
-			"client_siret":   p.ClientSiret,
+			"client_siret":   csvio.Cell(p.ClientSiret),
 			"status":         p.Status,
 			"priority":       p.Priority,
 			"description":    csvio.Cell(p.Description),
@@ -206,7 +206,7 @@ func (s *DataExportService) timeEntriesPage(ctx context.Context, after uuid.UUID
 		out = append(out, map[string]string{
 			FieldKeyID:       e.ID.String(),
 			FieldKeySourceID: csvio.Cell(e.SourceKey),
-			"email":          e.UserEmail,
+			"email":          csvio.Cell(e.UserEmail),
 			"client":         csvio.Cell(e.ClientName),
 			"project":        csvio.Cell(e.ProjectName),
 			"service":        csvio.Cell(e.ServiceName),
