@@ -7977,7 +7977,7 @@ export interface components {
             /** @description Applications vues à la dernière relève. */
             applications: number;
         };
-        /** @description Réglages du module de déploiements. Le jeton d'API n'en sort jamais. COOLIFY_URL et COOLIFY_API_TOKEN priment et sont signalés. */
+        /** @description Réglages du module de déploiements. Le jeton d'API n'en sort jamais. COOLIFY_API_URL et COOLIFY_API_TOKEN priment et sont signalés. */
         CoolifySettings: {
             enabled: boolean;
             base_url: string;
