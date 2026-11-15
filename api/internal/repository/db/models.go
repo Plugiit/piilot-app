@@ -735,6 +735,41 @@ type ReportSetting struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type RgpdErasure struct {
+	ID           uuid.UUID  `json:"id"`
+	SubjectType  string     `json:"subject_type"`
+	SubjectID    uuid.UUID  `json:"subject_id"`
+	SubjectLabel string     `json:"subject_label"`
+	Reason       string     `json:"reason"`
+	Status       string     `json:"status"`
+	ScheduledFor time.Time  `json:"scheduled_for"`
+	RequestedBy  *uuid.UUID `json:"requested_by"`
+	CancelledBy  *uuid.UUID `json:"cancelled_by"`
+	CancelledAt  *time.Time `json:"cancelled_at"`
+	ExecutedAt   *time.Time `json:"executed_at"`
+	Summary      []byte     `json:"summary"`
+	Error        string     `json:"error"`
+	PrevDisabled []byte     `json:"prev_disabled"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type RgpdExport struct {
+	ID           uuid.UUID  `json:"id"`
+	SubjectType  string     `json:"subject_type"`
+	SubjectID    uuid.UUID  `json:"subject_id"`
+	SubjectLabel string     `json:"subject_label"`
+	Status       string     `json:"status"`
+	FileKey      string     `json:"file_key"`
+	SizeBytes    int64      `json:"size_bytes"`
+	RequestedBy  *uuid.UUID `json:"requested_by"`
+	ReadyAt      *time.Time `json:"ready_at"`
+	ExpiresAt    *time.Time `json:"expires_at"`
+	Error        string     `json:"error"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
 type Role struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
