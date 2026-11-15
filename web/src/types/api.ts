@@ -328,3 +328,11 @@ export type DiscordCode = components['schemas']['DiscordCode']
 export type ClaudeAccount = components['schemas']['ClaudeAccount']
 export type ClaudeConnection = components['schemas']['ClaudeConnection']
 export type OAuthConsent = components['schemas']['OAuthConsent']
+
+/** Import CSV : un import, son detail (colonnes, apercu), une page de l'historique et une ligne du rapport. */
+export type ImportItem = components['schemas']['ImportItem']
+export type ImportDetail = components['schemas']['ImportDetail']
+export type ImportPage = components['schemas']['ImportPage']
+export type ImportRow = components['schemas']['ImportRow']
+export type ImportRowPage = components['schemas']['ImportRowPage']
+export type DataField = components['schemas']['DataField']
