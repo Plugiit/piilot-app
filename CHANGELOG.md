@@ -11,6 +11,70 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.5.0] — Import et RGPD · 2026-11-15
+
+Cette version permet à l'agence de reprendre ses données existantes et de remplir ses obligations RGPD depuis l'espace Admin. On peut importer et exporter en CSV les clients, contacts, projets et saisies du temps, exporter les données d'une personne et planifier leur effacement avec un délai de rétractation. Les membres de l'équipe peuvent aussi connecter Claude à leur compte pour consulter Piilot en lecture, avec leurs propres droits.
+
+### Points forts
+
+- **Import CSV** : clients, contacts, projets et saisies du temps se chargent depuis un fichier, avec la correspondance des colonnes, une simulation qui n'écrit rien et un rapport ligne par ligne. Relancer un import ne crée pas de doublon.
+- **Export CSV** : chaque entité s'exporte dans un fichier que l'import sait relire.
+- **Export RGPD** : une archive des données d'un compte ou d'un client, fichiers compris, se prépare en arrière-plan et se télécharge jusqu'à son expiration.
+- **Effacement RGPD** : un effacement se planifie avec un délai de rétractation et peut être annulé jusqu'à son exécution. Un effacement automatique des comptes inactifs peut être activé.
+- **Connecteur Claude** : claude.ai, Claude Desktop et Claude Code se connectent à un compte Admin ou Team et consultent Piilot avec les droits de ce compte.
+
+### Nouveautés
+
+#### Admin
+
+- **Paramètres › Import et export** : vous déposez un fichier, vous associez ses colonnes aux champs de Piilot, puis vous lancez une simulation ou l'import réel. L'import se déroule en arrière-plan. Le rapport indique pour chaque ligne si elle a été créée, ignorée ou rejetée, et pourquoi. Un import peut être supprimé.
+- **Lecture des fichiers** : le séparateur (point-virgule, virgule ou tabulation) et l'encodage (UTF-8 ou Windows-1252) sont détectés. La correspondance des colonnes est mémorisée d'un import à l'autre.
+- **Doublons** : Piilot reconnaît une ligne déjà importée à son identifiant Piilot, à sa clé d'import ou, pour un client, à son SIRET et à son nom. Un doublon est ignoré, jamais mis à jour. Un client homonyme dont le SIRET diffère est refusé.
+- **Export CSV** : clients, contacts, projets et saisies du temps s'exportent par entité. Les cellules qu'un tableur pourrait interpréter comme une formule sont neutralisées, sans altérer les valeurs lors d'un nouvel import.
+- **Paramètres › RGPD** : un seul écran regroupe les exports et les effacements, avec leur état, ainsi que la liste des clients supprimés du CRM, qui restent exportables et effaçables.
+- **Export des données d'une personne** : depuis la fiche client ou depuis *Paramètres › Comptes*, vous demandez une archive des données du client ou du compte, pièces jointes des tâches et des tickets et logos de projets compris. Un seul export peut être en cours par personne.
+- **Demande d'effacement** : après confirmation dans un dialogue, l'effacement est planifié. Le compte visé est désactivé pendant le délai de rétractation. Un bandeau sur la fiche client et dans les comptes signale l'effacement prévu et permet de l'annuler, ce qui rétablit l'état antérieur du compte.
+- **Effacement des comptes inactifs** : s'il est activé, un compte non admin resté inactif pendant la durée choisie est planifié pour effacement. Une nouvelle connexion ou un renouvellement de session annule cet effacement.
+- Ces opérations figurent au journal d'audit. Import, export et RGPD sont réservés au rôle admin.
+
+#### Admin et Team
+
+- **Mon compte › Intégrations › Claude** : la carte donne l'adresse à saisir dans Claude et la commande pour Claude Code. Elle liste les connexions en cours, que l'on coupe d'un geste après confirmation.
+- **Écran de consentement** : il indique qui demande l'accès, pour quel compte et où partira le code d'autorisation. Il signale aussi un retour vers la machine locale. Seul le navigateur qui a lancé la demande peut l'accepter ou la refuser.
+- **Outils de lecture pour Claude** : Claude consulte Piilot avec les permissions du compte connecté, relues à chaque appel. Chaque appel suit les mêmes contrôles et le même journal d'audit que l'interface. Les contenus venus de clients sont transmis à Claude comme des données, pas comme des instructions.
+- **Rôles** : la permission « Connecter Claude à son compte » apparaît dans un groupe Claude de l'écran des rôles.
+
+### Corrections
+
+- Un lien de connexion forgé pouvait renvoyer vers un site tiers une fois les identifiants saisis. Après la connexion, seuls un chemin de l'application ou une adresse sur l'un de ses domaines sont désormais acceptés.
+
+### Technique
+
+- Connecteur Claude : serveur d'autorisation OAuth 2.1 qui n'accepte que les clients de Claude, sans enregistrement dynamique. PKCE S256, code à usage unique, jeton de renouvellement remplacé à chaque usage. Un code ou un jeton réutilisé révoque l'autorisation.
+- Les connexions de Claude sont révoquées lors d'un changement ou d'une réinitialisation du mot de passe, d'un vol de session et de la désactivation du compte. Seules les empreintes des codes et des jetons sont conservées, et elles sont purgées à expiration.
+- Serveur MCP sur `/mcp`, limité à 120 appels par minute, qui refuse les cookies de session et les origines étrangères. Nouvelle dépendance : `modelcontextprotocol/go-sdk` v1.8.0.
+- Import, export RGPD et effacements s'exécutent en tâches de fond. L'import procède par lots de 500 lignes, et une ligne invalide n'affecte pas les autres.
+- Les fichiers d'import jamais lancés et les archives RGPD expirées sont purgés automatiquement.
+- Lecture et écriture CSV sans nouvelle dépendance.
+
+### À savoir pour le déploiement
+
+- Migrations appliquées au démarrage, toutes en ajout :
+  - 000057 : permission `claude.connect` (rôles admin et team) et tables du connecteur Claude.
+  - 000058 : permissions `data.import` et `data.export` (rôle admin) et tables de l'import.
+  - 000059 : permission `rgpd.manage` (rôle admin), tables des exports et des effacements RGPD.
+  - 000060 : un seul export RGPD en cours par personne ; les doublons éventuels sont marqués interrompus.
+- Nouvelles variables d'environnement, toutes avec une valeur par défaut dans `docker-compose.yml` et contrôlées au démarrage (une valeur invalide empêche l'API de démarrer) :
+  - `IMPORT_MAX_MIB` (10) : taille maximale d'un fichier d'import, sans dépasser `MAX_UPLOAD_MIB`. Si `MAX_UPLOAD_MIB` a été abaissé sous 10, abaissez aussi `IMPORT_MAX_MIB`.
+  - `IMPORT_MAX_ROWS` (50000) : nombre maximal de lignes d'un fichier d'import.
+  - `IMPORT_FILE_TTL` (168h) : conservation d'un fichier d'import jamais lancé.
+  - `RGPD_EXPORT_TTL` (168h) : durée pendant laquelle une archive RGPD reste téléchargeable.
+  - `RGPD_EXPORT_MAX_MIB` (2048) : taille maximale d'une archive RGPD.
+  - `RGPD_ERASURE_GRACE` (720h) : délai de rétractation avant l'exécution d'un effacement.
+  - `RGPD_INACTIVE_AFTER` (0, désactivé) : durée d'inactivité avant l'effacement automatique d'un compte non admin, 720h au minimum si activé.
+- Connecteur Claude : il est servi sous `/oauth`, `/.well-known` et `/mcp`. Voir `docs/connecteur-claude.md`.
+- RGPD : `docs/rgpd.md` décrit ce qu'un effacement supprime, ce qu'il conserve et ce qu'il faut rejouer après la restauration d'une sauvegarde.
+
 ## [1.4.2] — Maintenance des sites et bot Discord · 2026-11-07
 
 Piilot suit la santé des sites qu'il maintient : sauvegardes, domaines, mises à jour lancées sur l'environnement choisi. Le rapport mensuel ne part plus seul quand il a un doute. Le portail client est repensé, et un bot Discord peut relier les membres du serveur de l'agence à leur compte.
