@@ -63,6 +63,9 @@ type Config struct {
 	// plusieurs derriere un repartiteur.
 	FilesDir     string
 	MaxUploadMiB int64
+	// Import CSV : taille maximale du fichier (Mio) et nombre maximal de lignes.
+	ImportMaxMiB  int64
+	ImportMaxRows int
 
 	// Repertoire du build de la SPA (web/dist). Renseigne, l'API sert aussi le
 	// front sur la meme origine : une seule image, un seul domaine, ni CORS ni
@@ -134,6 +137,8 @@ func Load() (Config, error) {
 		RunMigrations:   envBool("RUN_MIGRATIONS", true),
 		FilesDir:        env("FILES_DIR", "./data/files"),
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
+		ImportMaxMiB:    int64(envInt("IMPORT_MAX_MIB", 10)),
+		ImportMaxRows:   envInt("IMPORT_MAX_ROWS", 50000),
 		StaticDir:       os.Getenv("STATIC_DIR"),
 
 		UpdateCheck:      envBool("UPDATE_CHECK", true),
@@ -233,6 +238,19 @@ func Load() (Config, error) {
 
 	if cfg.MaxUploadMiB < 1 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_MIB doit valoir au moins 1 (actuel : %d)", cfg.MaxUploadMiB)
+	}
+
+	if cfg.ImportMaxMiB < 1 {
+		return Config{}, fmt.Errorf("IMPORT_MAX_MIB doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxMiB)
+	}
+
+	// Le fichier d'import passe par le meme depot que les pieces jointes.
+	if cfg.ImportMaxMiB > cfg.MaxUploadMiB {
+		return Config{}, fmt.Errorf("IMPORT_MAX_MIB (%d) ne peut pas depasser MAX_UPLOAD_MIB (%d)", cfg.ImportMaxMiB, cfg.MaxUploadMiB)
+	}
+
+	if cfg.ImportMaxRows < 1 {
+		return Config{}, fmt.Errorf("IMPORT_MAX_ROWS doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxRows)
 	}
 
 	// En local, personne ne route vers une autre instance : attendre ne
