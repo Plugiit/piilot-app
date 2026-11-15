@@ -70,6 +70,10 @@ type Config struct {
 	// Export RGPD : duree de vie d'une archive prete, et taille maximale.
 	RgpdExportTTL    time.Duration
 	RgpdExportMaxMiB int64
+	// Effacement RGPD : delai de retractation avant l'execution, et inactivite
+	// au bout de laquelle un compte non admin est planifie (0 : desactive).
+	RgpdErasureGrace  time.Duration
+	RgpdInactiveAfter time.Duration
 
 	// Repertoire du build de la SPA (web/dist). Renseigne, l'API sert aussi le
 	// front sur la meme origine : une seule image, un seul domaine, ni CORS ni
@@ -146,6 +150,9 @@ func Load() (Config, error) {
 
 		RgpdExportTTL:    envDuration("RGPD_EXPORT_TTL", 168*time.Hour),
 		RgpdExportMaxMiB: int64(envInt("RGPD_EXPORT_MAX_MIB", 2048)),
+
+		RgpdErasureGrace:  envDuration("RGPD_ERASURE_GRACE", 720*time.Hour),
+		RgpdInactiveAfter: envDuration("RGPD_INACTIVE_AFTER", 0),
 
 		StaticDir: os.Getenv("STATIC_DIR"),
 
@@ -263,6 +270,14 @@ func Load() (Config, error) {
 
 	if cfg.RgpdExportTTL < time.Hour {
 		return Config{}, fmt.Errorf("RGPD_EXPORT_TTL vaut au moins 1h (actuel : %s)", cfg.RgpdExportTTL)
+	}
+
+	if cfg.RgpdErasureGrace < time.Hour {
+		return Config{}, fmt.Errorf("RGPD_ERASURE_GRACE vaut au moins 1h (actuel : %s)", cfg.RgpdErasureGrace)
+	}
+
+	if cfg.RgpdInactiveAfter != 0 && cfg.RgpdInactiveAfter < 720*time.Hour {
+		return Config{}, fmt.Errorf("RGPD_INACTIVE_AFTER vaut 0 (desactive) ou au moins 720h (actuel : %s)", cfg.RgpdInactiveAfter)
 	}
 
 	if cfg.RgpdExportMaxMiB < 1 {
