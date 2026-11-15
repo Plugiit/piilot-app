@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { HttpError } from '@/lib/api'
 
 import { useExportAction } from './actions'
-import { deletedClientsQuery } from './api'
+import { deletedClientsQuery, useScheduledErasure } from './api'
+import { ErasureBanner } from './erasure-banner'
 import { Pager } from './exports-list'
 import { formatWhen } from './labels'
 import { ErasureDialog } from './request-dialog'
@@ -13,6 +14,7 @@ import { ErasureDialog } from './request-dialog'
 function DeletedClientRow({ id, name, deletedAt }: { id: string; name: string; deletedAt: string }) {
   const [erasing, setErasing] = useState(false)
   const exporter = useExportAction({ type: 'client', id, name })
+  const scheduled = useScheduledErasure('client', id, true)
 
   return (
     <tr className="border-b border-[#f3f4f4] align-top">
@@ -25,10 +27,17 @@ function DeletedClientRow({ id, name, deletedAt }: { id: string; name: string; d
           <Button variant="outline" size="sm" disabled={exporter.pending} onClick={exporter.run}>
             Exporter les données
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setErasing(true)}>
-            Supprimer définitivement
-          </Button>
+          {scheduled === undefined && (
+            <Button variant="outline" size="sm" onClick={() => setErasing(true)}>
+              Supprimer définitivement
+            </Button>
+          )}
         </div>
+        {scheduled !== undefined && (
+          <div className="mt-1.5 flex justify-end">
+            <ErasureBanner erasure={scheduled} compact />
+          </div>
+        )}
         <ErasureDialog subject={{ type: 'client', id, name }} open={erasing} onOpenChange={setErasing} />
       </td>
     </tr>
@@ -41,7 +50,7 @@ function DeletedClientRow({ id, name, deletedAt }: { id: string; name: string; d
  * effacer une fois qu'ils ont disparu du CRM.
  */
 export function DeletedClientsList({ page, onPage }: { page: number; onPage: (page: number) => void }) {
-  const { data, isError, error } = useQuery(deletedClientsQuery(page))
+  const { data, isError, isPending, error } = useQuery(deletedClientsQuery(page))
 
   const total = data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / (data?.page_size ?? 25)))
@@ -65,6 +74,13 @@ export function DeletedClientsList({ page, onPage }: { page: number; onPage: (pa
             {(data?.items ?? []).map((item) => (
               <DeletedClientRow key={item.id} id={item.id} name={item.name} deletedAt={item.deleted_at} />
             ))}
+            {isPending && (
+              <tr>
+                <td colSpan={3} className="px-3 py-8 text-center text-[#73757c]">
+                  Chargement…
+                </td>
+              </tr>
+            )}
             {data !== undefined && data.items.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-3 py-8 text-center text-[#73757c]">
