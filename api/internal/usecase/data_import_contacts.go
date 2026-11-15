@@ -46,6 +46,24 @@ func (contactImporter) importRow(ctx context.Context, q *db.Queries, importID uu
 		}
 	}
 
+	check := replayCheck{
+		entity: DataEntityContacts, label: label,
+		exists: func(ctx context.Context, q *db.Queries, id uuid.UUID) (bool, error) {
+			switch _, err := q.GetContact(ctx, id); {
+			case err == nil:
+				return true, nil
+			case errors.Is(err, pgx.ErrNoRows):
+				return false, nil
+			default:
+				return false, fmt.Errorf("recherche du contact : %w", err)
+			}
+		},
+	}
+
+	if res, done, err := check.checkID(ctx, q, v); err != nil || done {
+		return res, err
+	}
+
 	var client *db.Client
 
 	if siret, name := v["client_siret"], v["client"]; normalizeSiret(siret) != "" || strings.TrimSpace(name) != "" {
@@ -71,21 +89,7 @@ func (contactImporter) importRow(ctx context.Context, q *db.Queries, importID uu
 		natural = "email:" + strings.ToLower(email)
 	}
 
-	check := replayCheck{
-		entity: DataEntityContacts, label: label,
-		exists: func(ctx context.Context, q *db.Queries, id uuid.UUID) (bool, error) {
-			switch _, err := q.GetContact(ctx, id); {
-			case err == nil:
-				return true, nil
-			case errors.Is(err, pgx.ErrNoRows):
-				return false, nil
-			default:
-				return false, fmt.Errorf("recherche du contact : %w", err)
-			}
-		},
-	}
-
-	res, sourceKey, done, err := check.run(ctx, q, v, natural)
+	res, sourceKey, done, err := check.checkKey(ctx, q, v, natural)
 	if err != nil || done {
 		return res, err
 	}

@@ -29,22 +29,38 @@ type replayCheck struct {
 
 // run rend done=true quand la ligne est tranchee (res porte le resultat).
 func (c replayCheck) run(ctx context.Context, q *db.Queries, v map[string]string, natural string) (res importResult, sourceKey string, done bool, err error) {
+	if res, done, err = c.checkID(ctx, q, v); err != nil || done {
+		return res, "", done, err
+	}
+
+	return c.checkKey(ctx, q, v, natural)
+}
+
+// checkID est l'etape 1 : l'« Identifiant Piilot » d'une entite vivante. Elle
+// ne depend pas du client, donc se joue avant de le resoudre.
+func (c replayCheck) checkID(ctx context.Context, q *db.Queries, v map[string]string) (res importResult, done bool, err error) {
 	if raw := strings.TrimSpace(v[FieldKeyID]); raw != "" {
 		id, perr := uuid.Parse(raw)
 		if perr != nil {
-			return importResult{Outcome: ImportRowError, Reason: ReasonInvalid, Label: c.label + " : id : identifiant invalide"}, "", true, nil
+			return importResult{Outcome: ImportRowError, Reason: ReasonInvalid, Label: c.label + " : id : identifiant invalide"}, true, nil
 		}
 
 		ok, eerr := c.exists(ctx, q, id)
 		if eerr != nil {
-			return importResult{}, "", false, eerr
+			return importResult{}, false, eerr
 		}
 
 		if ok {
-			return importResult{Outcome: ImportRowSkipped, Reason: ReasonAlreadyExists, Label: c.label, EntityID: &id}, "", true, nil
+			return importResult{Outcome: ImportRowSkipped, Reason: ReasonAlreadyExists, Label: c.label, EntityID: &id}, true, nil
 		}
 	}
 
+	return importResult{}, false, nil
+}
+
+// checkKey est l'etape 2 : la cle d'import (identifiant d'origine, sinon cle
+// naturelle) d'une entite encore vivante.
+func (c replayCheck) checkKey(ctx context.Context, q *db.Queries, v map[string]string, natural string) (res importResult, sourceKey string, done bool, err error) {
 	sourceKey = importSourceKey(strings.TrimSpace(v[FieldKeySourceID]), natural)
 
 	known, kerr := q.GetImportKey(ctx, db.GetImportKeyParams{Entity: c.entity, SourceKey: sourceKey})
