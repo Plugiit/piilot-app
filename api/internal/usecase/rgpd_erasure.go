@@ -195,7 +195,7 @@ func (s *RgpdErasureService) request(
 			}
 
 			if n <= 1 {
-				return RgpdErasureItem{}, domain.ErrValidation.WithDetails(map[string]any{"subject_id": "C'est le dernier administrateur actif"})
+				return RgpdErasureItem{}, ErrLastAdmin
 			}
 		}
 
