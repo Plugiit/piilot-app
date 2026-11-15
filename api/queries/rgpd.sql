@@ -184,20 +184,30 @@ ORDER BY x.id
 LIMIT sqlc.arg('page_size');
 
 -- name: RgpdClientAttachments :many
--- Client : la liste des fichiers de ses projets.
-SELECT x.id AS id, (to_jsonb(x) - 'storage_key'::text)::jsonb AS data
-FROM attachments x
-WHERE x.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = sqlc.arg('subject')::uuid) AND x.id > sqlc.arg('after')::uuid
-ORDER BY x.id
+-- Client : la liste des fichiers de ses projets, de leurs taches et de leurs tickets.
+SELECT a.id AS id, (to_jsonb(a) - 'storage_key'::text)::jsonb AS data
+FROM attachments a
+WHERE (a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = sqlc.arg('subject')::uuid)
+       OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('subject')::uuid)
+       OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('subject')::uuid)) AND a.id > sqlc.arg('after')::uuid
+ORDER BY a.id
 LIMIT sqlc.arg('page_size');
 
 -- name: RgpdClientFiles :many
--- Client : les fichiers de ses projets, a ajouter a l'archive.
-SELECT x.id, x.filename, x.storage_key
-FROM attachments x
-WHERE x.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = sqlc.arg('subject')::uuid)
-  AND x.id > sqlc.arg('after')::uuid
-ORDER BY x.id
+-- Client : TOUS les fichiers du client (pieces jointes des projets, des taches
+-- et des tickets, plus le logo de chaque projet). Source unique : l'archive
+-- d'export les ajoute, et l'effacement releve ses cles ici pour les supprimer.
+SELECT f.id, f.filename, f.storage_key FROM (
+    SELECT a.id, a.filename, a.storage_key FROM attachments a WHERE (a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = sqlc.arg('subject')::uuid)
+       OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('subject')::uuid)
+       OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = sqlc.arg('subject')::uuid))
+    UNION ALL
+    SELECT p.id, ('logo-' || p.id::text) AS filename, p.logo_key AS storage_key
+    FROM projects p
+    WHERE p.client_id = sqlc.arg('subject')::uuid AND p.logo_key IS NOT NULL AND p.logo_key <> ''
+) f
+WHERE f.id > sqlc.arg('after')::uuid
+ORDER BY f.id
 LIMIT sqlc.arg('page_size');
 
 -- name: RgpdUserFiles :many

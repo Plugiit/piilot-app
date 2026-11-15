@@ -320,10 +320,12 @@ func (q *Queries) MarkRgpdExportExpired(ctx context.Context, id uuid.UUID) error
 }
 
 const rgpdClientAttachments = `-- name: RgpdClientAttachments :many
-SELECT x.id AS id, (to_jsonb(x) - 'storage_key'::text)::jsonb AS data
-FROM attachments x
-WHERE x.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = $1::uuid) AND x.id > $2::uuid
-ORDER BY x.id
+SELECT a.id AS id, (to_jsonb(a) - 'storage_key'::text)::jsonb AS data
+FROM attachments a
+WHERE (a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = $1::uuid)
+       OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1::uuid)
+       OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1::uuid)) AND a.id > $2::uuid
+ORDER BY a.id
 LIMIT $3
 `
 
@@ -338,7 +340,7 @@ type RgpdClientAttachmentsRow struct {
 	Data []byte    `json:"data"`
 }
 
-// Client : la liste des fichiers de ses projets.
+// Client : la liste des fichiers de ses projets, de leurs taches et de leurs tickets.
 func (q *Queries) RgpdClientAttachments(ctx context.Context, arg RgpdClientAttachmentsParams) ([]RgpdClientAttachmentsRow, error) {
 	rows, err := q.db.Query(ctx, rgpdClientAttachments, arg.Subject, arg.After, arg.PageSize)
 	if err != nil {
@@ -480,11 +482,17 @@ func (q *Queries) RgpdClientDeliverables(ctx context.Context, arg RgpdClientDeli
 }
 
 const rgpdClientFiles = `-- name: RgpdClientFiles :many
-SELECT x.id, x.filename, x.storage_key
-FROM attachments x
-WHERE x.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = $1::uuid)
-  AND x.id > $2::uuid
-ORDER BY x.id
+SELECT f.id, f.filename, f.storage_key FROM (
+    SELECT a.id, a.filename, a.storage_key FROM attachments a WHERE (a.project_id IN (SELECT p.id FROM projects p WHERE p.client_id = $1::uuid)
+       OR a.task_id IN (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1::uuid)
+       OR a.ticket_id IN (SELECT t.id FROM tickets t JOIN projects p ON p.id = t.project_id WHERE p.client_id = $1::uuid))
+    UNION ALL
+    SELECT p.id, ('logo-' || p.id::text) AS filename, p.logo_key AS storage_key
+    FROM projects p
+    WHERE p.client_id = $1::uuid AND p.logo_key IS NOT NULL AND p.logo_key <> ''
+) f
+WHERE f.id > $2::uuid
+ORDER BY f.id
 LIMIT $3
 `
 
@@ -500,7 +508,9 @@ type RgpdClientFilesRow struct {
 	StorageKey string    `json:"storage_key"`
 }
 
-// Client : les fichiers de ses projets, a ajouter a l'archive.
+// Client : TOUS les fichiers du client (pieces jointes des projets, des taches
+// et des tickets, plus le logo de chaque projet). Source unique : l'archive
+// d'export les ajoute, et l'effacement releve ses cles ici pour les supprimer.
 func (q *Queries) RgpdClientFiles(ctx context.Context, arg RgpdClientFilesParams) ([]RgpdClientFilesRow, error) {
 	rows, err := q.db.Query(ctx, rgpdClientFiles, arg.Subject, arg.After, arg.PageSize)
 	if err != nil {
