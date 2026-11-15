@@ -289,6 +289,8 @@ export type PortalJourneyStep = components['schemas']['PortalJourneyStep']
 // Modules et disponibilite des sites
 export type Module = components['schemas']['Module']
 export type UptimeSettings = components['schemas']['UptimeSettings']
+export type CoolifySettings = components['schemas']['CoolifySettings']
+export type CoolifyApplication = components['schemas']['CoolifyApplication']
 export type UptimeMonitor = components['schemas']['UptimeMonitor']
 export type UptimeIncident = components['schemas']['UptimeIncident']
 export type ProjectUptime = components['schemas']['ProjectUptime']
