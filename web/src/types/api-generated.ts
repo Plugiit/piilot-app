@@ -72,7 +72,7 @@ export interface paths {
         put?: never;
         /**
          * Ouvre une session
-         * @description Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.
+         * @description Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse. Une connexion reussie annule l'effacement RGPD planifie pour inactivite.
          */
         post: operations["login"];
         delete?: never;
@@ -4160,6 +4160,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/rgpd/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des effacements RGPD
+         * @description Du plus récent au plus ancien, 25 par page, filtrable par statut. Exige rgpd.manage.
+         */
+        get: operations["listAdminRgpdErasures"];
+        put?: never;
+        /**
+         * Planifier l'effacement d'un compte ou d'un client
+         * @description Planifie l'effacement à l'issue du délai de rétractation (RGPD_ERASURE_GRACE, 720 h par défaut). Tout de suite : les comptes concernés (le compte, ou les comptes du portail du client) sont désactivés et leurs sessions révoquées ; leur état précédent est gardé pour l'annulation. À l'échéance, la tâche de fond exécute en une transaction : un compte est anonymisé (le temps saisi est conservé) ; un client est supprimé avec ses contacts, projets, e-mails reçus et fichiers. 404 si le sujet n'existe pas ; 409 si un effacement est déjà en cours pour ce sujet (CONFLICT) ou si c'est le dernier administrateur actif (LAST_ADMIN). Journalisé. Exige rgpd.manage.
+         */
+        post: operations["createAdminRgpdErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/erasures/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Annuler un effacement planifié
+         * @description Rien n'est effacé ; les comptes désactivés par la demande retrouvent leur état d'avant (un compte déjà désactivé le reste). 404 si l'effacement n'existe pas ; 409 s'il n'est plus planifié (CONFLICT). Journalisé. Exige rgpd.manage.
+         */
+        post: operations["cancelAdminRgpdErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rgpd/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Délais RGPD en vigueur
+         * @description Délai de rétractation des effacements et seuil d'inactivité de la purge automatique. Exige rgpd.manage.
+         */
+        get: operations["getAdminRgpdSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7688,6 +7752,58 @@ export interface components {
             total: number;
             page: number;
             page_size: number;
+        };
+        CreateRgpdErasureRequest: {
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+        };
+        RgpdErasureItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            subject_type: "client" | "user";
+            /** Format: uuid */
+            subject_id: string;
+            /** @description Libellé du sujet ; « Supprimé » une fois l'effacement exécuté. */
+            subject_label: string;
+            /** @enum {string} */
+            reason: "request" | "inactivity";
+            /** @enum {string} */
+            status: "scheduled" | "cancelled" | "running" | "done" | "failed";
+            /** Format: date-time */
+            scheduled_for: string;
+            /** Format: uuid */
+            requested_by: string | null;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: date-time */
+            executed_at: string | null;
+            /** @description Une fois exécuté : `counts` (lignes supprimées ou vidées par catégorie, jamais de nom) et `files` (fichiers supprimés). Vide sinon. */
+            summary: {
+                [key: string]: unknown;
+            };
+            /** @description Code d'échec (internal). Vide sinon. */
+            error: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RgpdErasurePage: {
+            items: components["schemas"]["RgpdErasureItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        RgpdSettings: {
+            /** @description Délai de rétractation avant l'exécution (RGPD_ERASURE_GRACE). */
+            erasure_grace_hours: number;
+            /** @description Inactivité au-delà de laquelle un compte non admin est planifié (RGPD_INACTIVE_AFTER) ; 0 si désactivé. */
+            inactive_after_hours: number;
+            inactive_purge_enabled: boolean;
         };
     };
     responses: {
@@ -15247,6 +15363,126 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    listAdminRgpdErasures: {
+        parameters: {
+            query?: {
+                status?: "scheduled" | "cancelled" | "running" | "done" | "failed";
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasurePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createAdminRgpdErasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRgpdErasureRequest"];
+            };
+        };
+        responses: {
+            /** @description Planifié */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasureItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description CONFLICT (effacement déjà en cours) ou LAST_ADMIN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    cancelAdminRgpdErasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Annulé */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdErasureItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description CONFLICT : l'effacement n'est plus planifié */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminRgpdSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Réglages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RgpdSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }
