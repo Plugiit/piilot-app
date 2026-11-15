@@ -2,10 +2,12 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 
 import { uptimeKeys } from '@/features/uptime/api'
 import { api, unwrap } from '@/lib/api'
-import type { CoolifySettings } from '@/types/api'
+import type { CoolifySettings, ProjectCoolify } from '@/types/api'
 
 export const coolifyKeys = {
   settings: ['coolify', 'settings'] as const,
+  applications: ['coolify', 'applications'] as const,
+  project: (id: string) => ['coolify', 'project', id] as const,
 }
 
 /**
@@ -48,5 +50,31 @@ export function useTestCoolify() {
   return useMutation({
     mutationFn: async () => unwrap(await api.POST('/api/v1/admin/modules/coolify/poll')),
     onSuccess: set,
+  })
+}
+
+/** Les applications relevees : sert au choix d'une application pour un projet. */
+export const coolifyApplicationsQuery = queryOptions({
+  queryKey: coolifyKeys.applications,
+  queryFn: async () => unwrap(await api.GET('/api/v1/admin/modules/coolify/applications')),
+})
+
+export function projectCoolifyQuery(id: string) {
+  return queryOptions({
+    queryKey: coolifyKeys.project(id),
+    queryFn: async () => unwrap(await api.GET('/api/v1/admin/projects/{id}/coolify', { params: { path: { id } } })),
+  })
+}
+
+export function useSetProjectCoolify(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (applications: { application_uuid: string; environment: 'prod' | 'preprod' }[]) =>
+      unwrap(await api.PUT('/api/v1/admin/projects/{id}/coolify', { params: { path: { id } }, body: { applications } })),
+    onSuccess: (view: ProjectCoolify) => {
+      queryClient.setQueryData(coolifyKeys.project(id), view)
+      // La relève demandée remplira les déploiements : l'écran du module la suit.
+      void queryClient.invalidateQueries({ queryKey: coolifyKeys.settings })
+    },
   })
 }
