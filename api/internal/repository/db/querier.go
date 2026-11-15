@@ -63,8 +63,14 @@ type Querier interface {
 	// Une releve ratee : un controle manquant pour chaque site connu. Ni en
 	// ligne, ni en panne.
 	BumpUptimeMissing(ctx context.Context, arg BumpUptimeMissingParams) error
+	// Une connexion reussie annule l'effacement planifie pour inactivite.
+	CancelInactivityErasureOfUser(ctx context.Context, subjectID uuid.UUID) (uuid.UUID, error)
+	CancelRgpdErasure(ctx context.Context, arg CancelRgpdErasureParams) error
 	// Le prochain e-mail a envoyer, verrouille pour la transaction de l'envoi.
 	ClaimDueEmail(ctx context.Context) (EmailOutbox, error)
+	// Reserve le prochain effacement arrive a echeance, sous verrou, pour la
+	// duree de la transaction de l'appelant : une autre instance passe au suivant.
+	ClaimDueRgpdErasure(ctx context.Context) (RgpdErasure, error)
 	// Le prochain e-mail a ranger, verrouille le temps de le traiter : deux
 	// instances pendant un deploiement ne rangent pas deux fois le meme.
 	ClaimPendingInbound(ctx context.Context) (InboundEmail, error)
@@ -136,6 +142,7 @@ type Querier interface {
 	CountReportEmailsPending(ctx context.Context, reportID *uuid.UUID) (int32, error)
 	CountReports(ctx context.Context, arg CountReportsParams) (int32, error)
 	CountReportsByStatus(ctx context.Context, month time.Time) (CountReportsByStatusRow, error)
+	CountRgpdErasures(ctx context.Context, status *string) (int64, error)
 	CountRgpdExports(ctx context.Context) (int64, error)
 	CountServices(ctx context.Context, search *string) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
@@ -203,6 +210,10 @@ type Querier interface {
 	// base, si bien qu'une fuite de la table ne permet pas de rejouer une session.
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateReplyTemplate(ctx context.Context, arg CreateReplyTemplateParams) (TicketReplyTemplate, error)
+	// Effacement RGPD (1.5) : demandes avec delai, puis execution en une
+	// transaction. Les requetes de suppression rendent leur nombre de lignes : il
+	// alimente le resume de l'effacement, qui ne contient ni nom ni adresse.
+	CreateRgpdErasure(ctx context.Context, arg CreateRgpdErasureParams) (RgpdErasure, error)
 	CreateRgpdExport(ctx context.Context, arg CreateRgpdExportParams) (RgpdExport, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (CreateServiceRow, error)
 	// Le rang par defaut place la nouvelle app en queue : on ajoute au bout, on
@@ -283,6 +294,7 @@ type Querier interface {
 	// l'equipe voie ce qui manque au lieu d'un lien rompu en silence.
 	DeleteUnlinkedAbsentAnalyticsWebsites(ctx context.Context, provider string) (int64, error)
 	DisableUser(ctx context.Context, id uuid.UUID) error
+	DisableUserKeepingDate(ctx context.Context, id uuid.UUID) error
 	// L'identifiant vient du compteur, verrouille jusqu'au commit : les evenements
 	// deviennent visibles dans l'ordre de leurs identifiants.
 	EmitBotEvent(ctx context.Context, arg EmitBotEventParams) error
@@ -292,6 +304,47 @@ type Querier interface {
 	EnqueueEmail(ctx context.Context, arg EnqueueEmailParams) error
 	// Un e-mail de rapport connait son rapport : son abandon se reporte dessus.
 	EnqueueReportEmail(ctx context.Context, arg EnqueueReportEmailParams) error
+	// Adresse inutilisable, champs personnels vides, mot de passe qui ne
+	// correspond a aucun hachage, double authentification retiree. La ligne reste
+	// pour que le temps saisi (cascade de time_entries) soit conserve.
+	EraseAnonymizeUser(ctx context.Context, arg EraseAnonymizeUserParams) error
+	EraseBlankMessageSender(ctx context.Context, email string) (int64, error)
+	EraseBlankTicketRequester(ctx context.Context, email string) (int64, error)
+	// Fichiers des projets, de leurs taches et de leurs tickets.
+	EraseClientAttachmentKeys(ctx context.Context, clientID uuid.UUID) ([]string, error)
+	EraseClientContactEmails(ctx context.Context, clientID *uuid.UUID) ([]string, error)
+	EraseClientCounts(ctx context.Context, clientID *uuid.UUID) (EraseClientCountsRow, error)
+	EraseClientLogoKeys(ctx context.Context, clientID uuid.UUID) ([]string, error)
+	EraseCountTimeEntriesOfUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteAssignments(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteClient(ctx context.Context, id uuid.UUID) (int64, error)
+	EraseDeleteClientContacts(ctx context.Context, clientID *uuid.UUID) (int64, error)
+	// Cles d'import et lignes de rapport qui designent le client, ses contacts,
+	// ses projets ou leur temps (le libelle d'une ligne peut contenir un nom).
+	EraseDeleteClientImportTraces(ctx context.Context, clientID uuid.UUID) (int64, error)
+	EraseDeleteClientInbound(ctx context.Context, arg EraseDeleteClientInboundParams) (int64, error)
+	EraseDeleteClientOutbox(ctx context.Context, arg EraseDeleteClientOutboxParams) (int64, error)
+	// Taches, tickets, livrables, rapports, temps et fichiers suivent par cascade.
+	EraseDeleteClientProjects(ctx context.Context, clientID uuid.UUID) (int64, error)
+	EraseDeleteFavorites(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteInboundFrom(ctx context.Context, email string) (int64, error)
+	EraseDeleteInvitations(ctx context.Context, arg EraseDeleteInvitationsParams) (int64, error)
+	EraseDeleteMemberships(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Les codes et les jetons suivent par cascade.
+	EraseDeleteOAuthGrants(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteOutboxTo(ctx context.Context, email string) (int64, error)
+	EraseDeletePasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteRefreshTokens(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteReportOptOuts(ctx context.Context, userID uuid.UUID) (int64, error)
+	EraseDeleteReportRecipient(ctx context.Context, email string) (int64, error)
+	EraseDeleteTimers(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Les archives d'export du sujet contiennent ses donnees : leurs fichiers
+	// sont a supprimer.
+	EraseExportKeysOfSubject(ctx context.Context, arg EraseExportKeysOfSubjectParams) ([]string, error)
+	// Ligne d'historique conservee, sans libelle ni fichier.
+	EraseRedactExportsOfSubject(ctx context.Context, arg EraseRedactExportsOfSubjectParams) (int64, error)
+	EraseScrubReportRecipients(ctx context.Context, email string) (int64, error)
 	// Une page de l'export CSV, par cle : pas d'OFFSET, la page ne bouge pas si
 	// un client est cree pendant l'export. `source_key` est l'identifiant
 	// d'origine que l'import a retenu, s'il y en a un.
@@ -456,6 +509,7 @@ type Querier interface {
 	GetReleaseCheck(ctx context.Context) (AppReleaseCheck, error)
 	GetReport(ctx context.Context, id uuid.UUID) (GetReportRow, error)
 	GetReportSettings(ctx context.Context) (ReportSetting, error)
+	GetRgpdErasureForUpdate(ctx context.Context, id uuid.UUID) (RgpdErasure, error)
 	GetRgpdExport(ctx context.Context, id uuid.UUID) (RgpdExport, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetSidebarApp(ctx context.Context, id uuid.UUID) (GetSidebarAppRow, error)
@@ -569,6 +623,9 @@ type Querier interface {
 	// Les jours ou des demandes du client ont ete resolues, depuis une date. Les
 	// jours sans rien n'ont pas de ligne : l'appelant les complete a zero.
 	ListClientTicketDays(ctx context.Context, arg ListClientTicketDaysParams) ([]ListClientTicketDaysRow, error)
+	// Les comptes du portail d'un client, effaces ou non (la cle etrangere
+	// RESTRICT les compte tous).
+	ListClientUsersForErasure(ctx context.Context, clientID *uuid.UUID) ([]ListClientUsersForErasureRow, error)
 	// Sert le champ « Client » du formulaire de projet. Pagine comme le reste,
 	// meme si une agence en compte quelques dizaines : la regle ne souffre pas
 	// d'exception, sinon elle finit par etre oubliee la ou elle compte.
@@ -668,6 +725,9 @@ type Querier interface {
 	ListHeldInbound(ctx context.Context, arg ListHeldInboundParams) ([]ListHeldInboundRow, error)
 	ListImportRows(ctx context.Context, arg ListImportRowsParams) ([]ImportRow, error)
 	ListImports(ctx context.Context, arg ListImportsParams) ([]Import, error)
+	// Comptes non administrateurs sans connexion depuis `cutoff`, qui n'ont pas
+	// deja un effacement en cours.
+	ListInactiveUsers(ctx context.Context, arg ListInactiveUsersParams) ([]ListInactiveUsersRow, error)
 	// Interactions client : le journal de la relation.
 	// Le journal, du plus recent au plus ancien, filtre par client et par genre.
 	// Pagination par curseur : la liste s'allonge par le haut.
@@ -812,6 +872,7 @@ type Querier interface {
 	// L'envoi automatique : les rapports du mois pas encore envoyes, sauf ceux
 	// qu'un admin retient et les projets en relecture obligatoire.
 	ListReportsToSend(ctx context.Context, month time.Time) ([]ListReportsToSendRow, error)
+	ListRgpdErasures(ctx context.Context, arg ListRgpdErasuresParams) ([]RgpdErasure, error)
 	ListRgpdExports(ctx context.Context, arg ListRgpdExportsParams) ([]RgpdExport, error)
 	// Matrice de l'ecran « Roles » : chaque role et ses permissions, en une
 	// requete. Bornee par construction : quelques roles, quelques dizaines de
@@ -1003,6 +1064,7 @@ type Querier interface {
 	ListVersionsToRemind(ctx context.Context, afterSeconds float64) ([]ListVersionsToRemindRow, error)
 	ListWatchedAnalyticsActive(ctx context.Context, arg ListWatchedAnalyticsActiveParams) ([]ListWatchedAnalyticsActiveRow, error)
 	LockActiveUserRole(ctx context.Context, id uuid.UUID) (string, error)
+	LockClientForErasure(ctx context.Context, id uuid.UUID) (LockClientForErasureRow, error)
 	// Verrou avant d'ajouter une version ou de trancher : deux soumissions
 	// simultanees prendraient sinon le meme numero.
 	LockDeliverable(ctx context.Context, id uuid.UUID) (LockDeliverableRow, error)
@@ -1032,6 +1094,7 @@ type Querier interface {
 	// la seconde voit le travail de la premiere et n'a plus rien a journaliser.
 	LockTicket(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LockUser(ctx context.Context, id uuid.UUID) error
+	LockUserForErasure(ctx context.Context, id uuid.UUID) (LockUserForErasureRow, error)
 	LogTaskActivity(ctx context.Context, arg LogTaskActivityParams) error
 	MaintenancePlanInUse(ctx context.Context, id uuid.UUID) (bool, error)
 	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -1048,6 +1111,8 @@ type Querier interface {
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error
 	MarkReleaseNotified(ctx context.Context, notifiedVersion string) error
 	MarkReportSent(ctx context.Context, arg MarkReportSentParams) (int64, error)
+	MarkRgpdErasureDone(ctx context.Context, arg MarkRgpdErasureDoneParams) error
+	MarkRgpdErasureFailed(ctx context.Context, arg MarkRgpdErasureFailedParams) error
 	MarkRgpdExportExpired(ctx context.Context, id uuid.UUID) error
 	// Inscrit la tentative, qu'elle ait abouti ou non.
 	MarkSidebarAppFaviconAttempted(ctx context.Context, id uuid.UUID) error
@@ -1380,6 +1445,7 @@ type Querier interface {
 	SetUpdateRequestStep(ctx context.Context, arg SetUpdateRequestStepParams) error
 	SetUptimeMonitorStatus(ctx context.Context, arg SetUptimeMonitorStatusParams) error
 	SetUptimeWebhookSecret(ctx context.Context, secret string) error
+	SetUserDisabledAt(ctx context.Context, arg SetUserDisabledAtParams) error
 	SetUserRole(ctx context.Context, arg SetUserRoleParams) error
 	// Vrai quand la cle designe encore le logo d'une app vivante : c'est ce qui
 	// autorise a servir le fichier.
