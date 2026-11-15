@@ -555,6 +555,15 @@ func (s *DataImportService) Process(ctx context.Context) (bool, error) {
 // Simulation : une seule transaction sur tout le fichier, annulee a la fin,
 // pour que les doublons internes au fichier se voient comme en vrai. Import
 // reel : une transaction par lot de 500 lignes.
+//
+// Limite connue, acceptee : la simulation garde ses ecritures (et donc les
+// verrous d'unicite pris par ses INSERT : nom, SIRET, e-mail) jusqu'au
+// ROLLBACK final. Pendant une simulation longue, une saisie concurrente d'un
+// meme client, contact ou projet attend la fin de la simulation (ou echoue au
+// delai de verrou). Le fichier est borne par IMPORT_MAX_ROWS et la simulation
+// n'a lieu que sur demande d'un administrateur ; le vrai import, lui, ne tient
+// ses verrous que le temps d'un lot. On garde donc ce comportement : il est
+// ce qui fait voir les doublons internes au fichier, comme en vrai.
 func (s *DataImportService) process(ctx context.Context, imp db.Import) (string, error) {
 	importer, ok := s.importers[imp.Entity]
 	if !ok {
