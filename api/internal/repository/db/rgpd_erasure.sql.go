@@ -721,6 +721,62 @@ func (q *Queries) ListInactiveUsers(ctx context.Context, arg ListInactiveUsersPa
 	return items, nil
 }
 
+const listOtherScheduledErasuresOfUser = `-- name: ListOtherScheduledErasuresOfUser :many
+SELECT e.id, e.subject_type, e.subject_id, e.subject_label, e.reason, e.status, e.scheduled_for, e.requested_by, e.cancelled_by, e.cancelled_at, e.executed_at, e.summary, e.error, e.prev_disabled, e.created_at, e.updated_at FROM rgpd_erasures e
+WHERE e.status = 'scheduled' AND e.reason = 'request' AND e.id <> $1::uuid
+  AND (
+      (e.subject_type = 'user' AND e.subject_id = $2::uuid)
+      OR (e.subject_type = 'client' AND e.subject_id = (SELECT u.client_id FROM users u WHERE u.id = $2::uuid))
+  )
+ORDER BY e.created_at, e.id
+FOR UPDATE
+`
+
+type ListOtherScheduledErasuresOfUserParams struct {
+	Excluded uuid.UUID `json:"excluded"`
+	UserID   uuid.UUID `json:"user_id"`
+}
+
+// Les autres demandes d'effacement planifiees qui visent ce compte, soit
+// directement, soit par son client. Seules les demandes (pas la purge des
+// inactifs) desactivent le compte.
+func (q *Queries) ListOtherScheduledErasuresOfUser(ctx context.Context, arg ListOtherScheduledErasuresOfUserParams) ([]RgpdErasure, error) {
+	rows, err := q.db.Query(ctx, listOtherScheduledErasuresOfUser, arg.Excluded, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RgpdErasure{}
+	for rows.Next() {
+		var i RgpdErasure
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubjectType,
+			&i.SubjectID,
+			&i.SubjectLabel,
+			&i.Reason,
+			&i.Status,
+			&i.ScheduledFor,
+			&i.RequestedBy,
+			&i.CancelledBy,
+			&i.CancelledAt,
+			&i.ExecutedAt,
+			&i.Summary,
+			&i.Error,
+			&i.PrevDisabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRgpdErasures = `-- name: ListRgpdErasures :many
 SELECT id, subject_type, subject_id, subject_label, reason, status, scheduled_for, requested_by, cancelled_by, cancelled_at, executed_at, summary, error, prev_disabled, created_at, updated_at FROM rgpd_erasures
 WHERE ($1::text IS NULL OR status = $1::text)
@@ -859,6 +915,20 @@ type MarkRgpdErasureFailedParams struct {
 
 func (q *Queries) MarkRgpdErasureFailed(ctx context.Context, arg MarkRgpdErasureFailedParams) error {
 	_, err := q.db.Exec(ctx, markRgpdErasureFailed, arg.Error, arg.ID)
+	return err
+}
+
+const setRgpdErasurePrevDisabled = `-- name: SetRgpdErasurePrevDisabled :exec
+UPDATE rgpd_erasures SET prev_disabled = $2, updated_at = now() WHERE id = $1
+`
+
+type SetRgpdErasurePrevDisabledParams struct {
+	ID           uuid.UUID `json:"id"`
+	PrevDisabled []byte    `json:"prev_disabled"`
+}
+
+func (q *Queries) SetRgpdErasurePrevDisabled(ctx context.Context, arg SetRgpdErasurePrevDisabledParams) error {
+	_, err := q.db.Exec(ctx, setRgpdErasurePrevDisabled, arg.ID, arg.PrevDisabled)
 	return err
 }
 

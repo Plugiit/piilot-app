@@ -789,6 +789,10 @@ type Querier interface {
 	// invitations en attente, et au-dela le probleme n'est pas l'affichage.
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListOpenMilestonesOfProject(ctx context.Context, projectID uuid.UUID) ([]ListOpenMilestonesOfProjectRow, error)
+	// Les autres demandes d'effacement planifiees qui visent ce compte, soit
+	// directement, soit par son client. Seules les demandes (pas la purge des
+	// inactifs) desactivent le compte.
+	ListOtherScheduledErasuresOfUser(ctx context.Context, arg ListOtherScheduledErasuresOfUserParams) ([]RgpdErasure, error)
 	ListPendingAnalyticsRequests(ctx context.Context, lim int32) ([]ListPendingAnalyticsRequestsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	// Permissions d'un role, servies telles quelles au front pour qu'il masque les
@@ -1439,6 +1443,7 @@ type Querier interface {
 	SetReportEditorial(ctx context.Context, arg SetReportEditorialParams) (int64, error)
 	SetReportHoldReasons(ctx context.Context, arg SetReportHoldReasonsParams) error
 	SetReportManualReview(ctx context.Context, projectID uuid.UUID) error
+	SetRgpdErasurePrevDisabled(ctx context.Context, arg SetRgpdErasurePrevDisabledParams) error
 	// Range le favicon recupere.
 	//
 	// La clause sur `logo_key` protege un depot manuel : si quelqu'un a pose un
