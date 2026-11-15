@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { monthLabel } from '@/features/maintenance/format'
 import { StatusPill } from '@/features/projects/ui'
 import { reportQuery, useReportAction } from '@/features/reports/api'
-import { holdReasonLabel, REPORT_STATUS } from '@/features/reports/format'
+import { holdReasonInMaintenance, holdReasonLabel, REPORT_STATUS } from '@/features/reports/format'
 import { ReportView } from '@/features/reports/report-view'
 import { HttpError } from '@/lib/api'
 import type { Report } from '@/types/api'
@@ -80,7 +80,17 @@ function Actions({ report }: { report: Report }) {
           <p className="font-medium">Ne partira pas tout seul :</p>
           <ul className="mt-1 list-disc pl-4">
             {report.hold_reasons.map((r) => (
-              <li key={r}>{holdReasonLabel(r)}</li>
+              <li key={r}>
+                {holdReasonLabel(r)}
+                {holdReasonInMaintenance(r) && (
+                  <>
+                    {' '}
+                    <Link to="/pm/projets/$id/parametres/maintenance" params={{ id: report.project.id }} className="underline">
+                      Ouvrir l’onglet Maintenance
+                    </Link>
+                  </>
+                )}
+              </li>
             ))}
           </ul>
         </div>

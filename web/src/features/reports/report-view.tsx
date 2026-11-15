@@ -5,6 +5,7 @@ import { LineChart } from '@/components/line-chart'
 import { derived, formatNumber, formatPercent, formatSeconds, referrerLabel, variation } from '@/features/analytics/format'
 import { Delta, Legend, TopList } from '@/features/analytics/ui'
 import { monthLabel } from '@/features/maintenance/format'
+import { deploymentsSourceLabel } from '@/features/reports/format'
 import { ConsumptionBar, KindPill } from '@/features/maintenance/ui'
 import { formatDuration } from '@/features/time/format'
 import { formatDuration as formatIncident, formatUptime } from '@/features/uptime/format'
@@ -252,8 +253,10 @@ function Domains({ section }: { section: NonNullable<ReportData['domain']> }) {
 }
 
 function Deployments({ section }: { section: NonNullable<ReportData['deployments']> }) {
+  const source = deploymentsSourceLabel(section.source)
   return (
     <Section title="Mises en ligne">
+      {source !== null && <p className="text-[13px] text-[#73757c]">{source}</p>}
       <ul className="flex flex-col">
         {section.items.map((d) => (
           <li key={d.name + d.deployed_at} className="flex flex-wrap items-baseline gap-x-3 border-b border-[#f3f4f4] py-2 text-[14px] last:border-b-0">
