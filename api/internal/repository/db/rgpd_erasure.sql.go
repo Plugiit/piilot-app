@@ -394,6 +394,34 @@ func (q *Queries) EraseDeleteFavorites(ctx context.Context, userID uuid.UUID) (i
 	return result.RowsAffected(), nil
 }
 
+const eraseDeleteImportTracesOfUser = `-- name: EraseDeleteImportTracesOfUser :one
+WITH rows_gone AS (
+    DELETE FROM import_rows
+    WHERE entity_id = $1::uuid
+       OR position(lower($2::text) in lower(label)) > 0
+    RETURNING 1
+), keys_gone AS (
+    DELETE FROM import_keys WHERE entity_id = $1::uuid RETURNING 1
+)
+SELECT ((SELECT count(*) FROM rows_gone) + (SELECT count(*) FROM keys_gone))::bigint AS erased
+`
+
+type EraseDeleteImportTracesOfUserParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Email  string    `json:"email"`
+}
+
+// Lignes de rapport d'import dont le libelle contient l'adresse du compte (le
+// libelle d'une saisie de temps sans projet est l'e-mail) et cles d'import qui
+// le designent. La comparaison est une recherche de sous-chaine, pas un LIKE :
+// une adresse contient des `_` et des `%` possibles.
+func (q *Queries) EraseDeleteImportTracesOfUser(ctx context.Context, arg EraseDeleteImportTracesOfUserParams) (int64, error) {
+	row := q.db.QueryRow(ctx, eraseDeleteImportTracesOfUser, arg.UserID, arg.Email)
+	var erased int64
+	err := row.Scan(&erased)
+	return erased, err
+}
+
 const eraseDeleteInboundFrom = `-- name: EraseDeleteInboundFrom :execrows
 DELETE FROM inbound_emails WHERE from_address = $1::citext
 `

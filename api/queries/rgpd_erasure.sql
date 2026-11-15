@@ -163,6 +163,21 @@ WHERE requester_email = sqlc.arg('email')::citext;
 UPDATE ticket_messages SET sender_name = '', sender_email = ''
 WHERE lower(sender_email) = lower(sqlc.arg('email')::text);
 
+-- name: EraseDeleteImportTracesOfUser :one
+-- Lignes de rapport d'import dont le libelle contient l'adresse du compte (le
+-- libelle d'une saisie de temps sans projet est l'e-mail) et cles d'import qui
+-- le designent. La comparaison est une recherche de sous-chaine, pas un LIKE :
+-- une adresse contient des `_` et des `%` possibles.
+WITH rows_gone AS (
+    DELETE FROM import_rows
+    WHERE entity_id = sqlc.arg('user_id')::uuid
+       OR position(lower(sqlc.arg('email')::text) in lower(label)) > 0
+    RETURNING 1
+), keys_gone AS (
+    DELETE FROM import_keys WHERE entity_id = sqlc.arg('user_id')::uuid RETURNING 1
+)
+SELECT ((SELECT count(*) FROM rows_gone) + (SELECT count(*) FROM keys_gone))::bigint AS erased;
+
 -- name: EraseDeleteInboundFrom :execrows
 DELETE FROM inbound_emails WHERE from_address = sqlc.arg('email')::citext;
 

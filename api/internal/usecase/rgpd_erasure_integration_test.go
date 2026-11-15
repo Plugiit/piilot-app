@@ -361,6 +361,45 @@ func TestRgpdErasure_UserAnonymizedAtDueDate(t *testing.T) {
 	}
 }
 
+// Le libelle d'une ligne de rapport d'import peut etre l'adresse e-mail d'un
+// compte : l'effacement du compte retire ces lignes, et seulement elles.
+func TestRgpdErasure_UserImportTracesRemoved(t *testing.T) {
+	e := newErasureEnv(t, 0)
+	ctx := context.Background()
+
+	uid := e.member(t, "import", "team", nil)
+	email := "import@" + e.prefix + ".test"
+
+	importID := e.scanID(t, `INSERT INTO imports (entity, status) VALUES ('time_entries', 'done') RETURNING id`)
+	t.Cleanup(func() { _, _ = e.pool.Exec(context.Background(), `DELETE FROM imports WHERE id = $1`, importID) })
+
+	e.exec(t, `INSERT INTO import_rows (import_id, line, outcome, reason, label) VALUES
+		($1, 1, 'error', 'unknown_user', $2),
+		($1, 2, 'error', 'invalid', $3),
+		($1, 3, 'created', '', 'Projet sans rapport')`,
+		importID, strings.ToUpper(email)+" : email : aucun compte de l'équipe", email+" : minutes : durée invalide")
+
+	item, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectUser, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e.makeDue(t, item.ID)
+	e.drain(t)
+
+	if got := e.erasure(t, item.ID); got.Status != usecase.RgpdErasureDone {
+		t.Fatalf("effacement : %+v", got)
+	}
+
+	if n := e.count(t, `SELECT count(*) FROM import_rows WHERE import_id = $1 AND position(lower($2) in lower(label)) > 0`, importID, email); n != 0 {
+		t.Errorf("%d ligne(s) de rapport contiennent encore l'adresse", n)
+	}
+
+	if n := e.count(t, `SELECT count(*) FROM import_rows WHERE import_id = $1`, importID); n != 1 {
+		t.Errorf("%d ligne(s) restantes, attendu 1 (celle qui ne concerne pas le compte)", n)
+	}
+}
+
 func TestRgpdErasure_ClientDeletedWithFiles(t *testing.T) {
 	e := newErasureEnv(t, 0)
 	ctx := context.Background()
