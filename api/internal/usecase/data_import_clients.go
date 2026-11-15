@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -67,6 +68,11 @@ func (clientImporter) importRow(ctx context.Context, q *db.Queries, importID uui
 		Country:    v["country"],
 	}
 
+	website := strings.TrimSpace(v["website"])
+	if website != "" && !isHTTPURL(website) {
+		return invalid("website", "adresse web invalide (http ou https)"), nil
+	}
+
 	if errs := identity.normalize(false); len(errs) > 0 {
 		keys := make([]string, 0, len(errs))
 		for k := range errs {
@@ -78,36 +84,24 @@ func (clientImporter) importRow(ctx context.Context, q *db.Queries, importID uui
 		return invalid(keys[0], fmt.Sprint(errs[keys[0]])), nil
 	}
 
-	// 1. Identifiant Piilot.
-	if raw := strings.TrimSpace(v[FieldKeyID]); raw != "" {
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			return invalid("id", "identifiant invalide"), nil
-		}
-
-		switch _, err := q.GetClientByID(ctx, id); {
-		case err == nil:
-			return importResult{Outcome: ImportRowSkipped, Reason: ReasonAlreadyExists, Label: label, EntityID: &id}, nil
-		case !errors.Is(err, pgx.ErrNoRows):
-			return importResult{}, fmt.Errorf("recherche du client : %w", err)
-		}
+	// 1 et 2. Identifiant Piilot, puis cle d'import.
+	check := replayCheck{
+		entity: DataEntityClients, label: label,
+		exists: func(ctx context.Context, q *db.Queries, id uuid.UUID) (bool, error) {
+			switch _, err := q.GetClientByID(ctx, id); {
+			case err == nil:
+				return true, nil
+			case errors.Is(err, pgx.ErrNoRows):
+				return false, nil
+			default:
+				return false, fmt.Errorf("recherche du client : %w", err)
+			}
+		},
 	}
 
-	// 2. Cle d'import.
-	sourceKey := importSourceKey(strings.TrimSpace(v[FieldKeySourceID]), clientNaturalKey(identity.Siret, name))
-
-	switch known, err := q.GetImportKey(ctx, db.GetImportKeyParams{Entity: DataEntityClients, SourceKey: sourceKey}); {
-	case err == nil:
-		// La cle ne vaut que si le client existe encore : supprime depuis,
-		// il est recree (et la cle repointee plus bas).
-		switch _, err := q.GetClientByID(ctx, known.EntityID); {
-		case err == nil:
-			return importResult{Outcome: ImportRowSkipped, Reason: ReasonAlreadyImported, Label: label, EntityID: &known.EntityID}, nil
-		case !errors.Is(err, pgx.ErrNoRows):
-			return importResult{}, fmt.Errorf("recherche du client : %w", err)
-		}
-	case !errors.Is(err, pgx.ErrNoRows):
-		return importResult{}, fmt.Errorf("lecture de la cle d'import : %w", err)
+	res, sourceKey, done, err := check.run(ctx, q, v, clientNaturalKey(identity.Siret, name))
+	if err != nil || done {
+		return res, err
 	}
 
 	// 3. Doublons metier.
@@ -129,7 +123,7 @@ func (clientImporter) importRow(ctx context.Context, q *db.Queries, importID uui
 
 	client, err := q.CreateImportedClient(ctx, db.CreateImportedClientParams{
 		Name: name, Kind: identity.Kind, LegalName: identity.LegalName, LegalForm: identity.LegalForm,
-		Siret: identity.Siret, VatNumber: identity.VatNumber, Status: status, Website: strings.TrimSpace(v["website"]),
+		Siret: identity.Siret, VatNumber: identity.VatNumber, Status: status, Website: website,
 		Phone: identity.Phone, Address: identity.Address, PostalCode: identity.PostalCode,
 		City: identity.City, Country: identity.Country,
 	})
@@ -167,4 +161,11 @@ func importSourceKey(sourceID, natural string) string {
 	sum := sha256.Sum256([]byte(natural))
 
 	return "nat:" + hex.EncodeToString(sum[:])
+}
+
+// isHTTPURL accepte une adresse absolue en http ou https, avec un hote.
+func isHTTPURL(raw string) bool {
+	u, err := url.Parse(raw)
+
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
