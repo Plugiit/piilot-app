@@ -1,6 +1,6 @@
 # RGPD : export et effacement
 
-Piilot permet à un administrateur (permission `rgpd.manage`) d'exporter les données d'une personne ou d'un client, et d'en demander l'effacement. Ce document dit ce qui est effacé, ce qui est conservé et pourquoi, les durées, et ce qu'il faut faire après une restauration de sauvegarde.
+Piilot permet à un administrateur (permission `rgpd.manage`, réservée au rôle admin et non attribuable à un autre rôle : une demande d'effacement désactive le compte visé) d'exporter les données d'une personne ou d'un client, et d'en demander l'effacement. Ce document dit ce qui est effacé, ce qui est conservé et pourquoi, les durées, et ce qu'il faut faire après une restauration de sauvegarde.
 
 ## Deux sujets, deux effacements
 
