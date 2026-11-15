@@ -674,3 +674,98 @@ func TestRgpdErasure_NoDoubleExecution(t *testing.T) {
 		}
 	}
 }
+
+// Ce que l'export d'un client archive est exactement ce que son effacement
+// supprime : pieces jointes des projets, des taches et des tickets, et logos.
+func TestRgpdErasure_ExportedFilesEqualErasedFiles(t *testing.T) {
+	e := newErasureEnv(t, 0)
+	ctx := context.Background()
+
+	mk := func(name string) (uuid.UUID, uuid.UUID) {
+		c, err := e.q.CreateImportedClient(ctx, db.CreateImportedClientParams{Name: e.prefix + " " + name, Kind: usecase.ClientProfessionnel, Status: "actif"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		p, err := e.q.CreateProject(ctx, db.CreateProjectParams{ClientID: c.ID, Name: e.prefix + " p-" + name, Status: "production", Priority: "high"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return c.ID, p.ID
+	}
+
+	clientID, projectID := mk("cible")
+	_, otherProject := mk("autre")
+
+	contents := map[string]string{} // cle -> contenu
+	attach := func(col string, owner uuid.UUID, name, content string) {
+		key := e.save(t, content)
+		contents[key] = content
+		e.exec(t, `INSERT INTO attachments (`+col+`, filename, content_type, size_bytes, storage_key) VALUES ($1, $2, 'text/plain', 1, $3)`, owner, e.prefix+"-"+name, key)
+	}
+
+	task := e.scanID(t, `INSERT INTO tasks (project_id, title) VALUES ($1, 'tache') RETURNING id`, projectID)
+	ticket := e.scanID(t, `INSERT INTO tickets (project_id, subject) VALUES ($1, 'ticket') RETURNING id`, projectID)
+
+	attach("project_id", projectID, "projet", "contenu-projet")
+	attach("task_id", task, "tache", "contenu-tache")
+	attach("ticket_id", ticket, "ticket", "contenu-ticket")
+
+	logoKey := e.save(t, "contenu-logo")
+	contents[logoKey] = "contenu-logo"
+	e.exec(t, `UPDATE projects SET logo_key = $2 WHERE id = $1`, projectID, logoKey)
+
+	// Un fichier d'un autre client : ni exporte ni efface.
+	decoy := e.save(t, "contenu-autre-client")
+	e.exec(t, `INSERT INTO attachments (project_id, filename, content_type, size_bytes, storage_key) VALUES ($1, $2, 'text/plain', 1, $3)`, otherProject, e.prefix+"-autre", decoy)
+
+	item := e.buildOne(t, usecase.RgpdSubjectClient, clientID)
+	a := e.archive(t, item.ID)
+
+	exported := map[string]bool{}
+
+	for name, b := range a.entries {
+		if strings.HasPrefix(name, "files/") {
+			exported[string(b)] = true
+		}
+	}
+
+	if got := a.manifest(t).Files; got.Included != 4 || len(got.Missing) != 0 {
+		t.Errorf("manifeste : %+v, attendu 4 fichiers", got)
+	}
+
+	if got := len(a.rows(t, "attachments")); got != 3 {
+		t.Errorf("liste des pieces jointes : %d, attendu 3", got)
+	}
+
+	erasure, err := e.svc.Request(ctx, nil, usecase.RgpdSubjectClient, clientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e.makeDue(t, erasure.ID)
+	e.drain(t)
+
+	erased := map[string]bool{}
+
+	for key, content := range contents {
+		if !e.fileExists(t, key) {
+			erased[content] = true
+		}
+	}
+
+	if len(exported) != len(erased) {
+		t.Fatalf("exportes %v, effaces %v", exported, erased)
+	}
+
+	for c := range exported {
+		if !erased[c] {
+			t.Errorf("%q est exporte mais pas efface", c)
+		}
+	}
+
+	if !e.fileExists(t, decoy) {
+		t.Error("le fichier d'un autre client a ete supprime")
+	}
+}
