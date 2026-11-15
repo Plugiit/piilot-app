@@ -28,15 +28,15 @@ var DataEntities = []string{
 type Field struct {
 	// Key est l'identifiant stable du champ : celui du mapping stocke, du
 	// code et de l'API. Il ne change jamais, contrairement a l'en-tete.
-	Key string
+	Key string `json:"key"`
 	// Header est l'en-tete ecrit a l'export.
-	Header string
+	Header string `json:"header"`
 	// Aliases sont d'autres en-tetes reconnus a l'import (noms usuels, anglais,
 	// exports d'autres outils). La comparaison ignore casse, accents et
 	// ponctuation : inutile de lister les variantes typographiques.
-	Aliases []string
+	Aliases []string `json:"aliases"`
 	// Required : sans cette colonne, la ligne ne peut pas etre importee.
-	Required bool
+	Required bool `json:"required"`
 }
 
 // Cles communes a toutes les entites.
