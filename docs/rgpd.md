@@ -48,8 +48,8 @@ Piilot permet à un administrateur (permission `rgpd.manage`) d'exporter les don
 
 `RGPD_INACTIVE_AFTER` vaut `0` par défaut : **la purge est désactivée**. Pour l'activer, indiquez une durée d'au moins `720h` ; `26280h` (3 ans) est un bon point de départ.
 
-- Une passe quotidienne planifie l'effacement (motif « inactivité ») des comptes **non administrateurs** dont la dernière connexion (ou, à défaut, la création) est plus ancienne que ce seuil. Les administrateurs ne sont jamais concernés. Les comptes désactivés manuellement le sont, eux.
-- Ces comptes **ne sont pas désactivés** pendant le délai : se connecter est ce qui annule l'effacement (ligne d'audit `rgpd.erasure_cancelled`, avec `via: login`).
+- Une passe quotidienne planifie l'effacement (motif « inactivité ») des comptes **non administrateurs** dont la dernière activité (connexion ou prolongation de session ; à défaut, la création) est plus ancienne que ce seuil. Les administrateurs ne sont jamais concernés. Les comptes désactivés manuellement le sont, eux.
+- Ces comptes **ne sont pas désactivés** pendant le délai : se connecter, ou simplement rester connecté (la prolongation de session compte comme une activité), annule l'effacement (ligne d'audit `rgpd.erasure_cancelled`, avec `via: login` ou `via: refresh`).
 - Si l'envoi d'e-mails est configuré (SMTP), un e-mail de préavis part au titulaire avec la date et le lien de connexion. Sans SMTP, aucun préavis n'est envoyé : activez la purge en connaissance de cause.
 
 ## Durées

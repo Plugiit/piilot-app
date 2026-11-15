@@ -516,6 +516,65 @@ func TestRgpdErasure_InactiveUsersAndLoginCancels(t *testing.T) {
 	}
 }
 
+// Une personne qui reste connectee par rafraichissement n'est pas inactive :
+// le refresh annule l'effacement planifie et met a jour la derniere activite.
+func TestRgpdErasure_RefreshCancelsInactivityErasure(t *testing.T) {
+	e := newErasureEnv(t, 48*time.Hour)
+	ctx := context.Background()
+
+	hash, err := security.HashPassword(testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id := e.member(t, "refresh", "team", nil)
+	e.exec(t, `UPDATE users SET password_hash = $2 WHERE id = $1`, id, hash)
+
+	auth, _ := newService(t)
+
+	session, err := auth.Login(ctx, usecase.LoginInput{Email: "refresh@" + e.prefix + ".test", Password: testPassword})
+	if err != nil {
+		t.Fatalf("connexion : %v", err)
+	}
+
+	// Plus de mot de passe depuis 100 jours : seule la session vit.
+	e.exec(t, `UPDATE users SET last_login_at = now() - interval '100 days' WHERE id = $1`, id)
+
+	if _, err := e.svc.ScheduleInactive(ctx); err != nil {
+		t.Fatalf("ScheduleInactive : %v", err)
+	}
+
+	pending := `SELECT count(*) FROM rgpd_erasures WHERE subject_type = 'user' AND subject_id = $1 AND status = 'scheduled'`
+	if e.count(t, pending, id) != 1 {
+		t.Fatal("le compte inactif n'est pas planifie")
+	}
+
+	if _, err := auth.Refresh(ctx, session.RefreshToken, "test", nil); err != nil {
+		t.Fatalf("refresh : %v", err)
+	}
+
+	if e.count(t, pending, id) != 0 || e.count(t, `SELECT count(*) FROM rgpd_erasures WHERE subject_id = $1 AND status = 'cancelled'`, id) != 1 {
+		t.Error("le refresh n'a pas annule l'effacement pour inactivite")
+	}
+
+	if e.count(t, `SELECT count(*) FROM users WHERE id = $1 AND last_login_at > now() - interval '1 hour'`, id) != 1 {
+		t.Error("le refresh n'a pas mis a jour la derniere activite")
+	}
+
+	if e.count(t, `SELECT count(*) FROM audit_log WHERE action = 'rgpd.erasure_cancelled' AND actor_id = $1 AND details->>'via' = 'refresh'`, id) != 1 {
+		t.Error("annulation par refresh absente du journal d'audit")
+	}
+
+	// Et la prochaine passe ne le replanifie pas.
+	if _, err := e.svc.ScheduleInactive(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if e.count(t, pending, id) != 0 {
+		t.Error("un compte actif a ete replanifie")
+	}
+}
+
 func TestRgpdErasure_RollbackOnFailure(t *testing.T) {
 	ctx := context.Background()
 
