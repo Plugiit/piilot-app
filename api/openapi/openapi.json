@@ -133,7 +133,7 @@
           "auth"
         ],
         "summary": "Ouvre une session",
-        "description": "Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse.",
+        "description": "Pose deux cookies httpOnly : piilot_access (portee /) et piilot_refresh (portee /api/v1/auth). Les jetons ne figurent jamais dans le corps de la reponse. Une connexion reussie annule l'effacement RGPD planifie pour inactivite.",
         "operationId": "login",
         "requestBody": {
           "required": true,
@@ -13739,6 +13739,217 @@
           }
         }
       }
+    },
+    "/api/v1/admin/rgpd/erasures": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des effacements RGPD",
+        "description": "Du plus récent au plus ancien, 25 par page, filtrable par statut. Exige rgpd.manage.",
+        "operationId": "listAdminRgpdErasures",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "cancelled",
+                "running",
+                "done",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasurePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Planifier l'effacement d'un compte ou d'un client",
+        "description": "Planifie l'effacement à l'issue du délai de rétractation (RGPD_ERASURE_GRACE, 720 h par défaut). Tout de suite : les comptes concernés (le compte, ou les comptes du portail du client) sont désactivés et leurs sessions révoquées ; leur état précédent est gardé pour l'annulation. À l'échéance, la tâche de fond exécute en une transaction : un compte est anonymisé (le temps saisi est conservé) ; un client est supprimé avec ses contacts, projets, e-mails reçus et fichiers. 404 si le sujet n'existe pas ; 409 si un effacement est déjà en cours pour ce sujet (CONFLICT) ou si c'est le dernier administrateur actif (LAST_ADMIN). Journalisé. Exige rgpd.manage.",
+        "operationId": "createAdminRgpdErasure",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRgpdErasureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Planifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasureItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "CONFLICT (effacement déjà en cours) ou LAST_ADMIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/erasures/{id}/cancel": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Annuler un effacement planifié",
+        "description": "Rien n'est effacé ; les comptes désactivés par la demande retrouvent leur état d'avant (un compte déjà désactivé le reste). 404 si l'effacement n'existe pas ; 409 s'il n'est plus planifié (CONFLICT). Journalisé. Exige rgpd.manage.",
+        "operationId": "cancelAdminRgpdErasure",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annulé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdErasureItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "CONFLICT : l'effacement n'est plus planifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rgpd/settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Délais RGPD en vigueur",
+        "description": "Délai de rétractation des effacements et seuil d'inactivité de la purge automatique. Exige rgpd.manage.",
+        "operationId": "getAdminRgpdSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Réglages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgpdSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -25670,6 +25881,176 @@
           },
           "page_size": {
             "type": "integer"
+          }
+        }
+      },
+      "CreateRgpdErasureRequest": {
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_id"
+        ],
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RgpdErasureItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "subject_type",
+          "subject_id",
+          "subject_label",
+          "reason",
+          "status",
+          "scheduled_for",
+          "requested_by",
+          "cancelled_by",
+          "cancelled_at",
+          "executed_at",
+          "summary",
+          "error",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "client",
+              "user"
+            ]
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject_label": {
+            "type": "string",
+            "description": "Libellé du sujet ; « Supprimé » une fois l'effacement exécuté."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "request",
+              "inactivity"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "cancelled",
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requested_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "cancelled_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "cancelled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "executed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Une fois exécuté : `counts` (lignes supprimées ou vidées par catégorie, jamais de nom) et `files` (fichiers supprimés). Vide sinon."
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec (internal). Vide sinon."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RgpdErasurePage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RgpdErasureItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "RgpdSettings": {
+        "type": "object",
+        "required": [
+          "erasure_grace_hours",
+          "inactive_after_hours",
+          "inactive_purge_enabled"
+        ],
+        "properties": {
+          "erasure_grace_hours": {
+            "type": "integer",
+            "description": "Délai de rétractation avant l'exécution (RGPD_ERASURE_GRACE)."
+          },
+          "inactive_after_hours": {
+            "type": "integer",
+            "description": "Inactivité au-delà de laquelle un compte non admin est planifié (RGPD_INACTIVE_AFTER) ; 0 si désactivé."
+          },
+          "inactive_purge_enabled": {
+            "type": "boolean"
           }
         }
       }
