@@ -49,6 +49,10 @@ Supprimer un client dans le CRM est une suppression **logique** : il disparaît 
 | **Historique des effacements et des exports** | Preuve que la demande a été traitée : sujet (type et identifiant), dates, compteurs. Le libellé devient « Supprimé » |
 | **Texte libre saisi par l'équipe** | Commentaires de tâches, descriptions, notes de ticket : ils restent attachés à l'élément. Ils peuvent citer une personne par son nom ; pensez à les relire si la demande l'exige |
 
+## Fichiers d'import CSV
+
+Un fichier déposé dans l'import contient des données personnelles (clients, contacts, temps). Il est supprimé du disque dès que l'import réel s'est exécuté. Un fichier qui n'a **jamais été lancé** (dépôt abandonné) ou une **simulation jamais confirmée** est supprimé au bout de `IMPORT_FILE_TTL` (7 jours par défaut, au moins 1 h), par la tâche de fond des imports : le dépôt abandonné passe à « annulé », la simulation garde son rapport mais ne peut plus être confirmée (il faut redéposer le fichier). Ces fichiers ne sont pas rattachés à un client : l'effacement d'un client ne les retire pas, c'est ce délai qui les borne.
+
 ## Purge des comptes inactifs
 
 `RGPD_INACTIVE_AFTER` vaut `0` par défaut : **la purge est désactivée**. Pour l'activer, indiquez une durée d'au moins `720h` ; `26280h` (3 ans) est un bon point de départ.
@@ -64,6 +68,7 @@ Supprimer un client dans le CRM est une suppression **logique** : il disparaît 
 | `RGPD_ERASURE_GRACE` | 720 h | Délai entre la demande et l'exécution |
 | `RGPD_INACTIVE_AFTER` | 0 (désactivée) | Inactivité au bout de laquelle un compte est planifié |
 | `RGPD_EXPORT_TTL` | 168 h | Durée de vie d'une archive d'export prête |
+| `IMPORT_FILE_TTL` | 168 h | Durée de garde d'un fichier d'import CSV non lancé (voir ci-dessous) |
 | `AUDIT_RETENTION` | 365 jours | Durée du journal d'audit |
 | `BACKUP_KEEP_*` | 7 / 4 / 3 | Sauvegardes quotidiennes / hebdomadaires / mensuelles |
 

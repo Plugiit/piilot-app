@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -629,5 +630,84 @@ func TestExportThenImportRoundTrip(t *testing.T) {
 	again := e.upload(t, filtered)
 	if d := e.run(t, again.ID, again.SuggestedMapping, false); d.CreatedN != 0 || d.SkippedN != len(seed) {
 		t.Fatalf("rejeu apres aller-retour : created=%d skipped=%d", d.CreatedN, d.SkippedN)
+	}
+}
+
+// Un fichier d'import contient des donnees personnelles : depose jamais lance,
+// ou simule jamais confirme, il est retire au bout du delai de garde.
+func TestImport_UnusedFilesArePurged(t *testing.T) {
+	e := newImportEnv(t, 1<<20, 100)
+	ctx := context.Background()
+
+	e.svc.SetFileTTL(24 * time.Hour)
+
+	uploaded := e.upload(t, csvOf(t, []string{"name"}, []string{e.name("depose")}))
+	fresh := e.upload(t, csvOf(t, []string{"name"}, []string{e.name("recent")}))
+
+	keyOf := func(id uuid.UUID) string {
+		var key string
+		if err := e.pool.QueryRow(ctx, `SELECT file_key FROM imports WHERE id = $1`, id).Scan(&key); err != nil {
+			t.Fatal(err)
+		}
+
+		return key
+	}
+
+	oldKey, freshKey := keyOf(uploaded.ID), keyOf(fresh.ID)
+	if oldKey == "" || freshKey == "" {
+		t.Fatal("fichiers non deposes")
+	}
+
+	// Une simulation terminee dont le fichier est garde pour la confirmation.
+	simKey, _, err := e.files.Save(strings.NewReader("name\nsimulation\n"), 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var simID uuid.UUID
+	if err := e.pool.QueryRow(ctx, `INSERT INTO imports (entity, status, dry_run, file_key) VALUES ('clients', 'done', true, $1) RETURNING id`, simKey).Scan(&simID); err != nil {
+		t.Fatal(err)
+	}
+
+	e.ids = append(e.ids, simID)
+
+	if _, err := e.pool.Exec(ctx, `UPDATE imports SET updated_at = now() - interval '2 days' WHERE id = ANY($1)`, []uuid.UUID{uploaded.ID, simID}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.svc.Process(ctx); err != nil {
+		t.Fatalf("Process : %v", err)
+	}
+
+	exists := func(key string) bool {
+		rc, err := e.files.Open(key)
+		if err != nil {
+			return false
+		}
+
+		_ = rc.Close()
+
+		return true
+	}
+
+	if exists(oldKey) || exists(simKey) {
+		t.Error("un fichier d'import perime est toujours sur le disque")
+	}
+
+	if !exists(freshKey) {
+		t.Error("un fichier recent a ete supprime")
+	}
+
+	var status, key string
+	if err := e.pool.QueryRow(ctx, `SELECT status, file_key FROM imports WHERE id = $1`, uploaded.ID).Scan(&status, &key); err != nil || status != "cancelled" || key != "" {
+		t.Errorf("depot abandonne : %q %q %v", status, key, err)
+	}
+
+	if err := e.pool.QueryRow(ctx, `SELECT status, file_key FROM imports WHERE id = $1`, simID).Scan(&status, &key); err != nil || status != "done" || key != "" {
+		t.Errorf("simulation : %q %q %v", status, key, err)
+	}
+
+	if err := e.pool.QueryRow(ctx, `SELECT status FROM imports WHERE id = $1`, fresh.ID).Scan(&status); err != nil || status != "uploaded" {
+		t.Errorf("depot recent : %q %v", status, err)
 	}
 }
