@@ -53,6 +53,9 @@ type ReportMail struct {
 	Sources []ReportRow
 
 	Deployments []ReportItem
+	// D'ou viennent les mises en ligne : « d'après Coolify », « d'après le
+	// depot ». Vide quand le rapport ne le dit pas.
+	DeploymentsSource string
 }
 
 // MonthlyReport compose l'e-mail du rapport mensuel.
@@ -81,6 +84,9 @@ func MonthlyReport(to, firstname string, r ReportMail, url string) (Message, err
 	}
 	if r.Consumed != "" {
 		fmt.Fprintf(&text, "- Temps de maintenance : %s%s\n", r.Consumed, ifElse(r.Overrun != "", " ("+r.Overrun+")", ""))
+	}
+	if len(r.Deployments) > 0 {
+		fmt.Fprintf(&text, "\nMises en ligne%s : %d\n", ifElse(r.DeploymentsSource != "", " ("+r.DeploymentsSource+")", ""), len(r.Deployments))
 	}
 	fmt.Fprintf(&text, "\nLe rapport complet, avec ses graphiques, est dans votre espace :\n\n%s\n", url)
 

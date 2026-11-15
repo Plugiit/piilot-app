@@ -29,6 +29,8 @@ type Deps struct {
 	Backups       *Backups
 	Inbound       *Inbound
 	Uptime        *Uptime
+	Coolify       *Coolify
+	GitSync       *GitSync
 	Analytics     *Analytics
 	Maintenance   *Maintenance
 	Reports       *Reports
@@ -327,6 +329,13 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	// Les sites : la liste du module, et le choix d'un site pour un projet.
 	upt.Get("/monitors", deps.Guard.RequirePermission("projects.write"), deps.Uptime.Monitors)
 	upt.Get("/incidents", deps.Guard.RequirePermission("users.write"), deps.Uptime.Incidents)
+	// Deploiements (Coolify) : le reglage aux admins, la liste des
+	// applications a qui relie un projet.
+	cool := r.Group("/modules/coolify")
+	cool.Get("", deps.Guard.RequirePermission("users.write"), deps.Coolify.Settings)
+	cool.Put("", deps.Guard.RequirePermission("users.write"), deps.Coolify.UpdateSettings)
+	cool.Post("/poll", deps.Guard.RequirePermission("users.write"), deps.Coolify.Poll)
+	cool.Get("/applications", deps.Guard.RequirePermission("projects.write"), deps.Coolify.Applications)
 
 	// Maintenance : les formules aux admins, le journal a qui lit le temps.
 	plans := r.Group("/maintenance-plans")
@@ -426,6 +435,10 @@ func registerAdminRoutes(r fiber.Router, deps Deps) {
 	projects.Get("/:id", deps.Guard.RequirePermission("projects.read"), deps.Projects.Get)
 	projects.Get("/:id/uptime", deps.Guard.RequirePermission("projects.read"), deps.Uptime.Project)
 	projects.Put("/:id/uptime", deps.Guard.RequirePermission("projects.write"), deps.Uptime.SetProject)
+	projects.Get("/:id/coolify", deps.Guard.RequirePermission("projects.read"), deps.Coolify.Project)
+	projects.Put("/:id/coolify", deps.Guard.RequirePermission("projects.write"), deps.Coolify.SetProject)
+	projects.Get("/:id/git/sync", deps.Guard.RequirePermission("projects.read"), deps.GitSync.Status)
+	projects.Post("/:id/git/sync", deps.Guard.RequirePermission("reports.write"), deps.GitSync.Sync)
 	projects.Get("/:id/analytics", deps.Guard.RequirePermission("projects.read"), deps.Analytics.Project)
 	projects.Get("/:id/maintenance", deps.Guard.RequirePermission("projects.read"), deps.Maintenance.Project)
 	projects.Put("/:id/maintenance", deps.Guard.RequirePermission("projects.write"), deps.Maintenance.SetProject)

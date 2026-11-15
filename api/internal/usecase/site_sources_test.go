@@ -39,25 +39,52 @@ func TestHoldReasonsDesSauvegardesDomainesEtMisesAJour(t *testing.T) {
 
 func TestReconnaitLesMisesAJourDeDependances(t *testing.T) {
 	cases := []struct {
+		name           string
 		author, branch string
+		labels         []string
 		want           bool
 	}{
-		{"renovate[bot]", "renovate/react-19.x", true},
-		{"dependabot[bot]", "dependabot/npm_and_yarn/vite-7.0.0", true},
-		{"max", "renovate/lodash", true},
-		{"max", "fix/panier", false},
-		{"", "", false},
+		{"auteur renovate", "renovate[bot]", "chore/x", nil, true},
+		{"auteur dependabot", "dependabot[bot]", "x", nil, true},
+		{"branche renovate", "max", "renovate/lodash", nil, true},
+		{"branche dependabot", "max", "dependabot/npm_and_yarn/vite-7.0.0", nil, true},
+		{"majuscules", "Renovate[bot]", "Renovate/x", nil, true},
+		{"label dependencies", "max", "fix/panier", []string{"bug", "dependencies"}, true},
+		{"label dependencies en majuscules", "max", "fix/panier", []string{" Dependencies "}, true},
+		{"autre label", "max", "fix/panier", []string{"bug", "dependency-graph"}, false},
+		{"ordinaire", "max", "fix/panier", nil, false},
+		{"vide", "", "", nil, false},
 	}
 	for _, c := range cases {
-		if got := isDependencyUpdate(c.author, c.branch); got != c.want {
-			t.Errorf("%q %q : %v", c.author, c.branch, got)
+		if got := isDependencyUpdate(c.author, c.branch, c.labels); got != c.want {
+			t.Errorf("%s : %v", c.name, got)
 		}
 	}
-	if !isSecurityUpdate(false, "chore(deps): update lodash [SECURITY]") || !isSecurityUpdate(true, "x") || !isSecurityUpdate(false, "fix CVE-2031-1234") {
-		t.Error("une mise a jour de securite n'a pas ete reconnue")
+}
+
+func TestReconnaitLesCorrectifsDeSecurite(t *testing.T) {
+	cases := []struct {
+		name    string
+		flagged bool
+		labels  []string
+		title   string
+		want    bool
+	}{
+		{"label security", false, []string{"security"}, "x", true},
+		{"label compose", false, []string{"type: Security"}, "x", true},
+		{"label securite", false, []string{"sécurité"}, "x", true},
+		{"drapeau du webhook", true, nil, "x", true},
+		{"titre [SECURITY]", false, nil, "chore(deps): update lodash [SECURITY]", true},
+		{"titre CVE", false, nil, "fix CVE-2031-1234", true},
+		{"titre GHSA", false, nil, "Bump foo (GHSA-abcd-1234-efgh)", true},
+		{"mise a jour ordinaire", false, []string{"dependencies"}, "chore(deps): update react", false},
+		{"dependabot sans label", false, nil, "Bump lodash from 4.17.20 to 4.17.21", false},
+		{"vide", false, nil, "", false},
 	}
-	if isSecurityUpdate(false, "chore(deps): update react") {
-		t.Error("une mise a jour ordinaire passe pour de la securite")
+	for _, c := range cases {
+		if got := isSecurityUpdate(c.flagged, c.labels, c.title); got != c.want {
+			t.Errorf("%s : %v", c.name, got)
+		}
 	}
 }
 

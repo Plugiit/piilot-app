@@ -112,6 +112,7 @@ type Querier interface {
 	// Une demande ne se tranche qu'une fois, et seulement depuis le navigateur qui
 	// l'a lancee : la decision la retire.
 	ConsumeOAuthRequest(ctx context.Context, arg ConsumeOAuthRequestParams) (ConsumeOAuthRequestRow, error)
+	CoolifyProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
 	// Garde-fou : il reste toujours au moins un administrateur actif. Sans lui,
 	// plus personne ne pourrait gerer les comptes ni les droits.
@@ -120,6 +121,8 @@ type Querier interface {
 	CountAnalyticsWebsites(ctx context.Context, q_ string) (int32, error)
 	CountAnalyticsWebsitesPresent(ctx context.Context) (CountAnalyticsWebsitesPresentRow, error)
 	CountAudit(ctx context.Context, arg CountAuditParams) (int32, error)
+	CountCoolifyApplications(ctx context.Context) (CountCoolifyApplicationsRow, error)
+	CountCoolifyApplicationsByUUID(ctx context.Context, uuids []string) (int64, error)
 	CountCrmClients(ctx context.Context, arg CountCrmClientsParams) (int64, error)
 	CountCrmContacts(ctx context.Context, arg CountCrmContactsParams) (int64, error)
 	CountDeletedClients(ctx context.Context) (int64, error)
@@ -276,6 +279,7 @@ type Querier interface {
 	DeleteMaintenancePlan(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMilestone(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) error
+	DeleteProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectDomain(ctx context.Context, arg DeleteProjectDomainParams) (int64, error)
 	DeleteProjectReportOptOuts(ctx context.Context, projectID uuid.UUID) error
 	DeleteProjectReportRecipients(ctx context.Context, projectID uuid.UUID) error
@@ -441,6 +445,7 @@ type Querier interface {
 	// Doublon d'import des contacts sans e-mail : prenom + nom chez le meme
 	// client (ou libres tous les deux), sans tenir compte de la casse.
 	GetContactByName(ctx context.Context, arg GetContactByNameParams) (Contact, error)
+	GetCoolifySettings(ctx context.Context) (CoolifySetting, error)
 	// Fiche d'un client : son en-tete, avec le contact principal et les compteurs
 	// que le tableau montre deja.
 	GetCrmClient(ctx context.Context, id uuid.UUID) (GetCrmClientRow, error)
@@ -505,6 +510,7 @@ type Querier interface {
 	// Le client d'un projet choisi au tri. Un projet interne n'en a pas a qui
 	// repondre : il est refuse.
 	GetProjectClientForTriage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetProjectGitSync(ctx context.Context, projectID uuid.UUID) (ProjectGitSync, error)
 	GetProjectPlanForMonth(ctx context.Context, arg GetProjectPlanForMonthParams) (GetProjectPlanForMonthRow, error)
 	GetProjectRepoURL(ctx context.Context, id uuid.UUID) (string, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
@@ -569,6 +575,7 @@ type Querier interface {
 	GetUptimeSettings(ctx context.Context) (UptimeSetting, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GitSyncProject(ctx context.Context, id uuid.UUID) (GitSyncProjectRow, error)
 	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
 	HasActiveBotKey(ctx context.Context) (bool, error)
 	InboundStats(ctx context.Context) (InboundStatsRow, error)
@@ -576,6 +583,9 @@ type Querier interface {
 	// Journal d'audit : en ajout seul. Ni UPDATE ni DELETE ici, sauf la purge de
 	// retention, que le declencheur n'admet que declaree.
 	InsertAudit(ctx context.Context, arg InsertAuditParams) error
+	// Idempotent : un deploiement deja releve (meme identifiant) n'est pas
+	// reecrit, et ce qui a ete fige dans un rapport ne bouge pas.
+	InsertCoolifyDeployment(ctx context.Context, arg InsertCoolifyDeploymentParams) error
 	// Aucune ligne rendue quand la mise en ligne est deja connue : GitHub et
 	// GitLab renvoient volontiers un evenement deux fois.
 	InsertDeployment(ctx context.Context, arg InsertDeploymentParams) (Deployment, error)
@@ -587,6 +597,7 @@ type Querier interface {
 	// seconde fois : la ligne n'est pas rendue.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) ([]uuid.UUID, error)
 	InsertProjectAnalyticsWebsite(ctx context.Context, arg InsertProjectAnalyticsWebsiteParams) error
+	InsertProjectCoolifyApplication(ctx context.Context, arg InsertProjectCoolifyApplicationParams) error
 	InsertProjectDomain(ctx context.Context, arg InsertProjectDomainParams) (ProjectDomain, error)
 	InsertProjectReportOptOut(ctx context.Context, arg InsertProjectReportOptOutParams) error
 	InsertProjectReportRecipient(ctx context.Context, arg InsertProjectReportRecipientParams) error
@@ -659,6 +670,12 @@ type Querier interface {
 	// Cast explicite pour sqlc, qui sans lui rend un `interface{}`.
 	// Les siens d'abord : ce sont eux qu'on cherche le plus souvent.
 	ListContactsOfClient(ctx context.Context, arg ListContactsOfClientParams) ([]ListContactsOfClientRow, error)
+	// Une instance compte quelques dizaines d'applications : pas de pagination.
+	ListCoolifyApplications(ctx context.Context) ([]CoolifyApplication, error)
+	ListCoolifyDeploymentsOfProject(ctx context.Context, arg ListCoolifyDeploymentsOfProjectParams) ([]ListCoolifyDeploymentsOfProjectRow, error)
+	// Ce que la releve des deploiements doit lire : les applications liees a un
+	// projet qui existe encore.
+	ListCoolifyLinks(ctx context.Context) ([]ListCoolifyLinksRow, error)
 	// Liste paginee de l'ecran CRM.
 	//
 	// Distincte de ListClients, qui sert le champ « Client » d'un formulaire :
@@ -737,6 +754,12 @@ type Querier interface {
 	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
 	// client, et le nouveau ne peut pas le lui prendre.
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
+	// Les demandes en attente, hors formule : le bouton marche aussi pour un
+	// projet que la formule ne couvre pas.
+	ListGitSyncRequested(ctx context.Context) ([]ListGitSyncRequestedRow, error)
+	// Les projets a synchroniser : un depot GitHub, et une formule qui compte les
+	// mises a jour sur la fenetre donnee.
+	ListGitSyncTargets(ctx context.Context, arg ListGitSyncTargetsParams) ([]ListGitSyncTargetsRow, error)
 	// Les e-mails a trier, les plus recents d'abord.
 	ListHeldInbound(ctx context.Context, arg ListHeldInboundParams) ([]ListHeldInboundRow, error)
 	ListImportRows(ctx context.Context, arg ListImportRowsParams) ([]ImportRow, error)
@@ -836,6 +859,9 @@ type Querier interface {
 	// seuls que la tache tient a jour.
 	ListProdAnalyticsWebsites(ctx context.Context) ([]ListProdAnalyticsWebsitesRow, error)
 	ListProjectAnalyticsWebsites(ctx context.Context, projectID uuid.UUID) ([]ListProjectAnalyticsWebsitesRow, error)
+	// Les applications d'un projet, avec ce que la releve en sait. Une application
+	// que la releve n'a jamais vue garde son uuid pour seul nom.
+	ListProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) ([]ListProjectCoolifyApplicationsRow, error)
 	ListProjectDomains(ctx context.Context, projectID uuid.UUID) ([]ProjectDomain, error)
 	// Pieces jointes d'un projet, la derniere deposee en premier.
 	ListProjectFiles(ctx context.Context, projectID *uuid.UUID) ([]Attachment, error)
@@ -1122,6 +1148,8 @@ type Querier interface {
 	MaintenanceProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error
 	MarkAnalyticsWebsitesAbsent(ctx context.Context, arg MarkAnalyticsWebsitesAbsentParams) error
+	// Les applications que la releve n'a plus vues.
+	MarkCoolifyApplicationsAbsent(ctx context.Context, seen []uuid.UUID) error
 	MarkDomainFailureAlerted(ctx context.Context, arg MarkDomainFailureAlertedParams) error
 	MarkEmailFailed(ctx context.Context, arg MarkEmailFailedParams) error
 	MarkEmailRetry(ctx context.Context, arg MarkEmailRetryParams) error
@@ -1268,8 +1296,12 @@ type Querier interface {
 	// Les compteurs repartent de zero, le rapport precedent est efface a part.
 	QueueImport(ctx context.Context, arg QueueImportParams) (Import, error)
 	RecordAnalyticsCheck(ctx context.Context, error *string) error
+	RecordCoolifyPoll(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
+	// Un essai termine, a l'instant donne. Un succes pose last_synced_at et efface
+	// l'erreur ; un echec garde le dernier succes et dit pourquoi.
+	RecordGitSync(ctx context.Context, arg RecordGitSyncParams) error
 	RecordInboundPoll(ctx context.Context, error string) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
@@ -1289,7 +1321,16 @@ type Querier interface {
 	ReportAudienceSnapshot(ctx context.Context, arg ReportAudienceSnapshotParams) (ReportAudienceSnapshotRow, error)
 	ReportBackupCounts(ctx context.Context, arg ReportBackupCountsParams) (ReportBackupCountsRow, error)
 	ReportConsumed(ctx context.Context, arg ReportConsumedParams) (int32, error)
+	ReportCoolifyDeployments(ctx context.Context, arg ReportCoolifyDeploymentsParams) ([]ReportCoolifyDeploymentsRow, error)
+	// Le projet est-il suivi par Coolify, le module est-il actif, et ou en est sa
+	// derniere releve.
+	ReportCoolifyState(ctx context.Context, projectID uuid.UUID) (ReportCoolifyStateRow, error)
+	// Les mises en ligne signalees par webhook. Celles de Coolify ont leur
+	// requete : une seule source par projet et par mois.
 	ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error)
+	// Ce qu'il faut pour savoir si un brouillon doit attendre la synchronisation :
+	// le depot, le dernier essai, et si un jeton est la.
+	ReportGitSyncState(ctx context.Context, projectID uuid.UUID) (ReportGitSyncStateRow, error)
 	ReportHasAudienceSite(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// Les incidents qui touchent le mois, meme commences avant.
 	ReportIncidents(ctx context.Context, arg ReportIncidentsParams) ([]ReportIncidentsRow, error)
@@ -1307,6 +1348,12 @@ type Querier interface {
 	// sommes des agregats journaliers du mois.
 	ReportUptimeSites(ctx context.Context, arg ReportUptimeSitesParams) ([]ReportUptimeSitesRow, error)
 	RequestAnalyticsCheck(ctx context.Context) error
+	RequestCoolifyPoll(ctx context.Context) error
+	// Une releve est demandee, sauf si l'une l'est deja.
+	RequestCoolifyPollIfNone(ctx context.Context) error
+	RequestGitSync(ctx context.Context, projectID uuid.UUID) error
+	// Une synchronisation est demandee, sauf si l'une l'est deja.
+	RequestGitSyncIfNone(ctx context.Context, projectID uuid.UUID) error
 	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
 	RequestReleaseCheck(ctx context.Context) error
@@ -1568,6 +1615,9 @@ type Querier interface {
 	// passe par la designation du contact principal, qui sait tenir la cle
 	// etrangere composite dans le bon ordre.
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
+	// Le jeton ne change que sur demande : un formulaire renvoye sans lui garde
+	// celui qui est en base.
+	UpdateCoolifySettings(ctx context.Context, arg UpdateCoolifySettingsParams) error
 	// Le mot de passe n'est remplace que s'il est fourni : l'ecran ne le relit
 	// jamais, et un champ laisse vide garde celui en place.
 	UpdateInboundSettings(ctx context.Context, arg UpdateInboundSettingsParams) error
@@ -1623,6 +1673,7 @@ type Querier interface {
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertAnalyticsCache(ctx context.Context, arg UpsertAnalyticsCacheParams) error
 	UpsertAnalyticsWebsite(ctx context.Context, arg UpsertAnalyticsWebsiteParams) (uuid.UUID, error)
+	UpsertCoolifyApplication(ctx context.Context, arg UpsertCoolifyApplicationParams) (uuid.UUID, error)
 	// Un seul code par compte : le nouveau remplace le precedent.
 	UpsertDiscordLinkCode(ctx context.Context, arg UpsertDiscordLinkCodeParams) error
 	// Une entite recreee apres suppression reprend sa cle : la cle designe
@@ -1637,6 +1688,10 @@ type Querier interface {
 	// Changer ce qui decide d'un lancement fait repartir l'echeance de maintenant :
 	// enregistrer une frequence ne doit rien lancer dans la minute.
 	UpsertSiteUpdateTarget(ctx context.Context, arg UpsertSiteUpdateTargetParams) error
+	// Une pull request fusionnee lue par la synchronisation. Le webhook en sait
+	// souvent plus (description, etat a chaque instant) : la synchronisation
+	// comble les trous sans rien ecraser. Rend vrai si la ligne est nouvelle.
+	UpsertSyncedPullRequest(ctx context.Context, arg UpsertSyncedPullRequestParams) (bool, error)
 	// Le site tel que la releve le voit. status_changed_at ne bouge qu'au
 	// changement d'etat : c'est l'heure de debut d'un incident deduit.
 	UpsertUptimeMonitor(ctx context.Context, arg UpsertUptimeMonitorParams) (uuid.UUID, error)

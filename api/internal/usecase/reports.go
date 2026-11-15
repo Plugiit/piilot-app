@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -64,6 +65,14 @@ type ReportData struct {
 	Updates       *ReportUpdates       `json:"updates"`
 	Backups       *ReportBackups       `json:"backups"`
 	Domain        *ReportDomains       `json:"domain"`
+	// DeploymentsStale : le projet est suivi par Coolify, le module est actif,
+	// et la derniere releve n'a pas reussi apres la fin du mois. Les mises en
+	// ligne ont pu changer depuis : le brouillon se retient.
+	DeploymentsStale bool `json:"deployments_stale,omitempty"`
+	// GitSyncStale : le projet a un depot GitHub et le jeton pour le lire, et
+	// la derniere synchronisation n'a pas reussi apres la fin du mois. Une pull
+	// request fusionnee a pu manquer au webhook : le brouillon se retient.
+	GitSyncStale bool `json:"git_sync_stale,omitempty"`
 }
 
 // ReportAvailability est la section « Disponibilite ».
@@ -126,6 +135,9 @@ type ReportIntervention struct {
 // ReportDeployments est la section « Mises en ligne ».
 type ReportDeployments struct {
 	Items []ReportDeployment `json:"items"`
+	// Source : « coolify » ou « webhook ». Une seule par projet et par mois :
+	// Coolify, s'il a releve des mises en ligne ce mois-la.
+	Source string `json:"source"`
 }
 
 // ReportDeployment est une mise en ligne du mois.
@@ -315,14 +327,34 @@ func collectInterventions(ctx context.Context, q *db.Queries, in reportInput, ou
 }
 
 func collectDeployments(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
-	rows, err := q.ReportDeployments(ctx, db.ReportDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+	state, err := q.ReportCoolifyState(ctx, in.projectID)
 	if err != nil {
-		return fmt.Errorf("mises en ligne du mois : %w", err)
+		return fmt.Errorf("etat de Coolify : %w", err)
+	}
+	out.DeploymentsStale = state.Linked && state.Enabled && !coolifyPolledSince(state, in.until)
+
+	// Coolify d'abord : il sait ce qui a reellement ete deploye. Le webhook ne
+	// sert que si Coolify n'a rien releve pour ce projet ce mois-la.
+	source := "coolify"
+	var rows []db.ReportDeploymentsRow
+	coolifyRows, err := q.ReportCoolifyDeployments(ctx, db.ReportCoolifyDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+	if err != nil {
+		return fmt.Errorf("mises en ligne Coolify du mois : %w", err)
+	}
+	for _, r := range coolifyRows {
+		rows = append(rows, db.ReportDeploymentsRow(r))
+	}
+	if len(rows) == 0 {
+		source = "webhook"
+		rows, err = q.ReportDeployments(ctx, db.ReportDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+		if err != nil {
+			return fmt.Errorf("mises en ligne du mois : %w", err)
+		}
 	}
 	if len(rows) == 0 {
 		return nil
 	}
-	section := &ReportDeployments{Items: make([]ReportDeployment, 0, len(rows))}
+	section := &ReportDeployments{Items: make([]ReportDeployment, 0, len(rows)), Source: source}
 	for _, r := range rows {
 		section.Items = append(section.Items, ReportDeployment{Name: r.Name, Environment: r.Environment, URL: r.Url, DeployedAt: r.DeployedAt})
 	}
@@ -330,22 +362,43 @@ func collectDeployments(ctx context.Context, q *db.Queries, in reportInput, out 
 	return nil
 }
 
-// isDependencyUpdate reconnait les robots de mise a jour, a leur auteur ou au
-// prefixe de branche qu'ils imposent.
-func isDependencyUpdate(author, branch string) bool {
-	author, branch = strings.ToLower(author), strings.ToLower(branch)
-	return strings.Contains(author, "renovate") || strings.Contains(author, "dependabot") ||
-		strings.HasPrefix(branch, "renovate/") || strings.HasPrefix(branch, "dependabot/")
+// coolifyPolledSince : la derniere releve a reussi apres l'instant donne. Une
+// releve ratee ne prouve rien sur ce qui a ete deploye.
+func coolifyPolledSince(state db.ReportCoolifyStateRow, at time.Time) bool {
+	return state.LastPollError == nil && state.LastPollAt != nil && !state.LastPollAt.Before(at)
 }
 
-// isSecurityUpdate : l'etiquette du webhook, ou ce que Renovate et les avis de
-// securite ecrivent dans le titre.
-func isSecurityUpdate(labelled bool, title string) bool {
+// isDependencyUpdate reconnait une mise a jour de dependance : l'auteur est un
+// robot (renovate[bot], dependabot[bot]), ou la branche porte le prefixe qu'ils
+// imposent, ou la pull request est etiquetee « dependencies » (celle que
+// Dependabot pose).
+func isDependencyUpdate(author, branch string, labels []string) bool {
+	author, branch = strings.ToLower(author), strings.ToLower(branch)
+	return strings.Contains(author, "renovate") || strings.Contains(author, "dependabot") ||
+		strings.HasPrefix(branch, "renovate/") || strings.HasPrefix(branch, "dependabot/") ||
+		slices.ContainsFunc(labels, func(l string) bool { return strings.EqualFold(strings.TrimSpace(l), "dependencies") })
+}
+
+// isSecurityUpdate reconnait un correctif de securite : une etiquette qui dit
+// « security » ou « securite » (le drapeau, pose par le webhook avant les
+// etiquettes, vaut la meme chose), ou ce que Renovate et les avis de securite
+// ecrivent dans le titre. Un correctif Dependabot sans etiquette n'est pas
+// reconnu : Piilot ne lit pas les alertes Dependabot.
+func isSecurityUpdate(flagged bool, labels []string, title string) bool {
 	title = strings.ToLower(title)
-	return labelled || strings.Contains(title, "[security]") || strings.Contains(title, "cve-") || strings.Contains(title, "ghsa-")
+	return flagged || hasSecurityLabel(labels) ||
+		strings.Contains(title, "[security]") || strings.Contains(title, "cve-") || strings.Contains(title, "ghsa-")
 }
 
 func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
+	sync, err := q.ReportGitSyncState(ctx, in.projectID)
+	if err != nil {
+		return fmt.Errorf("synchronisation Git : %w", err)
+	}
+	if _, _, github := githubRepoOf(sync.RepoUrl); github && sync.HasToken {
+		fresh := sync.LastError == nil && sync.LastSyncedAt != nil && !sync.LastSyncedAt.Before(in.until)
+		out.GitSyncStale = !fresh
+	}
 	rows, err := q.ReportMergedPullRequests(ctx, db.ReportMergedPullRequestsParams{ProjectID: in.projectID, Since: &in.since, Until: &in.until})
 	if err != nil {
 		return fmt.Errorf("mises a jour du mois : %w", err)
@@ -369,8 +422,8 @@ func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *Rep
 		}
 	}
 	for _, r := range rows {
-		security := isSecurityUpdate(r.Security, r.Title)
-		dependency := isDependencyUpdate(r.Author, r.Branch)
+		security := isSecurityUpdate(r.Security, r.Labels, r.Title)
+		dependency := isDependencyUpdate(r.Author, r.Branch, r.Labels)
 		switch {
 		case dependency && security:
 			section.DependencyCount++
@@ -551,6 +604,30 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 				}
 			}
 		}
+		if waitAudience {
+			// Les mises en ligne de Coolify : une releve apres la fin du mois
+			// est demandee, et attendue de la meme facon.
+			waiting, err := s.waitingForCoolify(ctx, d.ProjectID, first)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("Coolify du projet %s : %w", d.ProjectID, err))
+				continue
+			}
+			if waiting {
+				continue
+			}
+		}
+		if waitAudience && slices.Contains(d.Sections, "updates") {
+			// Les pull requests que le webhook a manquees : une synchronisation
+			// apres la fin du mois est demandee, et attendue.
+			waiting, err := s.waitingForGitSync(ctx, d.ProjectID, first)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("synchronisation Git du projet %s : %w", d.ProjectID, err))
+				continue
+			}
+			if waiting {
+				continue
+			}
+		}
 		if err := s.createDraft(ctx, d.ProjectID, first, reportPlan{name: d.PlanName, included: d.IncludedMinutes, sections: d.Sections}); err != nil {
 			errs = append(errs, fmt.Errorf("projet %s : %w", d.ProjectID, err))
 			continue
@@ -558,6 +635,49 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 		created++
 	}
 	return created, errors.Join(errs...)
+}
+
+// waitingForCoolify dit si le brouillon d'un projet suivi par Coolify doit
+// attendre une releve faite apres la fin du mois, et la demande au besoin. Une
+// releve ratee ne fait pas attendre : le brouillon se cree, et se retient.
+func (s *ReportService) waitingForCoolify(ctx context.Context, projectID uuid.UUID, month time.Time) (bool, error) {
+	state, err := s.q.ReportCoolifyState(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if !state.Linked || !state.Enabled {
+		return false, nil
+	}
+	until := time.Date(month.Year(), month.Month()+1, 1, 0, 0, 0, 0, zone.Location())
+	if state.LastPollAt != nil && !state.LastPollAt.Before(until) {
+		return false, nil
+	}
+	if err := s.q.RequestCoolifyPollIfNone(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// waitingForGitSync dit si le brouillon d'un projet doit attendre une
+// synchronisation Git faite apres la fin du mois, et la demande au besoin. Un
+// essai ecoule, reussi ou non, ne fait plus attendre : le brouillon se cree
+// avec ce que le webhook a recu. Sans depot GitHub ni jeton, rien a attendre.
+func (s *ReportService) waitingForGitSync(ctx context.Context, projectID uuid.UUID, month time.Time) (bool, error) {
+	state, err := s.q.ReportGitSyncState(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if _, _, ok := githubRepoOf(state.RepoUrl); !ok || !state.HasToken {
+		return false, nil
+	}
+	until := time.Date(month.Year(), month.Month()+1, 1, 0, 0, 0, 0, zone.Location())
+	if state.LastAttemptAt != nil && !state.LastAttemptAt.Before(until) {
+		return false, nil
+	}
+	if err := s.q.RequestGitSyncIfNone(ctx, projectID); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *ReportService) createDraft(ctx context.Context, projectID uuid.UUID, month time.Time, plan reportPlan) error {
@@ -594,6 +714,8 @@ const (
 	holdDomainExpiring      = "domain_expiring"
 	holdUpdatesMissing      = "updates_missing"
 	holdUpdateFailed        = "update_failed"
+	holdDeploymentsStale    = "deployments_stale"
+	holdGitSyncStale        = "git_sync_stale"
 
 	// domainHoldDays : a moins d'un mois de l'echeance, un humain regarde.
 	domainHoldDays = 30
@@ -631,11 +753,17 @@ func holdReasonsOf(data ReportData, sections []string, recipients int) []string 
 	if wanted["domain"] {
 		reasons = append(reasons, domainHoldReasons(data.Domain)...)
 	}
+	if wanted["deployments"] && data.DeploymentsStale {
+		reasons = append(reasons, holdDeploymentsStale)
+	}
 	if wanted["updates"] {
 		// Un mois sans la moindre mise a jour est rare : le robot ou la CI est
 		// peut-etre en panne, ca merite un regard.
 		if data.Updates == nil || (data.Updates.DependencyCount == 0 && !hasProductionRun(data.Updates.Runs)) {
 			reasons = append(reasons, holdUpdatesMissing)
+		}
+		if data.GitSyncStale {
+			reasons = append(reasons, holdGitSyncStale)
 		}
 		if data.Updates != nil && data.Updates.LastRunFailed {
 			reasons = append(reasons, holdUpdateFailed)
@@ -1520,6 +1648,7 @@ func (s *ReportService) PortalReport(ctx context.Context, userID, id uuid.UUID) 
 	if data.Updates != nil {
 		data.Updates.LastRunFailed = false
 	}
+	data.DeploymentsStale, data.GitSyncStale = false, false
 	if data.Backups != nil {
 		data.Backups.Healthy = false
 	}
@@ -1655,6 +1784,7 @@ func reportMailOf(d ReportData, editorial string) mailer.ReportMail {
 	}
 
 	if dep := d.Deployments; dep != nil {
+		out.DeploymentsSource = deploymentsSourceText(dep.Source)
 		for _, it := range dep.Items {
 			out.Deployments = append(out.Deployments, mailer.ReportItem{Date: dayName(it.DeployedAt.In(zone.Location())), Label: it.Name, Detail: it.Environment})
 		}
@@ -1710,4 +1840,16 @@ func barsOf(rows []StatisticsRow, label func(string) string) []mailer.ReportRow 
 		out = append(out, mailer.ReportRow{Label: label(r.Value), Value: numberText(r.Count), Ratio: max(ratio, 2)})
 	}
 	return out
+}
+
+// deploymentsSourceText dit d'ou viennent les mises en ligne, pour le client.
+// Les rapports d'avant la 1.6 n'ont pas de source : rien n'est dit.
+func deploymentsSourceText(source string) string {
+	switch source {
+	case "coolify":
+		return "d’après Coolify"
+	case "webhook":
+		return "d’après le dépôt"
+	}
+	return ""
 }

@@ -144,7 +144,7 @@ LIMIT 200;
 UPDATE project_domains SET failure_alert_at = sqlc.arg('at') WHERE id = sqlc.arg('id');
 
 -- name: ReportMergedPullRequests :many
-SELECT title, author, branch, security, merged_at
+SELECT title, author, branch, security, labels, merged_at
 FROM pull_requests
 WHERE project_id = sqlc.arg('project_id') AND merged_at >= sqlc.arg('since') AND merged_at < sqlc.arg('until')
 ORDER BY merged_at
