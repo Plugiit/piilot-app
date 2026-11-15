@@ -9752,6 +9752,101 @@
         }
       }
     },
+    "/api/v1/admin/projects/{id}/coolify": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Identifiant du projet",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Déploiements d'un projet",
+        "description": "Les applications Coolify liées, et les cinq derniers déploiements relevés, sans appeler Coolify. Exige projects.read.",
+        "operationId": "getAdminProjectCoolify",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCoolify"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lier des applications Coolify à un projet",
+        "description": "Remplace la liste ; vide, elle détache tout. Demande une relève pour que les déploiements arrivent sans attendre. Exige projects.write.",
+        "operationId": "putAdminProjectCoolify",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCoolify"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCoolifyRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/hooks/uptime/{provider}": {
       "post": {
         "tags": [
@@ -23925,6 +24020,14 @@
             "items": {
               "$ref": "#/components/schemas/ReportDeployment"
             }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "coolify",
+              "webhook"
+            ],
+            "description": "Une seule source par projet et par mois : Coolify s'il a relevé des mises en ligne ce mois-là. Absent des rapports d'avant la 1.6."
           }
         }
       },
@@ -24046,6 +24149,10 @@
                 "type": "null"
               }
             ]
+          },
+          "deployments_stale": {
+            "type": "boolean",
+            "description": "Le projet est suivi par Coolify, le module est actif, et la dernière relève n'a pas réussi après la fin du mois."
           }
         }
       },
@@ -26469,6 +26576,134 @@
           "last_seen_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ProjectCoolifyApplication": {
+        "type": "object",
+        "required": [
+          "application_uuid",
+          "environment",
+          "name",
+          "fqdn",
+          "present"
+        ],
+        "properties": {
+          "application_uuid": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "prod",
+              "preprod"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "fqdn": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean",
+            "description": "Faux : la dernière relève ne l'a plus vue chez Coolify."
+          }
+        }
+      },
+      "ProjectCoolifyDeployment": {
+        "type": "object",
+        "required": [
+          "name",
+          "environment",
+          "url",
+          "deployed_at"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectCoolify": {
+        "type": "object",
+        "required": [
+          "module_enabled",
+          "applications",
+          "deployments",
+          "last_poll_at",
+          "last_poll_error"
+        ],
+        "properties": {
+          "module_enabled": {
+            "type": "boolean"
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectCoolifyApplication"
+            }
+          },
+          "deployments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectCoolifyDeployment"
+            },
+            "description": "Les cinq derniers déploiements relevés."
+          },
+          "last_poll_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_poll_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProjectCoolifyRequest": {
+        "type": "object",
+        "required": [
+          "applications"
+        ],
+        "properties": {
+          "applications": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": [
+                "application_uuid",
+                "environment"
+              ],
+              "properties": {
+                "application_uuid": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "prod",
+                    "preprod"
+                  ]
+                }
+              }
+            }
           }
         }
       }

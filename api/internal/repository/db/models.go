@@ -315,6 +315,7 @@ type Deployment struct {
 	Url         string    `json:"url"`
 	Environment string    `json:"environment"`
 	DeployedAt  time.Time `json:"deployed_at"`
+	ExternalID  string    `json:"external_id"`
 }
 
 type DiscordLink struct {
@@ -598,6 +599,13 @@ type ProjectAnalyticsWebsite struct {
 	WebsiteID   uuid.UUID `json:"website_id"`
 	Environment string    `json:"environment"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type ProjectCoolifyApplication struct {
+	ProjectID       uuid.UUID `json:"project_id"`
+	ApplicationUuid string    `json:"application_uuid"`
+	Environment     string    `json:"environment"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type ProjectDomain struct {

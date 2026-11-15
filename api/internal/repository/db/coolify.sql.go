@@ -7,9 +7,21 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
 )
+
+const coolifyProjectExists = `-- name: CoolifyProjectExists :one
+SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL)
+`
+
+func (q *Queries) CoolifyProjectExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, coolifyProjectExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
 
 const countCoolifyApplications = `-- name: CountCoolifyApplications :one
 SELECT count(*) FILTER (WHERE present) AS present, count(*) AS total FROM coolify_applications
@@ -25,6 +37,26 @@ func (q *Queries) CountCoolifyApplications(ctx context.Context) (CountCoolifyApp
 	var i CountCoolifyApplicationsRow
 	err := row.Scan(&i.Present, &i.Total)
 	return i, err
+}
+
+const countCoolifyApplicationsByUUID = `-- name: CountCoolifyApplicationsByUUID :one
+SELECT count(*) FROM coolify_applications WHERE uuid = ANY ($1::text[])
+`
+
+func (q *Queries) CountCoolifyApplicationsByUUID(ctx context.Context, uuids []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countCoolifyApplicationsByUUID, uuids)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteProjectCoolifyApplications = `-- name: DeleteProjectCoolifyApplications :exec
+DELETE FROM project_coolify_applications WHERE project_id = $1
+`
+
+func (q *Queries) DeleteProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProjectCoolifyApplications, projectID)
+	return err
 }
 
 const getCoolifySettings = `-- name: GetCoolifySettings :one
@@ -46,6 +78,51 @@ func (q *Queries) GetCoolifySettings(ctx context.Context) (CoolifySetting, error
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertCoolifyDeployment = `-- name: InsertCoolifyDeployment :exec
+INSERT INTO deployments (project_id, provider, kind, name, url, environment, deployed_at, external_id)
+VALUES ($1, 'coolify', 'deployment', $2, $3, $4, $5, $6)
+ON CONFLICT DO NOTHING
+`
+
+type InsertCoolifyDeploymentParams struct {
+	ProjectID   uuid.UUID `json:"project_id"`
+	Name        string    `json:"name"`
+	Url         string    `json:"url"`
+	Environment string    `json:"environment"`
+	DeployedAt  time.Time `json:"deployed_at"`
+	ExternalID  string    `json:"external_id"`
+}
+
+// Idempotent : un deploiement deja releve (meme identifiant) n'est pas
+// reecrit, et ce qui a ete fige dans un rapport ne bouge pas.
+func (q *Queries) InsertCoolifyDeployment(ctx context.Context, arg InsertCoolifyDeploymentParams) error {
+	_, err := q.db.Exec(ctx, insertCoolifyDeployment,
+		arg.ProjectID,
+		arg.Name,
+		arg.Url,
+		arg.Environment,
+		arg.DeployedAt,
+		arg.ExternalID,
+	)
+	return err
+}
+
+const insertProjectCoolifyApplication = `-- name: InsertProjectCoolifyApplication :exec
+INSERT INTO project_coolify_applications (project_id, application_uuid, environment)
+VALUES ($1, $2, $3)
+`
+
+type InsertProjectCoolifyApplicationParams struct {
+	ProjectID       uuid.UUID `json:"project_id"`
+	ApplicationUuid string    `json:"application_uuid"`
+	Environment     string    `json:"environment"`
+}
+
+func (q *Queries) InsertProjectCoolifyApplication(ctx context.Context, arg InsertProjectCoolifyApplicationParams) error {
+	_, err := q.db.Exec(ctx, insertProjectCoolifyApplication, arg.ProjectID, arg.ApplicationUuid, arg.Environment)
+	return err
 }
 
 const listCoolifyApplications = `-- name: ListCoolifyApplications :many
@@ -73,6 +150,139 @@ func (q *Queries) ListCoolifyApplications(ctx context.Context) ([]CoolifyApplica
 			&i.Present,
 			&i.LastSeenAt,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCoolifyDeploymentsOfProject = `-- name: ListCoolifyDeploymentsOfProject :many
+SELECT name, environment, url, deployed_at FROM deployments
+WHERE project_id = $1 AND provider = 'coolify'
+ORDER BY deployed_at DESC
+LIMIT $2
+`
+
+type ListCoolifyDeploymentsOfProjectParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	MaxRows   int32     `json:"max_rows"`
+}
+
+type ListCoolifyDeploymentsOfProjectRow struct {
+	Name        string    `json:"name"`
+	Environment string    `json:"environment"`
+	Url         string    `json:"url"`
+	DeployedAt  time.Time `json:"deployed_at"`
+}
+
+func (q *Queries) ListCoolifyDeploymentsOfProject(ctx context.Context, arg ListCoolifyDeploymentsOfProjectParams) ([]ListCoolifyDeploymentsOfProjectRow, error) {
+	rows, err := q.db.Query(ctx, listCoolifyDeploymentsOfProject, arg.ProjectID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCoolifyDeploymentsOfProjectRow{}
+	for rows.Next() {
+		var i ListCoolifyDeploymentsOfProjectRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Environment,
+			&i.Url,
+			&i.DeployedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCoolifyLinks = `-- name: ListCoolifyLinks :many
+SELECT l.project_id, l.application_uuid, l.environment, coalesce(a.fqdn, '')::text AS fqdn
+FROM project_coolify_applications l
+JOIN projects p ON p.id = l.project_id AND p.deleted_at IS NULL
+LEFT JOIN coolify_applications a ON a.uuid = l.application_uuid
+ORDER BY l.application_uuid, l.project_id
+`
+
+type ListCoolifyLinksRow struct {
+	ProjectID       uuid.UUID `json:"project_id"`
+	ApplicationUuid string    `json:"application_uuid"`
+	Environment     string    `json:"environment"`
+	Fqdn            string    `json:"fqdn"`
+}
+
+// Ce que la releve des deploiements doit lire : les applications liees a un
+// projet qui existe encore.
+func (q *Queries) ListCoolifyLinks(ctx context.Context) ([]ListCoolifyLinksRow, error) {
+	rows, err := q.db.Query(ctx, listCoolifyLinks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCoolifyLinksRow{}
+	for rows.Next() {
+		var i ListCoolifyLinksRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ApplicationUuid,
+			&i.Environment,
+			&i.Fqdn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectCoolifyApplications = `-- name: ListProjectCoolifyApplications :many
+SELECT l.application_uuid, l.environment,
+       coalesce(a.name, l.application_uuid)::text AS name,
+       coalesce(a.fqdn, '')::text AS fqdn,
+       coalesce(a.present, false)::boolean AS present
+FROM project_coolify_applications l
+LEFT JOIN coolify_applications a ON a.uuid = l.application_uuid
+WHERE l.project_id = $1
+ORDER BY l.environment DESC, lower(coalesce(a.name, l.application_uuid)), l.application_uuid
+`
+
+type ListProjectCoolifyApplicationsRow struct {
+	ApplicationUuid string `json:"application_uuid"`
+	Environment     string `json:"environment"`
+	Name            string `json:"name"`
+	Fqdn            string `json:"fqdn"`
+	Present         bool   `json:"present"`
+}
+
+// Les applications d'un projet, avec ce que la releve en sait. Une application
+// que la releve n'a jamais vue garde son uuid pour seul nom.
+func (q *Queries) ListProjectCoolifyApplications(ctx context.Context, projectID uuid.UUID) ([]ListProjectCoolifyApplicationsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectCoolifyApplications, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectCoolifyApplicationsRow{}
+	for rows.Next() {
+		var i ListProjectCoolifyApplicationsRow
+		if err := rows.Scan(
+			&i.ApplicationUuid,
+			&i.Environment,
+			&i.Name,
+			&i.Fqdn,
+			&i.Present,
 		); err != nil {
 			return nil, err
 		}
@@ -112,6 +322,16 @@ UPDATE coolify_settings SET poll_requested_at = now() WHERE id = 1
 
 func (q *Queries) RequestCoolifyPoll(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, requestCoolifyPoll)
+	return err
+}
+
+const requestCoolifyPollIfNone = `-- name: RequestCoolifyPollIfNone :exec
+UPDATE coolify_settings SET poll_requested_at = now() WHERE id = 1 AND poll_requested_at IS NULL
+`
+
+// Une releve est demandee, sauf si l'une l'est deja.
+func (q *Queries) RequestCoolifyPollIfNone(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, requestCoolifyPollIfNone)
 	return err
 }
 

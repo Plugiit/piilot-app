@@ -64,6 +64,10 @@ type ReportData struct {
 	Updates       *ReportUpdates       `json:"updates"`
 	Backups       *ReportBackups       `json:"backups"`
 	Domain        *ReportDomains       `json:"domain"`
+	// DeploymentsStale : le projet est suivi par Coolify, le module est actif,
+	// et la derniere releve n'a pas reussi apres la fin du mois. Les mises en
+	// ligne ont pu changer depuis : le brouillon se retient.
+	DeploymentsStale bool `json:"deployments_stale,omitempty"`
 }
 
 // ReportAvailability est la section « Disponibilite ».
@@ -126,6 +130,9 @@ type ReportIntervention struct {
 // ReportDeployments est la section « Mises en ligne ».
 type ReportDeployments struct {
 	Items []ReportDeployment `json:"items"`
+	// Source : « coolify » ou « webhook ». Une seule par projet et par mois :
+	// Coolify, s'il a releve des mises en ligne ce mois-la.
+	Source string `json:"source"`
 }
 
 // ReportDeployment est une mise en ligne du mois.
@@ -315,19 +322,45 @@ func collectInterventions(ctx context.Context, q *db.Queries, in reportInput, ou
 }
 
 func collectDeployments(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
-	rows, err := q.ReportDeployments(ctx, db.ReportDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+	state, err := q.ReportCoolifyState(ctx, in.projectID)
 	if err != nil {
-		return fmt.Errorf("mises en ligne du mois : %w", err)
+		return fmt.Errorf("etat de Coolify : %w", err)
+	}
+	out.DeploymentsStale = state.Linked && state.Enabled && !coolifyPolledSince(state, in.until)
+
+	// Coolify d'abord : il sait ce qui a reellement ete deploye. Le webhook ne
+	// sert que si Coolify n'a rien releve pour ce projet ce mois-la.
+	source := "coolify"
+	var rows []db.ReportDeploymentsRow
+	coolifyRows, err := q.ReportCoolifyDeployments(ctx, db.ReportCoolifyDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+	if err != nil {
+		return fmt.Errorf("mises en ligne Coolify du mois : %w", err)
+	}
+	for _, r := range coolifyRows {
+		rows = append(rows, db.ReportDeploymentsRow(r))
+	}
+	if len(rows) == 0 {
+		source = "webhook"
+		rows, err = q.ReportDeployments(ctx, db.ReportDeploymentsParams{ProjectID: in.projectID, Since: in.since, Until: in.until})
+		if err != nil {
+			return fmt.Errorf("mises en ligne du mois : %w", err)
+		}
 	}
 	if len(rows) == 0 {
 		return nil
 	}
-	section := &ReportDeployments{Items: make([]ReportDeployment, 0, len(rows))}
+	section := &ReportDeployments{Items: make([]ReportDeployment, 0, len(rows)), Source: source}
 	for _, r := range rows {
 		section.Items = append(section.Items, ReportDeployment{Name: r.Name, Environment: r.Environment, URL: r.Url, DeployedAt: r.DeployedAt})
 	}
 	out.Deployments = section
 	return nil
+}
+
+// coolifyPolledSince : la derniere releve a reussi apres l'instant donne. Une
+// releve ratee ne prouve rien sur ce qui a ete deploye.
+func coolifyPolledSince(state db.ReportCoolifyStateRow, at time.Time) bool {
+	return state.LastPollError == nil && state.LastPollAt != nil && !state.LastPollAt.Before(at)
 }
 
 // isDependencyUpdate reconnait les robots de mise a jour, a leur auteur ou au
@@ -551,6 +584,18 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 				}
 			}
 		}
+		if waitAudience {
+			// Les mises en ligne de Coolify : une releve apres la fin du mois
+			// est demandee, et attendue de la meme facon.
+			waiting, err := s.waitingForCoolify(ctx, d.ProjectID, first)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("Coolify du projet %s : %w", d.ProjectID, err))
+				continue
+			}
+			if waiting {
+				continue
+			}
+		}
 		if err := s.createDraft(ctx, d.ProjectID, first, reportPlan{name: d.PlanName, included: d.IncludedMinutes, sections: d.Sections}); err != nil {
 			errs = append(errs, fmt.Errorf("projet %s : %w", d.ProjectID, err))
 			continue
@@ -558,6 +603,27 @@ func (s *ReportService) generate(ctx context.Context, month time.Time, projectID
 		created++
 	}
 	return created, errors.Join(errs...)
+}
+
+// waitingForCoolify dit si le brouillon d'un projet suivi par Coolify doit
+// attendre une releve faite apres la fin du mois, et la demande au besoin. Une
+// releve ratee ne fait pas attendre : le brouillon se cree, et se retient.
+func (s *ReportService) waitingForCoolify(ctx context.Context, projectID uuid.UUID, month time.Time) (bool, error) {
+	state, err := s.q.ReportCoolifyState(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if !state.Linked || !state.Enabled {
+		return false, nil
+	}
+	until := time.Date(month.Year(), month.Month()+1, 1, 0, 0, 0, 0, zone.Location())
+	if state.LastPollAt != nil && !state.LastPollAt.Before(until) {
+		return false, nil
+	}
+	if err := s.q.RequestCoolifyPollIfNone(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *ReportService) createDraft(ctx context.Context, projectID uuid.UUID, month time.Time, plan reportPlan) error {
@@ -594,6 +660,7 @@ const (
 	holdDomainExpiring      = "domain_expiring"
 	holdUpdatesMissing      = "updates_missing"
 	holdUpdateFailed        = "update_failed"
+	holdDeploymentsStale    = "deployments_stale"
 
 	// domainHoldDays : a moins d'un mois de l'echeance, un humain regarde.
 	domainHoldDays = 30
@@ -630,6 +697,9 @@ func holdReasonsOf(data ReportData, sections []string, recipients int) []string 
 	}
 	if wanted["domain"] {
 		reasons = append(reasons, domainHoldReasons(data.Domain)...)
+	}
+	if wanted["deployments"] && data.DeploymentsStale {
+		reasons = append(reasons, holdDeploymentsStale)
 	}
 	if wanted["updates"] {
 		// Un mois sans la moindre mise a jour est rare : le robot ou la CI est

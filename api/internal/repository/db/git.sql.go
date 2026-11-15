@@ -112,7 +112,7 @@ const insertDeployment = `-- name: InsertDeployment :one
 INSERT INTO deployments (project_id, provider, kind, name, url, environment, deployed_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT DO NOTHING
-RETURNING id, project_id, provider, kind, name, url, environment, deployed_at
+RETURNING id, project_id, provider, kind, name, url, environment, deployed_at, external_id
 `
 
 type InsertDeploymentParams struct {
@@ -147,6 +147,7 @@ func (q *Queries) InsertDeployment(ctx context.Context, arg InsertDeploymentPara
 		&i.Url,
 		&i.Environment,
 		&i.DeployedAt,
+		&i.ExternalID,
 	)
 	return i, err
 }
@@ -180,7 +181,7 @@ func (q *Queries) LinkPullRequestToTicket(ctx context.Context, arg LinkPullReque
 }
 
 const listDeploymentsOfProject = `-- name: ListDeploymentsOfProject :many
-SELECT id, project_id, provider, kind, name, url, environment, deployed_at FROM deployments WHERE project_id = $1
+SELECT id, project_id, provider, kind, name, url, environment, deployed_at, external_id FROM deployments WHERE project_id = $1
 ORDER BY deployed_at DESC
 LIMIT $2
 `
@@ -208,6 +209,7 @@ func (q *Queries) ListDeploymentsOfProject(ctx context.Context, arg ListDeployme
 			&i.Url,
 			&i.Environment,
 			&i.DeployedAt,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}

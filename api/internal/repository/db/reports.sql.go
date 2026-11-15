@@ -914,10 +914,85 @@ func (q *Queries) ReportConsumed(ctx context.Context, arg ReportConsumedParams) 
 	return column_1, err
 }
 
+const reportCoolifyDeployments = `-- name: ReportCoolifyDeployments :many
+SELECT name, environment, url, deployed_at
+FROM deployments
+WHERE project_id = $1 AND provider = 'coolify'
+  AND deployed_at >= $2 AND deployed_at < $3
+ORDER BY deployed_at
+LIMIT 50
+`
+
+type ReportCoolifyDeploymentsParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Since     time.Time `json:"since"`
+	Until     time.Time `json:"until"`
+}
+
+type ReportCoolifyDeploymentsRow struct {
+	Name        string    `json:"name"`
+	Environment string    `json:"environment"`
+	Url         string    `json:"url"`
+	DeployedAt  time.Time `json:"deployed_at"`
+}
+
+func (q *Queries) ReportCoolifyDeployments(ctx context.Context, arg ReportCoolifyDeploymentsParams) ([]ReportCoolifyDeploymentsRow, error) {
+	rows, err := q.db.Query(ctx, reportCoolifyDeployments, arg.ProjectID, arg.Since, arg.Until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReportCoolifyDeploymentsRow{}
+	for rows.Next() {
+		var i ReportCoolifyDeploymentsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Environment,
+			&i.Url,
+			&i.DeployedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reportCoolifyState = `-- name: ReportCoolifyState :one
+SELECT s.enabled, s.last_poll_at, s.last_poll_error,
+       EXISTS (SELECT 1 FROM project_coolify_applications WHERE project_id = $1)::boolean AS linked
+FROM coolify_settings s WHERE s.id = 1
+`
+
+type ReportCoolifyStateRow struct {
+	Enabled       bool       `json:"enabled"`
+	LastPollAt    *time.Time `json:"last_poll_at"`
+	LastPollError *string    `json:"last_poll_error"`
+	Linked        bool       `json:"linked"`
+}
+
+// Le projet est-il suivi par Coolify, le module est-il actif, et ou en est sa
+// derniere releve.
+func (q *Queries) ReportCoolifyState(ctx context.Context, projectID uuid.UUID) (ReportCoolifyStateRow, error) {
+	row := q.db.QueryRow(ctx, reportCoolifyState, projectID)
+	var i ReportCoolifyStateRow
+	err := row.Scan(
+		&i.Enabled,
+		&i.LastPollAt,
+		&i.LastPollError,
+		&i.Linked,
+	)
+	return i, err
+}
+
 const reportDeployments = `-- name: ReportDeployments :many
 SELECT name, environment, url, deployed_at
 FROM deployments
-WHERE project_id = $1 AND deployed_at >= $2 AND deployed_at < $3
+WHERE project_id = $1 AND provider <> 'coolify'
+  AND deployed_at >= $2 AND deployed_at < $3
 ORDER BY deployed_at
 LIMIT 50
 `
@@ -935,6 +1010,8 @@ type ReportDeploymentsRow struct {
 	DeployedAt  time.Time `json:"deployed_at"`
 }
 
+// Les mises en ligne signalees par webhook. Celles de Coolify ont leur
+// requete : une seule source par projet et par mois.
 func (q *Queries) ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error) {
 	rows, err := q.db.Query(ctx, reportDeployments, arg.ProjectID, arg.Since, arg.Until)
 	if err != nil {
