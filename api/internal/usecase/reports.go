@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -363,19 +364,26 @@ func coolifyPolledSince(state db.ReportCoolifyStateRow, at time.Time) bool {
 	return state.LastPollError == nil && state.LastPollAt != nil && !state.LastPollAt.Before(at)
 }
 
-// isDependencyUpdate reconnait les robots de mise a jour, a leur auteur ou au
-// prefixe de branche qu'ils imposent.
-func isDependencyUpdate(author, branch string) bool {
+// isDependencyUpdate reconnait une mise a jour de dependance : l'auteur est un
+// robot (renovate[bot], dependabot[bot]), ou la branche porte le prefixe qu'ils
+// imposent, ou la pull request est etiquetee « dependencies » (celle que
+// Dependabot pose).
+func isDependencyUpdate(author, branch string, labels []string) bool {
 	author, branch = strings.ToLower(author), strings.ToLower(branch)
 	return strings.Contains(author, "renovate") || strings.Contains(author, "dependabot") ||
-		strings.HasPrefix(branch, "renovate/") || strings.HasPrefix(branch, "dependabot/")
+		strings.HasPrefix(branch, "renovate/") || strings.HasPrefix(branch, "dependabot/") ||
+		slices.ContainsFunc(labels, func(l string) bool { return strings.EqualFold(strings.TrimSpace(l), "dependencies") })
 }
 
-// isSecurityUpdate : l'etiquette du webhook, ou ce que Renovate et les avis de
-// securite ecrivent dans le titre.
-func isSecurityUpdate(labelled bool, title string) bool {
+// isSecurityUpdate reconnait un correctif de securite : une etiquette qui dit
+// « security » ou « securite » (le drapeau, pose par le webhook avant les
+// etiquettes, vaut la meme chose), ou ce que Renovate et les avis de securite
+// ecrivent dans le titre. Un correctif Dependabot sans etiquette n'est pas
+// reconnu : Piilot ne lit pas les alertes Dependabot.
+func isSecurityUpdate(flagged bool, labels []string, title string) bool {
 	title = strings.ToLower(title)
-	return labelled || strings.Contains(title, "[security]") || strings.Contains(title, "cve-") || strings.Contains(title, "ghsa-")
+	return flagged || hasSecurityLabel(labels) ||
+		strings.Contains(title, "[security]") || strings.Contains(title, "cve-") || strings.Contains(title, "ghsa-")
 }
 
 func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *ReportData) error {
@@ -402,8 +410,8 @@ func collectUpdates(ctx context.Context, q *db.Queries, in reportInput, out *Rep
 		}
 	}
 	for _, r := range rows {
-		security := isSecurityUpdate(r.Security, r.Title)
-		dependency := isDependencyUpdate(r.Author, r.Branch)
+		security := isSecurityUpdate(r.Security, r.Labels, r.Title)
+		dependency := isDependencyUpdate(r.Author, r.Branch, r.Labels)
 		switch {
 		case dependency && security:
 			section.DependencyCount++

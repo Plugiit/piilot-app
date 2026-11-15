@@ -510,6 +510,7 @@ type Querier interface {
 	// Le client d'un projet choisi au tri. Un projet interne n'en a pas a qui
 	// repondre : il est refuse.
 	GetProjectClientForTriage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetProjectGitSync(ctx context.Context, projectID uuid.UUID) (ProjectGitSync, error)
 	GetProjectPlanForMonth(ctx context.Context, arg GetProjectPlanForMonthParams) (GetProjectPlanForMonthRow, error)
 	GetProjectRepoURL(ctx context.Context, id uuid.UUID) (string, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (ProjectTemplate, error)
@@ -574,6 +575,7 @@ type Querier interface {
 	GetUptimeSettings(ctx context.Context) (UptimeSetting, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GitSyncProject(ctx context.Context, id uuid.UUID) (GitSyncProjectRow, error)
 	GrantRolePermission(ctx context.Context, arg GrantRolePermissionParams) error
 	HasActiveBotKey(ctx context.Context) (bool, error)
 	InboundStats(ctx context.Context) (InboundStatsRow, error)
@@ -752,6 +754,9 @@ type Querier interface {
 	// propose. Un contact deja rattache n'y figure pas : il appartient a un autre
 	// client, et le nouveau ne peut pas le lui prendre.
 	ListFreeContacts(ctx context.Context, arg ListFreeContactsParams) ([]Contact, error)
+	// Les projets a synchroniser : un depot GitHub, et une formule qui compte les
+	// mises a jour sur la fenetre donnee.
+	ListGitSyncTargets(ctx context.Context, arg ListGitSyncTargetsParams) ([]ListGitSyncTargetsRow, error)
 	// Les e-mails a trier, les plus recents d'abord.
 	ListHeldInbound(ctx context.Context, arg ListHeldInboundParams) ([]ListHeldInboundRow, error)
 	ListImportRows(ctx context.Context, arg ListImportRowsParams) ([]ImportRow, error)
@@ -1291,6 +1296,9 @@ type Querier interface {
 	RecordCoolifyPoll(ctx context.Context, error *string) error
 	RecordDomainError(ctx context.Context, arg RecordDomainErrorParams) error
 	RecordDomainExpiry(ctx context.Context, arg RecordDomainExpiryParams) error
+	// Un essai termine. Un succes pose last_synced_at et efface l'erreur ; un
+	// echec garde le dernier succes et dit pourquoi.
+	RecordGitSync(ctx context.Context, arg RecordGitSyncParams) error
 	RecordInboundPoll(ctx context.Context, error string) error
 	// Inscrit un evenement au journal du client d'un projet, dans la transaction
 	// du geste. Les projets internes n'ont pas de relation client a raconter.
@@ -1317,6 +1325,9 @@ type Querier interface {
 	// Les mises en ligne signalees par webhook. Celles de Coolify ont leur
 	// requete : une seule source par projet et par mois.
 	ReportDeployments(ctx context.Context, arg ReportDeploymentsParams) ([]ReportDeploymentsRow, error)
+	// Ce qu'il faut pour savoir si un brouillon doit attendre la synchronisation :
+	// le depot, le dernier essai, et si un jeton est la.
+	ReportGitSyncState(ctx context.Context, projectID uuid.UUID) (ReportGitSyncStateRow, error)
 	ReportHasAudienceSite(ctx context.Context, projectID uuid.UUID) (bool, error)
 	// Les incidents qui touchent le mois, meme commences avant.
 	ReportIncidents(ctx context.Context, arg ReportIncidentsParams) ([]ReportIncidentsRow, error)
@@ -1337,6 +1348,9 @@ type Querier interface {
 	RequestCoolifyPoll(ctx context.Context) error
 	// Une releve est demandee, sauf si l'une l'est deja.
 	RequestCoolifyPollIfNone(ctx context.Context) error
+	RequestGitSync(ctx context.Context, projectID uuid.UUID) error
+	// Une synchronisation est demandee, sauf si l'une l'est deja.
+	RequestGitSyncIfNone(ctx context.Context, projectID uuid.UUID) error
 	RequestInboundPoll(ctx context.Context) error
 	// Un admin demande une verification immediate ; la tache de fond la fera.
 	RequestReleaseCheck(ctx context.Context) error
@@ -1671,6 +1685,10 @@ type Querier interface {
 	// Changer ce qui decide d'un lancement fait repartir l'echeance de maintenant :
 	// enregistrer une frequence ne doit rien lancer dans la minute.
 	UpsertSiteUpdateTarget(ctx context.Context, arg UpsertSiteUpdateTargetParams) error
+	// Une pull request fusionnee lue par la synchronisation. Le webhook en sait
+	// souvent plus (description, etat a chaque instant) : la synchronisation
+	// comble les trous sans rien ecraser. Rend vrai si la ligne est nouvelle.
+	UpsertSyncedPullRequest(ctx context.Context, arg UpsertSyncedPullRequestParams) (bool, error)
 	// Le site tel que la releve le voit. status_changed_at ne bouge qu'au
 	// changement d'etat : c'est l'heure de debut d'un incident deduit.
 	UpsertUptimeMonitor(ctx context.Context, arg UpsertUptimeMonitorParams) (uuid.UUID, error)

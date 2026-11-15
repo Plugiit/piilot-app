@@ -564,7 +564,7 @@ func (q *Queries) ReportLastBackupSuccess(ctx context.Context, arg ReportLastBac
 }
 
 const reportMergedPullRequests = `-- name: ReportMergedPullRequests :many
-SELECT title, author, branch, security, merged_at
+SELECT title, author, branch, security, labels, merged_at
 FROM pull_requests
 WHERE project_id = $1 AND merged_at >= $2 AND merged_at < $3
 ORDER BY merged_at
@@ -582,6 +582,7 @@ type ReportMergedPullRequestsRow struct {
 	Author   string     `json:"author"`
 	Branch   string     `json:"branch"`
 	Security bool       `json:"security"`
+	Labels   []string   `json:"labels"`
 	MergedAt *time.Time `json:"merged_at"`
 }
 
@@ -599,6 +600,7 @@ func (q *Queries) ReportMergedPullRequests(ctx context.Context, arg ReportMerged
 			&i.Author,
 			&i.Branch,
 			&i.Security,
+			&i.Labels,
 			&i.MergedAt,
 		); err != nil {
 			return nil, err

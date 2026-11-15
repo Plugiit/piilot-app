@@ -253,7 +253,7 @@ func (q *Queries) ListOpenMilestonesOfProject(ctx context.Context, projectID uui
 }
 
 const listPullRequestsOfTask = `-- name: ListPullRequestsOfTask :many
-SELECT pr.id, pr.project_id, pr.provider, pr.number, pr.title, pr.url, pr.branch, pr.author, pr.state, pr.opened_at, pr.merged_at, pr.updated_at, pr.security FROM pull_requests pr
+SELECT pr.id, pr.project_id, pr.provider, pr.number, pr.title, pr.url, pr.branch, pr.author, pr.state, pr.opened_at, pr.merged_at, pr.updated_at, pr.security, pr.labels FROM pull_requests pr
 JOIN pull_request_links l ON l.pull_request_id = pr.id
 WHERE l.task_id = $1
 ORDER BY pr.updated_at DESC
@@ -283,6 +283,7 @@ func (q *Queries) ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID)
 			&i.MergedAt,
 			&i.UpdatedAt,
 			&i.Security,
+			&i.Labels,
 		); err != nil {
 			return nil, err
 		}
@@ -295,7 +296,7 @@ func (q *Queries) ListPullRequestsOfTask(ctx context.Context, taskID *uuid.UUID)
 }
 
 const listPullRequestsOfTicket = `-- name: ListPullRequestsOfTicket :many
-SELECT pr.id, pr.project_id, pr.provider, pr.number, pr.title, pr.url, pr.branch, pr.author, pr.state, pr.opened_at, pr.merged_at, pr.updated_at, pr.security FROM pull_requests pr
+SELECT pr.id, pr.project_id, pr.provider, pr.number, pr.title, pr.url, pr.branch, pr.author, pr.state, pr.opened_at, pr.merged_at, pr.updated_at, pr.security, pr.labels FROM pull_requests pr
 JOIN pull_request_links l ON l.pull_request_id = pr.id
 WHERE l.ticket_id = $1
 ORDER BY pr.updated_at DESC
@@ -325,6 +326,7 @@ func (q *Queries) ListPullRequestsOfTicket(ctx context.Context, ticketID *uuid.U
 			&i.MergedAt,
 			&i.UpdatedAt,
 			&i.Security,
+			&i.Labels,
 		); err != nil {
 			return nil, err
 		}
@@ -382,10 +384,10 @@ func (q *Queries) SetGitWebhookSecret(ctx context.Context, secret string) error 
 }
 
 const upsertPullRequest = `-- name: UpsertPullRequest :one
-INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security)
+INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security, labels)
 VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10, $11
+    $6, $7, $8, $9, $10, $11, $12::text[]
 )
 ON CONFLICT (project_id, provider, number) DO UPDATE SET
     title      = EXCLUDED.title,
@@ -396,8 +398,9 @@ ON CONFLICT (project_id, provider, number) DO UPDATE SET
     opened_at  = coalesce(pull_requests.opened_at, EXCLUDED.opened_at),
     merged_at  = coalesce(EXCLUDED.merged_at, pull_requests.merged_at),
     security   = EXCLUDED.security,
+    labels     = EXCLUDED.labels,
     updated_at = now()
-RETURNING id, project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, updated_at, security
+RETURNING id, project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, updated_at, security, labels
 `
 
 type UpsertPullRequestParams struct {
@@ -412,6 +415,7 @@ type UpsertPullRequestParams struct {
 	OpenedAt  *time.Time `json:"opened_at"`
 	MergedAt  *time.Time `json:"merged_at"`
 	Security  bool       `json:"security"`
+	Labels    []string   `json:"labels"`
 }
 
 // Une pull request se recoit plusieurs fois : ouverture, mises a jour,
@@ -430,6 +434,7 @@ func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestPa
 		arg.OpenedAt,
 		arg.MergedAt,
 		arg.Security,
+		arg.Labels,
 	)
 	var i PullRequest
 	err := row.Scan(
@@ -446,6 +451,61 @@ func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestPa
 		&i.MergedAt,
 		&i.UpdatedAt,
 		&i.Security,
+		&i.Labels,
 	)
 	return i, err
+}
+
+const upsertSyncedPullRequest = `-- name: UpsertSyncedPullRequest :one
+INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security, labels)
+VALUES (
+    $1, 'github', $2, $3, $4, $5,
+    $6, 'merged', $7, $8, $9, $10::text[]
+)
+ON CONFLICT (project_id, provider, number) DO UPDATE SET
+    title      = coalesce(nullif(pull_requests.title, ''), EXCLUDED.title),
+    url        = coalesce(nullif(pull_requests.url, ''), EXCLUDED.url),
+    branch     = coalesce(nullif(pull_requests.branch, ''), EXCLUDED.branch),
+    author     = coalesce(nullif(pull_requests.author, ''), EXCLUDED.author),
+    state      = 'merged',
+    opened_at  = coalesce(pull_requests.opened_at, EXCLUDED.opened_at),
+    merged_at  = coalesce(pull_requests.merged_at, EXCLUDED.merged_at),
+    security   = pull_requests.security OR EXCLUDED.security,
+    labels     = CASE WHEN cardinality(pull_requests.labels) > 0 THEN pull_requests.labels ELSE EXCLUDED.labels END,
+    updated_at = now()
+RETURNING (xmax = 0)::boolean AS inserted
+`
+
+type UpsertSyncedPullRequestParams struct {
+	ProjectID uuid.UUID  `json:"project_id"`
+	Number    int64      `json:"number"`
+	Title     string     `json:"title"`
+	Url       string     `json:"url"`
+	Branch    string     `json:"branch"`
+	Author    string     `json:"author"`
+	OpenedAt  *time.Time `json:"opened_at"`
+	MergedAt  *time.Time `json:"merged_at"`
+	Security  bool       `json:"security"`
+	Labels    []string   `json:"labels"`
+}
+
+// Une pull request fusionnee lue par la synchronisation. Le webhook en sait
+// souvent plus (description, etat a chaque instant) : la synchronisation
+// comble les trous sans rien ecraser. Rend vrai si la ligne est nouvelle.
+func (q *Queries) UpsertSyncedPullRequest(ctx context.Context, arg UpsertSyncedPullRequestParams) (bool, error) {
+	row := q.db.QueryRow(ctx, upsertSyncedPullRequest,
+		arg.ProjectID,
+		arg.Number,
+		arg.Title,
+		arg.Url,
+		arg.Branch,
+		arg.Author,
+		arg.OpenedAt,
+		arg.MergedAt,
+		arg.Security,
+		arg.Labels,
+	)
+	var inserted bool
+	err := row.Scan(&inserted)
+	return inserted, err
 }

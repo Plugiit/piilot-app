@@ -12,10 +12,10 @@ SELECT * FROM projects WHERE repo_url = sqlc.arg('repo_url') AND deleted_at IS N
 -- Une pull request se recoit plusieurs fois : ouverture, mises a jour,
 -- fusion. La ligne suit le dernier etat connu ; la date de fusion, une fois
 -- posee, ne s'efface pas.
-INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security)
+INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security, labels)
 VALUES (
     sqlc.arg('project_id'), sqlc.arg('provider'), sqlc.arg('number'), sqlc.arg('title'), sqlc.arg('url'),
-    sqlc.arg('branch'), sqlc.arg('author'), sqlc.arg('state'), sqlc.narg('opened_at'), sqlc.narg('merged_at'), sqlc.arg('security')
+    sqlc.arg('branch'), sqlc.arg('author'), sqlc.arg('state'), sqlc.narg('opened_at'), sqlc.narg('merged_at'), sqlc.arg('security'), sqlc.arg('labels')::text[]
 )
 ON CONFLICT (project_id, provider, number) DO UPDATE SET
     title      = EXCLUDED.title,
@@ -26,6 +26,7 @@ ON CONFLICT (project_id, provider, number) DO UPDATE SET
     opened_at  = coalesce(pull_requests.opened_at, EXCLUDED.opened_at),
     merged_at  = coalesce(EXCLUDED.merged_at, pull_requests.merged_at),
     security   = EXCLUDED.security,
+    labels     = EXCLUDED.labels,
     updated_at = now()
 RETURNING *;
 
@@ -83,3 +84,25 @@ WHERE t.project_id = sqlc.arg('project_id') AND t.status = 'ready_to_deploy' AND
 SELECT id, title FROM milestones
 WHERE project_id = sqlc.arg('project_id') AND completed_at IS NULL
 ORDER BY due_on NULLS LAST, created_at;
+
+-- name: UpsertSyncedPullRequest :one
+-- Une pull request fusionnee lue par la synchronisation. Le webhook en sait
+-- souvent plus (description, etat a chaque instant) : la synchronisation
+-- comble les trous sans rien ecraser. Rend vrai si la ligne est nouvelle.
+INSERT INTO pull_requests (project_id, provider, number, title, url, branch, author, state, opened_at, merged_at, security, labels)
+VALUES (
+    sqlc.arg('project_id'), 'github', sqlc.arg('number'), sqlc.arg('title'), sqlc.arg('url'), sqlc.arg('branch'),
+    sqlc.arg('author'), 'merged', sqlc.narg('opened_at'), sqlc.arg('merged_at'), sqlc.arg('security'), sqlc.arg('labels')::text[]
+)
+ON CONFLICT (project_id, provider, number) DO UPDATE SET
+    title      = coalesce(nullif(pull_requests.title, ''), EXCLUDED.title),
+    url        = coalesce(nullif(pull_requests.url, ''), EXCLUDED.url),
+    branch     = coalesce(nullif(pull_requests.branch, ''), EXCLUDED.branch),
+    author     = coalesce(nullif(pull_requests.author, ''), EXCLUDED.author),
+    state      = 'merged',
+    opened_at  = coalesce(pull_requests.opened_at, EXCLUDED.opened_at),
+    merged_at  = coalesce(pull_requests.merged_at, EXCLUDED.merged_at),
+    security   = pull_requests.security OR EXCLUDED.security,
+    labels     = CASE WHEN cardinality(pull_requests.labels) > 0 THEN pull_requests.labels ELSE EXCLUDED.labels END,
+    updated_at = now()
+RETURNING (xmax = 0)::boolean AS inserted;
