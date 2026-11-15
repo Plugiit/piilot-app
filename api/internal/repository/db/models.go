@@ -627,6 +627,14 @@ type ProjectFavorite struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type ProjectGitSync struct {
+	ProjectID     uuid.UUID  `json:"project_id"`
+	RequestedAt   *time.Time `json:"requested_at"`
+	LastAttemptAt *time.Time `json:"last_attempt_at"`
+	LastSyncedAt  *time.Time `json:"last_synced_at"`
+	LastError     *string    `json:"last_error"`
+}
+
 type ProjectMaintenance struct {
 	ID        uuid.UUID  `json:"id"`
 	ProjectID uuid.UUID  `json:"project_id"`
@@ -718,6 +726,7 @@ type PullRequest struct {
 	MergedAt  *time.Time `json:"merged_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	Security  bool       `json:"security"`
+	Labels    []string   `json:"labels"`
 }
 
 type PullRequestLink struct {
