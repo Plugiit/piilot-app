@@ -711,3 +711,26 @@ func TestImport_UnusedFilesArePurged(t *testing.T) {
 		t.Errorf("depot recent : %q %v", status, err)
 	}
 }
+
+func TestImportClients_WebsiteSchemeIsChecked(t *testing.T) {
+	e := newImportEnv(t, 1<<20, 1000)
+
+	content := csvOf(t, []string{"Nom", "Site web"},
+		[]string{e.name("Http"), "https://exemple.fr"},
+		[]string{e.name("Js"), "javascript:alert(1)"},
+		[]string{e.name("Ftp"), "ftp://exemple.fr"},
+		[]string{e.name("Sans"), ""},
+	)
+
+	up := e.upload(t, content)
+	done := e.run(t, up.ID, up.SuggestedMapping, false)
+
+	if done.CreatedN != 2 || done.ErrorN != 2 {
+		t.Fatalf("created=%d error=%d, attendu 2 et 2", done.CreatedN, done.ErrorN)
+	}
+
+	expectReasons(t, e.rows(t, up.ID), map[int][2]string{
+		2: {usecase.ImportRowCreated, ""}, 3: {usecase.ImportRowError, usecase.ReasonInvalid},
+		4: {usecase.ImportRowError, usecase.ReasonInvalid}, 5: {usecase.ImportRowCreated, ""},
+	})
+}
