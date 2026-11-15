@@ -325,6 +325,11 @@ type Querier interface {
 	// Taches, tickets, livrables, rapports, temps et fichiers suivent par cascade.
 	EraseDeleteClientProjects(ctx context.Context, clientID uuid.UUID) (int64, error)
 	EraseDeleteFavorites(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Lignes de rapport d'import dont le libelle contient l'adresse du compte (le
+	// libelle d'une saisie de temps sans projet est l'e-mail) et cles d'import qui
+	// le designent. La comparaison est une recherche de sous-chaine, pas un LIKE :
+	// une adresse contient des `_` et des `%` possibles.
+	EraseDeleteImportTracesOfUser(ctx context.Context, arg EraseDeleteImportTracesOfUserParams) (int64, error)
 	EraseDeleteInboundFrom(ctx context.Context, email string) (int64, error)
 	EraseDeleteInvitations(ctx context.Context, arg EraseDeleteInvitationsParams) (int64, error)
 	EraseDeleteMemberships(ctx context.Context, userID uuid.UUID) (int64, error)

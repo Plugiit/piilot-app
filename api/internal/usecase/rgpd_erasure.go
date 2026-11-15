@@ -771,6 +771,9 @@ func (s *RgpdErasureService) eraseUser(ctx context.Context, tx pgx.Tx, q *db.Que
 		{"ticket_requesters", func() (int64, error) { return q.EraseBlankTicketRequester(ctx, email) }},
 		{"ticket_senders", func() (int64, error) { return q.EraseBlankMessageSender(ctx, email) }},
 		{"inbound_emails", func() (int64, error) { return q.EraseDeleteInboundFrom(ctx, email) }},
+		{"import_traces", func() (int64, error) {
+			return q.EraseDeleteImportTracesOfUser(ctx, db.EraseDeleteImportTracesOfUserParams{UserID: id, Email: email})
+		}},
 	}
 
 	for _, d := range steps {

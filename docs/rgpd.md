@@ -29,6 +29,7 @@ Supprimer un client dans le CRM est une suppression **logique** : il disparaît 
 - Appartenances aux projets, affectations de tâches, désabonnements des rapports.
 - E-mails sortants en attente ou envoyés vers son adresse, adresse retirée des destinataires de rapports, e-mails reçus de cette adresse.
 - Tickets : adresse et nom du demandeur vidés ; messages : nom et adresse de l'expéditeur vidés.
+- Traces d'import : lignes de rapport dont le libellé contient son adresse e-mail (cas d'une saisie de temps rejetée, dont le libellé est l'adresse) et clés d'import qui le désignent.
 - Archives d'export RGPD dont le compte est le sujet (fichier supprimé, libellé effacé de l'historique).
 
 ### Client (suppression)
