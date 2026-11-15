@@ -208,6 +208,16 @@ haut : il lui faut la permission *Pull requests : lecture*.
   plus.
 - La lecture s'interrompt (et la relève passe en erreur) au-delà de 2 000
   déploiements pour une application, plutôt que de rendre une liste tronquée.
+- **Une erreur sur une application liée met tout le module en erreur.** Les autres
+  applications sont tout de même lues et écrites, mais la relève est en erreur : les
+  rapports de **tous** les projets liés sont retenus (voir *Retenue*) tant qu'une
+  relève n'a pas réussi pour toutes les applications.
+- Une relève qui dépasse son délai (deux minutes par application) s'inscrit en erreur
+  lisible sur l'écran du module, et la demande est effacée : elle ne se répète pas
+  toutes les quinze secondes.
+- Changer l'hôte de l'adresse de Coolify exige de ressaisir le jeton (il n'est pas
+  envoyé à une autre instance). Coolify ne doit pas rediriger : une redirection est
+  refusée.
 - L'heure retenue pour un déploiement est celle de sa fin (`updated_at`, à défaut
   `created_at`), dans le fuseau de l'agence pour les bornes du mois.
 

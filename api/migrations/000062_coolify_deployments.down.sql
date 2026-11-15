@@ -1,3 +1,6 @@
+-- ATTENTION : les lignes Coolify supprimees ci-dessous ne se relisent que sur
+-- les 2 derniers mois ; les rapports figes gardent leurs donnees, mais un
+-- deploiement plus ancien ne reviendra pas.
 -- Les deploiements releves (external_id) se relisent chez Coolify : ils sont
 -- retires, car leurs noms ne respecteraient pas l'unicite d'avant.
 DELETE FROM deployments WHERE external_id <> '';
