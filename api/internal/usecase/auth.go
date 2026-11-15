@@ -5,6 +5,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -153,6 +154,13 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (Session, error)
 		return Session{}, fmt.Errorf("mise a jour de la derniere connexion : %w", err)
 	}
 
+	// Une connexion reussie annule l'effacement planifie pour inactivite. En
+	// cas d'echec la connexion echoue aussi : mieux vaut un refus qu'un compte
+	// actif efface par erreur.
+	if err := s.cancelInactivityErasure(ctx, user); err != nil {
+		return Session{}, err
+	}
+
 	session, err := s.issue(ctx, s.q, user.ID, user.Role, in.UserAgent, in.IP)
 	if err != nil {
 		return Session{}, err
@@ -164,6 +172,30 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (Session, error)
 	}
 
 	return session, nil
+}
+
+// cancelInactivityErasure annule l'effacement pour inactivite en cours de ce
+// compte, et l'ecrit au journal d'audit.
+func (s *AuthService) cancelInactivityErasure(ctx context.Context, user db.User) error {
+	id, err := s.q.CancelInactivityErasureOfUser(ctx, user.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("annulation de l'effacement pour inactivite : %w", err)
+	}
+
+	details, _ := json.Marshal(map[string]any{"via": "login", "erasure_id": id})
+
+	if err := s.q.InsertAudit(ctx, db.InsertAuditParams{
+		ActorID: &user.ID, ActorEmail: user.Email, Action: "rgpd.erasure_cancelled",
+		TargetType: "rgpd_erasure", TargetID: id.String(), Details: details,
+	}); err != nil {
+		return fmt.Errorf("audit de l'annulation : %w", err)
+	}
+
+	return nil
 }
 
 // Refresh echange un jeton de rafraichissement contre une session neuve.
