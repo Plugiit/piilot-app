@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -178,7 +179,18 @@ func (s *DataImportService) Upload(ctx context.Context, actor *uuid.UUID, entity
 		return ImportDetail{}, domain.ErrValidation.WithDetails(map[string]any{"entity": "Entité inconnue ou pas encore importable"})
 	}
 
-	key, size, err := s.files.Save(content, s.maxBytes)
+	// Le depot refuse un fichier vide avec une erreur technique : on le dit
+	// avant, comme une donnee refusee.
+	buffered := bufio.NewReader(content)
+	if _, err := buffered.Peek(1); err != nil {
+		if errors.Is(err, io.EOF) {
+			return ImportDetail{}, domain.ErrValidation.WithDetails(map[string]any{"file": "Le fichier est vide"})
+		}
+
+		return ImportDetail{}, fmt.Errorf("lecture du fichier : %w", err)
+	}
+
+	key, size, err := s.files.Save(buffered, s.maxBytes)
 	if err != nil {
 		if errors.Is(err, storage.ErrTooLarge) {
 			return ImportDetail{}, domain.ErrValidation.WithDetails(map[string]any{
@@ -752,9 +764,12 @@ func (s *DataImportService) detail(ctx context.Context, imp db.Import, preview [
 
 	suggested := suggestMapping(fields, imp.Headers)
 
+	// Le dernier mapping vaut quand ses colonnes sont toutes dans ce fichier
+	// et qu'il relie au moins autant de champs que la deduction par les noms :
+	// un vieux mapping partiel ne doit pas masquer un export complet.
 	if saved, err := s.q.GetImportMapping(ctx, imp.Entity); err == nil {
 		var m map[string]string
-		if json.Unmarshal(saved.Mapping, &m) == nil && mappingFits(fields, imp.Headers, m) {
+		if json.Unmarshal(saved.Mapping, &m) == nil && mappingFits(fields, imp.Headers, m) && len(m) >= len(suggested) {
 			suggested = m
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
