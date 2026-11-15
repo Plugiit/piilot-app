@@ -154,6 +154,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Le bot Discord : ses cles, la liaison des comptes et le flux qu'il relit.
 	// Les codes de liaison sont haches sous une cle derivee du secret des jetons.
 	discordService := usecase.NewDiscordService(pool, cfg.JWTSecret)
+	rgpdErasureService := usecase.NewRgpdErasureService(pool, files, discordService, cfg.RgpdErasureGrace, cfg.RgpdInactiveAfter, log)
+	rgpdErasureService.SetNotice(cfg.URLFor(spaces.Auth), sender.Configured())
 	rgpdExportService := usecase.NewRgpdExportService(pool, files, discordService, cfg.RgpdExportTTL, cfg.RgpdExportMaxMiB*(1<<20), log)
 	botEventService := usecase.NewBotEventService(pool)
 	guard := middleware.NewGuard(signer, authService)
@@ -231,7 +233,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
-		Rgpd:          handler.NewRgpd(rgpdExportService),
+		Rgpd:          handler.NewRgpd(rgpdExportService, rgpdErasureService),
 		DataImport:    handler.NewDataImport(dataImportService, usecase.NewDataExportService(db.New(pool))),
 		Discord:       handler.NewDiscord(discordService, repository.NewRateLimiter(rdb)),
 		BotEvents:     handler.NewBotEvents(botEventService),
@@ -288,7 +290,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// Imports CSV en file : traites ici, jamais dans la requete.
 	repository.StartImports(ctx, dataImportService, log)
 	// Exports RGPD en file, et archives expirees : meme principe.
-	repository.StartRGPD(ctx, rgpdExportService, log)
+	repository.StartRGPD(ctx, rgpdExportService, rgpdErasureService, log)
 	// Disponibilite des sites : releve du service de surveillance.
 	repository.StartUptime(ctx, uptimeService, log)
 	// Statistiques des sites : cache, visiteurs du moment, photos du mois.
