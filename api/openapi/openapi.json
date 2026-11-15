@@ -13216,6 +13216,387 @@
           }
         }
       }
+    },
+    "/api/v1/admin/imports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Historique des imports CSV",
+        "description": "Du plus récent au plus ancien, 25 par page. Exige data.import.",
+        "operationId": "listAdminImports",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Déposer un fichier CSV",
+        "description": "Détecte l'encodage (UTF-8, sinon Windows-1252) et le séparateur (; , tabulation), compte les lignes et propose une correspondance. Rien n'est importé. 422 si le fichier dépasse IMPORT_MAX_MIB (10 Mio par défaut) ou IMPORT_MAX_ROWS (50 000 lignes), s'il est vide ou si un en-tête est en double. Exige data.import.",
+        "operationId": "uploadAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "entity",
+                  "file"
+                ],
+                "properties": {
+                  "entity": {
+                    "type": "string",
+                    "enum": [
+                      "clients",
+                      "contacts",
+                      "projects",
+                      "time_entries"
+                    ]
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fichier reçu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lire un import",
+        "description": "Avec l'aperçu et la correspondance proposée tant que le fichier est conservé. Exige data.import.",
+        "operationId": "getAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "L'import",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Supprimer un import",
+        "description": "Retire l'import, son rapport et son fichier. 409 s'il est en file ou en cours. Les clés d'import restent : rejouer le fichier ne recrée rien. Journalisé. Exige data.import.",
+        "operationId": "deleteAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Fait"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Import en file ou en cours"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}/run": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Lancer un import",
+        "description": "Met l'import en file ; la tâche de fond le traite (lots de 500 lignes, une ligne refusée n'arrête pas les autres). Avec dry_run, tout est exécuté puis annulé : seul le rapport reste, et le fichier est conservé pour l'import réel. Un doublon est ignoré, jamais mis à jour. 409 si l'import n'est plus lançable. Journalisé. Exige data.import.",
+        "operationId": "runAdminImport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "En file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Import déjà lancé"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/imports/{id}/rows": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Rapport d'un import",
+        "description": "Une ligne par ligne du fichier traitée, 25 par page. Exige data.import.",
+        "operationId": "listAdminImportRows",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "skipped",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRowPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/exports/{entity}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Exporter une entité en CSV",
+        "description": "CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Seuls les clients sont exportables pour l'instant (422 pour les autres).",
+        "operationId": "getAdminExport",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "clients",
+                "contacts",
+                "projects",
+                "time_entries"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fichier CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -24716,6 +25097,311 @@
             "items": {
               "$ref": "#/components/schemas/ClaudeConnection"
             }
+          }
+        }
+      },
+      "DataField": {
+        "type": "object",
+        "required": [
+          "key",
+          "header",
+          "aliases",
+          "required"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Identifiant stable du champ, celui du mapping."
+          },
+          "header": {
+            "type": "string",
+            "description": "En-tête écrit à l'export."
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ImportItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "entity",
+          "status",
+          "dry_run",
+          "file_name",
+          "size_bytes",
+          "delimiter",
+          "encoding",
+          "headers",
+          "row_count",
+          "mapping",
+          "created_n",
+          "skipped_n",
+          "error_n",
+          "error",
+          "created_by",
+          "started_at",
+          "finished_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "enum": [
+              "clients",
+              "contacts",
+              "projects",
+              "time_entries"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "dry_run": {
+            "type": "boolean",
+            "description": "Simulation : tout est exécuté, rien n'est conservé."
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "utf-8",
+              "windows-1252"
+            ]
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "row_count": {
+            "type": "integer"
+          },
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Champ de Piilot -> en-tête du fichier."
+          },
+          "created_n": {
+            "type": "integer"
+          },
+          "skipped_n": {
+            "type": "integer"
+          },
+          "error_n": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "description": "Code d'échec : interrupted, file_unreadable ou internal. Vide sinon."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ImportDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ImportItem"
+          },
+          {
+            "type": "object",
+            "required": [
+              "fields",
+              "preview",
+              "suggested_mapping"
+            ],
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataField"
+                }
+              },
+              "preview": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": "Premières lignes du fichier, tant qu'il est conservé."
+              },
+              "suggested_mapping": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Dernier mapping utilisé si les en-têtes concordent, sinon déduit des noms de colonnes."
+              }
+            }
+          }
+        ]
+      },
+      "ImportPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "ImportRow": {
+        "type": "object",
+        "required": [
+          "line",
+          "outcome",
+          "reason",
+          "label",
+          "entity_id"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "description": "Numéro de ligne dans le fichier, en-tête comprise."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "skipped",
+              "error"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Code stable : already_exists, already_imported, duplicate_siret, duplicate_name, duplicate_email, invalid, unknown_client, unknown_project, unknown_user. Vide pour une ligne créée."
+          },
+          "label": {
+            "type": "string",
+            "description": "Nom de la ligne ; pour invalid, suivi du champ et du motif."
+          },
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ImportRowPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRow"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "RunImportRequest": {
+        "type": "object",
+        "required": [
+          "mapping"
+        ],
+        "properties": {
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Champ de Piilot -> en-tête du fichier. Les champs obligatoires doivent y figurer."
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": false
           }
         }
       }

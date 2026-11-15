@@ -4008,6 +4008,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique des imports CSV
+         * @description Du plus récent au plus ancien, 25 par page. Exige data.import.
+         */
+        get: operations["listAdminImports"];
+        put?: never;
+        /**
+         * Déposer un fichier CSV
+         * @description Détecte l'encodage (UTF-8, sinon Windows-1252) et le séparateur (; , tabulation), compte les lignes et propose une correspondance. Rien n'est importé. 422 si le fichier dépasse IMPORT_MAX_MIB (10 Mio par défaut) ou IMPORT_MAX_ROWS (50 000 lignes), s'il est vide ou si un en-tête est en double. Exige data.import.
+         */
+        post: operations["uploadAdminImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lire un import
+         * @description Avec l'aperçu et la correspondance proposée tant que le fichier est conservé. Exige data.import.
+         */
+        get: operations["getAdminImport"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un import
+         * @description Retire l'import, son rapport et son fichier. 409 s'il est en file ou en cours. Les clés d'import restent : rejouer le fichier ne recrée rien. Journalisé. Exige data.import.
+         */
+        delete: operations["deleteAdminImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lancer un import
+         * @description Met l'import en file ; la tâche de fond le traite (lots de 500 lignes, une ligne refusée n'arrête pas les autres). Avec dry_run, tout est exécuté puis annulé : seul le rapport reste, et le fichier est conservé pour l'import réel. Un doublon est ignoré, jamais mis à jour. 409 si l'import n'est plus lançable. Journalisé. Exige data.import.
+         */
+        post: operations["runAdminImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/imports/{id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rapport d'un import
+         * @description Une ligne par ligne du fichier traitée, 25 par page. Exige data.import.
+         */
+        get: operations["listAdminImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/exports/{entity}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Exporter une entité en CSV
+         * @description CSV (séparateur « ; », UTF-8 avec BOM, CRLF), mêmes colonnes que l'import : le fichier se réimporte tel quel. Journalisé. Exige data.export. Seuls les clients sont exportables pour l'instant (422 pour les autres).
+         */
+        get: operations["getAdminExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7414,6 +7522,92 @@ export interface components {
              */
             mcp_url: string;
             connections: components["schemas"]["ClaudeConnection"][];
+        };
+        DataField: {
+            /** @description Identifiant stable du champ, celui du mapping. */
+            key: string;
+            /** @description En-tête écrit à l'export. */
+            header: string;
+            aliases: string[];
+            required: boolean;
+        };
+        ImportItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            entity: "clients" | "contacts" | "projects" | "time_entries";
+            /** @enum {string} */
+            status: "uploaded" | "queued" | "running" | "done" | "failed" | "cancelled";
+            /** @description Simulation : tout est exécuté, rien n'est conservé. */
+            dry_run: boolean;
+            file_name: string;
+            /** Format: int64 */
+            size_bytes: number;
+            delimiter: string;
+            /** @enum {string} */
+            encoding: "utf-8" | "windows-1252";
+            headers: string[];
+            row_count: number;
+            /** @description Champ de Piilot -> en-tête du fichier. */
+            mapping: {
+                [key: string]: string;
+            };
+            created_n: number;
+            skipped_n: number;
+            error_n: number;
+            /** @description Code d'échec : interrupted, file_unreadable ou internal. Vide sinon. */
+            error: string;
+            /** Format: uuid */
+            created_by: string | null;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ImportDetail: components["schemas"]["ImportItem"] & {
+            fields: components["schemas"]["DataField"][];
+            /** @description Premières lignes du fichier, tant qu'il est conservé. */
+            preview: string[][];
+            /** @description Dernier mapping utilisé si les en-têtes concordent, sinon déduit des noms de colonnes. */
+            suggested_mapping: {
+                [key: string]: string;
+            };
+        };
+        ImportPage: {
+            items: components["schemas"]["ImportItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        ImportRow: {
+            /** @description Numéro de ligne dans le fichier, en-tête comprise. */
+            line: number;
+            /** @enum {string} */
+            outcome: "created" | "skipped" | "error";
+            /** @description Code stable : already_exists, already_imported, duplicate_siret, duplicate_name, duplicate_email, invalid, unknown_client, unknown_project, unknown_user. Vide pour une ligne créée. */
+            reason: string;
+            /** @description Nom de la ligne ; pour invalid, suivi du champ et du motif. */
+            label: string;
+            /** Format: uuid */
+            entity_id: string | null;
+        };
+        ImportRowPage: {
+            items: components["schemas"]["ImportRow"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        RunImportRequest: {
+            /** @description Champ de Piilot -> en-tête du fichier. Les champs obligatoires doivent y figurer. */
+            mapping: {
+                [key: string]: string;
+            };
+            /** @default false */
+            dry_run: boolean;
         };
     };
     responses: {
@@ -14686,6 +14880,208 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminImports: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    uploadAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** @enum {string} */
+                    entity: "clients" | "contacts" | "projects" | "time_entries";
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Fichier reçu */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description L'import */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fait */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Import en file ou en cours */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    runAdminImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunImportRequest"];
+            };
+        };
+        responses: {
+            /** @description En file */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Import déjà lancé */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    listAdminImportRows: {
+        parameters: {
+            query?: {
+                outcome?: "created" | "skipped" | "error";
+                page?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRowPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getAdminExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: "clients" | "contacts" | "projects" | "time_entries";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
         };
     };

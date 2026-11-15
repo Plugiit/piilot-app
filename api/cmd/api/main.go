@@ -142,6 +142,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.URLFor(spaces.Team), smtpFromAddress(cfg.SMTPFrom), log,
 	)
 	auditService := usecase.NewAuditService(pool, cfg.AuditRetention)
+	dataImportService := usecase.NewDataImportService(pool, files, cfg.ImportMaxMiB*(1<<20), cfg.ImportMaxRows, log)
 	reportService := usecase.NewReportService(pool, cfg.URLFor(spaces.Client), sender.Configured(), log)
 	siteSourcesService := usecase.NewSiteSourcesService(pool, rdap.New(), cfg.URLFor(spaces.Team), sender.Configured(), log)
 	siteUpdateService := usecase.NewSiteUpdateService(pool, githubactions.New(), cfg.JWTSecret, cfg.URLFor(spaces.Team), sender.Configured(), log)
@@ -229,6 +230,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		ClientSites:   handler.NewClientSites(analyticsService, uptimeService),
 		Replies:       handler.NewReplyTemplates(usecase.NewReplyTemplateService(pool)),
 		Audit:         handler.NewAudit(auditService, log),
+		DataImport:    handler.NewDataImport(dataImportService, usecase.NewDataExportService(db.New(pool))),
 		Discord:       handler.NewDiscord(discordService, repository.NewRateLimiter(rdb)),
 		BotEvents:     handler.NewBotEvents(botEventService),
 		OAuth:         handler.NewOAuth(oauthService, repository.NewRateLimiter(rdb), cookies.Secure, log),
@@ -281,6 +283,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// soit leur chemin. Purge quotidienne du journal d'audit.
 	repository.StartInboundMail(ctx, inboundService, log)
 	repository.StartAuditPurge(ctx, auditService, log)
+	// Imports CSV en file : traites ici, jamais dans la requete.
+	repository.StartImports(ctx, dataImportService, log)
 	// Disponibilite des sites : releve du service de surveillance.
 	repository.StartUptime(ctx, uptimeService, log)
 	// Statistiques des sites : cache, visiteurs du moment, photos du mois.
