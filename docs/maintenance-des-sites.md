@@ -138,6 +138,33 @@ prévenus à 60, 30, 14, 7 et 1 jours, et si le relevé ne réussit plus depuis 
 jours. Certaines extensions nationales ne publient pas leur date : le relevé
 reste alors en échec, et l'alerte le dit.
 
+## Déploiements (Coolify)
+
+*Paramètres → Modules → Coolify* (admins) : Piilot lit la liste des applications
+de l'instance [Coolify](https://coolify.io) de l'agence, en lecture seule. Il ne
+déclenche jamais un déploiement. Ce lot ne relève que les applications ; leur
+liaison aux projets et la lecture des déploiements viennent ensuite.
+
+1. **Dans Coolify**, activer l'API dans les réglages de l'instance (*Settings →
+   Advanced*, option d'accès à l'API ; l'intitulé varie selon la version). Sur une instance auto-hébergée elle est désactivée par défaut, et
+   Coolify répond alors « accès refusé ».
+2. Si une liste d'adresses IP autorisées est renseignée, y ajouter l'adresse IP **sortante** du
+   serveur qui héberge Piilot. Une adresse non autorisée donne la même erreur
+   d'accès refusé.
+3. *Keys & Tokens → API tokens* (intitulé à vérifier selon la version) : créer un jeton avec la seule permission
+   **read** (jamais *write* ni *deploy*), limité aux projets et ressources utiles
+   quand l'écran le propose, avec une expiration. Copier le jeton **complet**,
+   préfixe compris (`1|…`) : Coolify ne le montre qu'une fois.
+4. **Dans Piilot**, renseigner l'adresse de l'instance (sans `/api/v1`) et le
+   jeton, cocher *Activer le module*, choisir l'intervalle (15 minutes à 24
+   heures, 1 heure par défaut), enregistrer. *Tester la connexion* demande une
+   relève tout de suite ; le résultat s'affiche en haut de l'écran.
+
+Le jeton est chiffré en base et ne ressort jamais de l'API. `COOLIFY_URL` et
+`COOLIFY_API_TOKEN` peuvent le fixer par l'environnement : elles priment alors, et
+l'écran les montre en lecture seule. Un jeton expiré ou révoqué se repère à
+l'erreur de relève affichée sur l'écran du module.
+
 ## Rapport mensuel
 
 Ajoutez les sections *Mises à jour*, *Sauvegardes* et *Domaine* à une formule. Les
