@@ -26,6 +26,8 @@ type fakeCoolify struct {
 	mu      sync.Mutex
 	apps    []coolify.Application
 	err     error
+	deploys map[string][]coolify.Deployment
+	depErr  error
 	baseURL string
 	token   string
 	calls   int
@@ -38,8 +40,10 @@ func (f *fakeCoolify) ListApplications(context.Context) ([]coolify.Application, 
 	return f.apps, f.err
 }
 
-func (f *fakeCoolify) ListDeployments(context.Context, string, time.Time) ([]coolify.Deployment, error) {
-	return nil, nil
+func (f *fakeCoolify) ListDeployments(_ context.Context, appUUID string, _ time.Time) ([]coolify.Deployment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.deploys[appUUID], f.depErr
 }
 
 func (f *fakeCoolify) set(apps []coolify.Application, err error) {
@@ -54,6 +58,7 @@ func newCoolify(t *testing.T, pool *pgxpool.Pool, env config.CoolifyEnv) (*useca
 	ctx := context.Background()
 	reset := func() {
 		for _, q := range []string{
+			`DELETE FROM project_coolify_applications`,
 			`DELETE FROM coolify_applications`,
 			`UPDATE coolify_settings SET enabled = false, base_url = '', api_token_enc = NULL, poll_minutes = 60,
 			        last_poll_at = NULL, last_poll_error = NULL, poll_requested_at = NULL`,
