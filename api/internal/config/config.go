@@ -67,6 +67,10 @@ type Config struct {
 	ImportMaxMiB  int64
 	ImportMaxRows int
 
+	// Export RGPD : duree de vie d'une archive prete, et taille maximale.
+	RgpdExportTTL    time.Duration
+	RgpdExportMaxMiB int64
+
 	// Repertoire du build de la SPA (web/dist). Renseigne, l'API sert aussi le
 	// front sur la meme origine : une seule image, un seul domaine, ni CORS ni
 	// URL d'API figee dans le bundle. Vide en developpement, ou Vite sert le
@@ -139,7 +143,11 @@ func Load() (Config, error) {
 		MaxUploadMiB:    int64(envInt("MAX_UPLOAD_MIB", 25)),
 		ImportMaxMiB:    int64(envInt("IMPORT_MAX_MIB", 10)),
 		ImportMaxRows:   envInt("IMPORT_MAX_ROWS", 50000),
-		StaticDir:       os.Getenv("STATIC_DIR"),
+
+		RgpdExportTTL:    envDuration("RGPD_EXPORT_TTL", 168*time.Hour),
+		RgpdExportMaxMiB: int64(envInt("RGPD_EXPORT_MAX_MIB", 2048)),
+
+		StaticDir: os.Getenv("STATIC_DIR"),
 
 		UpdateCheck:      envBool("UPDATE_CHECK", true),
 		UpdateRepository: env("UPDATE_REPOSITORY", "Plugiit/piilot-app"),
@@ -251,6 +259,14 @@ func Load() (Config, error) {
 
 	if cfg.ImportMaxRows < 1 {
 		return Config{}, fmt.Errorf("IMPORT_MAX_ROWS doit valoir au moins 1 (actuel : %d)", cfg.ImportMaxRows)
+	}
+
+	if cfg.RgpdExportTTL < time.Hour {
+		return Config{}, fmt.Errorf("RGPD_EXPORT_TTL vaut au moins 1h (actuel : %s)", cfg.RgpdExportTTL)
+	}
+
+	if cfg.RgpdExportMaxMiB < 1 {
+		return Config{}, fmt.Errorf("RGPD_EXPORT_MAX_MIB doit valoir au moins 1 (actuel : %d)", cfg.RgpdExportMaxMiB)
 	}
 
 	// En local, personne ne route vers une autre instance : attendre ne
