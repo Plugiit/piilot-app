@@ -15,7 +15,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { PageFrame } from '@/components/layout/page-frame'
 import { PanelCard } from '@/components/panel-card'
@@ -23,6 +23,10 @@ import { Button } from '@/components/ui/button'
 import { clientDetailQuery } from '@/features/clients/api'
 import { EditClientDialog } from '@/features/clients/edit-dialog'
 import { CLIENT_STATUS, CLIENT_STATUS_ORDER } from '@/features/clients/format'
+import { ErasureBanner } from '@/features/rgpd/erasure-banner'
+import { useExportAction } from '@/features/rgpd/actions'
+import { ErasureDialog } from '@/features/rgpd/request-dialog'
+import { useScheduledErasure } from '@/features/rgpd/api'
 import { PrimaryContactPicker } from '@/features/clients/primary-contact-picker'
 import { ClientRowActions } from '@/features/clients/row-actions'
 import { ContactRowActions } from '@/features/contacts/row-actions'
@@ -160,6 +164,10 @@ function ClientDetailPage() {
 
   const { data } = useQuery(clientDetailQuery(id))
   const { data: session } = useQuery(sessionQuery)
+  const canRgpd = can(session, 'rgpd.manage')
+  const erasure = useScheduledErasure('client', id, canRgpd)
+  const [erasing, setErasing] = useState(false)
+  const exporter = useExportAction({ type: 'client', id, name: data?.name ?? '' })
 
   // Le loader a deja rempli le cache : `data` est present des le premier rendu.
   if (data === undefined) return null
@@ -180,6 +188,8 @@ function ClientDetailPage() {
       trail={[{ label: 'Clients', to: '/crm/clients', search: { page: 1 } }]}
     >
       <div className="flex flex-col gap-4 p-4">
+        {erasure !== undefined && <ErasureBanner erasure={erasure} />}
+
         {/* En-tete : qui est ce client, et les gestes qui le concernent.
             Pose a plat, comme la fiche projet. L'encadrer en carte le rangeait
             au meme niveau que les blocs qu'il surplombe, et le titre y etait
@@ -243,6 +253,17 @@ function ClientDetailPage() {
                 client={client}
                 trigger={<Button variant="outline">Modifier</Button>}
               />
+
+              {canRgpd && (
+                <Button variant="outline" disabled={exporter.pending} onClick={exporter.run}>
+                  Exporter les données
+                </Button>
+              )}
+              {canRgpd && erasure === undefined && (
+                <Button variant="outline" onClick={() => setErasing(true)}>
+                  Supprimer définitivement
+                </Button>
+              )}
 
               {/* Supprimer depuis la fiche renvoie a la liste : rester sur la
                   page d'un client efface n'aurait plus rien a montrer. */}
@@ -476,6 +497,14 @@ function ClientDetailPage() {
           </div>
         </PanelCard>
       </div>
+
+      {canRgpd && (
+        <ErasureDialog
+          subject={{ type: 'client', id: client.id, name: client.name }}
+          open={erasing}
+          onOpenChange={setErasing}
+        />
+      )}
     </PageFrame>
   )
 }
