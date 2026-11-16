@@ -163,7 +163,7 @@ services:
       # Module Coolify. Se regle aussi dans Paramètres > Modules ; renseignees
       # ici, ces valeurs priment et l'ecran les montre en lecture seule.
       # Adresse de l'instance, sans /api/v1, et jeton d'API complet (« 1|… »).
-      COOLIFY_URL: ${COOLIFY_URL:-}
+      COOLIFY_API_URL: ${COOLIFY_API_URL:-}
       COOLIFY_API_TOKEN: ${COOLIFY_API_TOKEN:-}
 
       # --- Statistiques des sites ------------------------------------------------
