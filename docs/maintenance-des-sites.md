@@ -166,9 +166,11 @@ lecture seule. Il ne déclenche jamais un déploiement.
    heures, 1 heure par défaut), enregistrer. *Tester la connexion* demande une
    relève tout de suite ; le résultat s'affiche en haut de l'écran.
 
-Le jeton est chiffré en base et ne ressort jamais de l'API. `COOLIFY_URL` et
+Le jeton est chiffré en base et ne ressort jamais de l'API. `COOLIFY_API_URL` et
 `COOLIFY_API_TOKEN` peuvent le fixer par l'environnement : elles priment alors, et
-l'écran les montre en lecture seule. Un jeton expiré ou révoqué se repère à
+l'écran les montre en lecture seule. Piilot ne lit pas `COOLIFY_URL` : Coolify
+l'injecte dans chaque conteneur qu'il déploie avec l'adresse de l'application
+elle-même, pas celle de l'instance. Un jeton expiré ou révoqué se repère à
 l'erreur de relève affichée sur l'écran du module.
 
 Pour le « jeton » GitHub du rattrapage des pull requests, voir *Mises à jour* plus

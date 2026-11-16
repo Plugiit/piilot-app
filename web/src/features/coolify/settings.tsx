@@ -68,7 +68,7 @@ export function CoolifyForm({ settings }: { settings: CoolifySettings }) {
         </label>
         <Field
           label="Adresse de Coolify"
-          hint={settings.base_url_from_env ? `Fixée par COOLIFY_URL : ${settings.base_url}` : 'Sans /api/v1 : Piilot l’ajoute.'}
+          hint={settings.base_url_from_env ? `Fixée par COOLIFY_API_URL : ${settings.base_url}` : 'Sans /api/v1 : Piilot l’ajoute.'}
           error={errors.base_url}
         >
           <Input
