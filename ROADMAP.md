@@ -9,31 +9,30 @@ un par population :
 | **Team** | `team` | Produire : ses tâches, ses tickets, ses livrables, son temps, les projets sur lesquels on intervient |
 | **Client** | `client` | Suivre ses projets, valider les livrables, déposer et suivre ses tickets |
 
-La V1 est publiée. Le cap des trois prochains mois : **un portail client
-incontournable** — que le client y trouve ce qu'il venait demander par
-e-mail — sans laisser de côté ce qui rend la production sûre (sauvegardes,
-RGPD, audit) ni la reprise des données de l'ancienne plateforme (import CSV).
-Les trois avancent en parallèle, par petites versions, publiées au fil de
-l'eau.
+La V1 est publiée. Piilot est un projet **open source** : le cap est
+désormais de le rendre simple à essayer, à installer et à adopter par d'autres
+agences. La qualité, la démo et l'interface en anglais passent avant les
+nouvelles fonctionnalités (voir D15). Viennent ensuite les rapports internes,
+le portail enrichi et la connexion SSO, puis la fin de l'ancienne plateforme.
+Le tout par petites versions, publiées au fil de l'eau.
 
 ## État actuel
 
-**Version : 1.0.0**, publiée le 2026-10-07.
+**Version : 1.6.0.**
 
-Les trois espaces couvrent leur usage quotidien. La 1.0 a été tournée vers le
-temps de l'équipe : palette Cmd+K, tâches en une ligne, chrono, filtres
-mémorisés, adresse et SIRET remplis par les API publiques, intégration GitHub
-et GitLab par webhook. Restent ouverts, parmi les critères de sortie annoncés
-pour la V1 : sauvegardes testées, export et suppression RGPD, journal
-d'audit, tests de bout en bout, recette avec des clients pilotes. Ils sont
-répartis dans les versions ci-dessous.
+Les trois espaces couvrent leur usage quotidien. Depuis la 1.0, le portail
+client s'est enrichi (livrables, e-mail ↔ tickets, modules de disponibilité
+et de statistiques, rapport mensuel), et la production est plus sûre :
+sauvegardes testées, journal d'audit, import CSV, export et suppression RGPD.
+Restent ouverts, parmi les critères de sortie de la V1 : les tests de bout en
+bout (1.7) et la recette avec des clients pilotes (1.12).
 
 ---
 
 ## Roadmap
 
-Chaque version apporte des fonctionnalités visibles, et prend sa part des
-chantiers de fiabilisation. Les versions sont un ordre, pas des dates : une
+Chaque version apporte des fonctionnalités visibles, ou prépare l'adoption du
+projet en open source. Les versions sont un ordre, pas des dates : une
 version sort quand ce qu'elle contient est prêt.
 
 <!-- roadmap:table -->
@@ -55,9 +54,12 @@ version sort quand ce qu'elle contient est prêt.
 | ✅ Livrée | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
 | ✅ Livrée | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
 | 📍 Actuelle | **1.6.0** | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
-| ⏳ À venir | 1.7.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
-| ⏳ À venir | 1.8.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
-| ⏳ À venir | 1.9.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, tests de bout en bout, recette, guide utilisateur |
+| ⏳ À venir | 1.7.0 | Qualité et démo | Tous | Tests de bout en bout en CI sur les parcours clés, données et compte de démo, installation en une commande, guide « démarrer en 5 minutes » |
+| ⏳ À venir | 1.8.0 | Interface en anglais | Tous | Traduction du front et des e-mails (français et anglais), langue par compte et par défaut d'instance, textes de l'API traduisibles |
+| ⏳ À venir | 1.9.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
+| ⏳ À venir | 1.10.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
+| ⏳ À venir | 1.11.0 | Connexion SSO | Tous | Connexion OIDC facultative (Keycloak, Authentik, Google Workspace…), rattachement des comptes par e-mail, rôle par défaut |
+| ⏳ À venir | 1.12.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, recette, guide utilisateur, critères de sortie de la V1 |
 <!-- /roadmap:table -->
 
 ---
@@ -95,7 +97,7 @@ version sort quand ce qu'elle contient est prêt.
 - **Notifications en temps réel** sur les tâches et les projets.
 - **Compte** : profil, photo, mot de passe.
 
-### 0.3.0 — Back-office PM et CRM 📍
+### 0.3.0 — Back-office PM et CRM ✅
 
 > Tout le travail de production et le suivi commercial dans le même outil.
 
@@ -306,7 +308,7 @@ ses livrables, intégration GitHub/GitLab, session qui ne s'expire plus.
 
 Critères de sortie encore ouverts, repris ci-dessous : sauvegardes (1.1),
 journal d'audit (1.2), export et suppression RGPD (1.5), tests de bout en
-bout et recette (1.9).
+bout (1.7) et recette (1.12).
 
 ---
 
@@ -374,10 +376,10 @@ sa réponse arrive sur le ticket.
 
 ---
 
-### 1.3.0 — Modules : disponibilité et statistiques 🚧
+### 1.3.0 — Modules : disponibilité et statistiques ✅
 
-En cours. Ajoutée en cours de route pour un besoin de l'agence : savoir, depuis
-un projet, si ses sites tiennent, sans ouvrir un autre outil.
+Ajoutée en cours de route pour un besoin de l'agence : savoir, depuis un
+projet, si ses sites tiennent, sans ouvrir un autre outil.
 
 - **Page *Paramètres > Modules*** : des fonctions qui s'appuient sur un
   service extérieur, activables une à une. Le premier module est la
@@ -485,7 +487,44 @@ activable. Voir [la maintenance des sites](docs/maintenance-des-sites.md).
 
 ---
 
-### 1.7.0 — Rapports internes
+### 1.7.0 — Qualité et démo
+
+Qui découvre Piilot doit pouvoir l'installer, l'essayer et lui faire
+confiance en quelques minutes.
+
+- **Tests de bout en bout** en CI sur les parcours clés : connexion, projet,
+  ticket, validation client, e-mail entrant, import, RGPD.
+- **Données et compte de démo** : un jeu de données réaliste (clients,
+  projets, tickets, livrables) et un compte pour chaque espace, chargés par
+  une commande.
+- **Installation en une commande** : de la machine vide à une instance qui
+  répond, sans étape manuelle cachée.
+- **Guide « démarrer en 5 minutes »** : installer, se connecter, créer un
+  projet, inviter un client.
+
+**Terminé quand** : une personne qui ne connaît pas Piilot a une instance de
+démo en route en suivant le seul guide, et la CI échoue si un parcours clé
+casse.
+
+---
+
+### 1.8.0 — Interface en anglais
+
+Piilot n'est plus réservé aux équipes francophones.
+
+- **Système de traduction (i18n)** du front et des e-mails, en français et en
+  anglais. Une langue de plus s'ajoute sans toucher au code.
+- **Langue par compte**, avec une **langue par défaut d'instance** pour les
+  nouveaux comptes et les e-mails sans destinataire connu.
+- **Textes de l'API destinés à l'utilisateur** (erreurs, messages de
+  validation) traduisibles, au lieu d'être écrits en dur.
+
+**Terminé quand** : un compte en anglais parcourt les trois espaces et reçoit
+ses e-mails sans voir un mot de français.
+
+---
+
+### 1.9.0 — Rapports internes
 
 Ce que l'agence a fait, pour elle.
 
@@ -499,7 +538,7 @@ Le compte rendu pour le client est passé dans le rapport mensuel de la 1.4.
 
 ---
 
-### 1.8.0 — Portail : documents et santé du site
+### 1.10.0 — Portail : documents et santé du site
 
 Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
 
@@ -520,14 +559,30 @@ Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
 
 ---
 
-### 1.9.0 — Fin de l'ancienne plateforme pour la gestion de projet et le CRM
+### 1.11.0 — Connexion SSO
+
+Se connecter avec l'identité que l'organisation utilise déjà.
+
+- **Connexion OIDC facultative** : Keycloak, Authentik, Google Workspace et
+  tout fournisseur compatible. Sans configuration, rien ne change.
+- **Rattachement des comptes existants par e-mail** : une personne déjà
+  inscrite retrouve son compte et ses droits, sans doublon.
+- **Rôle par défaut** pour un compte créé par la première connexion, réglable
+  par l'admin.
+- **Connexion par mot de passe toujours possible**, y compris pour les
+  comptes rattachés.
+
+**Terminé quand** : une équipe se connecte par son fournisseur d'identité,
+et un compte existant garde son historique.
+
+---
+
+### 1.12.0 — Fin de l'ancienne plateforme pour la gestion de projet et le CRM
 
 Ce qui manque encore pour ne plus y retourner, et clore la V1.
 
 - **Actions en masse** sur tâches, tickets et livrables : réassigner,
   décaler, changer le statut, archiver.
-- **Tests de bout en bout** en CI sur les parcours clés : connexion, projet,
-  ticket, validation client, e-mail entrant, import.
 - **Recette** avec deux ou trois clients pilotes sur le portail ; seules des
   corrections entrent pendant ce temps.
 - **Guide utilisateur** pour l'équipe et pour le client, servi depuis
@@ -567,3 +622,4 @@ Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 | **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
 | **D13** | Bot Discord | Chantier hors version, prioritaire, indépendant du reste : accès machine par clé sous `/api/v1/bot`, liaison d'un compte par code à usage unique, flux d'événements relu par le bot. Piilot n'appelle jamais Discord. Les notifications (livrable à valider, réponse à un ticket), `/ticket`, `/projet` et un salon par client passeront par le même flux. Voir [le bot Discord](docs/discord.md). |
 | **D14** | Connecteur Claude | Chantier hors version, comme D13. Piilot sert d'autorisation OAuth 2.1 et de serveur MCP (`/mcp`) pour claude.ai, Desktop et Claude Code ; seules les deux identités publiques de Claude sont admises. Chaque outil rappelle la route REST de l'interface, au nom du compte : mêmes permissions, même audit. Lecture d'abord, puis écriture et suppressions ; rien qui écrive à un client ou publie sur le portail. Voir [le connecteur Claude](docs/connecteur-claude.md). |
+| **D15** | Ordre des versions | La qualité, la démo et l'interface en anglais (1.7 et 1.8) passent avant les nouvelles fonctionnalités, pour l'adoption en open source : on ne fait pas essayer un outil qu'on ne sait pas installer, ni tester sans le casser. |
