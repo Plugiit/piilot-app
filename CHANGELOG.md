@@ -11,6 +11,59 @@ de release GitHub. Voir « Publier une version » dans le README.
 
 <!-- releases -->
 
+## [1.6.0] — Sources du rapport · 2026-11-16
+
+Cette version permet aux rapports de maintenance de s'appuyer sur ce qui a réellement été mis en ligne et fusionné. Depuis l'espace Admin, on connecte Piilot à une instance Coolify et on lie chaque projet à ses applications. Les pull requests fusionnées sur GitHub sont rattrapées quand le webhook en a manqué. Le rapport indique au client d'où viennent les mises en ligne, et un brouillon est retenu tant que ses sources ne sont pas à jour.
+
+### Points forts
+
+- **Module Coolify** : Piilot relève les applications et les déploiements réussis d'une instance Coolify. Le rapport s'appuie sur ces déploiements en priorité sur ceux reçus par webhook.
+- **Liaison des projets** : chaque projet se lie à ses applications Coolify de production et de préproduction, depuis son onglet Maintenance.
+- **Rattrapage des pull requests** : les pull requests fusionnées sur GitHub sont synchronisées avec leurs étiquettes, ce qui complète ce que le webhook n'a pas reçu.
+- **Source des mises en ligne** : le rapport précise si les mises en ligne sont établies d'après Coolify ou d'après le dépôt.
+- **Brouillons retenus** : un brouillon de rapport est retenu tant que les déploiements ou la synchronisation Git du projet ne sont pas à jour.
+
+### Nouveautés
+
+#### Admin
+
+- **Paramètres › Modules › Coolify** : vous activez le module et renseignez l'adresse de l'instance, le jeton d'API et la fréquence de relève, de 15 minutes à 24 heures (60 minutes par défaut). L'écran affiche la date de la dernière relève et sa dernière erreur. Un bouton lance une relève immédiate. Le jeton n'est jamais réaffiché.
+- **Applications Coolify** : le module liste les applications de l'instance. Une application qui disparaît de Coolify reste visible et marquée absente.
+- **Onglet Maintenance › Déploiements** : sur un projet, vous choisissez ses applications Coolify et indiquez pour chacune s'il s'agit de la production ou de la préproduction. La carte affiche les derniers déploiements relevés.
+- **Onglet Maintenance › Pull requests fusionnées** : la carte affiche l'état de la synchronisation des pull requests du projet (dernier succès, dernière erreur) et permet de la relancer. Seuls les dépôts GitHub sont pris en charge pour l'instant ; GitLab reste couvert par son webhook.
+- **Rapports** : avant la création d'un brouillon, Piilot demande une relève des déploiements et attend la synchronisation Git du projet, pendant un délai borné. La vue du rapport affiche la source des mises en ligne et, le cas échéant, le motif de retenue (déploiements périmés ou synchronisation Git périmée), avec un lien vers l'onglet Maintenance. Ces motifs restent réservés à l'équipe.
+
+#### Client
+
+- **Rapport de maintenance** : le mail, en HTML comme en texte, et la page du rapport indiquent si les mises en ligne sont établies « d'après Coolify » ou « d'après le dépôt ».
+
+### Améliorations
+
+- **Détection des mises à jour et des correctifs** : une pull request portant l'étiquette « dependencies » compte comme une mise à jour de dépendance. Une pull request portant l'étiquette « security » ou « sécurité » compte comme un correctif de sécurité. Les étiquettes reçues par webhook sont désormais enregistrées. Un correctif de sécurité de Dependabot sans étiquette ni mention dans le titre n'est pas compté.
+
+### Technique
+
+- Le jeton Coolify est chiffré en base. Il faut le ressaisir quand l'hôte de l'adresse de l'instance change.
+- Le client Coolify ne suit pas les redirections, pour que le jeton ne parte jamais vers une autre adresse. Il refuse les réponses trop volumineuses au lieu de les tronquer.
+- La relève des déploiements ne dépend pas de l'ordre de pagination de Coolify. Elle lit au plus 2 000 déploiements par application et échoue au-delà plutôt que de tronquer la liste. Elle est idempotente : un même déploiement n'est jamais enregistré deux fois.
+- Relève Coolify et synchronisation Git s'exécutent en tâches de fond, avec un délai maximal (2 minutes par application et 15 minutes au total pour Coolify, une minute par projet pour Git). Un dépassement est enregistré comme une erreur lisible et n'est pas retenté en boucle.
+- Lecture des pull requests GitHub paginée, avec un plafond explicite. Le lien de page suivante n'est suivi que vers le même hôte.
+
+### À savoir pour le déploiement
+
+- Migrations appliquées au démarrage :
+  - 000061 : tables des réglages et des applications du module Coolify.
+  - 000062 : liaison des projets aux applications Coolify et identifiant externe des déploiements. La contrainte d'unicité des déploiements est remplacée par deux index uniques, un pour les webhooks et un pour Coolify. Un retour arrière supprime les déploiements relevés chez Coolify ; ils se relisent ensuite sur les deux derniers mois seulement.
+  - 000063 : étiquettes des pull requests et état de la synchronisation Git par projet.
+- Nouvelles variables d'environnement, facultatives :
+  - `COOLIFY_API_URL` : adresse de l'instance Coolify, sans `/api/v1`. Une valeur qui ne commence pas par `http://` ou `https://` empêche l'API de démarrer.
+  - `COOLIFY_API_TOKEN` : jeton d'API complet, tel que Coolify l'affiche (identifiant, `|`, secret).
+  - Quand elles sont renseignées, ces variables priment sur *Paramètres › Modules*, et l'écran les affiche en lecture seule. `COOLIFY_URL` n'est volontairement pas lue : Coolify l'injecte dans chaque conteneur avec l'adresse de l'application elle-même.
+- Prérequis :
+  - Coolify : activer l'API dans les réglages de l'instance, créer un jeton limité à la lecture des ressources utiles et autoriser l'adresse IP de Piilot.
+  - GitHub : ajouter la permission « Pull requests : lecture » au jeton GitHub déjà enregistré dans Piilot.
+- Le module Coolify, la liaison des projets, la synchronisation Git, leurs limites connues et les points à vérifier sur une instance Coolify réelle sont décrits dans `docs/maintenance-des-sites.md`.
+
 ## [1.5.0] — Import et RGPD · 2026-11-15
 
 Cette version permet à l'agence de reprendre ses données existantes et de remplir ses obligations RGPD depuis l'espace Admin. On peut importer et exporter en CSV les clients, contacts, projets et saisies du temps, exporter les données d'une personne et planifier leur effacement avec un délai de rétractation. Les membres de l'équipe peuvent aussi connecter Claude à leur compte pour consulter Piilot en lecture, avec leurs propres droits.
