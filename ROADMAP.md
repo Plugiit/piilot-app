@@ -9,11 +9,11 @@ un par population :
 | **Team** | `team` | Produire : ses tâches, ses tickets, ses livrables, son temps, les projets sur lesquels on intervient |
 | **Client** | `client` | Suivre ses projets, valider les livrables, déposer et suivre ses tickets |
 
-La V1 est publiée. Piilot est un projet **open source** : le cap est
-désormais de le rendre simple à essayer, à installer et à adopter par d'autres
-agences. La qualité, la démo et l'interface en anglais passent avant les
-nouvelles fonctionnalités (voir D15). Viennent ensuite les rapports internes,
-le portail enrichi et la connexion SSO, puis la fin de l'ancienne plateforme.
+La V1 est publiée, et Piilot est un projet **open source**. La qualité passe
+d'abord, avec le cadre écrit des projets clients — devis, cahier des charges,
+PV de recette — et la santé du site sur le portail (voir D15 et D16).
+Viennent ensuite l'interface en anglais, les rapports internes, l'historique
+des mises en ligne et la connexion SSO, puis la fin de l'ancienne plateforme.
 Le tout par petites versions, publiées au fil de l'eau.
 
 ## État actuel
@@ -54,12 +54,12 @@ version sort quand ce qu'elle contient est prêt.
 | ✅ Livrée | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
 | ✅ Livrée | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
 | 📍 Actuelle | **1.6.0** | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
-| ⏳ À venir | 1.7.0 | Qualité et démo | Tous | Tests de bout en bout en CI sur les parcours clés, données et compte de démo, installation en une commande, guide « démarrer en 5 minutes » |
+| ⏳ À venir | 1.7.0 | Qualité, documents et santé du site | Tous | Tests de bout en bout en CI sur les parcours clés ; documents de projet exigés (devis, cahier des charges, PV de recette, avenant) avec accusé horodaté ; santé du site sur le portail |
 | ⏳ À venir | 1.8.0 | Interface en anglais | Tous | Traduction du front et des e-mails (français et anglais), langue par compte et par défaut d'instance, textes de l'API traduisibles |
 | ⏳ À venir | 1.9.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
-| ⏳ À venir | 1.10.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
+| ⏳ À venir | 1.10.0 | Portail : historique des mises en ligne | Client | Les mises en ligne reçues par Git, avec ce qui a changé (tickets clos, pull requests fusionnées) |
 | ⏳ À venir | 1.11.0 | Connexion SSO | Tous | Connexion OIDC facultative (Keycloak, Authentik, Google Workspace…), rattachement des comptes par e-mail, rôle par défaut |
-| ⏳ À venir | 1.12.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, recette, guide utilisateur, critères de sortie de la V1 |
+| ⏳ À venir | 1.12.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, recette, guide utilisateur, installation en une commande, critères de sortie de la V1 |
 <!-- /roadmap:table -->
 
 ---
@@ -487,23 +487,65 @@ activable. Voir [la maintenance des sites](docs/maintenance-des-sites.md).
 
 ---
 
-### 1.7.0 — Qualité et démo
+### 1.7.0 — Qualité, documents et santé du site
 
-Qui découvre Piilot doit pouvoir l'installer, l'essayer et lui faire
-confiance en quelques minutes.
+Chaque projet client a son cadre écrit, du devis au PV de recette, et la CI
+garantit que les parcours clés tiennent. Pas de démo : ni données ni compte
+de démonstration (voir D15).
+
+**Qualité**
 
 - **Tests de bout en bout** en CI sur les parcours clés : connexion, projet,
-  ticket, validation client, e-mail entrant, import, RGPD.
-- **Données et compte de démo** : un jeu de données réaliste (clients,
-  projets, tickets, livrables) et un compte pour chaque espace, chargés par
-  une commande.
-- **Installation en une commande** : de la machine vide à une instance qui
-  répond, sans étape manuelle cachée.
-- **Guide « démarrer en 5 minutes »** : installer, se connecter, créer un
-  projet, inviter un client.
+  ticket, validation client, e-mail entrant, import, RGPD, et les parcours
+  documentaires de cette version : acceptation d'un document, PV de recette,
+  passage d'étape bloqué.
 
-**Terminé quand** : une personne qui ne connaît pas Piilot a une instance de
-démo en route en suivant le seul guide, et la CI échoue si un parcours clé
+**Documents de projet** (voir D9 et D16)
+
+Un projet client, hors projet interne, ne change plus d'étape sans ses
+documents. Deux natures, qu'on ne mélange pas :
+
+- **Documents déposés** : un PDF rédigé ailleurs, classé par type — devis,
+  cahier des charges, contrat, accord de sous-traitance RGPD (DPA), cession
+  de droits, compte rendu, maquette, autre — et versionné. Chaque version est
+  figée par son empreinte ; le client l'accuse d'un clic depuis le portail
+  (« lu », « accepté »), horodaté, visible de l'agence et inscrit au journal
+  d'audit.
+- **PV de recette**, natif : les livrables recettés et trois issues — sans
+  réserves, avec réserves, refus. Chaque réserve devient un ticket, et le PV
+  se clôt à la levée de la dernière. Sans réponse après des relances tracées,
+  la recette est réputée tacite au bout d'un délai réglable. La date du PV
+  ouvre la période de garantie : un ticket s'y distingue, sous garantie ou
+  facturable.
+- **Avenant**, natif : ce qui sort du cahier des charges — périmètre, montant,
+  délai — chiffré et accepté par le client sur le portail, ouvert depuis un
+  ticket « évolution ». Le montant reste hors de vue du rôle `team` (D1).
+- **Étapes bloquées** : passer de « cadrage » à « production » exige le devis
+  et le cahier des charges acceptés, plus le DPA si le projet traite des
+  données personnelles ; passer à « livré » exige le PV de recette, signé ou
+  tacite. L'admin peut passer outre, avec un motif inscrit au journal
+  d'audit.
+- **Cession de droits** : jamais exigée. Déposée à la demande, le plus souvent
+  quand le client change de prestataire.
+
+*Préalable côté agence, hors code : ses conditions générales portent la
+convention de preuve (l'acceptation depuis le portail vaut signature), la
+clause de recette tacite et les conditions de la cession de droits. Sans
+elles, Piilot garde la trace mais ne protège pas.*
+
+**Santé du site sur le portail**
+
+- **Disponibilité et certificat** des sites de production, lus dans le module
+  de la 1.3, avec une pastille « tout va bien » et les incidents du mois.
+  Alerte à l'équipe à l'ouverture d'un incident. Pas de SEO : ça reste sur
+  l'ancienne plateforme.
+  *Déjà en place, en avance sur la version : l'état et la disponibilité sur
+  trente jours du site de chaque projet, dans le bandeau de sa page. Restent
+  le certificat, les incidents du mois et l'alerte à l'équipe.*
+
+**Terminé quand** : un projet client ne passe ni en production sans devis ni
+cahier des charges acceptés, ni en livré sans PV de recette ; le client voit
+la santé de ses sites sur le portail ; et la CI échoue si un parcours clé
 casse.
 
 ---
@@ -538,24 +580,14 @@ Le compte rendu pour le client est passé dans le rapport mensuel de la 1.4.
 
 ---
 
-### 1.10.0 — Portail : documents et santé du site
+### 1.10.0 — Portail : historique des mises en ligne
 
-Le portail devient l'endroit où l'on retrouve tout ce que l'agence a remis.
+Le client voit ce qui a été mis en ligne sur son site, et ce que ça change.
 
-- **Documents classés** par type — devis, contrat, compte rendu, maquette,
-  autre — avec versions, et un **accusé** d'un clic côté client (« lu »,
-  « accepté ») horodaté et visible de l'agence. Pas de signature
-  électronique : sans prestataire, elle n'aurait pas de valeur ; avec, c'est
-  une dépendance payante. Le devis signé reste un PDF déposé.
 - **Historique des mises en ligne** : les mises en ligne reçues par Git,
   avec ce qui a changé (tickets clos, pull requests fusionnées).
-- **Santé du site sur le portail** : la disponibilité et le certificat des
-  sites de production, lus dans le module de la 1.3, avec une pastille
-  « tout va bien » et les incidents du mois. Alerte à l'équipe à l'ouverture
-  d'un incident. Pas de SEO : ça reste sur l'ancienne plateforme.
-  *Déjà en place, en avance sur la version : l'état et la disponibilité sur
-  trente jours du site de chaque projet, dans le bandeau de sa page. Restent
-  le certificat, les incidents du mois et l'alerte à l'équipe.*
+
+Les documents et la santé du site sont passés dans la 1.7.
 
 ---
 
@@ -587,6 +619,9 @@ Ce qui manque encore pour ne plus y retourner, et clore la V1.
   corrections entrent pendant ce temps.
 - **Guide utilisateur** pour l'équipe et pour le client, servi depuis
   l'application.
+- **Installation en une commande**, de la machine vide à une instance qui
+  répond, et **guide « démarrer en 5 minutes »** : installer, se connecter,
+  créer un projet, inviter un client. Venus de la 1.7, sans la démo.
 - Critères de sortie de la V1 tous cochés ; l'ancienne plateforme ne garde
   que la facturation, le SEO, le CMS et le RH.
 
@@ -616,10 +651,11 @@ Sortent en correctifs (1.0.1, 1.0.2…), au fil de l'eau :
 | **D6** | Stockage des fichiers | Disque local tant qu'une seule instance. Visibilité par fichier : interne par défaut. |
 | **D7** | E-mail entrant | Les deux : boîte IMAP relevée par un job (par défaut), webhook du fournisseur en option. Jamais dans la requête HTTP. |
 | **D8** | Rendez-vous | Un lien externe par membre (Cal.com, Calendly, Google). Pas de créneaux dans Piilot. |
-| **D9** | Devis et contrats sur le portail | PDF classés avec accusé « lu / accepté » horodaté. Pas de signature électronique. |
+| **D9** | Documents et signature | PDF classés, chaque version figée par son empreinte, avec accusé « lu / accepté » horodaté depuis un compte connecté. C'est une signature électronique simple au sens d'eIDAS, renforcée par la convention de preuve des conditions générales de l'agence. Pas de prestataire de signature : une dépendance payante, dont l'offre d'entrée est aussi une signature simple. |
 | **D10** | Santé du site | Déléguée à Uptime Kuma, que l'agence fait déjà tourner : Piilot relève son /metrics et reçoit son webhook (1.3). Pas de sonde maison, pas de SEO. |
 | **D12** | Mises à jour des sites | Piilot commande, il n'exécute pas : workflow GitHub Actions du dépôt, sur l'environnement choisi par projet, avec compte rendu obligatoire. Une panne de Piilot ne touche aucun site. GitHub d'abord ; GitLab ne connaît pas `workflow_dispatch`. |
 | **D11** | Cadence | Au fil de l'eau : une version dès qu'une fonction est prête, dans l'ordre du tableau. |
 | **D13** | Bot Discord | Chantier hors version, prioritaire, indépendant du reste : accès machine par clé sous `/api/v1/bot`, liaison d'un compte par code à usage unique, flux d'événements relu par le bot. Piilot n'appelle jamais Discord. Les notifications (livrable à valider, réponse à un ticket), `/ticket`, `/projet` et un salon par client passeront par le même flux. Voir [le bot Discord](docs/discord.md). |
 | **D14** | Connecteur Claude | Chantier hors version, comme D13. Piilot sert d'autorisation OAuth 2.1 et de serveur MCP (`/mcp`) pour claude.ai, Desktop et Claude Code ; seules les deux identités publiques de Claude sont admises. Chaque outil rappelle la route REST de l'interface, au nom du compte : mêmes permissions, même audit. Lecture d'abord, puis écriture et suppressions ; rien qui écrive à un client ou publie sur le portail. Voir [le connecteur Claude](docs/connecteur-claude.md). |
-| **D15** | Ordre des versions | La qualité, la démo et l'interface en anglais (1.7 et 1.8) passent avant les nouvelles fonctionnalités, pour l'adoption en open source : on ne fait pas essayer un outil qu'on ne sait pas installer, ni tester sans le casser. |
+| **D15** | Ordre des versions | La qualité (1.7) passe avant les nouvelles fonctionnalités : on n'ajoute pas un parcours qu'on ne sait pas tester sans le casser. Les documents de projet et la santé du site la rejoignent, leurs parcours compris dans les tests de bout en bout. Pas de démo, ni données ni compte. L'interface en anglais suit (1.8). |
+| **D16** | Documents de projet | Un projet client ne passe en production qu'avec son devis et son cahier des charges acceptés, plus le DPA s'il traite des données personnelles, et en livré qu'avec son PV de recette, signé ou tacite. Projets internes exemptés ; l'admin passe outre avec un motif, au journal d'audit. Ce qui est rédigé ailleurs est déposé ; ce qui porte des données (PV de recette, avenant) est natif. La cession de droits n'est jamais exigée : déposée à la demande, à des conditions fixées dès le devis. |
