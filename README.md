@@ -324,12 +324,12 @@ Historique détaillé dans [CHANGELOG.md](CHANGELOG.md).
 | ✅ Livrée | 1.4.0 | Maintenance et rapport mensuel | Tous | Journal des interventions, formules de maintenance, rapport mensuel par projet (disponibilité, audience, interventions, mises en ligne) relu puis envoyé |
 | ✅ Livrée | 1.5.0 | Import et RGPD | Admin | Import CSV clients, contacts, projets, temps ; export et suppression RGPD |
 | 📍 Actuelle | **1.6.0** | Sources du rapport | Admin | Un module à la fois : déploiements Coolify, mises à jour de dépendances (Git), sauvegardes, expiration du domaine |
-| ⏳ À venir | 1.7.0 | Qualité et démo | Tous | Tests de bout en bout en CI sur les parcours clés, données et compte de démo, installation en une commande, guide « démarrer en 5 minutes » |
+| ⏳ À venir | 1.7.0 | Qualité, documents et santé du site | Tous | Tests de bout en bout en CI sur les parcours clés ; documents de projet exigés (devis, cahier des charges, PV de recette, avenant) avec accusé horodaté ; santé du site sur le portail |
 | ⏳ À venir | 1.8.0 | Interface en anglais | Tous | Traduction du front et des e-mails (français et anglais), langue par compte et par défaut d'instance, textes de l'API traduisibles |
 | ⏳ À venir | 1.9.0 | Rapports internes | Admin | Temps par client et projet en CSV, activité de l'équipe |
-| ⏳ À venir | 1.10.0 | Portail : documents et santé du site | Client | Documents classés avec accusé, historique des mises en ligne, disponibilité des sites sur le portail |
+| ⏳ À venir | 1.10.0 | Portail : historique des mises en ligne | Client | Les mises en ligne reçues par Git, avec ce qui a changé (tickets clos, pull requests fusionnées) |
 | ⏳ À venir | 1.11.0 | Connexion SSO | Tous | Connexion OIDC facultative (Keycloak, Authentik, Google Workspace…), rattachement des comptes par e-mail, rôle par défaut |
-| ⏳ À venir | 1.12.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, recette, guide utilisateur, critères de sortie de la V1 |
+| ⏳ À venir | 1.12.0 | Fin de l'ancienne plateforme | Tous | Actions en masse, recette, guide utilisateur, installation en une commande, critères de sortie de la V1 |
 <!-- /roadmap:readme -->
 
 ## Publier une version
